@@ -289,3 +289,22 @@
 | P16.8 | Frontend: handle `agent_handoff` SSE event, update profession badge | Core | 0.5 day | P16.6 | Proposed |
 | P16.9 | Frontend: HandoffCard component for bring_in tool_call rendering | Core | 1 day | P16.8 | Proposed |
 | P16.10 | Integration tests: bring_in validation, handoff note injection, SSE event | Core | 1 day | P16.5, P16.6 | Proposed |
+
+---
+
+## P17 Wiki Knowledge Layer — Storage, RAG, and Tools
+**Status:** proposed
+**Depends on:** G18, A10, D25
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P17.1 | WikiPage data model + storage in `{project}/wiki/` with manifest.json | Core | 2 days | D25 | Proposed |
+| P17.2 | `list_wiki` and `create_wiki_page` tools for agents | Core | 1 day | P17.1 | Proposed |
+| P17.3 | `update_wiki_page` tool with version tracking | Core | 1 day | P17.1 | Proposed |
+| P17.4 | Embedding computation: integrate local embedding model or API-based embeddings | Core | 2 days | P17.1 | Proposed |
+| P17.5 | `query_wiki` tool with FAISS vector similarity search (top-K retrieval) | Core | 2 days | P17.4 | Proposed |
+| P17.6 | Frontend: Wiki tab with sidebar TOC and markdown rendering | UI | 3 days | P17.1 | Proposed |
+| P17.7 | Frontend: full-text + semantic search UI for wiki | UI | 2 days | P17.5, P17.6 | Proposed |
+| P17.8 | Frontend: markdown editor with live preview for wiki page editing | UI | 2 days | P17.6 | Proposed |
+| P17.9 | Integration: agent tools registered per profession, wiki tools in allowed_tools | Core | 1 day | P17.2, P17.3, P17.5 | Proposed |
+| P17.10 | Integration tests: wiki CRUD, RAG retrieval accuracy, embedding pipeline | Core | 2 days | P17.9 | Proposed |

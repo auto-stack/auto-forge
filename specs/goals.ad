@@ -526,12 +526,4 @@ Wiki is AutoForge's **knowledge index & compression layer**. It stores objective
 
 AutoDown is Markdown extended with Auto language syntax, providing structured editing capabilities for Wiki content. Initially supports basic Markdown with Auto language highlighting; future versions may add more sophisticated structured editing features.
 
----
-
-**Note for the bug fix**: The `write_specs` tool should:
-1. Update the in-memory specs state (current behavior)
-2. **Also** persist to the actual `.ad` file at `specs/{section_id}.ad`
-3. Handle both creating new files and appending to existing ones
-4. Preserve file formatting and existing content structure
-
 Let me know once you've added these and fixed the bug, and I can continue with the next phase of planning!

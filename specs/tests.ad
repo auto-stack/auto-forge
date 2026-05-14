@@ -973,3 +973,70 @@ const event = { type: 'agent_handoff', from_agent: 'Nicole', to_agent: 'Isaac', 
 - Handoff card renders for bring_in tool calls.
 - Profession badge updates on handoff.
 - No duplicate rendering (card replaces tool output).
+
+---
+
+## S17.1 [G18] Wiki page CRUD operations
+**Status:** proposed
+**Test File:** `backend/tests/wiki_crud.rs`
+**Depends on:** G18, D25
+
+1. Create a wiki page via `create_wiki_page` tool with title, content, tags
+2. Assert page file exists at `{project}/wiki/{slug}.md`
+3. Assert manifest.json updated with page metadata
+4. Read page back via `list_wiki` — assert entry appears
+5. Update page via `update_wiki_page` — assert version incremented
+6. Delete page — assert file removed, manifest updated
+
+- Wiki pages persist to disk as markdown files.
+- Manifest.json tracks page metadata and version history.
+- Version increments on each update.
+
+---
+
+## S17.2 [G18] Wiki RAG semantic retrieval
+**Status:** proposed
+**Test File:** `backend/tests/wiki_rag.rs`
+**Depends on:** G18, D25
+
+1. Create 5 wiki pages with distinct technical content
+2. Call `query_wiki("timer register configuration")` tool
+3. Assert top-3 results are semantically relevant (timer/register pages ranked higher)
+4. Assert each result is ≤500 tokens
+5. Verify empty query returns error, not all pages
+
+- Vector similarity search returns relevant passages.
+- Token budget per retrieval is bounded.
+- Empty/malformed queries return errors.
+
+---
+
+## S17.3 [G18] Wiki tool profession access control
+**Status:** proposed
+**Test File:** `backend/tests/wiki_tools.rs`
+**Depends on:** G18, D25
+
+1. Assert all professions can call `query_wiki` and `list_wiki`
+2. Assert only Coder and Documenter can call `create_wiki_page` and `update_wiki_page`
+3. Verify agent with wrong profession gets PermissionDenied on write tools
+4. Verify agent with correct profession succeeds on write tools
+
+- Read tools (query, list) available to all professions.
+- Write tools (create, update) restricted to Coder and Documenter.
+
+---
+
+## S17.4 [G18] Wiki embedding pipeline
+**Status:** proposed
+**Test File:** `backend/tests/wiki_embedding.rs`
+**Depends on:** G18, D25
+
+1. Create wiki page with technical content
+2. Assert embedding vector is computed and stored
+3. Update page content — assert embedding recomputed
+4. Verify embedding dimensions match model output
+5. Verify FAISS index updated after page operations
+
+- Embeddings computed on page create/update.
+- FAISS index stays in sync with page content.
+- Embedding dimensions are consistent.

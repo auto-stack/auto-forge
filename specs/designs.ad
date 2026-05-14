@@ -1379,3 +1379,62 @@ The `tool_call` for `bring_in` renders as a HandoffCard instead of a generic too
 - Shows classification badge (NEW_GOAL)
 - Shows reason text
 - Active profession badge updates to show Isaac
+
+---
+
+## D25 Wiki Knowledge Layer — Storage, RAG, and Agent Tools
+**Status:** proposed
+**Depends on:** G18, A10
+
+### Data Model
+
+```rust
+struct WikiPage {
+    id: String,              // slug: "stm32f4-register-map"
+    title: String,
+    content: String,         // LLM-compressed markdown (5-10 pages)
+    source_type: WikiSource,  // Manual, Guide, ApiRef, Custom
+    source_ref: Option<String>, // original PDF/filename
+    tags: Vec<String>,
+    embedding: Option<Vec<f32>>, // pre-computed vector
+    created_at: u64,
+    updated_at: u64,
+    version: u32,
+}
+
+enum WikiSource { Manual, Guide, ApiRef, Custom }
+```
+
+### Storage Layout
+
+```
+{project}/
+├── specs/          # existing specs
+└── wiki/
+    ├── manifest.json    # page index + metadata
+    ├── stm32f4-register-map.md
+    ├── harness-setup-guide.md
+    └── ...
+```
+
+### Agent Tools
+
+| Tool | Description | Profession Access |
+|---|---|---|
+| `query_wiki` | Semantic search: query → top-K passages via vector similarity | All professions |
+| `create_wiki_page` | Create new page with markdown content | Coder, Documenter |
+| `update_wiki_page` | Update existing page content | Coder, Documenter |
+| `list_wiki` | List all wiki pages with metadata | All professions |
+
+### RAG Pipeline
+
+1. **Indexing**: On wiki page create/update, compute embedding via local model or API
+2. **Query**: Agent calls `query_wiki("timer register configuration")` → vector similarity search → top 3-5 passages returned
+3. **Token budget**: Each retrieval returns ≤500 tokens (vs ~4000 for full manual page)
+
+### UI: Wiki Tab
+
+- Left column `Wiki` tab alongside `Chats` and `Specs`
+- GitBook-style rendering: sidebar TOC + content area + metadata panel
+- Full-text search bar + semantic search
+- Markdown editor with live preview for page editing

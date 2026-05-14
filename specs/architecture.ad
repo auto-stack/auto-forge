@@ -402,3 +402,66 @@ graph LR
 - Positive: Frontend shows a visual handoff card, not raw tool output.
 - Negative: LLM must reliably call bring_in with correct target; may need prompt tuning.
 - Mitigation: Nicole's soul already instructs classification; bring_in is the natural action after classification. Validation rejects invalid targets (not in handoff_to).
+
+---
+
+## A10 Wiki Knowledge Layer Architecture
+**Status:** proposed
+**Depends on:** G18
+
+Specs capture project-specific engineering decisions (WHAT to build). Wiki captures objective, reusable reference knowledge (HOW to do it). Loading full technical manuals (3000+ pages) into agent context is prohibitively expensive. Wiki provides an LLM-compressed knowledge layer: manuals are summarized to 5-10 pages, indexed with semantic vectors, and agents retrieve only relevant passages via RAG — achieving ~87.5% token savings.
+
+```mermaid
+graph TB
+    subgraph "Wiki Storage"
+        WS[wiki/ directory]
+        MD[LLM-Compressed Markdown]
+        MF[metadata.json]
+    end
+    subgraph "Index Layer"
+        VI[Vector Index]
+        EM[Embedding Model]
+    end
+    subgraph "Agent Tools"
+        QW[query_wiki]
+        CW[create_wiki_page]
+        UW[update_wiki_page]
+    end
+    subgraph "UI"
+        WT[Wiki Tab]
+        WE[AutoDown Editor]
+    end
+
+    WS --> MD
+    WS --> MF
+    MD --> EM --> VI
+    QW -->|semantic search| VI
+    QW -->|retrieve| MD
+    CW -->|write| WS
+    UW -->|write| WS
+    WT -->|render| MD
+    WT -->|edit| WE
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| LLM-compressed Markdown + vector index (chosen) | ~87.5% token savings, human-readable, git-friendly | Embedding model dependency, index rebuild on changes |
+| Full-text search only (no vectors) | Simpler, no embedding model needed | No semantic matching, poor recall for paraphrased queries |
+| Knowledge graph (structured triples) | Precise numerical queries, relationship traversal | Complex setup, not needed for most wiki content |
+| External wiki (Notion, Confluence) | No storage implementation needed | Network dependency, not offline, API latency |
+
+- Positive: Wiki is project-scoped — each project has its own knowledge base.
+- Positive: Agents retrieve only relevant passages, not full documents.
+- Positive: Markdown storage is version-controllable and human-readable.
+- Negative: Embedding model adds a dependency (local model or API).
+- Mitigation: Start with FAISS (in-memory, no external DB); embed locally via small model or API call.
+
+### Wiki vs Specs Distinction
+
+| Aspect | Specs | Wiki |
+|---|---|---|
+| Content | Engineering constraints, decisions | Objective facts, reference material |
+| Scope | Project-specific | Project-scoped, potentially cross-project |
+| Mutability | Formal change control (gates) | Free editing (agents + users) |
+| Agent access | Read via profession ownership | Query via RAG, create/update freely |
+| Examples | Goals, Architecture, Plans | Chip manuals, how-to guides, API refs |
