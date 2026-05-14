@@ -1,4 +1,4 @@
-use auto_forge::ai::{ClaudeProvider, AIProviderState};
+use auto_forge::provider::{ClaudeProvider, AIProviderState};
 
 use axum::http::Method;
 use axum::Router;

@@ -1,4 +1,4 @@
-# 🎨 Designs
+# Designs
 
 > Module-level interfaces, state machines, and data models for the Agents Relay module.
 
@@ -1094,3 +1094,154 @@ fn parse_sse_delta(provider, data):
 - `ToolClaudeProvider` in `forge/ai.rs` generalized to use `dispatch_chat()` with `ApiSource`
 - Existing `ModelConfig::cheap()/standard()/strong()` kept as fallback defaults
 - `ai.rs` `load_api_config()` replaced by `config::resolve_api_key()`
+
+---
+
+## D21 Unified Provider Layer
+**Status:** done
+**Module:** `backend/src/provider/`
+
+```rust
+// provider/claude.rs
+pub struct ClaudeProvider {
+    pub(crate) client: reqwest::Client,
+    pub(crate) api_key: Option<String>,
+    pub(crate) base_url: String,
+}
+
+impl ClaudeProvider {
+    pub fn new() -> Self;
+    pub fn is_available(&self) -> bool;
+    pub async fn chat_stream(&self, request: AIRequest, tx: UnboundedSender<AIStreamDelta>) -> Option<String>;
+    pub async fn chat(&self, request: AIRequest) -> AIResponse;
+    pub async fn chat_turn(&self, request: ToolChatRequest, tx: UnboundedSender<ToolChatEvent>) -> Option<String>;
+}
+
+// provider/sse.rs
+pub struct SseParser { buffer: Vec<u8> }
+
+impl SseParser {
+    pub fn new() -> Self;
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>, SseError>;
+    pub fn finish(self) -> Result<Vec<StreamEvent>, SseError>;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Streaming: HTTP response received
+    Streaming --> Parsing: SSE chunk arrives
+    Parsing --> Emitting: complete frame found
+    Emitting --> Streaming: more chunks
+    Emitting --> Done: stream ends
+    Parsing --> Done: stream ends
+    Done --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `client` | `reqwest::Client` | Reusable HTTP client |
+| `api_key` | `Option<String>` | Loaded from ~/.claude/settings.json or env |
+| `base_url` | `String` | API endpoint (default: https://api.anthropic.com) |
+
+---
+
+## D22 CLI REPL Interface
+**Status:** done
+**Module:** `backend/src/cli/`
+
+```rust
+// cli/repl.rs
+pub async fn run_repl(
+    provider: Arc<ClaudeProvider>,
+    registry: &ToolRegistry,
+    system_prompt: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+
+// cli/settings.rs
+pub struct Settings {
+    pub env: HashMap<String, String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub permission: Option<String>,
+}
+pub fn load() -> Settings
+pub fn inject_env(settings: &Settings)
+pub fn ensure_template()
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Prompt
+    Prompt --> Processing: user input
+    Processing --> Streaming: chat_turn()
+    Streaming --> Compacting: response done
+    Compacting --> Prompt: context managed
+    Prompt --> [*]: :quit
+```
+
+| Command | Action |
+|---|---|
+| `:quit` / `:q` | Exit REPL |
+| `:help` | Show available commands |
+| `:reset` | Clear conversation history |
+| `:messages` | Show message count |
+
+---
+
+## D23 Runtime Infrastructure
+**Status:** done
+**Module:** `backend/src/runtime/`
+
+```rust
+// runtime/context.rs
+pub struct ContextManager {
+    max_tokens: u32,
+    keep_recent: usize,
+}
+
+impl ContextManager {
+    pub fn new() -> Self;
+    pub fn maybe_compact(&self, messages: &mut Vec<InputMessage>) -> bool;
+}
+
+// runtime/session.rs
+pub struct Session { path: PathBuf }
+
+impl Session {
+    pub fn new(project_path: &str) -> Self;
+    pub fn append(&self, message: &InputMessage) -> Result<()>;
+    pub fn load(&self) -> Result<Vec<InputMessage>>;
+}
+
+// runtime/permission.rs
+pub enum PermissionMode { Allow, Ask, ReadOnly }
+pub enum PermissionDecision { Allowed, AskUser, Denied }
+
+pub struct PermissionPolicy { mode: PermissionMode }
+
+impl PermissionPolicy {
+    pub fn check(&self, tool_name: &str, is_write: bool) -> PermissionDecision;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Allow: mode == Allow
+    [*] --> Ask: mode == Ask
+    [*] --> ReadOnly: mode == ReadOnly
+    ReadOnly --> Allowed: read-only tool
+    ReadOnly --> Denied: write tool
+    Ask --> Allowed: user approves
+    Ask --> Denied: user denies
+    Allow --> Allowed: any tool
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `max_tokens` | `u32` | Token threshold for compaction (default 100k) |
+| `keep_recent` | `usize` | Messages to preserve during compaction |
+| `path` | `PathBuf` | Session directory at ~/.autoforge/sessions/{hash}/ |

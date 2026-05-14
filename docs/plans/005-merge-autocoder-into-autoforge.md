@@ -1,6 +1,6 @@
 # Plan 251: Merge auto-code-rs into auto-forge
 
-## Status: Planning
+## Status: Done (2026-05-14)
 
 ## Goal
 

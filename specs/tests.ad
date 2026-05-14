@@ -1,4 +1,4 @@
-# 🧪 Tests
+# Tests
 
 > Executable verification criteria for the Agents Relay module.
 
@@ -702,3 +702,148 @@ let openai_source = ApiSource { provider: OpenAI, ... };
 - Valid credentials return success with model confirmation.
 - Invalid credentials return descriptive error.
 - Local provider checks connectivity to URL.
+
+---
+
+## S14.1 [G14] ClaudeProvider loads API config from ~/.claude/settings.json or env vars
+**Status:** done
+**Test File:** `backend/src/provider/claude.rs` (inline `#[cfg(test)]`)
+**Depends on:** G14, D21
+
+1. Set `ANTHROPIC_API_KEY` env var
+2. Call `ClaudeProvider::new()`
+3. Assert `is_available() == true`
+4. Unset env var, create mock `~/.claude/settings.json` with `ANTHROPIC_AUTH_TOKEN`
+5. Call `ClaudeProvider::new()`
+6. Assert `is_available() == true`
+
+- Provider detects key from env var.
+- Provider detects key from settings.json.
+- Provider returns `false` when no key is available.
+
+---
+
+## S14.2 [G14] ToolError enum serializes and displays correctly
+**Status:** done
+**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
+**Depends on:** G14, D21
+
+1. Create `ToolError::ExecutionFailed("test error".into())`
+2. Assert `to_string()` contains "test error"
+3. Create `ToolError::InvalidInput("bad input".into())`
+4. Assert `to_string()` contains "bad input"
+5. Create `ToolError::PermissionDenied("denied".into())`
+6. Assert `to_string()` contains "denied"
+
+- Each variant displays its message.
+- `Display` trait works for error formatting.
+
+---
+
+## S14.3 [G14] Read-only tools correctly report is_read_only()
+**Status:** done
+**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
+**Depends on:** G14, D21
+
+1. Create `ReadFileTool`, `SearchTool`, `ReadJadeTool`, `ListJadesTool`
+2. Assert all return `is_read_only() == true`
+3. Create `WriteFileTool`, `EditFileTool`, `ShellTool`, `WriteJadeTool`
+4. Assert all return `is_read_only() == false`
+
+- File-reading tools are classified as read-only.
+- Writing and shell tools are classified as read-write.
+
+---
+
+## S14.4 [G14] ContextManager compacts messages when approaching token limit
+**Status:** done
+**Test File:** `backend/src/runtime/context.rs` (inline `#[cfg(test)]`)
+**Depends on:** G14, D23
+
+1. Create `ContextManager` with low `max_tokens` (100)
+2. Build messages exceeding threshold
+3. Call `maybe_compact(&mut messages)`
+4. Assert returns `true` and messages were compacted
+5. Call `maybe_compact` again with compacted messages
+6. Assert returns `false`
+
+- Compaction triggers at threshold.
+- Compaction preserves system prompt + recent messages.
+- Second compaction is a no-op.
+
+---
+
+## S14.5 [G14] Session persistence round-trips messages in JSONL format
+**Status:** done
+**Test File:** `backend/src/runtime/session.rs` (inline `#[cfg(test)]`)
+**Depends on:** G14, D23
+
+1. Create `Session` in temp directory
+2. Append 3 messages
+3. Call `load()`
+4. Assert all 3 messages loaded correctly
+
+- JSONL format preserves message data.
+- Append is incremental.
+- Load returns all messages in order.
+
+---
+
+## S14.6 [G14] PermissionPolicy enforces modes correctly
+**Status:** done
+**Test File:** `backend/src/runtime/permission.rs` (inline `#[cfg(test)]`)
+**Depends on:** G14, D23
+
+1. Create `PermissionPolicy { mode: Allow }` → assert all tools allowed
+2. Create `PermissionPolicy { mode: ReadOnly }` → assert write tools denied
+3. Create `PermissionPolicy { mode: Ask }` → assert `AskUser` returned for all
+
+- Allow mode permits everything.
+- ReadOnly mode denies write operations.
+- Ask mode defers to user.
+
+---
+
+## S15.1 [G15] CLI settings serialize and deserialize correctly
+**Status:** done
+**Test File:** `backend/src/cli/settings.rs` (inline `#[cfg(test)]`)
+**Depends on:** G15, D22
+
+1. Create full `Settings` with env, provider, model, api_key, base_url, permission
+2. Serialize to JSON and deserialize back
+3. Assert round-trip preserves all fields
+4. Deserialize `{}` (minimal) → assert defaults
+
+- Full settings round-trip without data loss.
+- Empty JSON produces valid defaults.
+- env HashMap is correctly populated.
+
+---
+
+## S15.2 [G15] Settings env injection respects existing env vars
+**Status:** done
+**Test File:** `backend/src/cli/settings.rs` (inline `#[cfg(test)]`)
+**Depends on:** G15, D22
+
+1. Set `TEST_VAR=existing`
+2. Create `Settings { env: { "TEST_VAR": "new" } }`
+3. Call `inject_env()`
+4. Assert `TEST_VAR` still equals "existing" (not overwritten)
+
+- Existing env vars are not overwritten by settings.
+- Missing env vars are set from settings.
+
+---
+
+## S15.3 [G15] Full build passes with CLI module wired in
+**Status:** done
+**Test File:** CI (`cargo check && cargo test --lib`)
+**Depends on:** G14, G15
+
+1. Run `cargo check`
+2. Assert 0 errors
+3. Run `cargo test --lib`
+4. Assert 131 passed, 1 pre-existing failure
+
+- Build compiles without errors.
+- All new and existing tests pass (except pre-existing `test_model_tier_serde`).

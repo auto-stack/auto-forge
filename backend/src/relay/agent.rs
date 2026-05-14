@@ -3,7 +3,7 @@
 //! Combines Soul + Profession + Model into a runnable agent identity.
 //! Handles context assembly and system prompt rendering.
 
-use crate::forge::ai::{ChatMessage, ToolChatRequest};
+use crate::provider::{ChatMessage, ToolChatRequest};
 use crate::forge::tools::ToolDefinition;
 use crate::relay::profession::Profession;
 use crate::relay::soul::SoulConfig;

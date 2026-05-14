@@ -5,7 +5,7 @@
 //! relay pipeline: it holds the baton, executes tools, and produces a
 //! result that can be turned into a HandoffDocument.
 
-use crate::forge::ai::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest, ToolClaudeProvider};
+use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest};
 use crate::forge::tools::{ToolDefinition, ToolRegistry};
 use crate::relay::agent::AgentInstance;
 use crate::relay::budget::{BudgetAction, BudgetTracker};
@@ -108,7 +108,7 @@ impl AgentTurn {
     /// Events are sent via `tx` so callers can observe progress in real time.
     pub async fn run(
         &mut self,
-        provider: &ToolClaudeProvider,
+        provider: &crate::provider::ClaudeProvider,
         tx: tokio::sync::mpsc::UnboundedSender<TurnEvent>,
     ) -> TurnResult {
         let mut result = TurnResult {

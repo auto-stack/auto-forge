@@ -1,6 +1,15 @@
-# 🔌 APIs
+# APIs
 
 # APIs
+
+## CLI Commands
+
+AutoForge supports two modes via clap subcommands:
+
+| Command | Description |
+|---------|-------------|
+| `forge serve [--port 3031]` | Start HTTP server (default) |
+| `forge chat` | Interactive REPL chat mode |
 
 ## Authentication
 
@@ -31,6 +40,28 @@ Authorization: Bearer <api_key>
 | POST | `/api/forge/specs/{project}/{section}` | Update section |
 | POST | `/api/forge/specs/{project}` | Update full specs |
 
+### Project
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/forge/project/status` | Get current project status |
+| POST | `/api/forge/project/open` | Open project directory |
+| POST | `/api/forge/project/close` | Close current project |
+| GET | `/api/forge/project/recent` | List recent projects |
+| POST | `/api/forge/project/browse` | Browse directories |
+
+## Provider Module
+
+The `provider/` module provides the unified AI communication layer:
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `ClaudeProvider` | `provider/claude.rs` | Single provider with chat_stream() + chat_turn() |
+| `SseParser` | `provider/sse.rs` | Incremental SSE frame parser |
+| `StreamEvent` | `provider/types.rs` | 7-variant SSE event enum |
+| `ToolChatEvent` | `provider/types.rs` | High-level consumer events |
+| `ChatMessage` | `provider/types.rs` | Role + content blocks message |
+
 ## Schemas
 
 ### ForgeSession
@@ -58,7 +89,7 @@ Authorization: Bearer <api_key>
     {
       "id": "goals",
       "section_type": "goals",
-      "title": "🎯 Goals",
+      "title": "Goals",
       "status": "draft",
       "content": "# markdown content...",
       "depends_on": [],

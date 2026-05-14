@@ -1,4 +1,4 @@
-# 📅 Plans
+# Plans
 
 > Phased implementation roadmap for the Agents Relay module.
 
@@ -255,3 +255,18 @@
 | P14.8 | App.vue: add APIs tab, remove Demo, import ApiSourcesView | Core | 0.5 day | P14.7 | Proposed |
 | P14.9 | First-startup auto-detection: detect Claude/OpenAI/Ollama and generate defaults | Core | 1 day | P14.1 | Proposed |
 | P14.10 | Integration tests: multi-provider dispatch, CRUD persistence, test connection | Core | 2 days | P14.5, P14.8 | Proposed |
+
+---
+
+## P15 Merge auto-code-rs into auto-forge
+**Status:** done
+**Depends on:** —
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P15.1 | Unified provider layer (ClaudeProvider + SseParser + unified types) | Core | 3 days | — | Done |
+| P15.2 | Unified tool system (ToolError, ToolRegistry, is_read_only) | Core | 1 day | P15.1 | Done |
+| P15.3 | Runtime infrastructure (ContextManager, Session, PermissionPolicy) | Core | 1 day | P15.1 | Done |
+| P15.4 | CLI mode (clap dispatch, REPL, settings) | Core | 1 day | P15.2, P15.3 | Done |
+| P15.5 | Move Auto language assets to auto-lang monorepo | Core | 1 day | — | Done |
+| P15.6 | Cleanup: archive auto-code-rs, update docs, verify tests | Core | 0.5 day | P15.1-P15.5 | Done |

@@ -18,9 +18,7 @@ use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
-use crate::ai::AIProviderState;
 
-pub mod ai;
 pub mod project;
 pub mod tools;
 
@@ -1405,8 +1403,8 @@ pub fn start_periodic_reload() {
 
 mod handlers {
     use super::*;
-    use crate::ai::{AIProviderState, AiProvider};
-    use crate::forge::ai::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest, ToolClaudeProvider};
+    use crate::provider::AIProviderState;
+    use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest};
     use crate::forge::tools::ToolRegistry;
 
     // ─── Project Management ───────────────────────────────────────────────
@@ -1572,7 +1570,7 @@ mod handlers {
         tokio::spawn(async move {
             let registry = ToolRegistry::new();
             let ai_for_turns = ai.clone();
-            let _provider = ToolClaudeProvider::new(ai);
+            let _provider = ai.clone();
 
             // Inject project/session context for Jades tools
             let focus_section = {
@@ -1661,7 +1659,7 @@ mod handlers {
                 };
 
                 let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();
-                let provider_clone = ToolClaudeProvider::new(ai_for_turns.clone());
+                let provider_clone = ai_for_turns.clone();
 
                 let turn_task = tokio::spawn(async move {
                     provider_clone.chat_turn(request, turn_tx).await
@@ -2115,7 +2113,7 @@ If no goal IDs exist, number them sequentially."#,
             goals, code_content
         );
 
-        let request = crate::ai::AIRequest {
+        let request = crate::provider::AIRequest {
             prompt,
             context: None,
         };
@@ -2264,7 +2262,7 @@ fn now_secs() -> u64 {
 pub fn routes<S>() -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
-    crate::ai::AIProviderState: FromRef<S>,
+    crate::provider::AIProviderState: FromRef<S>,
 {
     Router::new()
         // Project management

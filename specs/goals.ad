@@ -1,4 +1,4 @@
-# 🎯 Goals
+# Goals
 
 > AutoForge Agents module enables spec-driven serial cooperation of profession-bearing AI agents, maximizing quality and token efficiency through relay orchestration.
 
@@ -20,6 +20,8 @@
 | G11 | Responsive and Accessible Frontend | P1 | Implemented | UI Team |
 | G12 | Project Concept enables VS Code–style folder opening with persistent workspace | P0 | Done | Core Team |
 | G13 | API Source Configuration supports multi-provider LLM management with auto-detection and model tiers | P0 | Proposed | Core Team |
+| G14 | Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming | P0 | Done | Core Team |
+| G15 | CLI Mode provides interactive REPL chat as forge chat subcommand | P1 | Removed | Core Team |
 
 ---
 
@@ -381,5 +383,29 @@ AutoForge operates on a user-chosen project directory, just like VS Code. On fir
 - [ ] First-startup UI guides user when no API source is configured
 
 Currently AutoForge only supports Anthropic Claude with a hardcoded API key path. G13 introduces a configurable multi-provider system so agents can use different LLM backends. The APIs view sits as a top-level navigation tab alongside Chat, Specs, and Relay, because Tools and Skills views will follow the same pattern in the future.
+
+---
+
+## G14 Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming
+**Status:** done
+**Depends on:** G1
+
+- [x] Unified message types (ChatMessage, ContentBlock, StreamEvent, ToolChatEvent) in provider/types.rs
+- [x] Robust incremental SSE parser (SseParser) in provider/sse.rs handling both \r\n\r\n and \n\n delimiters
+- [x] Single ClaudeProvider with chat_stream() and chat_turn() methods replacing both ai.rs and forge/ai.rs
+- [x] ToolError enum (ExecutionFailed, InvalidInput, PermissionDenied) for structured tool error handling
+- [x] ContextManager with token estimation and automatic compaction
+- [x] Session persistence in JSONL format at ~/.autoforge/sessions/
+- [x] PermissionPolicy with Allow/Ask/ReadOnly modes
+
+The provider/ module is the unified AI communication layer, ported from auto-code-rs and merged with auto-forge's existing Claude integration. It replaces both the old ai.rs and forge/ai.rs modules, providing a single entry point for all LLM interactions with structured types and robust SSE parsing.
+
+---
+
+## G15 CLI Mode provides interactive REPL chat as forge chat subcommand
+**Status:** draft
+**Depends on:** G14
+
+CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-driven system — a CLI REPL is not part of its core workflow. The provider, runtime, and tool modules remain; only the CLI entry point and REPL loop were removed.
 
 ---

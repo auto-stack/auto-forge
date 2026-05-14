@@ -3,7 +3,6 @@
 //! Implements the core tools that the Forge agent can use to interact with
 //! the codebase: read_file, write_file, edit_file, shell, and search.
 
-use serde::Serialize;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -24,27 +23,35 @@ pub fn set_tool_context(project: &str, session_id: &str) {
 
 // ─── Tool Definition ─────────────────────────────────────────────────────────
 
+/// Structured error type for tool execution.
+#[derive(Debug, thiserror::Error)]
+pub enum ToolError {
+    #[error("{0}")]
+    ExecutionFailed(String),
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+    #[error("Permission denied: {0}")]
+    PermissionDenied(String),
+}
+
 /// A tool that the AI agent can invoke.
 pub trait Tool: Send + Sync {
     fn name(&self) -> &'static str;
     fn description(&self) -> &'static str;
     fn input_schema(&self) -> Value;
-    fn execute(&self, args: Value) -> Result<String, String>;
+    fn execute(&self, args: Value) -> Result<String, ToolError>;
+    /// Whether this tool only reads data without modifying anything.
+    fn is_read_only(&self) -> bool { false }
 }
 
-/// Definition of a tool for the Claude API
-#[derive(Debug, Clone, Serialize)]
-pub struct ToolDefinition {
-    pub name: String,
-    pub description: String,
-    pub input_schema: Value,
-}
+/// Re-export ToolDefinition from the unified provider layer.
+pub use crate::provider::types::ToolDefinition;
 
 impl ToolDefinition {
     pub fn from_tool(tool: &dyn Tool) -> Self {
         Self {
             name: tool.name().to_string(),
-            description: tool.description().to_string(),
+            description: Some(tool.description().to_string()),
             input_schema: tool.input_schema(),
         }
     }
@@ -127,21 +134,23 @@ impl Tool for ReadFileTool {
         })
     }
 
-    fn execute(&self, args: Value) -> Result<String, String> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = args
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'path' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'path' argument".into()))?;
 
         // Security: restrict to project directory
         let path = Path::new(path);
         if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-            return Err("Path cannot contain '..'".to_string());
+            return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
         std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read file '{}': {}", path.display(), e))
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", path.display(), e)))
     }
+
+    fn is_read_only(&self) -> bool { true }
 }
 
 /// Write content to a file (creates or overwrites).
@@ -175,30 +184,30 @@ impl Tool for WriteFileTool {
         })
     }
 
-    fn execute(&self, args: Value) -> Result<String, String> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = args
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'path' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'path' argument".into()))?;
         let content = args
             .get("content")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'content' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'content' argument".into()))?;
 
         let path = Path::new(path);
         if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-            return Err("Path cannot contain '..'".to_string());
+            return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
         // Create parent directories if needed
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create directories: {}", e))?;
+                .map_err(|e| ToolError::ExecutionFailed(format!("Failed to create directories: {}", e)))?;
         }
 
         std::fs::write(path, content)
             .map(|_| format!("Successfully wrote {} bytes to {}", content.len(), path.display()))
-            .map_err(|e| format!("Failed to write file '{}': {}", path.display(), e))
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", path.display(), e)))
     }
 }
 
@@ -237,40 +246,40 @@ impl Tool for EditFileTool {
         })
     }
 
-    fn execute(&self, args: Value) -> Result<String, String> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = args
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'path' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'path' argument".into()))?;
         let old_str = args
             .get("old_string")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'old_string' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'old_string' argument".into()))?;
         let new_str = args
             .get("new_string")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'new_string' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'new_string' argument".into()))?;
 
         let path = Path::new(path);
         if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-            return Err("Path cannot contain '..'".to_string());
+            return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
         let content = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read file '{}': {}", path.display(), e))?;
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", path.display(), e)))?;
 
         if !content.contains(old_str) {
-            return Err(format!(
+            return Err(ToolError::ExecutionFailed(format!(
                 "old_string not found in file '{}'. \
                  The text must match exactly (including whitespace and newlines).",
                 path.display()
-            ));
+            )));
         }
 
         let new_content = content.replacen(old_str, new_str, 1);
         std::fs::write(path, new_content)
             .map(|_| format!("Successfully edited {}", path.display()))
-            .map_err(|e| format!("Failed to write file '{}': {}", path.display(), e))
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", path.display(), e)))
     }
 }
 
@@ -301,17 +310,17 @@ impl Tool for ShellTool {
         })
     }
 
-    fn execute(&self, args: Value) -> Result<String, String> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let cmd = args
             .get("command")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'command' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'command' argument".into()))?;
 
         // Security: block dangerous commands
         let blocked = ["rm -rf /", "> /dev/", ":(){ :|:& };:", "mkfs"];
         for b in &blocked {
             if cmd.contains(b) {
-                return Err(format!("Command blocked for safety: contains '{}'", b));
+                return Err(ToolError::PermissionDenied(format!("Command blocked for safety: contains '{}'", b)));
             }
         }
 
@@ -319,18 +328,18 @@ impl Tool for ShellTool {
             .arg("-c")
             .arg(cmd)
             .output()
-            .map_err(|e| format!("Failed to execute command: {}", e))?;
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to execute command: {}", e)))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if !output.status.success() {
-            return Err(format!(
+            return Err(ToolError::ExecutionFailed(format!(
                 "Command exited with code {}\nSTDOUT:\n{}\nSTDERR:\n{}",
                 output.status.code().unwrap_or(-1),
                 stdout,
                 stderr
-            ));
+            )));
         }
 
         let mut result = String::new();
@@ -380,11 +389,11 @@ impl Tool for SearchTool {
         })
     }
 
-    fn execute(&self, args: Value) -> Result<String, String> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let pattern = args
             .get("pattern")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'pattern' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'pattern' argument".into()))?;
         let search_path = args
             .get("path")
             .and_then(|v| v.as_str())
@@ -392,12 +401,12 @@ impl Tool for SearchTool {
 
         let search_path = Path::new(search_path);
         if search_path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-            return Err("Path cannot contain '..'".to_string());
+            return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
         let mut results = Vec::new();
         walk_dir(search_path, pattern, &mut results)
-            .map_err(|e| format!("Search error: {}", e))?;
+            .map_err(|e| ToolError::ExecutionFailed(format!("Search error: {}", e)))?;
 
         if results.is_empty() {
             Ok(format!("No matches found for '{}' in {}", pattern, search_path.display()))
@@ -405,6 +414,8 @@ impl Tool for SearchTool {
             Ok(results.join("\n"))
         }
     }
+
+    fn is_read_only(&self) -> bool { true }
 }
 
 fn walk_dir(
@@ -499,16 +510,16 @@ impl Tool for ReadJadeTool {
         })
     }
 
-    fn execute(&self, args: Value) -> Result<String, String> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
         let sid = CURRENT_SESSION_ID.with(|s| s.borrow().clone());
         let section_id = args
             .get("section_id")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'section_id' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'section_id' argument".into()))?;
 
         if project.is_empty() {
-            return Err("No project context set".to_string());
+            return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
 
         // Overlay pending spec changes if any
@@ -534,7 +545,7 @@ impl Tool for ReadJadeTool {
                 .and_then(|doc| doc.sections.iter().find(|s| s.id == section_id))
             {
                 Some(sec) => (sec.content.clone(), sec.status.as_str().to_string()),
-                None => return Err(format!("Section '{}' not found in project '{}'", section_id, project)),
+                None => return Err(ToolError::ExecutionFailed(format!("Section '{}' not found in project '{}'", section_id, project))),
             }
         };
 
@@ -543,6 +554,8 @@ impl Tool for ReadJadeTool {
             section_id, status, content
         ))
     }
+
+    fn is_read_only(&self) -> bool { true }
 }
 
 /// List all Jades sections.
@@ -565,10 +578,10 @@ impl Tool for ListJadesTool {
         })
     }
 
-    fn execute(&self, _args: Value) -> Result<String, String> {
+    fn execute(&self, _args: Value) -> Result<String, ToolError> {
         let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
         if project.is_empty() {
-            return Err("No project context set".to_string());
+            return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
 
         let sid = CURRENT_SESSION_ID.with(|s| s.borrow().clone());
@@ -589,7 +602,7 @@ impl Tool for ListJadesTool {
 
         let store = super::specs().lock().unwrap();
         let doc = store.get(&project)
-            .ok_or_else(|| format!("No specs found for project '{}'", project))?;
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("No specs found for project '{}'", project)))?;
 
         let mut lines = vec![format!("Project: {}", project)];
         for section in &doc.sections {
@@ -608,6 +621,8 @@ impl Tool for ListJadesTool {
 
         Ok(lines.join("\n"))
     }
+
+    fn is_read_only(&self) -> bool { true }
 }
 
 /// Draft a Jades section update (stored in pending_spec_changes until approved).
@@ -646,22 +661,22 @@ impl Tool for WriteJadeTool {
         })
     }
 
-    fn execute(&self, args: Value) -> Result<String, String> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
         let sid = CURRENT_SESSION_ID.with(|s| s.borrow().clone());
 
         if project.is_empty() || sid.is_empty() {
-            return Err("No project or session context set".to_string());
+            return Err(ToolError::ExecutionFailed("No project or session context set".into()));
         }
 
         let section_id = args
             .get("section_id")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'section_id' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'section_id' argument".into()))?;
         let content = args
             .get("content")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'content' argument")?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'content' argument".into()))?;
         let status = args
             .get("status")
             .and_then(|v| v.as_str())
@@ -670,7 +685,7 @@ impl Tool for WriteJadeTool {
         // Capture old content from specs (or from an earlier pending change)
         let (old_content, old_status) = {
             let sessions = super::forge_sessions().lock().unwrap();
-            let session = sessions.get(&sid).ok_or("Session not found")?;
+            let session = sessions.get(&sid).ok_or_else(|| ToolError::ExecutionFailed("Session not found".into()))?;
             if let Some(existing) = session.pending_spec_changes.iter().find(|c| c.section_id == section_id) {
                 (existing.old_content.clone(), existing.old_status.clone())
             } else {
@@ -685,7 +700,7 @@ impl Tool for WriteJadeTool {
         // Queue pending change
         {
             let mut sessions = super::forge_sessions().lock().unwrap();
-            let session = sessions.get_mut(&sid).ok_or("Session not found")?;
+            let session = sessions.get_mut(&sid).ok_or_else(|| ToolError::ExecutionFailed("Session not found".into()))?;
 
             if let Some(existing) = session.pending_spec_changes.iter_mut().find(|c| c.section_id == section_id) {
                 existing.new_content = content.to_string();
@@ -798,5 +813,23 @@ mod tests {
         assert!(registry.get("read_jade").is_some());
         assert!(registry.get("write_jade").is_some());
         assert!(registry.get("list_jades").is_some());
+    }
+
+    #[test]
+    fn test_tool_error_display() {
+        let err = ToolError::ExecutionFailed("something broke".into());
+        assert!(err.to_string().contains("something broke"));
+        let err = ToolError::InvalidInput("bad arg".into());
+        assert!(err.to_string().contains("bad arg"));
+        let err = ToolError::PermissionDenied("no access".into());
+        assert!(err.to_string().contains("no access"));
+    }
+
+    #[test]
+    fn test_read_only_tools() {
+        assert!(ReadFileTool.is_read_only());
+        assert!(SearchTool.is_read_only());
+        assert!(!WriteFileTool.is_read_only());
+        assert!(!ShellTool.is_read_only());
     }
 }
