@@ -94,7 +94,7 @@ export function useForge() {
    *  3. Reuse an existing idle session if available
    *  4. Only create a new session as last resort
    */
-  async function resume() {
+  async function resume(projectPath?: string) {
     if (_resuming.value) return _session.value?.id ?? null
     _resuming.value = true
     try {
@@ -113,7 +113,7 @@ export function useForge() {
         return await restoreSession(idle.id)
       }
 
-      return await createSession()
+      return await createSession(undefined, projectPath)
     } finally {
       _resuming.value = false
     }
@@ -166,19 +166,26 @@ export function useForge() {
   async function streamResponse() {
     if (!sessionId.value) return
 
-    // Lazily created on first content — avoids showing an empty "assistant" bubble
+    // Current assistant message for this turn — reset on each turn_start
     let assistantMsg: ForgeMessage | null = null
+
+    function newAssistantMsg(professionId?: string): ForgeMessage {
+      const msg: ForgeMessage = {
+        id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        tool_calls: [],
+        profession_id: professionId ?? undefined,
+      }
+      messages.value.push(msg)
+      assistantMsg = msg
+      return msg
+    }
 
     function ensureAssistantMsg(): ForgeMessage {
       if (!assistantMsg) {
-        assistantMsg = {
-          id: `a-${Date.now()}`,
-          role: 'assistant',
-          content: '',
-          timestamp: Date.now(),
-          tool_calls: [],
-        }
-        messages.value.push(assistantMsg)
+        return newAssistantMsg()
       }
       return assistantMsg
     }
@@ -202,7 +209,10 @@ export function useForge() {
             eventRouter.handleEvent(sseEvent, 'chat')
           }
 
-          if (data.type === 'delta' && data.text) {
+          if (data.type === 'turn_start') {
+            // New turn = new assistant message bubble
+            newAssistantMsg(data.profession_id)
+          } else if (data.type === 'delta' && data.text) {
             const msg = ensureAssistantMsg()
             msg.content += data.text
           } else if (data.type === 'tool_call') {
@@ -223,6 +233,10 @@ export function useForge() {
                 call.status = 'success'
               }
             }
+          } else if (data.type === 'agent_handoff') {
+            if (session.value) {
+              session.value.active_profession = data.to_profession
+            }
           } else if (data.type === 'phase_change' && data.phase) {
             if (session.value) {
               session.value.phase = data.phase as ForgeSession['phase']
@@ -230,9 +244,6 @@ export function useForge() {
           } else if (data.type === 'done') {
             eventSource.close()
             isLoading.value = false
-            if (sessionId.value) {
-              restoreSession(sessionId.value)
-            }
             loadSessionList()
           } else if (data.type === 'error') {
             eventSource.close()

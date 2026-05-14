@@ -70,6 +70,18 @@ impl SectionType {
             SectionType::Reports => "reports",
         }
     }
+
+    pub fn from_id(id: &str) -> Self {
+        match id {
+            "architecture" => SectionType::Architecture,
+            "designs" => SectionType::Designs,
+            "plans" => SectionType::Plans,
+            "tests" => SectionType::Tests,
+            "reviews" => SectionType::Reviews,
+            "reports" => SectionType::Reports,
+            _ => SectionType::Goals,
+        }
+    }
 }
 
 /// Lifecycle status shared across all categories.
@@ -128,6 +140,35 @@ impl Status {
             Status::Published => "published",
             Status::Analysed => "analysed",
             Status::Obsolete => "obsolete",
+        }
+    }
+
+    pub fn from_str_lossy(s: &str) -> Self {
+        match s {
+            "empty" => Status::Empty,
+            "proposed" => Status::Proposed,
+            "draft" => Status::Draft,
+            "under_review" => Status::UnderReview,
+            "approved" => Status::Approved,
+            "in_progress" => Status::InProgress,
+            "in_implementation" => Status::InImplementation,
+            "implemented" => Status::Implemented,
+            "verified" => Status::Verified,
+            "done" => Status::Done,
+            "archived" => Status::Archived,
+            "rejected" => Status::Rejected,
+            "backlog" => Status::Backlog,
+            "ready" => Status::Ready,
+            "in_review" => Status::InReview,
+            "blocked" => Status::Blocked,
+            "superseded" => Status::Superseded,
+            "outdated" => Status::Outdated,
+            "stable" => Status::Stable,
+            "deprecated" => Status::Deprecated,
+            "published" => Status::Published,
+            "analysed" => Status::Analysed,
+            "obsolete" => Status::Obsolete,
+            _ => Status::Draft,
         }
     }
 }
@@ -472,6 +513,8 @@ pub struct ForgeMessageResponse {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
 pub enum ForgeStreamEvent {
+    #[serde(rename = "turn_start")]
+    TurnStart { profession_id: String },
     #[serde(rename = "delta")]
     Delta { text: String },
     #[serde(rename = "tool_call")]
@@ -491,6 +534,15 @@ pub enum ForgeStreamEvent {
     Done,
     #[serde(rename = "error")]
     Error { message: String },
+    #[serde(rename = "agent_handoff")]
+    AgentHandoff {
+        from_agent: String,
+        from_profession: String,
+        to_profession: String,
+        to_agent: String,
+        classification: String,
+        reason: String,
+    },
 }
 
 // ─── Specs Types ────────────────────────────────────────────────────────────
@@ -1036,7 +1088,7 @@ impl SpecsStore {
         lines.join("\n")
     }
 
-    fn save_ad_format(&self, doc: &SpecsDocument, project_name: &str) {
+    pub fn save_ad_format(&self, doc: &SpecsDocument, project_name: &str) {
         // In flat mode, save directly to data_dir if the project matches
         let project_dir = if self.flat_mode_project.as_deref() == Some(project_name) {
             self.data_dir.clone()
@@ -1084,7 +1136,7 @@ impl SpecsStore {
         self.projects.get(project)
     }
 
-    fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
+    pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
         if !self.projects.contains_key(project) {
             let doc = self.default_specs(project);
             self.save_ad_format(&doc, project);
@@ -1512,10 +1564,20 @@ mod handlers {
         Json(req): Json<CreateForgeSessionRequest>,
     ) -> Json<ForgeSession> {
         let sid = format!("forge-{}", uuid::Uuid::new_v4());
+        let resolved_path = match req.project_path {
+            Some(ref p) if !p.is_empty() && p != "." => p.clone(),
+            _ => {
+                // Fall back to the currently opened project
+                let specs_guard = specs().lock().unwrap();
+                specs_guard.data_dir.parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| String::from("."))
+            }
+        };
         let session = ForgeSession {
             id: sid.clone(),
             notebook_sid: req.notebook_sid,
-            project_path: req.project_path.unwrap_or_else(|| String::from(".")),
+            project_path: resolved_path,
             status: ForgeStatus::Idle,
             name: None,
             pending_spec_changes: vec![],
@@ -1612,14 +1674,17 @@ mod handlers {
             let _provider = ai.clone();
 
             // Inject project/session context for Jades tools
-            let (focus_section, active_profession) = {
+            let (focus_section, active_profession, project_path_for_tools) = {
                 let store = forge_sessions().lock().unwrap();
                 match store.get(&sid) {
                     Some(session) => {
                         crate::forge::tools::set_tool_context(&session.project_path, &sid);
+                        let prof = session.active_profession.clone().unwrap_or_else(|| String::from("assistant"));
+                        crate::forge::tools::set_current_profession(&prof);
                         (
                             session.focus_section.clone(),
-                            session.active_profession.clone().unwrap_or_else(|| String::from("assistant")),
+                            prof,
+                            session.project_path.clone(),
                         )
                     }
                     None => {
@@ -1683,13 +1748,15 @@ mod handlers {
             }
 
             // Build system prompt and tool set
-            let system_prompt = {
+            fn build_system_and_tools(
+                registry: &crate::forge::tools::ToolRegistry,
+                profession_id: &str,
+            ) -> (String, Vec<crate::forge::tools::ToolDefinition>, Vec<String>) {
                 let relay = crate::relay::RelayRegistry::new();
-                let agent_config = relay.default_agent_for(&active_profession);
-                match agent_config.and_then(|cfg| relay.spawn_agent_from_config(cfg)) {
+                let agent_config = relay.default_agent_for(profession_id);
+                let prompt = match agent_config.and_then(|cfg| relay.spawn_agent_from_config(cfg)) {
                     Some(agent) => agent.render_system_prompt(),
                     None => {
-                        // Model resolution failed — use agent name if available, else generic
                         let name = agent_config
                             .map(|c| c.name.as_str())
                             .unwrap_or("Assistant");
@@ -1701,17 +1768,38 @@ mod handlers {
                             name
                         )
                     }
-                }
-            };
-            let all_tools = registry.definitions();
+                };
+                let allowed = relay.professions.get(profession_id)
+                    .map(|p| p.allowed_tools.clone())
+                    .unwrap_or_default();
+                let tools: Vec<_> = registry.definitions().into_iter()
+                    .filter(|t| allowed.is_empty() || allowed.contains(&t.name))
+                    .collect();
+                (prompt, tools, allowed)
+            }
+
+            let (system_prompt, all_tools, allowed_tool_names) = build_system_and_tools(&registry, &active_profession);
 
             // ReAct loop: chat → tool_use → execute → tool_result → chat → ...
             let mut turn_count = 0;
-            let max_turns = 5;
+            let max_turns = 8;
+            let mut system_prompt = system_prompt;
+            let mut current_profession = active_profession.clone();
+            let mut all_tools = all_tools;
+            let mut allowed_tool_names = allowed_tool_names;
 
             while turn_count < max_turns {
                 turn_count += 1;
                 let mut turn_text = String::new();
+
+                // Notify frontend that a new turn is starting (creates a new message bubble)
+                let turn_start_event = Event::default().data(
+                    serde_json::to_string(&ForgeStreamEvent::TurnStart {
+                        profession_id: current_profession.clone(),
+                    })
+                    .unwrap(),
+                );
+                let _ = event_tx.send(Ok(turn_start_event));
 
                 let request = ToolChatRequest {
                     messages: chat_messages.clone(),
@@ -1765,8 +1853,18 @@ mod handlers {
                             );
                             let _ = event_tx.send(Ok(event));
 
-                            // Execute the tool
-                            if let Some(tool) = registry.get(&name) {
+                            // Execute the tool (re-inject context in case task migrated threads)
+                            crate::forge::tools::set_tool_context(&project_path_for_tools, &sid);
+                            crate::forge::tools::set_current_profession(&current_profession);
+                            if !allowed_tool_names.is_empty() && !allowed_tool_names.contains(&name) {
+                                // LLM hallucinated a tool call outside allowed set — skip execution
+                                let err = format!("Tool '{}' is not available for this agent", name);
+                                if let Some(c) = turn_tool_calls.iter_mut().find(|c| c.id == id) {
+                                    c.result = Some(err.clone());
+                                    c.status = "error".to_string();
+                                }
+                                chat_messages.push(ChatMessage::tool_result(&id, &err));
+                            } else if let Some(tool) = registry.get(&name) {
                                 let result = tool.execute(input);
                                 let result_str = match result {
                                     Ok(r) => r,
@@ -1793,10 +1891,11 @@ mod handlers {
                                 chat_messages.push(ChatMessage::tool_result(&id, &result_str));
 
                                 // Persist tool result message
+                                let result_for_msg = result_str.clone();
                                 let tool_msg = ForgeMessage {
                                     id: format!("m-{}", uuid::Uuid::new_v4()),
                                     role: "tool".to_string(),
-                                    content: result_str,
+                                    content: result_for_msg,
                                     timestamp: now_secs(),
                                     tool_calls: Some(vec![ToolCallInfo {
                                         id: id.clone(),
@@ -1808,6 +1907,75 @@ mod handlers {
                                     profession_id: None,
                                 };
                                 forge_sessions().lock().unwrap().push_message(&sid, tool_msg);
+
+                                // ── Handle bring_in tool result ──
+                                if name == "bring_in" {
+                                    if let Ok(handoff_data) = serde_json::from_str::<serde_json::Value>(&result_str) {
+                                        if handoff_data.get("handoff").and_then(|v| v.as_bool()) == Some(true) {
+                                            let target = handoff_data["target"].as_str().unwrap_or("").to_string();
+                                            let classification = handoff_data["classification"].as_str().unwrap_or("DIRECT").to_string();
+                                            let reason = handoff_data["reason"].as_str().unwrap_or("").to_string();
+                                            let from_profession = handoff_data["from_profession"].as_str().unwrap_or("").to_string();
+
+                                            // Resolve display names for the event
+                                            let relay = crate::relay::RelayRegistry::new();
+                                            let from_name = relay.default_agent_for(&from_profession)
+                                                .map(|c| c.name.clone())
+                                                .unwrap_or_else(|| from_profession.clone());
+                                            let to_name = relay.default_agent_for(&target)
+                                                .map(|c| c.name.clone())
+                                                .unwrap_or_else(|| target.clone());
+
+                                            // Switch active_profession on the session
+                                            {
+                                                let mut store = forge_sessions().lock().unwrap();
+                                                if let Some(session) = store.get_mut(&sid) {
+                                                    session.active_profession = Some(target.clone());
+                                                    let clone = session.clone();
+                                                    store.save(&clone);
+                                                }
+                                            }
+
+                                            // Inject handoff note into chat history for the next agent
+                                            let note = format!(
+                                                "## Handoff Note\n\
+                                                 {} ({}) handed off to you.\n\
+                                                 **Classification:** {}\n\
+                                                 **Summary:** {}\n\
+                                                 You are now the active agent. Do NOT call bring_in — you are already here.\n\
+                                                 Continue the conversation from here. Do not ask the user to repeat what was already discussed.",
+                                                from_name, from_profession, classification, reason
+                                            );
+                                            chat_messages.push(ChatMessage::user(&note));
+
+                                            // Update tool context for subsequent tools
+                                            crate::forge::tools::set_current_profession(&target);
+
+                                            let target_for_prompt = target.clone();
+
+                                            // Emit agent_handoff SSE event
+                                            let handoff_event = Event::default().data(
+                                                serde_json::to_string(&ForgeStreamEvent::AgentHandoff {
+                                                    from_agent: from_name,
+                                                    from_profession: from_profession,
+                                                    to_profession: target.clone(),
+                                                    to_agent: to_name,
+                                                    classification,
+                                                    reason,
+                                                })
+                                                .unwrap(),
+                                            );
+                                            let _ = event_tx.send(Ok(handoff_event));
+
+                                            // Rebuild system prompt and tools for the new agent
+                                            current_profession = target_for_prompt.clone();
+                                            let (new_prompt, new_tools, new_allowed) = build_system_and_tools(&registry, &target_for_prompt);
+                                            system_prompt = new_prompt;
+                                            all_tools = new_tools;
+                                            allowed_tool_names = new_allowed;
+                                        }
+                                    }
+                                }
                             }
                         }
                         ToolChatEvent::Done => break,
@@ -1843,7 +2011,7 @@ mod handlers {
                         } else {
                             Some(turn_tool_calls.clone())
                         },
-                        profession_id: Some(active_profession.clone()),
+                        profession_id: Some(current_profession.clone()),
                     };
                     forge_sessions().lock().unwrap().push_message(&sid, assistant_msg.clone());
 

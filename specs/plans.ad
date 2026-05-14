@@ -270,3 +270,22 @@
 | P15.4 | CLI mode (clap dispatch, REPL, settings) | Core | 1 day | P15.2, P15.3 | Done |
 | P15.5 | Move Auto language assets to auto-lang monorepo | Core | 1 day | — | Done |
 | P15.6 | Cleanup: archive auto-code-rs, update docs, verify tests | Core | 0.5 day | P15.1-P15.5 | Done |
+
+---
+
+## P16 Chat Agent Handoff — bring_in Tool
+**Status:** proposed
+**Depends on:** G17, D24, A9
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P16.1 | BringInTool struct with JSON schema, validation, and execute method | Core | 1 day | D24 | Proposed |
+| P16.2 | Update assistant profession `allowed_tools` to include `bring_in` | Core | 0.5 day | P16.1 | Proposed |
+| P16.3 | Tool handler: validate target is in `handoff_to`, switch `active_profession`, persist session | Core | 1 day | P16.1 | Proposed |
+| P16.4 | HandoffNote struct with render() method for injecting context | Core | 0.5 day | D24 | Proposed |
+| P16.5 | Inject HandoffNote as system message before next agent's turn in `forge_stream` | Core | 1 day | P16.3, P16.4 | Proposed |
+| P16.6 | SSE `agent_handoff` event emission after bring_in executes | Core | 0.5 day | P16.3 | Proposed |
+| P16.7 | Update Nicole's soul to instruct bring_in usage after classification | Core | 0.5 day | P16.1 | Proposed |
+| P16.8 | Frontend: handle `agent_handoff` SSE event, update profession badge | Core | 0.5 day | P16.6 | Proposed |
+| P16.9 | Frontend: HandoffCard component for bring_in tool_call rendering | Core | 1 day | P16.8 | Proposed |
+| P16.10 | Integration tests: bring_in validation, handoff note injection, SSE event | Core | 1 day | P16.5, P16.6 | Proposed |

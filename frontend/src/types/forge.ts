@@ -36,7 +36,7 @@ export interface ForgeSession {
 }
 
 export interface ForgeStreamEvent {
-  type: 'delta' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed'
+  type: 'turn_start' | 'delta' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff'
   text?: string
   id?: string
   name?: string
@@ -46,6 +46,7 @@ export interface ForgeStreamEvent {
   phase?: string
   gate_id?: string
   profession?: string
+  profession_id?: string
   title?: string
   section_id?: string
   run_id?: string
@@ -55,6 +56,13 @@ export interface ForgeStreamEvent {
   cost?: string
   confidence?: 'High' | 'Medium' | 'Low'
   deliverables?: string[]
+  // agent_handoff fields
+  from_agent?: string
+  from_profession?: string
+  to_profession?: string
+  to_agent?: string
+  classification?: string
+  reason?: string
 }
 
 export interface ForgeSessionSummary {

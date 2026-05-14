@@ -139,12 +139,14 @@ import { ref, onMounted, computed } from 'vue'
 import { Plus, X, Trash2, Users } from 'lucide-vue-next'
 import { useAgentConfigs, type AgentConfigDto } from '@/composables/useAgentConfigs'
 import { useApiSources, type ApiSource } from '@/composables/useApiSources'
+import { useSouls } from '@/composables/useSouls'
 
 const {
   configs, loading, error,
   loadConfigs, createConfig, updateConfig, deleteConfig, resetDefaults,
 } = useAgentConfigs()
 const { sources: apiSources, loadSources } = useApiSources()
+const { loadSouls, getSoulMarkdown } = useSouls()
 
 const editing = ref<AgentConfigDto | null>(null)
 const editingId = ref<string | null>(null)
@@ -189,6 +191,13 @@ const soulPreviews: Record<string, string> = {
 }
 
 function getSoulPreview(soulId: string): string {
+  const md = getSoulMarkdown(soulId)
+  if (md) {
+    const personality = md.match(/^##\s*Personality\s*\n([\s\S]*?)(?=\n##|\n$)/)?.[1]?.trim()
+    if (personality) return personality.slice(0, 120)
+    const firstLine = md.split('\n').find(l => l.trim() && !l.startsWith('#'))?.trim()
+    if (firstLine) return firstLine.slice(0, 120)
+  }
   return soulPreviews[soulId] || 'Custom agent soul.'
 }
 
@@ -196,7 +205,7 @@ function startEdit(agent: AgentConfigDto) {
   editing.value = { ...agent }
   editingId.value = agent.id
   isNew.value = false
-  soulMarkdown.value = ''
+  soulMarkdown.value = getSoulMarkdown(agent.soul_id)
 }
 
 function startCreate() {
@@ -248,6 +257,7 @@ async function handleResetDefaults() {
 onMounted(() => {
   loadConfigs()
   loadSources()
+  loadSouls()
 })
 </script>
 

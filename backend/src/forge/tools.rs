@@ -13,12 +13,18 @@ use std::path::Path;
 thread_local! {
     static CURRENT_PROJECT: RefCell<String> = RefCell::new(String::new());
     static CURRENT_SESSION_ID: RefCell<String> = RefCell::new(String::new());
+    static CURRENT_PROFESSION: RefCell<String> = RefCell::new(String::new());
 }
 
 /// Set the project and session context for specs tools.
 pub fn set_tool_context(project: &str, session_id: &str) {
     CURRENT_PROJECT.with(|p| *p.borrow_mut() = project.to_string());
     CURRENT_SESSION_ID.with(|s| *s.borrow_mut() = session_id.to_string());
+}
+
+/// Set the current profession for bring_in validation.
+pub fn set_current_profession(profession: &str) {
+    CURRENT_PROFESSION.with(|p| *p.borrow_mut() = profession.to_string());
 }
 
 // ─── Tool Definition ─────────────────────────────────────────────────────────
@@ -76,6 +82,7 @@ impl ToolRegistry {
         registry.register(Box::new(ReadSpecsTool));
         registry.register(Box::new(WriteSpecsTool));
         registry.register(Box::new(ListSpecsTool));
+        registry.register(Box::new(BringInTool));
         registry
     }
 
@@ -551,6 +558,12 @@ impl Tool for ReadSpecsTool {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
 
+        // SpecsStore keys by project name (e.g. "auto-forge"), not full path
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
+
         // Overlay pending spec changes if any
         let pending = if !sid.is_empty() {
             super::forge_sessions()
@@ -570,11 +583,11 @@ impl Tool for ReadSpecsTool {
             (c, s)
         } else {
             let store = super::specs().lock().unwrap();
-            match store.get(&project)
+            match store.get(&project_name)
                 .and_then(|doc| doc.sections.iter().find(|s| s.id == section_id))
             {
                 Some(sec) => (sec.content.clone(), sec.status.as_str().to_string()),
-                None => return Err(ToolError::ExecutionFailed(format!("Section '{}' not found in project '{}'", section_id, project))),
+                None => return Err(ToolError::ExecutionFailed(format!("Section '{}' not found in project '{}'", section_id, project_name))),
             }
         };
 
@@ -629,11 +642,16 @@ impl Tool for ListSpecsTool {
             HashMap::new()
         };
 
-        let store = super::specs().lock().unwrap();
-        let doc = store.get(&project)
-            .ok_or_else(|| ToolError::ExecutionFailed(format!("No specs found for project '{}'", project)))?;
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
 
-        let mut lines = vec![format!("Project: {}", project)];
+        let store = super::specs().lock().unwrap();
+        let doc = store.get(&project_name)
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("No specs found for project '{}'", project_name)))?;
+
+        let mut lines = vec![format!("Project: {}", project_name)];
         for section in &doc.sections {
             let has_pending = pending.contains_key(&section.id);
             let status = if has_pending {
@@ -698,6 +716,11 @@ impl Tool for WriteSpecsTool {
             return Err(ToolError::ExecutionFailed("No project or session context set".into()));
         }
 
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
+
         let section_id = args
             .get("section_id")
             .and_then(|v| v.as_str())
@@ -706,54 +729,146 @@ impl Tool for WriteSpecsTool {
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidInput("Missing 'content' argument".into()))?;
-        let status = args
+        let status_str = args
             .get("status")
             .and_then(|v| v.as_str())
             .unwrap_or("draft");
 
-        // Capture old content from specs (or from an earlier pending change)
-        let (old_content, old_status) = {
-            let sessions = super::forge_sessions().lock().unwrap();
-            let session = sessions.get(&sid).ok_or_else(|| ToolError::ExecutionFailed("Session not found".into()))?;
-            if let Some(existing) = session.pending_spec_changes.iter().find(|c| c.section_id == section_id) {
-                (existing.old_content.clone(), existing.old_status.clone())
-            } else {
-                let specs = super::specs().lock().unwrap();
-                specs.get(&project)
-                    .and_then(|doc| doc.sections.iter().find(|s| s.id == section_id))
-                    .map(|s| (s.content.clone(), s.status.as_str().to_string()))
-                    .unwrap_or_default()
-            }
-        };
-
-        // Queue pending change
+        // Update in-memory specs and persist to disk
         {
-            let mut sessions = super::forge_sessions().lock().unwrap();
-            let session = sessions.get_mut(&sid).ok_or_else(|| ToolError::ExecutionFailed("Session not found".into()))?;
-
-            if let Some(existing) = session.pending_spec_changes.iter_mut().find(|c| c.section_id == section_id) {
-                existing.new_content = content.to_string();
-                existing.new_status = status.to_string();
-            } else {
-                session.pending_spec_changes.push(super::SpecChange {
-                    section_id: section_id.to_string(),
-                    item_id: None,
-                    old_content,
-                    new_content: content.to_string(),
-                    old_status,
-                    new_status: status.to_string(),
-                });
+            let mut store = super::specs().lock().unwrap();
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            {
+                let doc = store.get_or_default(&project_name);
+                if let Some(section) = doc.sections.iter_mut().find(|s| s.id == section_id) {
+                    section.content = content.to_string();
+                    section.status = super::Status::from_str_lossy(status_str);
+                    section.last_modified = now;
+                } else {
+                    doc.sections.push(super::SpecsSection {
+                        id: section_id.to_string(),
+                        section_type: super::SectionType::from_id(section_id),
+                        title: section_id.to_string(),
+                        items: vec![],
+                        content: content.to_string(),
+                        status: super::Status::from_str_lossy(status_str),
+                        depends_on: vec![],
+                        last_modified: now,
+                        last_verified: None,
+                    });
+                }
             }
-
-            let clone = session.clone();
-            sessions.save(&clone);
+            let doc = store.get(&project_name).unwrap();
+            store.save_ad_format(doc, &project_name);
         }
 
         Ok(format!(
-            "Drafted update to section '{}'. Status: {}. Awaiting approval.",
-            section_id, status
+            "Updated section '{}' ({}). Changes saved to disk.",
+            section_id, status_str
         ))
     }
+}
+
+// ─── Bring-In Tool ────────────────────────────────────────────────────────────
+
+/// Bring in another agent to handle the conversation.
+/// The tool validates the target and returns structured data;
+/// the forge_stream handler performs the actual session mutation.
+struct BringInTool;
+
+impl Tool for BringInTool {
+    fn name(&self) -> &'static str {
+        "bring_in"
+    }
+
+    fn description(&self) -> &'static str {
+        "Bring in another agent specialist to handle this conversation. \
+         Use after classifying the user's intent — call this to hand off to the right expert. \
+         You can bring in: 'advisor' for new features and requirements, 'coder' for direct code changes."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Profession ID to bring in: 'advisor' or 'coder'"
+                },
+                "classification": {
+                    "type": "string",
+                    "enum": ["NEW_GOAL", "REQ_UPDATE", "QUESTION", "DIRECT"],
+                    "description": "Your classification of the user's intent"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Brief explanation of why you're handing off and what the user wants"
+                }
+            },
+            "required": ["target", "reason"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let target = args
+            .get("target")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'target' argument".into()))?;
+        let reason = args
+            .get("reason")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'reason' argument".into()))?;
+        let classification = args
+            .get("classification")
+            .and_then(|v| v.as_str())
+            .unwrap_or("DIRECT");
+
+        let current = CURRENT_PROFESSION.with(|p| p.borrow().clone());
+
+        // Validate: can't hand off to yourself
+        if target == current {
+            return Err(ToolError::InvalidInput(format!(
+                "Already talking to '{}'. Choose a different specialist.",
+                target
+            )));
+        }
+
+        // Validate: target must be in this profession's handoff_to list
+        let registry = crate::relay::ProfessionRegistry::new();
+        let profession = registry.get(&current)
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("Unknown profession '{}'", current)))?;
+
+        if !profession.handoff_to.contains(&target.to_string()) {
+            return Err(ToolError::InvalidInput(format!(
+                "Cannot hand off to '{}'. Allowed targets: {}",
+                target,
+                profession.handoff_to.join(", ")
+            )));
+        }
+
+        // Validate: target profession must exist
+        if registry.get(target).is_none() {
+            return Err(ToolError::InvalidInput(format!(
+                "Unknown profession '{}'. Valid options: {}",
+                target,
+                profession.handoff_to.join(", ")
+            )));
+        }
+
+        // Return structured JSON — forge_stream handler reads this to perform the handoff
+        Ok(serde_json::json!({
+            "handoff": true,
+            "target": target,
+            "classification": classification,
+            "reason": reason,
+            "from_profession": current,
+        }).to_string())
+    }
+
+    fn is_read_only(&self) -> bool { true }
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -833,7 +948,7 @@ mod tests {
     fn test_tool_registry() {
         let registry = ToolRegistry::new();
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 8);
+        assert_eq!(defs.len(), 9);
         assert!(registry.get("read_file").is_some());
         assert!(registry.get("write_file").is_some());
         assert!(registry.get("edit_file").is_some());

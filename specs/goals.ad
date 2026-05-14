@@ -23,6 +23,9 @@
 | G14 | Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming | P0 | Done | Core Team |
 | G15 | CLI Mode provides interactive REPL chat as forge chat subcommand | P1 | Removed | Core Team |
 | G16 | @Mention Agent Targeting directs chat messages to named agents with sticky profession routing | P0 | Implemented | UI Team |
+| G17 | Bring-In Tool enables agents to hand off mid-conversation with structured context transfer | P0 | Proposed | Core Team |
+| G18 | Wiki module provides project-scoped knowledge base with LLM-compressed reference docs and semantic RAG search | P0 | Proposed | Docs Team |
+| G19 | AutoDown editor enables structured markdown editing with Auto language syntax highlighting for Wiki content | P1 | Proposed | Docs Team |
 
 ---
 
@@ -445,3 +448,90 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [x] Selection replaces `@filter` with `@DisplayName ` at cursor position
 
 ---
+
+## G17 Bring-In Tool enables agents to hand off mid-conversation with structured context transfer
+**Status:** proposed
+**Depends on:** G1, G16
+
+- [ ] `bring_in` tool available to assistant (Nicole) during chat, accepting target profession and reason
+- [ ] Tool switches `session.active_profession` and injects handoff note into chat history before next agent's turn
+- [ ] Handoff note includes: classification, summary of understanding, warnings, and context pointers
+- [ ] Next agent starts with its own system prompt + full conversation history + handoff note (no repeated questions)
+- [ ] Frontend shows handoff event in chat (e.g., "Nicole brought in Isaac" with reason)
+- [ ] Profession `allowed_tools` enforcement — only professions that have `bring_in` in their tool list can invoke it
+- [ ] Handoff restricted to professions listed in `handoff_to` (Nicole can hand off to advisor/coder, not arbitrary targets)
+
+## G17.1 bring_in tool definition and backend handler
+**Status:** proposed
+**Depends on:** G17
+
+- [ ] `BringInTool` struct with parameters: `target` (profession_id), `reason` (string), `classification` (optional enum)
+- [ ] Tool handler switches `session.active_profession`, persists handoff note as a system message
+- [ ] Handoff note rendered from a lightweight HandoffDocument (summary + decisions + context pointers)
+- [ ] Assistant profession `allowed_tools` updated to include `bring_in`
+- [ ] Validation: target must be in caller's `handoff_to` list
+- [ ] Session saved after handoff so state survives reconnects
+
+## G17.2 Handoff note injection into conversation
+**Status:** proposed
+**Depends on:** G17.1
+
+- [ ] Before the new agent's first turn, backend injects a system message with the handoff note
+- [ ] Handoff note format: "Nicole handed off to you. Classification: NEW_GOAL. Summary: User wants OAuth2 login. Warnings: No existing auth code found."
+- [ ] New agent sees full conversation history + handoff note (does not ask user to repeat)
+- [ ] Handoff system messages excluded from frontend display (shown as handoff card instead)
+
+## G17.3 Frontend handoff visualization
+**Status:** proposed
+**Depends on:** G17.1
+
+- [ ] Handoff card in chat stream showing "Nicole → Isaac" with reason and classification badge
+- [ ] Active profession badge updates when handoff occurs (phase_change or dedicated SSE event)
+- [ ] Handoff tool_call and tool_result rendered as a compact card, not raw tool output
+
+Perfect! Here's the exact content to append to `specs/goals.ad`:
+
+---
+
+## G18 Wiki module provides project-scoped knowledge base with LLM-compressed reference docs and semantic RAG search
+**Status:** proposed
+**Depends on:** G12
+
+- [ ] Wiki storage in `specs/wiki/` or `.autoforge/wiki/` (project-scoped, one wiki per project)
+- [ ] LLM-compressed markdown entries (5-10 page summaries from 3000-page manuals)
+- [ ] Semantic vector indexing (Chroma or FAISS) for RAG retrieval
+- [ ] Agent wiki tool: `query_wiki` (semantic search, returns relevant passages)
+- [ ] Agent wiki tool: `create_wiki_page` and `update_wiki_page` (unrestricted editing with versioning)
+- [ ] Wiki supports hierarchical organization (folders) + tags
+- [ ] Version control: full history with revert capability
+- [ ] Left column `Wiki` tab alongside `Chats` and `Specs`
+- [ ] Three-column layout: nav (left), content (middle), metadata/right (right)
+- [ ] Content types: chip manuals, register tables, how-to guides, API references
+- [ ] Token savings: ~87.5% (500 token RAG retrieval vs 4000 token full manual)
+- [ ] Offline, local operation (no external network dependency)
+
+Wiki is AutoForge's **knowledge index & compression layer**. It stores objective, reusable reference material (chip manuals, technical specs, best practices) — separate from Specs which store project-specific engineering constraints. Agents use semantic RAG to retrieve only relevant passages, dramatically reducing token cost compared to loading full documentation.
+
+---
+
+## G19 AutoDown editor enables structured markdown editing with Auto language syntax highlighting
+**Status:** proposed
+**Depends on:** G18
+
+- [ ] Markdown-based editor (baseline)
+- [ ] Auto language syntax extensions: type definitions, function signatures, struct definitions, Flow syntax (`$Flow`, `$Step`)
+- [ ] Live preview with syntax highlighting
+- [ ] Used for Wiki content editing
+- [ ] Future: may extend to other spec sections
+
+AutoDown is Markdown extended with Auto language syntax, providing structured editing capabilities for Wiki content. Initially supports basic Markdown with Auto language highlighting; future versions may add more sophisticated structured editing features.
+
+---
+
+**Note for the bug fix**: The `write_specs` tool should:
+1. Update the in-memory specs state (current behavior)
+2. **Also** persist to the actual `.ad` file at `specs/{section_id}.ad`
+3. Handle both creating new files and appending to existing ones
+4. Preserve file formatting and existing content structure
+
+Let me know once you've added these and fixed the bug, and I can continue with the next phase of planning!

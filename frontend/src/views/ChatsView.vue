@@ -138,12 +138,33 @@
               <div v-else-if="msg.content" class="user-text" v-html="renderMentions(msg.content)"></div>
             </div>
             <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="tool-calls">
-              <div
-                v-for="tc in msg.tool_calls"
-                :key="tc.id"
-                class="tool-card"
-                :class="tc.status"
-              >
+              <template v-for="tc in msg.tool_calls" :key="tc.id">
+                <!-- Handoff card for bring_in -->
+                <div v-if="tc.name === 'bring_in' && tc.result" class="handoff-card">
+                  <div class="handoff-flow">
+                    <span class="handoff-agent">{{ professionDisplayName(msg.profession_id || 'assistant') }}</span>
+                    <span class="handoff-arrow">→</span>
+                    <span class="handoff-agent target">{{ getHandoffTarget(tc) }}</span>
+                  </div>
+                  <div v-if="tc.arguments?.reason" class="handoff-reason">{{ tc.arguments.reason }}</div>
+                  <span v-if="tc.arguments?.classification" class="handoff-badge">{{ tc.arguments.classification }}</span>
+                </div>
+                <!-- Shell card -->
+                <div v-else-if="tc.name === 'shell'" class="shell-card" :class="tc.status">
+                  <div class="shell-header">
+                    <span class="shell-icon">$</span>
+                    <code class="shell-cmd">{{ tc.arguments?.command || '' }}</code>
+                    <span class="shell-status" :class="tc.status">{{ tc.status }}</span>
+                  </div>
+                  <pre v-if="tc.result && tc._expanded" class="shell-output">{{ tc.result }}</pre>
+                  <button v-if="tc.result && !tc._expanded" class="shell-toggle" @click="tc._expanded = true">show output</button>
+                  <button v-if="tc.result && tc._expanded" class="shell-toggle" @click="tc._expanded = false">hide</button>
+                </div>
+                <!-- Generic tool card -->
+                <div v-else
+                  class="tool-card"
+                  :class="tc.status"
+                >
                 <div class="tool-header" @click="tc._expanded = !tc._expanded">
                   <span class="tool-icon">🔧</span>
                   <span class="tool-name">{{ tc.name }}</span>
@@ -161,7 +182,8 @@
                     <pre class="tool-code result">{{ tc.result }}</pre>
                   </div>
                 </div>
-              </div>
+                </div>
+              </template>
             </div>
             <!-- Message toolbar -->
             <div v-if="msg.role === 'user'" class="message-toolbar">
@@ -323,6 +345,11 @@ const assistantName = computed(() =>
 
 function professionDisplayName(professionId: string): string {
   return agentConfigs.value.find(c => c.profession_id === professionId)?.name ?? professionId
+}
+
+function getHandoffTarget(tc: { arguments?: Record<string, unknown> }): string {
+  const target = (tc.arguments?.target as string) || ''
+  return professionDisplayName(target)
 }
 
 /** Build a set of known agent names (lowercased) for mention detection */
@@ -659,7 +686,7 @@ onMounted(async () => {
     },
   })
   if (!session.value) {
-    await resume()
+    await resume(projectPath?.value ?? undefined)
   }
   await loadSessionList()
   await loadAgentConfigs()
@@ -1167,6 +1194,57 @@ onMounted(async () => {
   margin-top: 0.15rem;
 }
 
+/* ─── Handoff Card ─────────────────────────────────────────────────────────── */
+
+.handoff-card {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.06), hsl(var(--primary) / 0.02));
+  border: 1px solid hsl(var(--primary) / 0.2);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.8rem;
+}
+
+.handoff-flow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.handoff-agent {
+  color: var(--af-fg);
+}
+
+.handoff-agent.target {
+  color: hsl(var(--primary));
+}
+
+.handoff-arrow {
+  color: var(--af-muted);
+  font-size: 1.1rem;
+}
+
+.handoff-reason {
+  color: var(--af-muted);
+  font-size: 0.82rem;
+  flex-basis: 100%;
+}
+
+.handoff-badge {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .tool-card {
   background: transparent;
   border: 1px solid var(--af-border);
@@ -1248,6 +1326,67 @@ onMounted(async () => {
 
 .tool-code.result {
   color: hsl(var(--af-success));
+}
+
+/* Shell tool card */
+.shell-card {
+  background: hsl(var(--muted-foreground) / 0.03);
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+}
+
+.shell-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.shell-icon {
+  color: var(--af-success);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.shell-cmd {
+  font-size: 0.78rem;
+  color: var(--af-fg);
+  flex: 1;
+  font-family: monospace;
+}
+
+.shell-status {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--af-muted);
+}
+
+.shell-status.pending { color: hsl(var(--af-warning)); }
+.shell-status.running { color: hsl(var(--af-info)); }
+.shell-status.success { color: hsl(var(--af-success)); }
+.shell-status.error { color: hsl(var(--af-error)); }
+
+.shell-output {
+  margin: 0.4rem 0 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.73rem;
+  color: var(--af-muted);
+  background: hsl(var(--muted-foreground) / 0.04);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.shell-toggle {
+  background: none;
+  border: none;
+  color: var(--af-primary);
+  font-size: 0.65rem;
+  cursor: pointer;
+  padding: 0.15rem 0;
+  margin-top: 0.2rem;
 }
 
 .typing-dots {

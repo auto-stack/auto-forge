@@ -82,7 +82,7 @@ impl ProfessionRegistry {
             phase: ForgePhase::Intake,
             owned_sections: vec![],
             readable_sections: vec![],
-            allowed_tools: vec![],
+            allowed_tools: vec![String::from("bring_in"), String::from("shell")],
             handoff_to: vec![
                 String::from("advisor"),
                 String::from("coder"),

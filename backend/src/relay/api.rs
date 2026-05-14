@@ -104,6 +104,7 @@ pub struct SoulsResponse {
 pub struct SoulDto {
     pub id: String,
     pub name: String,
+    pub markdown: String,
 }
 
 // -------------------------------------------------------------------------
@@ -124,16 +125,34 @@ pub async fn list_professions() -> Json<ProfessionsResponse> {
 
 pub async fn list_souls() -> Json<SoulsResponse> {
     let souls = vec![
-        SoulDto { id: "assistant".into(), name: "Assistant".into() },
-        SoulDto { id: "advisor".into(), name: "Advisor".into() },
-        SoulDto { id: "planner".into(), name: "Planner".into() },
-        SoulDto { id: "architect".into(), name: "Architect".into() },
-        SoulDto { id: "coder".into(), name: "Coder".into() },
-        SoulDto { id: "tester".into(), name: "Tester".into() },
-        SoulDto { id: "reviewer".into(), name: "Reviewer".into() },
-        SoulDto { id: "documenter".into(), name: "Documenter".into() },
+        SoulDto { id: "assistant".into(), name: "Nicole".into(), markdown: include_str!("souls/assistant.md").into() },
+        SoulDto { id: "advisor".into(), name: "Isaac".into(), markdown: include_str!("souls/advisor.md").into() },
+        SoulDto { id: "planner".into(), name: "Felix".into(), markdown: include_str!("souls/planner.md").into() },
+        SoulDto { id: "architect".into(), name: "Vera".into(), markdown: include_str!("souls/architect.md").into() },
+        SoulDto { id: "coder".into(), name: "Ash".into(), markdown: include_str!("souls/coder.md").into() },
+        SoulDto { id: "tester".into(), name: "Quinn".into(), markdown: include_str!("souls/tester.md").into() },
+        SoulDto { id: "reviewer".into(), name: "Marcus".into(), markdown: include_str!("souls/reviewer.md").into() },
+        SoulDto { id: "documenter".into(), name: "Luna".into(), markdown: include_str!("souls/documenter.md").into() },
     ];
     Json(SoulsResponse { souls })
+}
+
+pub async fn get_soul(Path(id): Path<String>) -> Result<Json<SoulDto>, StatusCode> {
+    let map: [(&str, &str, &str); 8] = [
+        ("assistant", "Nicole", include_str!("souls/assistant.md")),
+        ("advisor", "Isaac", include_str!("souls/advisor.md")),
+        ("planner", "Felix", include_str!("souls/planner.md")),
+        ("architect", "Vera", include_str!("souls/architect.md")),
+        ("coder", "Ash", include_str!("souls/coder.md")),
+        ("tester", "Quinn", include_str!("souls/tester.md")),
+        ("reviewer", "Marcus", include_str!("souls/reviewer.md")),
+        ("documenter", "Luna", include_str!("souls/documenter.md")),
+    ];
+    let (name, markdown) = map.iter()
+        .find(|(sid, _, _)| *sid == id)
+        .map(|(_, n, m)| (*n, *m))
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(SoulDto { id, name: name.to_string(), markdown: markdown.to_string() }))
 }
 
 pub async fn list_runs_handler() -> Json<Vec<RunSummary>> {
@@ -507,7 +526,11 @@ pub async fn delete_agent_config(
 }
 
 pub async fn reset_agent_defaults() -> Json<Vec<AgentConfig>> {
-    let defaults = config::generate_default_agents();
+    let source_id = {
+        let sources = API_SOURCES.lock().unwrap();
+        sources.first().map(|s| s.id.clone()).unwrap_or_default()
+    };
+    let defaults = config::generate_default_agents_with_source(&source_id);
     let mut configs = AGENT_CONFIGS.lock().unwrap();
     *configs = defaults.clone();
     let _ = config::save_agent_configs(&configs);
@@ -526,6 +549,7 @@ where
         // Relay runs
         .route("/api/forge/relay/professions", get(list_professions))
         .route("/api/forge/relay/souls", get(list_souls))
+        .route("/api/forge/relay/souls/{id}", get(get_soul))
         .route("/api/forge/relay/runs", get(list_runs_handler).post(start_run_handler))
         .route("/api/forge/relay/runs/{run_id}", get(get_run_handler))
         .route("/api/forge/relay/runs/{run_id}/advance", post(advance_run_handler))

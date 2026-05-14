@@ -381,8 +381,12 @@ pub fn save_agent_configs(configs: &[AgentConfig]) -> Result<(), ConfigError> {
 }
 
 /// Generate 8 default agent configs, one per built-in profession.
-/// api_source_id is empty by default — user must configure an API source first.
 pub fn generate_default_agents() -> Vec<AgentConfig> {
+    generate_default_agents_with_source("")
+}
+
+/// Generate 8 default agent configs with the given API source ID.
+pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
     let defaults: [(&str, &str, &str, ModelTier); 8] = [
         ("assistant", "Nicole", "assistant", ModelTier::Light),
         ("advisor", "Isaac", "advisor", ModelTier::Mid),
@@ -400,7 +404,7 @@ pub fn generate_default_agents() -> Vec<AgentConfig> {
             name: name.to_string(),
             profession_id: profession.to_string(),
             soul_id: soul.to_string(),
-            api_source_id: String::new(),
+            api_source_id: api_source_id.to_string(),
             model_tier: tier,
             is_default: true,
             temperature: 0.3,
@@ -411,13 +415,16 @@ pub fn generate_default_agents() -> Vec<AgentConfig> {
 }
 
 /// Load agent configs, generating defaults if empty.
-pub fn load_or_generate_agent_configs(_api_sources: &[ApiSource]) -> Vec<AgentConfig> {
+/// When generating defaults, auto-assigns the first available API source.
+pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
     let configs = load_agent_configs();
     if !configs.is_empty() {
         return configs;
     }
 
-    let defaults = generate_default_agents();
+    let defaults = generate_default_agents_with_source(
+        api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
+    );
     let _ = save_agent_configs(&defaults);
     defaults
 }

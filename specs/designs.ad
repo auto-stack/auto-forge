@@ -1245,3 +1245,137 @@ stateDiagram-v2
 | `max_tokens` | `u32` | Token threshold for compaction (default 100k) |
 | `keep_recent` | `usize` | Messages to preserve during compaction |
 | `path` | `PathBuf` | Session directory at ~/.autoforge/sessions/{hash}/ |
+
+
+---
+
+## D24 bring_in Tool & Chat Handoff
+**Status:** proposed
+**Module:** `backend/src/forge/tools.rs`, `backend/src/forge/mod.rs`
+**Depends on:** A9, G17
+
+```rust
+// forge/tools.rs — BringInTool
+pub struct BringInTool;
+
+impl Tool for BringInTool {
+    fn name(&self) -> &str { "bring_in" }
+    fn description(&self) -> &str {
+        "Bring in another agent to handle this conversation. \
+         Use when you've classified the user's intent and know \
+         which specialist should take over."
+    }
+    fn is_read_only(&self) -> bool { true }
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Profession ID of the agent to bring in (e.g., 'advisor', 'coder')"
+                },
+                "classification": {
+                    "type": "string",
+                    "enum": ["NEW_GOAL", "REQ_UPDATE", "QUESTION", "DIRECT"],
+                    "description": "Your classification of the user's intent"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Brief explanation of why you're handing off"
+                }
+            },
+            "required": ["target", "reason"]
+        })
+    }
+    fn execute(&self, args: &serde_json::Value) -> Result<serde_json::Value, ToolError>;
+}
+```
+
+```rust
+// forge/mod.rs — HandoffNote (lightweight, for chat only)
+pub struct HandoffNote {
+    pub from_agent: String,       // "Nicole"
+    pub from_profession: String,  // "assistant"
+    pub to_profession: String,    // "advisor"
+    pub classification: String,   // "NEW_GOAL"
+    pub summary: String,          // Agent's summary of conversation so far
+    pub warnings: Vec<String>,    // e.g., "No existing specs found for this topic"
+}
+
+impl HandoffNote {
+    pub fn render(&self) -> String {
+        format!(
+            "## Handoff Note\n\
+             {} ({}) handed off to you.\n\
+             **Classification:** {}\n\
+             **Summary:** {}\n\
+             {}\n\
+             Continue the conversation from here — do not ask the user to repeat what was already discussed.",
+            self.from_agent,
+            self.from_profession,
+            self.classification,
+            self.summary,
+            if self.warnings.is_empty() { String::new() }
+            else { format!("**Warnings:** {}", self.warnings.join("; ")) }
+        )
+    }
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant N as Nicole (assistant)
+    participant T as BringInTool
+    participant S as ForgeSession
+    participant I as Isaac (advisor)
+
+    U->>N: "I want to add OAuth2 login"
+    N->>N: classify → NEW_GOAL
+    N->>T: bring_in(target: "advisor", classification: "NEW_GOAL", reason: "...")
+    T->>S: set active_profession = "advisor"
+    T->>S: inject HandoffNote as system message
+    T-->>N: tool result: "Handed off to Isaac (advisor)"
+    N-->>U: [handoff card: Nicole → Isaac]
+    Note over I: Next streaming turn uses Isaac's system prompt
+    I->>I: reads HandoffNote + full conversation history
+    I->>U: "I see you want OAuth2. Let me check existing goals..."
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `target` | `String` | Must be in caller's `handoff_to` list, else rejected |
+| `classification` | `String` | QUESTION / DIRECT / NEW_GOAL / REQ_UPDATE |
+| `reason` | `String` | Free-text explanation, included in HandoffNote |
+| `from_agent` | `String` | Display name of calling agent (from AgentConfig) |
+| `summary` | `String` | Auto-generated from tool result (LLM's reason field) |
+
+### Validation Rules
+
+1. `target` must exist in `ProfessionRegistry`
+2. `target` must be in calling agent's `handoff_to` list (from Profession config)
+3. `target` must differ from current `active_profession`
+4. On validation failure: tool returns error, LLM continues in current role
+
+### SSE Events
+
+```json
+// New event type: agent_handoff
+{
+  "type": "agent_handoff",
+  "from_agent": "Nicole",
+  "from_profession": "assistant",
+  "to_profession": "advisor",
+  "to_agent": "Isaac",
+  "classification": "NEW_GOAL",
+  "reason": "User wants to add a new feature (OAuth2 login)"
+}
+```
+
+### Frontend Rendering
+
+The `tool_call` for `bring_in` renders as a HandoffCard instead of a generic tool result:
+- Shows "Nicole → Isaac" with arrow icon
+- Shows classification badge (NEW_GOAL)
+- Shows reason text
+- Active profession badge updates to show Isaac
