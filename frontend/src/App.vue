@@ -116,8 +116,9 @@
       <template v-else>
         <ChatsView v-if="currentView === 'chats'" />
         <SpecsView v-else-if="currentView === 'specs'" />
-        <AgentsView v-else-if="currentView === 'agents'" />
-        <StreamingDemoView v-else-if="currentView === 'demo'" />
+        <RelayView v-else-if="currentView === 'agents'" />
+        <AgentsConfigView v-else-if="currentView === 'agents-config'" />
+        <ApiSourcesView v-else-if="currentView === 'apis'" />
       </template>
     </main>
 
@@ -131,8 +132,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import {
-  Flame, MessageSquare, Scroll, Orbit,
-  Sun, Moon, Monitor, Sparkles, Check, Palette,
+  Flame, MessageSquare, Scroll, Orbit, Server, Users,
+  Sun, Moon, Monitor, Check, Palette,
   FolderOpen, X,
 } from 'lucide-vue-next'
 import { useTheme } from '@/composables/useTheme'
@@ -143,8 +144,9 @@ import { useProject } from '@/composables/useProject'
 import WelcomeView from './views/WelcomeView.vue'
 import ChatsView from './views/ChatsView.vue'
 import SpecsView from './views/SpecsView.vue'
-import AgentsView from './views/AgentsView.vue'
-import StreamingDemoView from './views/StreamingDemoView.vue'
+import RelayView from './views/RelayView.vue'
+import AgentsConfigView from './views/AgentsConfigView.vue'
+import ApiSourcesView from './views/ApiSourcesView.vue'
 
 const { mode, setMode } = useTheme()
 const { current: accentCurrent, setAccent, options: accentOptions } = useAccentColor()
@@ -222,14 +224,15 @@ const themeOptions = [
   { value: 'auto' as const, label: 'System', icon: Monitor },
 ]
 
-const tabs: { id: 'chats' | 'specs' | 'agents' | 'demo'; label: string; icon: unknown }[] = [
+const tabs: { id: 'chats' | 'specs' | 'agents' | 'agents-config' | 'apis'; label: string; icon: unknown }[] = [
   { id: 'chats', label: 'Chat', icon: MessageSquare },
   { id: 'specs', label: 'Specs', icon: Scroll },
   { id: 'agents', label: 'Relay', icon: Orbit },
-  { id: 'demo', label: 'Demo', icon: Sparkles },
+  { id: 'agents-config', label: 'Agents', icon: Users },
+  { id: 'apis', label: 'APIs', icon: Server },
 ]
 
-const currentView = ref<'chats' | 'specs' | 'agents' | 'demo'>('chats')
+const currentView = ref<'chats' | 'specs' | 'agents' | 'agents-config' | 'apis'>('chats')
 </script>
 
 <style>

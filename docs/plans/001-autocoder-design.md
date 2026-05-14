@@ -10,7 +10,7 @@ After reviewing the competitive landscape and the existing Auto ecosystem, here 
 
 | Name | Rationale | Fit |
 |------|-----------|-----|
-| **AutoForge** ⭐ | A smith works *serially* — heating, hammering, quenching, polishing — each step deliberate and dependent on the last. Evokes craftsmanship, precision, and finishing. No competing product uses this. | **Strong** |
+| **AutoForge** ⭐ | A smith works *serially* — heating, hammering, quenching, polishing — each step deliberate and dependent on the last. Evokes craftsmanship, precision, and finishing. No competing product uses this. | **Heavy** |
 | **AutoForge** | Where things are forged. Good but more generic; Forge is common in dev tools. | Good |
 | **AutoRelay** | Emphasizes the serial handoff between agents. But sounds too sports-oriented. | Moderate |
 | **AutoMason** | Building brick by brick — very serial! But "mason" is heavily associated with package managers. | Moderate |
