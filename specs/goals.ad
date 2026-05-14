@@ -18,6 +18,7 @@
 | G9 | Specs Workspace with Bidirectional Traceability | P0 | Implemented | UI Team |
 | G10 | Live Relay Pipeline Visualization | P0 | Implemented | UI Team |
 | G11 | Responsive and Accessible Frontend | P1 | Implemented | UI Team |
+| G12 | Project Concept enables VS Code–style folder opening with persistent workspace | P0 | Done | Core Team |
 
 ---
 
@@ -342,3 +343,23 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] RelationsPanel announces "X parents, Y children" on expand
 - [x] Live Log announces new entries with polite live region
 - [x] All interactive elements have accessible names
+
+## G12 Project Concept enables VS Code–style folder opening with persistent workspace
+**Status:** done
+**Depends on:** G7, G9
+
+- [x] Backend SpecsStore starts empty (no auto-load from current_dir)
+- [x] Project opens via API: POST /api/forge/project/open with directory path
+- [x] Specs auto-discovered from {project}/specs/ with fallback to legacy docs/specs/
+- [x] Project config persisted (last project, recent list) in user data dir
+- [x] Backend auto-restores last project on restart
+- [x] Frontend shows WelcomeView when no project is open
+- [x] Path input with directory browsing autocomplete
+- [x] Recent projects list for quick re-opening
+- [x] Project indicator (name + close button) in navigation rail
+- [x] SpecsView and ChatsView use dynamic project from useProject composable
+- [x] docs/specs/ promoted to top-level specs/ directory
+
+AutoForge operates on a user-chosen project directory, just like VS Code. On first launch the workspace is empty; the user opens a folder and specs are loaded from its specs/ subdirectory. The last project is remembered across restarts.
+
+---

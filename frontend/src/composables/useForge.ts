@@ -80,12 +80,12 @@ export function useForge() {
   }
 
   /** Start fresh: clear local state and storage, then create a new session */
-  async function clearSession() {
+  async function clearSession(projectPath?: string) {
     session.value = null
     messages.value = []
     error.value = null
     localStorage.removeItem(STORAGE_KEY)
-    await createSession()
+    await createSession(undefined, projectPath)
   }
 
   /** Attempt to resume on app load:

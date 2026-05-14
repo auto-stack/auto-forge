@@ -25,9 +25,7 @@ async fn main() {
     // AutoForge UI static files
     let forge_dist_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
-        .join("..")
-        .join("packages")
-        .join("auto-forge-ui")
+        .join("frontend")
         .join("dist");
     let forge_dist_dir = forge_dist_dir.canonicalize().unwrap_or(forge_dist_dir);
 
@@ -54,6 +52,9 @@ async fn main() {
 
     // Start periodic specs reload task (picks up disk edits and derives statuses)
     auto_forge::forge::start_periodic_reload();
+
+    // Restore last opened project from config
+    auto_forge::forge::restore_last_project();
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3031));
     tracing::info!("AutoForge server listening on http://{}", addr);

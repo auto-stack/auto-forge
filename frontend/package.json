@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "auto-playground-vue": "file:../auto-playground-vue",
     "lucide-vue-next": "^0.460.0",
     "marked": "^18.0.3",
     "markstream-vue": "^0.0.14-beta.8",

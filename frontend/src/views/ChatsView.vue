@@ -4,7 +4,7 @@
     <aside class="session-sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-header">
         <span class="sidebar-title">Sessions</span>
-        <button class="sidebar-new-btn" @click="clearSession" title="New session">
+        <button class="sidebar-new-btn" @click="clearSession(projectPath ?? undefined)" title="New session">
           <Plus :size="14" />
         </button>
         <button class="sidebar-collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed" title="Toggle sidebar">
@@ -245,6 +245,7 @@ import {
 } from 'lucide-vue-next'
 import { useForge } from '@/composables/useForge'
 import { useGateInbox } from '@/composables/useGateInbox'
+import { useProject } from '@/composables/useProject'
 import { setEventCallbacks } from '@/composables/useEventRouter'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
 import GateCard from '@/components/GateCard.vue'
@@ -275,6 +276,7 @@ const {
   deleteSession,
 } = useForge()
 
+const { projectPath } = useProject()
 const { currentSecretary, badgeCount: gateBadgeCount, resolveGate: resolveGateInbox, snoozeGate } = useGateInbox()
 const reportData = ref<ReportData | null>(null)
 

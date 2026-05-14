@@ -21,6 +21,7 @@ use std::sync::{Mutex, OnceLock};
 use crate::ai::AIProviderState;
 
 pub mod ai;
+pub mod project;
 pub mod tools;
 
 use axum::extract::FromRef;
@@ -568,44 +569,65 @@ const TMPL_REPORTS: &str = include_str!("templates/reports.ad");
 
 
 impl SpecsStore {
-    fn new() -> Self {
-        // Specs are stored in the project's own directory under docs/specs/
-        // so they can be version-controlled alongside the code.
-        // Override with AUTOFORGE_SPECS_DIR env var if needed.
-        let data_dir = std::env::var("AUTOFORGE_SPECS_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| PathBuf::from("."))
-                    .join("docs")
-                    .join("specs")
-            });
-        let _ = std::fs::create_dir_all(&data_dir);
-        // Templates stay in a global cache dir so they don't pollute the repo
+    fn new_default() -> Self {
         let templates_dir = dirs::cache_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("autoforge")
             .join("templates");
         let _ = std::fs::create_dir_all(&templates_dir);
-
         let mut store = Self {
             projects: std::collections::HashMap::new(),
-            data_dir,
+            data_dir: PathBuf::new(),
             templates_dir,
             flat_mode_project: None,
         };
         store.extract_embedded_templates();
-        // Detect flat mode before loading: manifest.at directly in data_dir
-        let flat_manifest = store.data_dir.join("manifest.at");
+        store
+    }
+
+    fn is_project_open(&self) -> bool {
+        !self.data_dir.as_os_str().is_empty()
+    }
+
+    fn open_project(&mut self, project_path: &std::path::Path) -> Result<project::ProjectInfo, String> {
+        if !project_path.exists() {
+            return Err(format!("Directory does not exist: {}", project_path.display()));
+        }
+        let specs_dir = project::find_specs_dir(project_path);
+        self.projects.clear();
+        self.data_dir = specs_dir.clone();
+        self.flat_mode_project = None;
+        let _ = std::fs::create_dir_all(&self.data_dir);
+
+        // Detect flat mode
+        let flat_manifest = self.data_dir.join("manifest.at");
         if flat_manifest.exists() {
             if let Ok(content) = std::fs::read_to_string(&flat_manifest) {
                 if let Ok(manifest) = toml::from_str::<ManifestAt>(&content) {
-                    store.flat_mode_project = Some(manifest.project);
+                    self.flat_mode_project = Some(manifest.project);
                 }
             }
         }
-        store.load_all();
-        store
+        self.load_all();
+
+        let name = project_path.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        tracing::info!("Opened project '{}' — specs at {}", name, specs_dir.display());
+        Ok(project::ProjectInfo {
+            path: project_path.to_string_lossy().to_string(),
+            name,
+            specs_dir: specs_dir.to_string_lossy().to_string(),
+            has_specs: self.flat_mode_project.is_some() || !self.projects.is_empty(),
+            is_open: true,
+        })
+    }
+
+    fn close_project(&mut self) {
+        self.projects.clear();
+        self.data_dir = PathBuf::new();
+        self.flat_mode_project = None;
     }
 
     fn extract_embedded_templates(&self) {
@@ -1285,11 +1307,11 @@ impl SpecsStore {
             }
             let derived = match section.section_type {
                 SectionType::Plans => {
-                    if section.items.iter().all(|i| i.status == Status::Done) {
+                    if section.items.iter().all(|i| matches!(i.status, Status::Done | Status::Implemented)) {
                         Some(Status::Done)
                     } else if section.items.iter().any(|i| matches!(i.status, Status::InProgress | Status::Implemented)) {
                         Some(Status::InProgress)
-                    } else if section.items.iter().all(|i| matches!(i.status, Status::Approved | Status::Done)) {
+                    } else if section.items.iter().all(|i| matches!(i.status, Status::Approved | Status::Done | Status::Implemented)) {
                         Some(Status::Approved)
                     } else {
                         None
@@ -1344,7 +1366,23 @@ fn sanitize_filename(name: &str) -> String {
 
 fn specs() -> &'static Mutex<SpecsStore> {
     static STORE: OnceLock<Mutex<SpecsStore>> = OnceLock::new();
-    STORE.get_or_init(|| Mutex::new(SpecsStore::new()))
+    STORE.get_or_init(|| Mutex::new(SpecsStore::new_default()))
+}
+
+/// Restore the last opened project from persisted config.
+pub fn restore_last_project() {
+    let config = project::load_config();
+    if let Some(ref path) = config.last_project_path {
+        let project_path = std::path::Path::new(path);
+        if project_path.exists() {
+            if let Ok(mut store) = specs().lock() {
+                match store.open_project(project_path) {
+                    Ok(info) => tracing::info!("Restored last project: {}", info.name),
+                    Err(e) => tracing::warn!("Failed to restore project '{}': {}", path, e),
+                }
+            }
+        }
+    }
 }
 
 /// Start a background task that reloads specs from disk every 5 seconds
@@ -1355,7 +1393,9 @@ pub fn start_periodic_reload() {
         loop {
             interval.tick().await;
             if let Ok(mut store) = specs().lock() {
-                store.reload_changed();
+                if store.is_project_open() {
+                    store.reload_changed();
+                }
             }
         }
     });
@@ -1368,6 +1408,76 @@ mod handlers {
     use crate::ai::{AIProviderState, AiProvider};
     use crate::forge::ai::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest, ToolClaudeProvider};
     use crate::forge::tools::ToolRegistry;
+
+    // ─── Project Management ───────────────────────────────────────────────
+
+    pub async fn get_project_status() -> Json<project::ProjectInfo> {
+        let store = specs().lock().unwrap();
+        if store.is_project_open() {
+            let name = store.data_dir.parent()
+                .and_then(|p| p.file_name())
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            Json(project::ProjectInfo {
+                path: store.data_dir.parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                name,
+                specs_dir: store.data_dir.to_string_lossy().to_string(),
+                has_specs: !store.projects.is_empty() || store.flat_mode_project.is_some(),
+                is_open: true,
+            })
+        } else {
+            Json(project::ProjectInfo {
+                path: String::new(),
+                name: String::new(),
+                specs_dir: String::new(),
+                has_specs: false,
+                is_open: false,
+            })
+        }
+    }
+
+    #[derive(Deserialize)]
+    pub struct OpenProjectBody {
+        pub path: String,
+    }
+
+    pub async fn open_project(
+        Json(req): Json<OpenProjectBody>,
+    ) -> Result<Json<project::ProjectInfo>, (StatusCode, String)> {
+        let path = PathBuf::from(&req.path);
+        let mut store = specs().lock().unwrap();
+        let info = store.open_project(&path)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+        project::add_recent(&req.path);
+        Ok(Json(info))
+    }
+
+    pub async fn close_project() -> Json<serde_json::Value> {
+        let mut store = specs().lock().unwrap();
+        store.close_project();
+        Json(serde_json::json!({"status": "closed"}))
+    }
+
+    pub async fn list_recent_projects() -> Json<Vec<project::RecentProject>> {
+        let config = project::load_config();
+        Json(config.recent_projects)
+    }
+
+    #[derive(Deserialize)]
+    pub struct BrowseQuery {
+        pub path: String,
+    }
+
+    pub async fn browse_directory(
+        axum::extract::Query(query): axum::extract::Query<BrowseQuery>,
+    ) -> Result<Json<project::BrowseResponse>, (StatusCode, String)> {
+        let result = project::browse_directory(&query.path)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+        Ok(Json(result))
+    }
 
     // ─── System Prompt & Tools ───────────────────────────────────────────
 
@@ -2157,6 +2267,12 @@ where
     crate::ai::AIProviderState: FromRef<S>,
 {
     Router::new()
+        // Project management
+        .route("/api/forge/project/status", get(handlers::get_project_status))
+        .route("/api/forge/project/open", post(handlers::open_project))
+        .route("/api/forge/project/close", post(handlers::close_project))
+        .route("/api/forge/project/recent", get(handlers::list_recent_projects))
+        .route("/api/forge/project/browse", get(handlers::browse_directory))
         // Forge
         .route("/api/forge/chats/session", post(handlers::create_forge_session))
         .route("/api/forge/chats/sessions", get(handlers::list_forge_sessions))

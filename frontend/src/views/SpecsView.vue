@@ -127,6 +127,7 @@ import {
 } from 'lucide-vue-next'
 import { useSpecs } from '@/composables/useSpecs'
 import { useGateInbox } from '@/composables/useGateInbox'
+import { useProject } from '@/composables/useProject'
 import type { SpecsSection, SpecItem, SectionType, Status } from '@/types/specs'
 import StatusBadge from '@/components/StatusBadge.vue'
 import GateBanner from '@/components/GateBanner.vue'
@@ -143,13 +144,14 @@ import ReportCards from '@/components/category/ReportCards.vue'
 
 const { document, isLoading, error, loadDocument, saveDocument, findItemById, findSectionByItemId, rebuildRelations: apiRebuildRelations } = useSpecs()
 const { gates: pendingGates, resolveGate: resolveGateInbox } = useGateInbox()
+const { projectName: activeProjectName } = useProject()
 
 const SPECS_SIDEBAR_KEY = 'autoforge-specs-sidebar-collapsed'
 
 const activeSection = ref<string>('goals')
 const activeItemId = ref<string | null>(null)
 const editingItemId = ref<string | null>(null)
-const project = ref('auto-lang')
+const project = computed(() => activeProjectName.value ?? 'unknown')
 const specSearch = ref('')
 const sectionNavCollapsed = ref(localStorage.getItem(SPECS_SIDEBAR_KEY) === 'true')
 const flashItemId = ref<string | null>(null)
@@ -374,7 +376,15 @@ async function rebuildRelations() {
 }
 
 onMounted(() => {
-  loadDocument(project.value)
+  if (project.value && project.value !== 'unknown') {
+    loadDocument(project.value)
+  }
+})
+
+watch(project, (newVal) => {
+  if (newVal && newVal !== 'unknown') {
+    loadDocument(newVal)
+  }
 })
 </script>
 

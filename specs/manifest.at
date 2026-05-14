@@ -1,12 +1,12 @@
-project = "auto-lang"
-version = 13
+project = "auto-forge"
+version = 14
 
 [[section]]
 id = "goals"
 section_type = "goals"
 title = "🎯 Goals"
 status = "implemented"
-last_modified = 1778720667
+last_modified = 1778742004
 
 [[section]]
 id = "architecture"
@@ -26,8 +26,8 @@ last_modified = 1778693194
 id = "plans"
 section_type = "plans"
 title = "📅 Plans"
-status = "in_progress"
-last_modified = 1778737332
+status = "done"
+last_modified = 1778742436
 
 [[section]]
 id = "tests"

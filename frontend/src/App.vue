@@ -6,6 +6,13 @@
         <span class="brand-text">AutoForge</span>
         <span class="version">v0.1.0</span>
       </div>
+      <div v-if="isOpen" class="rail-project">
+        <FolderOpen :size="14" />
+        <span class="project-name">{{ projectName }}</span>
+        <button class="project-close-btn" @click="closeProject" title="Close project">
+          <X :size="12" />
+        </button>
+      </div>
       <div class="rail-tabs">
         <button
           v-for="tab in tabs"
@@ -105,10 +112,13 @@
       </div>
     </nav>
     <main class="view-main">
-      <ChatsView v-if="currentView === 'chats'" />
-      <SpecsView v-else-if="currentView === 'specs'" />
-      <AgentsView v-else-if="currentView === 'agents'" />
-      <StreamingDemoView v-else-if="currentView === 'demo'" />
+      <WelcomeView v-if="!isOpen" />
+      <template v-else>
+        <ChatsView v-if="currentView === 'chats'" />
+        <SpecsView v-else-if="currentView === 'specs'" />
+        <AgentsView v-else-if="currentView === 'agents'" />
+        <StreamingDemoView v-else-if="currentView === 'demo'" />
+      </template>
     </main>
 
     <!-- Screen reader announcements -->
@@ -123,11 +133,14 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import {
   Flame, MessageSquare, Scroll, Orbit,
   Sun, Moon, Monitor, Sparkles, Check, Palette,
+  FolderOpen, X,
 } from 'lucide-vue-next'
 import { useTheme } from '@/composables/useTheme'
 import { useAccentColor, ACCENT_OPTIONS } from '@/composables/useAccentColor'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useForgeMode } from '@/composables/useForgeMode'
+import { useProject } from '@/composables/useProject'
+import WelcomeView from './views/WelcomeView.vue'
 import ChatsView from './views/ChatsView.vue'
 import SpecsView from './views/SpecsView.vue'
 import AgentsView from './views/AgentsView.vue'
@@ -137,6 +150,7 @@ const { mode, setMode } = useTheme()
 const { current: accentCurrent, setAccent, options: accentOptions } = useAccentColor()
 const { badgeCount: gateBadgeCount, currentSecretary } = useGateInbox()
 const { mode: forgeMode } = useForgeMode()
+const { isOpen, projectName, fetchStatus, closeProject } = useProject()
 
 function setForgeMode(val: 'gsd' | 'check') {
   forgeMode.value = val
@@ -172,6 +186,7 @@ function onDocClick(e: MouseEvent) {
 onMounted(() => {
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', onKeyDown)
+  fetchStatus()
 })
 onUnmounted(() => {
   document.removeEventListener('click', onDocClick)
@@ -253,7 +268,46 @@ html, body, #app {
   gap: 0.5rem;
   color: var(--af-primary);
   padding: 0 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.rail-project {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  margin: 0 0.5rem 1rem;
+  background: hsl(var(--primary) / 0.06);
+  border-radius: 5px;
+  color: var(--af-fg);
+  font-size: 0.75rem;
+}
+
+.project-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.project-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--af-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.project-close-btn:hover {
+  background: hsl(var(--muted-foreground) / 0.1);
+  color: var(--af-fg);
 }
 
 .brand-text {

@@ -215,3 +215,23 @@
 | P12.2 | Keyboard shortcuts (Ctrl+1/2/3/K) | Bob | 1 day | — | Done |
 | P12.3 | Focus management for gate cards and secretary messages | Alice | 2 days | P8.1, P8.2 | Done |
 | P12.4 | Screen reader annotations for node graph and relations panel | Bob | 2 days | P9.1, P10.2 | Done |
+
+
+---
+
+## P13 Project Concept — VS Code–style Workspace
+**Status:** done
+**Depends on:** G12
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P13.1 | Backend project.rs: ProjectConfig, find_specs_dir, browse_directory | Core | 2 days | — | Done |
+| P13.2 | SpecsStore refactor: new_default, open_project, close_project, is_project_open | Core | 1 day | P13.1 | Done |
+| P13.3 | Project API endpoints: status, open, close, recent, browse | Core | 1 day | P13.2 | Done |
+| P13.4 | Backend auto-restore last project on startup | Core | 0.5 day | P13.3 | Done |
+| P13.5 | Frontend useProject composable with singleton state | Core | 1 day | P13.3 | Done |
+| P13.6 | WelcomeView with path input, browse, recent projects list | Core | 1 day | P13.5 | Done |
+| P13.7 | App.vue conditional rendering + project indicator in nav rail | Core | 0.5 day | P13.6 | Done |
+| P13.8 | SpecsView dynamic project from useProject (replace hardcoded auto-lang) | Core | 0.5 day | P13.7 | Done |
+| P13.9 | ChatsView passes projectPath on session creation | Core | 0.5 day | P13.7 | Done |
+| P13.10 | Move docs/specs/ to top-level specs/ directory | Core | 0.5 day | P13.8 | Done |
