@@ -384,14 +384,14 @@ pub fn save_agent_configs(configs: &[AgentConfig]) -> Result<(), ConfigError> {
 /// api_source_id is empty by default — user must configure an API source first.
 pub fn generate_default_agents() -> Vec<AgentConfig> {
     let defaults: [(&str, &str, &str, ModelTier); 8] = [
-        ("assistant", "Assistant Agent", "assistant", ModelTier::Light),
-        ("advisor", "Advisor Agent", "advisor", ModelTier::Mid),
-        ("architect", "Architect Agent", "architect", ModelTier::Heavy),
-        ("planner", "Planner Agent", "planner", ModelTier::Mid),
-        ("tester", "Tester Agent", "tester", ModelTier::Light),
-        ("coder", "Coder Agent", "coder", ModelTier::Mid),
-        ("reviewer", "Reviewer Agent", "reviewer", ModelTier::Heavy),
-        ("documenter", "Documenter Agent", "documenter", ModelTier::Light),
+        ("assistant", "Nicole", "assistant", ModelTier::Light),
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),
+        ("architect", "Vera", "architect", ModelTier::Heavy),
+        ("planner", "Felix", "planner", ModelTier::Mid),
+        ("tester", "Quinn", "tester", ModelTier::Light),
+        ("coder", "Ash", "coder", ModelTier::Mid),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Heavy),
+        ("documenter", "Luna", "documenter", ModelTier::Light),
     ];
 
     defaults

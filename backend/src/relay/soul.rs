@@ -12,6 +12,8 @@ pub struct SoulConfig {
     pub id: String,
     pub name: String,
     pub markdown: String,
+    /// Extracted Personality section text (who the agent is).
+    pub personality: String,
     /// Extracted Core Values section lines.
     pub values: Vec<String>,
     /// Extracted Handoff Ritual section text.
@@ -35,6 +37,26 @@ impl SoulConfig {
             .find(|l| l.trim_start().starts_with("# "))
             .map(|l| l.trim_start()[2..].trim().to_string())
             .unwrap_or_else(|| format!("Soul of {}", id));
+
+        // Extract Personality section
+        let mut personality = String::new();
+        let mut in_personality = false;
+        for line in markdown.lines() {
+            let trimmed = line.trim();
+            if trimmed.eq_ignore_ascii_case("## personality")
+                || trimmed.eq_ignore_ascii_case("## personality\r")
+            {
+                in_personality = true;
+                continue;
+            }
+            if in_personality {
+                if trimmed.starts_with("## ") {
+                    break;
+                }
+                personality.push_str(line);
+                personality.push('\n');
+            }
+        }
 
         // Extract Core Values bullet list
         let mut values = Vec::new();
@@ -81,6 +103,7 @@ impl SoulConfig {
             id: id.to_string(),
             name,
             markdown: markdown.to_string(),
+            personality: personality.trim().to_string(),
             values,
             handoff_ritual: handoff_ritual.trim().to_string(),
         })
@@ -89,6 +112,11 @@ impl SoulConfig {
     /// Render the Soul into a system-prompt style text block.
     pub fn render(&self) -> String {
         let mut out = format!("# {}\n\n", self.name);
+        if !self.personality.is_empty() {
+            out.push_str("## Personality\n");
+            out.push_str(&self.personality);
+            out.push_str("\n\n");
+        }
         if !self.values.is_empty() {
             out.push_str("## Core Values\n");
             for v in &self.values {
@@ -128,6 +156,9 @@ mod tests {
 
     const TEST_SOUL: &str = r#"# Soul of the Architect
 
+## Personality
+You are Vera — structured, opinionated, and allergic to unnecessary complexity.
+
 ## Core Values
 - Simplicity over cleverness
 - Explicit over implicit
@@ -151,6 +182,7 @@ When I finish my work, I produce:
         assert_eq!(soul.values.len(), 3);
         assert!(soul.values[0].contains("Simplicity"));
         assert!(soul.handoff_ritual.contains("Decisions Made"));
+        assert!(soul.personality.contains("Vera"));
     }
 
     #[test]
@@ -158,7 +190,16 @@ When I finish my work, I produce:
         let soul = SoulConfig::parse("architect", TEST_SOUL).unwrap();
         let rendered = soul.render();
         assert!(rendered.contains("Soul of the Architect"));
+        assert!(rendered.contains("Personality"));
+        assert!(rendered.contains("Vera"));
         assert!(rendered.contains("Simplicity over cleverness"));
         assert!(rendered.contains("Handoff Ritual"));
+    }
+
+    #[test]
+    fn test_parse_soul_without_personality() {
+        let soul = SoulConfig::parse("minimal", "# Soul of Minimal\n\n## Core Values\n- One value\n").unwrap();
+        assert!(soul.personality.is_empty());
+        assert_eq!(soul.values.len(), 1);
     }
 }
