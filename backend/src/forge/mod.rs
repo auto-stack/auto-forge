@@ -21,6 +21,7 @@ use std::sync::{Mutex, OnceLock};
 
 pub mod project;
 pub mod tools;
+pub mod wiki;
 
 use axum::extract::FromRef;
 
@@ -2521,4 +2522,6 @@ where
         .route("/api/forge/specs/{project}", get(handlers::get_specs).put(handlers::update_specs))
         // Relay
         .merge(crate::relay::api::relay_routes())
+        // Wiki
+        .merge(crate::forge::wiki::wiki_routes())
 }

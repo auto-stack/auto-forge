@@ -83,6 +83,10 @@ impl ToolRegistry {
         registry.register(Box::new(WriteSpecsTool));
         registry.register(Box::new(ListSpecsTool));
         registry.register(Box::new(BringInTool));
+        registry.register(Box::new(QueryWikiTool));
+        registry.register(Box::new(ListWikiTool));
+        registry.register(Box::new(CreateWikiPageTool));
+        registry.register(Box::new(UpdateWikiPageTool));
         registry
     }
 
@@ -871,6 +875,287 @@ impl Tool for BringInTool {
     fn is_read_only(&self) -> bool { true }
 }
 
+// ─── Wiki Tools ──────────────────────────────────────────────────────────────
+
+/// Search wiki pages by keyword.
+struct QueryWikiTool;
+
+impl Tool for QueryWikiTool {
+    fn name(&self) -> &'static str {
+        "query_wiki"
+    }
+
+    fn description(&self) -> &'static str {
+        "Search the project wiki for information. \
+         Returns matching wiki pages with their content. \
+         Use this to look up reference material, how-to guides, or API documentation \
+         stored in the project's knowledge base."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query — keywords or a short question"
+                }
+            },
+            "required": ["query"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        if project.is_empty() {
+            return Err(ToolError::ExecutionFailed("No project context set".into()));
+        }
+
+        let query = args
+            .get("query")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'query' argument".into()))?;
+
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
+
+        super::wiki::ensure_wiki_loaded(&project_name, &project);
+        let store = super::wiki::wiki_store().lock().unwrap();
+        let results = store.search(&project_name, query);
+
+        if results.is_empty() {
+            Ok(format!("No wiki pages found matching '{}'.", query))
+        } else {
+            let mut output = format!("Found {} matching wiki page(s):\n", results.len());
+            for page in &results {
+                output.push_str(&format!(
+                    "\n## {} (slug: {})\n{}\n",
+                    page.title, page.slug, page.content
+                ));
+            }
+            Ok(output)
+        }
+    }
+
+    fn is_read_only(&self) -> bool { true }
+}
+
+/// List all wiki pages for the project.
+struct ListWikiTool;
+
+impl Tool for ListWikiTool {
+    fn name(&self) -> &'static str {
+        "list_wiki"
+    }
+
+    fn description(&self) -> &'static str {
+        "List all wiki pages in the project. \
+         Returns page titles, slugs, and metadata. \
+         Use this to discover what reference material is available."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {}
+        })
+    }
+
+    fn execute(&self, _args: Value) -> Result<String, ToolError> {
+        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        if project.is_empty() {
+            return Err(ToolError::ExecutionFailed("No project context set".into()));
+        }
+
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
+
+        super::wiki::ensure_wiki_loaded(&project_name, &project);
+        let store = super::wiki::wiki_store().lock().unwrap();
+        let pages = store.list_pages(&project_name);
+
+        if pages.is_empty() {
+            Ok("No wiki pages found for this project.".to_string())
+        } else {
+            let mut output = format!("Wiki pages ({} total):\n", pages.len());
+            for p in &pages {
+                output.push_str(&format!(
+                    "- {} [{}] (v{}, updated: {})\n",
+                    p.title, p.slug, p.version, p.updated_at
+                ));
+            }
+            Ok(output)
+        }
+    }
+
+    fn is_read_only(&self) -> bool { true }
+}
+
+/// Create a new wiki page.
+struct CreateWikiPageTool;
+
+impl Tool for CreateWikiPageTool {
+    fn name(&self) -> &'static str {
+        "create_wiki_page"
+    }
+
+    fn description(&self) -> &'static str {
+        "Create a new page in the project wiki. \
+         Use this to store reference material, how-to guides, or API notes \
+         that you or other agents can look up later."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "description": "URL-friendly identifier (e.g., 'esp32-pin-mux', 'rust-async-guide')"
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Human-readable page title"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Page content in Markdown"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional tags for categorization"
+                }
+            },
+            "required": ["slug", "title", "content"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        if project.is_empty() {
+            return Err(ToolError::ExecutionFailed("No project context set".into()));
+        }
+
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
+
+        let slug = args
+            .get("slug")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'slug' argument".into()))?;
+        let title = args
+            .get("title")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'title' argument".into()))?;
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'content' argument".into()))?;
+        let tags: Vec<String> = args
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+
+        super::wiki::ensure_wiki_loaded(&project_name, &project);
+        let mut store = super::wiki::wiki_store().lock().unwrap();
+        let page = super::wiki::WikiPage {
+            slug: slug.to_string(),
+            title: title.to_string(),
+            content: content.to_string(),
+            source_type: super::wiki::WikiSource::Manual,
+            tags,
+            version: 0,
+            created_at: 0,
+            updated_at: 0,
+        };
+        store
+            .create_page(&project_name, &project, page)
+            .map(|p| format!("Created wiki page '{}' (slug: {})", p.title, p.slug))
+            .map_err(|e| ToolError::ExecutionFailed(e))
+    }
+}
+
+/// Update an existing wiki page.
+struct UpdateWikiPageTool;
+
+impl Tool for UpdateWikiPageTool {
+    fn name(&self) -> &'static str {
+        "update_wiki_page"
+    }
+
+    fn description(&self) -> &'static str {
+        "Update the content of an existing wiki page. \
+         Use this to refine or extend reference material in the knowledge base."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "description": "The slug of the page to update"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The new content in Markdown"
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Optional new title"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional new tags"
+                }
+            },
+            "required": ["slug", "content"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        if project.is_empty() {
+            return Err(ToolError::ExecutionFailed("No project context set".into()));
+        }
+
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
+
+        let slug = args
+            .get("slug")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'slug' argument".into()))?;
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'content' argument".into()))?;
+        let title = args.get("title").and_then(|v| v.as_str()).map(String::from);
+        let tags: Option<Vec<String>> = args
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
+
+        super::wiki::ensure_wiki_loaded(&project_name, &project);
+        let mut store = super::wiki::wiki_store().lock().unwrap();
+        store
+            .update_page(&project_name, &project, slug, content.to_string(), title, tags)
+            .map(|p| format!("Updated wiki page '{}' (v{})", p.title, p.version))
+            .map_err(|e| ToolError::ExecutionFailed(e))
+    }
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -948,7 +1233,7 @@ mod tests {
     fn test_tool_registry() {
         let registry = ToolRegistry::new();
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 9);
+        assert_eq!(defs.len(), 13);
         assert!(registry.get("read_file").is_some());
         assert!(registry.get("write_file").is_some());
         assert!(registry.get("edit_file").is_some());
