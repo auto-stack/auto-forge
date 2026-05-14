@@ -1,0 +1,22 @@
+# Build
+backend/target/
+
+# Dependencies
+frontend/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Playwright MCP
+.playwright-mcp/
+
+# AutoForge runtime
+backend/docs/
