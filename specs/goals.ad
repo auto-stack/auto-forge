@@ -22,6 +22,7 @@
 | G13 | API Source Configuration supports multi-provider LLM management with auto-detection and model tiers | P0 | Proposed | Core Team |
 | G14 | Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming | P0 | Done | Core Team |
 | G15 | CLI Mode provides interactive REPL chat as forge chat subcommand | P1 | Removed | Core Team |
+| G16 | @Mention Agent Targeting directs chat messages to named agents with sticky profession routing | P0 | Implemented | UI Team |
 
 ---
 
@@ -407,5 +408,40 @@ The provider/ module is the unified AI communication layer, ported from auto-cod
 **Depends on:** G14
 
 CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-driven system — a CLI REPL is not part of its core workflow. The provider, runtime, and tool modules remain; only the CLI entry point and REPL loop were removed.
+
+---
+
+## G16 @Mention Agent Targeting directs chat messages to named agents with sticky profession routing
+**Status:** implemented
+**Depends on:** G1, G12
+
+- [x] `@DisplayName` syntax in chat input resolves to profession_id via AgentConfig lookup
+- [x] Autocomplete dropdown filters agents by display name and profession_id after typing `@`
+- [x] Session stores `active_profession` — subsequent messages without `@` keep targeting the same agent
+- [x] Backend resolves profession to full agent (soul + profession system prompt) via RelayRegistry
+- [x] Agent identifies by display name in system prompt and responses (e.g., "I'm Nicole")
+- [x] @mentions render as inline styled chips in both input backdrop and message bubbles
+- [x] Tool role messages hidden from chat display; bouncing dots animation replaces empty assistant bubble
+- [x] Enter sends, Ctrl+Enter inserts newline
+- [x] Tool names renamed from jade to specs (list_jade→list_specs, etc.)
+- [x] All tools resolve file paths via project directory instead of backend CWD
+
+## G16.1 Display name resolution and identity
+**Status:** implemented
+**Depends on:** G16
+
+- [x] AgentConfig `name` field serves as display name (e.g., "Nicole", "Isaac")
+- [x] `resolveMention()` maps both display names and profession_ids to canonical profession_id
+- [x] `AgentInstance.display_name` propagated through `spawn_agent_from_config()`
+- [x] System prompt leads with "You are {display_name}" instead of "AutoForge"
+
+## G16.2 @Mention autocomplete with backdrop overlay
+**Status:** implemented
+**Depends on:** G16
+
+- [x] MentionDropdown component with keyboard navigation (up/down/enter/escape)
+- [x] `@` detection scans backwards from cursor position (not limited to start of input)
+- [x] Backdrop overlay technique renders styled @mention chips behind transparent textarea
+- [x] Selection replaces `@filter` with `@DisplayName ` at cursor position
 
 ---
