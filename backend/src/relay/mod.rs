@@ -13,6 +13,7 @@ pub mod agent;
 pub mod api;
 pub mod budget;
 pub mod checkpoint;
+pub mod config;
 pub mod flow;
 pub mod flows;
 pub mod handoff;
@@ -25,6 +26,7 @@ pub mod turn;
 pub use agent::{AgentContext, AgentInstance, ModelConfig, Provider};
 pub use budget::{BudgetAction, BudgetStrategy, BudgetTracker, CostReport, TokenBudget};
 pub use checkpoint::{Checkpoint, CheckpointError, FileState};
+pub use config::{AgentConfig, ApiSource, ConfigError, ConnectionTestResult, ModelDefinition, ModelTier};
 pub use flow::{ExitRouting, FlowSpec, FlowStep, GateType};
 pub use handoff::{ContextPointers, Decision, HandoffDocument, Question, SpecUpdate, TokenUsage, WorkProduct};
 pub use pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, StepRecord};
@@ -34,11 +36,15 @@ pub use store::{RunStore, new_run_store, start_run, get_run, list_runs, advance_
 
 use std::collections::HashMap;
 
-/// Global registry of Souls and Professions.
+/// Global registry of Souls, Professions, and API Sources.
 pub struct RelayRegistry {
     pub professions: ProfessionRegistry,
     /// Cached souls loaded from `.autoforge/souls/`.
     pub souls: HashMap<String, SoulConfig>,
+    /// Configured API sources (LLM providers).
+    pub api_sources: Vec<ApiSource>,
+    /// Configured agent bindings (profession + soul + api source + tier).
+    pub agent_configs: Vec<AgentConfig>,
     souls_dir: std::path::PathBuf,
 }
 
@@ -52,8 +58,12 @@ impl RelayRegistry {
         let mut registry = Self {
             professions: ProfessionRegistry::new(),
             souls: HashMap::new(),
+            api_sources: Vec::new(),
+            agent_configs: Vec::new(),
             souls_dir,
         };
+        registry.api_sources = config::load_or_detect_api_sources();
+        registry.agent_configs = config::load_or_generate_agent_configs(&registry.api_sources);
         registry.load_builtin_souls();
         let _ = registry.load_custom_souls();
         registry
@@ -105,6 +115,21 @@ impl RelayRegistry {
         let profession = self.professions.get(profession_id)?.clone();
         let soul = self.souls.get(soul_id)?.clone();
         Some(AgentInstance::spawn(profession, soul, model))
+    }
+
+    /// Spawn an agent from an AgentConfig, resolving model from the linked ApiSource.
+    pub fn spawn_agent_from_config(&self, config: &AgentConfig) -> Option<AgentInstance> {
+        let model = config::resolve_model(config, &self.api_sources)?;
+        let profession = self.professions.get(&config.profession_id)?.clone();
+        let soul = self.souls.get(&config.soul_id)?.clone();
+        Some(AgentInstance::spawn(profession, soul, model))
+    }
+
+    /// Find the default agent config for a given profession.
+    pub fn default_agent_for(&self, profession_id: &str) -> Option<&AgentConfig> {
+        self.agent_configs
+            .iter()
+            .find(|c| c.profession_id == profession_id && c.is_default)
     }
 }
 

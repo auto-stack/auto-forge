@@ -487,6 +487,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s2".into(),
                 profession_id: "architect".into(),
+                agent_config_id: None,
             }
         );
 
@@ -499,6 +500,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s3".into(),
                 profession_id: "coder".into(),
+                agent_config_id: None,
             }
         );
     }

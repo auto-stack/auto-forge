@@ -19,6 +19,7 @@
 | G10 | Live Relay Pipeline Visualization | P0 | Implemented | UI Team |
 | G11 | Responsive and Accessible Frontend | P1 | Implemented | UI Team |
 | G12 | Project Concept enables VS Code–style folder opening with persistent workspace | P0 | Done | Core Team |
+| G13 | API Source Configuration supports multi-provider LLM management with auto-detection and model tiers | P0 | Proposed | Core Team |
 
 ---
 
@@ -361,5 +362,24 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] docs/specs/ promoted to top-level specs/ directory
 
 AutoForge operates on a user-chosen project directory, just like VS Code. On first launch the workspace is empty; the user opens a folder and specs are loaded from its specs/ subdirectory. The last project is remembered across restarts.
+
+---
+
+## G13 API Source Configuration supports multi-provider LLM management with auto-detection and model tiers
+**Status:** proposed
+**Depends on:** G1, G6
+
+- [ ] ApiSource data model supports Anthropic, OpenAI, and Local providers with per-source models
+- [ ] ModelTier enum (Light / Mid / Heavy) maps to concrete models per provider
+- [ ] First-startup auto-detection finds existing Claude keys, OpenAI keys, and Ollama instances
+- [ ] API sources persisted to `dirs::data_local_dir()/autoforge/api_sources.json`
+- [ ] CRUD API endpoints for creating, reading, updating, and deleting API sources
+- [ ] Multi-provider AI dispatch routes chat requests to the correct provider (Anthropic SSE, OpenAI streaming, Local/Ollama)
+- [ ] API key resolution priority: env var → ~/.claude/settings.json → stored (base64)
+- [ ] Test Connection endpoint verifies API source connectivity and credentials
+- [ ] APIs top-level view with source list, detail editor, and model management table
+- [ ] First-startup UI guides user when no API source is configured
+
+Currently AutoForge only supports Anthropic Claude with a hardcoded API key path. G13 introduces a configurable multi-provider system so agents can use different LLM backends. The APIs view sits as a top-level navigation tab alongside Chat, Specs, and Relay, because Tools and Skills views will follow the same pattern in the future.
 
 ---

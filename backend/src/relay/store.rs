@@ -140,7 +140,7 @@ pub fn advance_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
     entry.updated_at = now_secs();
 
     match &result {
-        AdvanceResult::ExecuteStep { step_id, profession_id } => {
+        AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
             entry.events.push(RunEvent::StepStarted {
                 step_id: step_id.clone(),
                 profession_id: profession_id.clone(),

@@ -581,3 +581,124 @@ inbox.registerGate(gateA)
 2. Select an item with relations
 3. Assert RelationsPanel renders as bottom sheet, not sidebar
 4. Swipe down; assert sheet dismisses
+
+
+---
+
+## S13.1 [G13] ApiSource CRUD operations persist and load correctly
+**Status:** proposed
+**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
+**Depends on:** G13, D19
+
+```rust
+let temp_dir = TempDir::new().unwrap();
+let config_dir = temp_dir.path().join("autoforge");
+```
+
+1. Create `ApiSource { id: "test-anthropic", provider: Anthropic, ... }`
+2. Call `save_api_sources(&[source])`
+3. Call `load_api_sources()`
+4. Assert loaded source matches original
+5. Update source name, call `save_api_sources()`
+6. Reload, assert name updated
+7. Delete by saving empty array, reload, assert empty
+
+- Save and load round-trips without data loss.
+- Multiple sources can be persisted.
+- Empty state loads as empty Vec.
+
+
+---
+
+## S13.2 [G13] Auto-detection discovers Anthropic key from ~/.claude/settings.json
+**Status:** proposed
+**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
+**Depends on:** G13, D19
+
+```rust
+// Set up mock ~/.claude/settings.json with ANTHROPIC_AUTH_TOKEN
+let temp_home = TempDir::new().unwrap();
+```
+
+1. Write `settings.json` with `env.ANTHROPIC_AUTH_TOKEN = "sk-test-key"`
+2. Call `detect_available_providers()`
+3. Assert one Anthropic source returned
+4. Assert source has 3 models (haiku, sonnet, opus) with correct tiers
+5. Assert `is_available == true`
+
+- Anthropic source detected with correct models.
+- All three tiers (Light/Mid/Heavy) populated.
+- Source is marked available.
+
+
+---
+
+## S13.3 [G13] API key resolution follows priority order
+**Status:** proposed
+**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
+**Depends on:** G13, D19
+
+```rust
+let source = ApiSource {
+    api_key_env: "TEST_API_KEY".into(),
+    api_key_stored: Some(base64_encode("stored-key")),
+    ...
+};
+```
+
+1. Set env var `TEST_API_KEY=env-key`; call `resolve_api_key()` → assert "env-key"
+2. Unset env var; call `resolve_api_key()` → assert "stored-key" (decoded from base64)
+3. Set `api_key_env = "settings:ANTHROPIC_API_KEY"` with mock settings → assert settings value
+4. Remove all sources → assert `None`
+
+- Env var takes priority over stored key.
+- Settings path works as fallback.
+- Returns None when no key is available.
+
+
+---
+
+## S13.4 [G13] Multi-provider dispatch routes to correct API format
+**Status:** proposed
+**Test File:** `backend/src/ai.rs` (inline `#[cfg(test)]`)
+**Depends on:** G13, D20
+
+```rust
+// Mock HTTP responses for each provider
+let anthropic_source = ApiSource { provider: Anthropic, ... };
+let openai_source = ApiSource { provider: OpenAI, ... };
+```
+
+1. Call `dispatch_chat(&anthropic_source, "claude-3-5-sonnet", ...)` with mock server
+2. Assert request uses `x-api-key` header, `/v1/messages` path
+3. Assert SSE parsing extracts `delta.text` from `content_block_delta`
+4. Call `dispatch_chat(&openai_source, "gpt-4o", ...)` with mock server
+5. Assert request uses `Authorization: Bearer` header, `/v1/chat/completions` path
+6. Assert SSE parsing extracts `choices[0].delta.content`
+
+- Anthropic provider sends correct auth header and URL.
+- OpenAI provider sends correct auth header and URL.
+- Both SSE formats are parsed into `AIStreamDelta` correctly.
+
+
+---
+
+## S13.5 [G13] Test connection endpoint validates API credentials
+**Status:** proposed
+**Test File:** `backend/src/relay/api.rs` (integration test)
+**Depends on:** G13, D19
+
+```rust
+// POST /api/forge/config/api-sources/{id}/test
+```
+
+1. Create source with valid Anthropic key
+2. Call test connection endpoint
+3. Assert response `{ "success": true, "model": "claude-3-5-sonnet" }`
+4. Create source with invalid key
+5. Call test connection endpoint
+6. Assert response `{ "success": false, "error": "Authentication failed" }`
+
+- Valid credentials return success with model confirmation.
+- Invalid credentials return descriptive error.
+- Local provider checks connectivity to URL.

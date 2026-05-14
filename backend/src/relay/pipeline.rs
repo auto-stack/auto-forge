@@ -32,6 +32,8 @@ pub enum AdvanceResult {
     ExecuteStep {
         step_id: String,
         profession_id: String,
+        /// If set, use this agent config instead of the default for the profession.
+        agent_config_id: Option<String>,
     },
     /// Pause for human approval at a gate.
     WaitForHuman {
@@ -242,6 +244,7 @@ impl PipelineEngine {
         AdvanceResult::ExecuteStep {
             step_id: step.id.clone(),
             profession_id: step.profession_id.clone(),
+            agent_config_id: step.agent_config_id.clone(),
         }
     }
 
@@ -481,6 +484,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s1".into(),
                 profession_id: "planner".into(),
+                agent_config_id: None,
             }
         );
 
@@ -491,6 +495,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s2".into(),
                 profession_id: "architect".into(),
+                agent_config_id: None,
             }
         );
 
@@ -502,6 +507,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s3".into(),
                 profession_id: "coder".into(),
+                agent_config_id: None,
             }
         );
 
@@ -537,7 +543,7 @@ mod tests {
 
         // Assistant runs
         let r1 = engine.advance();
-        assert_eq!(r1, AdvanceResult::ExecuteStep { step_id: "assistant-step".into(), profession_id: "assistant".into() });
+        assert_eq!(r1, AdvanceResult::ExecuteStep { step_id: "assistant-step".into(), profession_id: "assistant".into(), agent_config_id: None });
 
         // Assistant classifies as DIRECT → handoff to coder
         let mut h = make_handoff("assistant", "coder");
@@ -548,6 +554,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "coder-step".into(),
                 profession_id: "coder".into(),
+                agent_config_id: None,
             }
         );
 
@@ -597,6 +604,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s1".into(),
                 profession_id: "advisor".into(),
+                agent_config_id: None,
             }
         );
 
@@ -608,6 +616,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s2".into(),
                 profession_id: "architect".into(),
+                agent_config_id: None,
             }
         );
     }
@@ -634,6 +643,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s1".into(),
                 profession_id: "advisor".into(),
+                agent_config_id: None,
             }
         );
 
@@ -780,6 +790,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s1".into(),
                 profession_id: "tester".into(),
+                agent_config_id: None,
             }
         );
         assert_eq!(engine.loop_counters.get("s1"), Some(&1));
@@ -787,7 +798,7 @@ mod tests {
         // Iteration 2
         let h = make_handoff("tester", "tester");
         let r = engine.submit_handoff(h);
-        assert_eq!(r, AdvanceResult::ExecuteStep { step_id: "s1".into(), profession_id: "tester".into() });
+        assert_eq!(r, AdvanceResult::ExecuteStep { step_id: "s1".into(), profession_id: "tester".into(), agent_config_id: None });
         assert_eq!(engine.loop_counters.get("s1"), Some(&2));
 
         // Iteration 3 → break to reviewer
@@ -798,6 +809,7 @@ mod tests {
             AdvanceResult::ExecuteStep {
                 step_id: "s2".into(),
                 profession_id: "reviewer".into(),
+                agent_config_id: None,
             }
         );
         assert_eq!(engine.loop_counters.get("s1"), Some(&3));

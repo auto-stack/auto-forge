@@ -45,6 +45,8 @@ impl FlowSpec {
 pub struct FlowStep {
     pub id: String,
     pub profession_id: String,
+    /// Optional agent config to use instead of the default for this profession.
+    pub agent_config_id: Option<String>,
     pub gate: GateType,
     /// Max LLM turns before forced handoff (overrides profession default).
     pub max_turns: Option<u32>,
@@ -57,6 +59,7 @@ impl FlowStep {
         Self {
             id: id.into(),
             profession_id: profession_id.into(),
+            agent_config_id: None,
             gate: GateType::Auto,
             max_turns: None,
             exit: ExitRouting::Next,
@@ -70,6 +73,11 @@ impl FlowStep {
 
     pub fn with_exit(mut self, exit: ExitRouting) -> Self {
         self.exit = exit;
+        self
+    }
+
+    pub fn with_agent_config(mut self, config_id: Option<String>) -> Self {
+        self.agent_config_id = config_id;
         self
     }
 }

@@ -1,40 +1,40 @@
 project = "auto-forge"
-version = 14
+version = 16
 
 [[section]]
 id = "goals"
 section_type = "goals"
 title = "🎯 Goals"
-status = "implemented"
-last_modified = 1778742004
+status = "in_progress"
+last_modified = 1778744236
 
 [[section]]
 id = "architecture"
 section_type = "architecture"
 title = "🏗️ Architecture"
-status = "approved"
-last_modified = 1778693194
+status = "in_progress"
+last_modified = 1778828500
 
 [[section]]
 id = "designs"
 section_type = "designs"
 title = "🎨 Designs"
-status = "approved"
-last_modified = 1778693194
+status = "in_progress"
+last_modified = 1778828400
 
 [[section]]
 id = "plans"
 section_type = "plans"
 title = "📅 Plans"
-status = "done"
-last_modified = 1778742436
+status = "in_progress"
+last_modified = 1778744331
 
 [[section]]
 id = "tests"
 section_type = "tests"
 title = "🧪 Tests"
-status = "done"
-last_modified = 1778702742
+status = "in_progress"
+last_modified = 1778828600
 
 [[section]]
 id = "reviews"

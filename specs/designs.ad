@@ -497,14 +497,14 @@ pub struct Profession {
 
 | Profession | Phase | Owned Specs | Model Tier | Gate |
 |---|---|---|---|---|
-| Assistant | Intake | None | Cheap | Auto |
+| Assistant | Intake | None | Light | Auto |
 | Advisor | Discovery | Goals | Medium | Human (GSD) / Human (Check) |
-| Architect | Design | Architecture, Designs | Strong | Auto (GSD) / Human (Check) |
+| Architect | Design | Architecture, Designs | Heavy | Auto (GSD) / Human (Check) |
 | Planner | Planning | Plans | Medium | Auto |
-| Coder | Execution | None (code) | Strong | Auto |
+| Coder | Execution | None (code) | Heavy | Auto |
 | Tester | Execution | Tests | Medium | Auto |
-| Reviewer | Verification | Reviews | Strong | Auto |
-| Documenter | Report | Reports | Cheap | Auto |
+| Reviewer | Verification | Reviews | Heavy | Auto |
+| Documenter | Report | Reports | Light | Auto |
 
 | Field | Type | Description |
 |---|---|---|
@@ -875,3 +875,222 @@ function useEventRouter() {
 | `gate_resolved` | Collapse message | Hide banner | Hide panel |
 | `handoff_submitted` | — | — | Append to Live Log |
 | `run_completed` | ReportCard | Update Reports | Mark run done |
+
+
+---
+
+## D19 API Source Configuration
+**Status:** draft
+**Module:** `backend/src/relay/config.rs`
+**Depends on:** G13
+
+```rust
+pub struct ApiSource {
+    pub id: String,
+    pub name: String,
+    pub provider: Provider,
+    pub api_key_env: String,
+    pub api_key_stored: Option<String>,
+    pub base_url: Option<String>,
+    pub is_available: bool,
+    pub models: Vec<ModelDefinition>,
+}
+
+pub struct ModelDefinition {
+    pub id: String,
+    pub name: String,
+    pub tier: ModelTier,
+}
+
+pub enum ModelTier { Light, Mid, Heavy }
+
+// CRUD + detection
+pub fn load_api_sources() -> Vec<ApiSource>
+pub fn save_api_sources(sources: &[ApiSource]) -> Result<(), ConfigError>
+pub fn detect_available_providers() -> Vec<ApiSource>
+
+// Per-source operations
+pub fn resolve_api_key(source: &ApiSource) -> Option<String>
+pub async fn test_connection(source: &ApiSource, model: &str) -> Result<ConnectionTestResult, ConfigError>
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unconfigured: First startup
+    Unconfigured --> Detecting: auto-detect triggered
+    Detecting --> Detected: keys/env found
+    Detecting --> Empty: nothing found
+    Detected --> Configured: user saves
+    Empty --> Configured: user adds source manually
+    Configured --> Testing: test_connection()
+    Testing --> Available: connection OK
+    Testing --> Unavailable: connection failed
+    Available --> Configured: edit
+    Unavailable --> Configured: fix and retry
+    Configured --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique identifier (e.g., "anthropic-primary") |
+| `name` | `String` | Human-readable display name |
+| `provider` | `Provider` | Anthropic, OpenAI, or Local{url} |
+| `api_key_env` | `String` | Env var name or "settings:KEY" for ~/.claude |
+| `api_key_stored` | `Option<String>` | Base64-obfuscated key |
+| `base_url` | `Option<String>` | Custom endpoint (proxies, local) |
+| `is_available` | `bool` | Startup detection result |
+| `models` | `Vec<ModelDefinition>` | Available models with tier labels |
+
+```
+fn detect_available_providers():
+    sources = []
+
+    // 1. Check ~/.claude/settings.json for Anthropic key
+    if settings.env has ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY:
+        sources.push(ApiSource {
+            provider: Anthropic,
+            models: [
+                ModelDefinition { id: "claude-3-5-haiku-20241022", tier: Light },
+                ModelDefinition { id: "claude-3-5-sonnet-20241022", tier: Mid },
+                ModelDefinition { id: "claude-3-opus-20240229", tier: Heavy },
+            ],
+            is_available: true,
+        })
+
+    // 2. Check OPENAI_API_KEY env var
+    if env has OPENAI_API_KEY:
+        sources.push(ApiSource {
+            provider: OpenAI,
+            models: [
+                ModelDefinition { id: "gpt-4o-mini", tier: Light },
+                ModelDefinition { id: "gpt-4o", tier: Mid },
+                ModelDefinition { id: "o1", tier: Heavy },
+            ],
+            is_available: true,
+        })
+
+    // 3. Check localhost:11434 for Ollama
+    if http://localhost:11434/api/tags responds:
+        sources.push(ApiSource {
+            provider: Local { url: "http://localhost:11434" },
+            models: fetch from /api/tags,
+            is_available: true,
+        })
+
+    return sources
+
+fn resolve_api_key(source):
+    if source.api_key_env starts with "settings:":
+        return read ~/.claude/settings.json -> env[key]
+    if env has source.api_key_env:
+        return env[source.api_key_env]
+    if source.api_key_stored is Some:
+        return base64_decode(source.api_key_stored)
+    return None
+```
+
+
+| Tier | Anthropic | OpenAI | Purpose |
+|---|---|---|---|
+| Light | claude-3-5-haiku | gpt-4o-mini | Routing, test gen, docs |
+| Mid | claude-3-5-sonnet | gpt-4o | Planning, coding |
+| Heavy | claude-3-opus | o1 | Architecture, review |
+
+
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/forge/config/api-sources` | List all sources |
+| POST | `/api/forge/config/api-sources` | Create source |
+| PUT | `/api/forge/config/api-sources/{id}` | Update source |
+| DELETE | `/api/forge/config/api-sources/{id}` | Delete source |
+| POST | `/api/forge/config/api-sources/{id}/test` | Test connectivity |
+
+
+
+---
+
+## D20 Multi-Provider AI Dispatch
+**Status:** draft
+**Module:** `backend/src/ai.rs`
+**Depends on:** G13, D19
+
+```rust
+/// Dispatch a streaming chat request to the correct provider.
+/// Returns error message on failure, None on success.
+pub async fn dispatch_chat(
+    source: &ApiSource,
+    model: &str,
+    system: &str,
+    messages: Vec<ChatMessage>,
+    tx: UnboundedSender<AIStreamDelta>,
+) -> Option<String>
+
+/// Build provider-specific request URL.
+fn build_api_url(source: &ApiSource) -> String
+
+/// Build provider-specific auth headers.
+fn build_auth_headers(source: &ApiSource) -> HeaderMap
+
+/// Parse provider-specific SSE stream into text deltas.
+fn parse_sse_delta(provider: &Provider, data: &str) -> Option<String>
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Routing: dispatch_chat()
+    Routing --> AnthropicStream: provider == Anthropic
+    Routing --> OpenAIStream: provider == OpenAI
+    Routing --> LocalStream: provider == Local
+    AnthropicStream --> Emitting: SSE content_block_delta
+    OpenAIStream --> Emitting: SSE choices[0].delta.content
+    LocalStream --> Emitting: Ollama /api/chat response
+    Emitting --> Emitting: more deltas
+    Emitting --> Done: stream ends
+    Emitting --> Error: connection/API error
+    Done --> [*]
+    Error --> [*]
+```
+
+| Provider | Auth Header | API Path | SSE Format |
+|---|---|---|---|
+| Anthropic | `x-api-key: {key}` | `/v1/messages` | `event: content_block_delta` → `delta.text` |
+| OpenAI | `Authorization: Bearer {key}` | `/v1/chat/completions` | `choices[0].delta.content` |
+| Local | None (or Bearer) | `/v1/chat/completions` | Same as OpenAI (Ollama-compatible) |
+
+```
+fn dispatch_chat(source, model, system, messages, tx):
+    url = build_api_url(source)
+    headers = build_auth_headers(source)
+    body = build_request_body(source.provider, model, system, messages)
+
+    resp = http_post(url, headers, body, stream=true)
+    if not resp.ok:
+        return Some(format("API error ({})", resp.status))
+
+    for chunk in resp.bytes_stream():
+        for sse_event in parse_sse(chunk):
+            text = parse_sse_delta(source.provider, sse_event.data)
+            if text:
+                tx.send(AIStreamDelta { text })
+
+    return None  // success
+
+fn build_api_url(source):
+    match source.provider:
+        Anthropic => "{base}/v1/messages"
+        OpenAI => "{base}/v1/chat/completions"
+        Local => "{source.url}/v1/chat/completions"
+
+fn parse_sse_delta(provider, data):
+    json = parse(data)
+    match provider:
+        Anthropic => json.delta.text  (from content_block_delta)
+        OpenAI => json.choices[0].delta.content
+        Local => json.choices[0].delta.content  // Ollama compatible
+```
+
+- `ClaudeProvider::chat_stream()` refactored into `dispatch_chat()`
+- `ToolClaudeProvider` in `forge/ai.rs` generalized to use `dispatch_chat()` with `ApiSource`
+- Existing `ModelConfig::cheap()/standard()/strong()` kept as fallback defaults
+- `ai.rs` `load_api_config()` replaced by `config::resolve_api_key()`

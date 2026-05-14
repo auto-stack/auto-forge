@@ -25,7 +25,12 @@ graph TB
     subgraph "Agent Turn"
         A[AgentInstance]
         T[ToolRegistry Filter]
-        AI[AI Provider]
+        D[Multi-Provider Dispatch]
+    end
+    subgraph "AI Providers"
+        AP[Anthropic]
+        OP[OpenAI]
+        LP[Local/Ollama]
     end
     subgraph "Specs (Ledger)"
         L[Jades / Ledger]
@@ -33,18 +38,23 @@ graph TB
     subgraph "Persistence"
         P[Checkpoint Store]
         R[Run Store]
+        CS[Config Store]
     end
 
     O -->|parse| F
     O -->|generate| H
     O -->|save/load| C
     O -->|track| B
-    O -->|spawn| A
+    O -->|spawn from config| A
     A -->|filtered| T
-    A -->|chat| AI
+    A -->|chat via| D
+    D -->|route| AP
+    D -->|route| OP
+    D -->|route| LP
     A -->|read/write| L
     C -->|serialize| P
     O -->|persist| R
+    O -->|load configs| CS
 ```
 
 | Approach | Pros | Cons |
@@ -70,15 +80,19 @@ Long-lived agent processes would accumulate context and state, defeating the tok
 ```mermaid
 stateDiagram-v2
     [*] --> Spawning: Orchestrator starts step
-    Spawning --> Running: Soul + Specs + Handoff loaded
+    Spawning --> ConfigResolving: Look up AgentConfig by profession
+    ConfigResolving --> Running: Soul + Specs + Handoff + resolved Model loaded
     Running --> ToolCall: Agent invokes tool
     ToolCall --> Running: Tool result appended
     Running --> HandoffComplete: Agent calls handoff tool
     Running --> BudgetExceeded: Token limit reached
     Running --> Error: Panic / API failure
+    Error --> Fallback: Try fallback model from ApiSource
+    Fallback --> Running: Retry with fallback model
+    Fallback --> Failed: All fallbacks exhausted
     HandoffComplete --> [*]: Instance dropped, checkpoint saved
     BudgetExceeded --> [*]: Forced handoff, budget note added
-    Error --> [*]: Run marked Failed, human notified
+    Failed --> [*]: Run marked Failed, human notified
 ```
 
 | Approach | Pros | Cons |
@@ -176,11 +190,16 @@ graph TB
         S[useSpecs.ts]
         G[useGateInbox.ts]
         I[useItemRelations.ts]
+        AS[useApiSources.ts]
+        AC[useAgentConfigs.ts]
+        P[useProject.ts]
     end
     subgraph "Vue Components"
         C[ChatView]
         V[SpecsView]
         L[RelayView]
+        AV[ApiSourcesView]
+        AE[AgentsConfigView]
     end
 
     F -->|session gates| G
@@ -189,6 +208,11 @@ graph TB
     R -->|invalidates| S
     S -->|finds item| I
     I -->|enriches| V
+    R -->|uses agent configs| AC
+    AC -->|reads api sources| AS
+    F -->|uses api sources| AS
+    AS -->|renders| AV
+    AC -->|renders| AE
 ```
 
 | Approach | Pros | Cons |
@@ -229,3 +253,70 @@ graph LR
 - Positive: Chat history export contains only this session's conversation.
 - Negative: Page refresh loses the visual secretary message (but not the gate state, which is in `useGateInbox` and can be rehydrated).
 - Mitigation: On mount, `useGateInbox` fetches `/api/forge/gates/pending` and re-renders any active gates.
+
+
+---
+
+## A7 API Source & Multi-Provider Architecture
+**Status:** proposed
+**Depends on:** G13
+
+A single hardcoded provider (Claude only) limits agent flexibility and cost optimization. Agents in different roles have different cognitive requirements — a routing Assistant needs a cheap/fast model, while an Architect needs a strong reasoning model. Multi-provider support enables per-agent model selection from any configured API source.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        CF[config.rs] -->|load| AS[ApiSource Store]
+        CF -->|load| AC[AgentConfig Store]
+    end
+    subgraph "Provider Dispatch"
+        DP[dispatch_chat] --> AP[Anthropic Provider]
+        DP --> OP[OpenAI Provider]
+        DP --> LP[Local/Ollama Provider]
+    end
+    subgraph "Pipeline"
+        PE[PipelineEngine] -->|resolve| RC[RelayRegistry]
+        RC -->|spawn from| AC
+        AC -->|uses| AS
+        AS -->|routes via| DP
+    end
+
+    PE -->|step| AG[AgentInstance]
+    AG -->|chat via| DP
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Multi-provider dispatcher with ApiSource configs | Per-agent model selection, cost optimization, provider flexibility | More complex AI dispatch layer, multiple SSE format parsers |
+| Single provider with model tiers only | Simpler implementation | Locked into one provider, no fallback across providers |
+| Runtime model registry (no config UI) | No UI needed | Users cannot manage API keys or discover models |
+
+- Positive: Each agent can use the optimal provider + model for its task.
+- Positive: First-startup auto-detection finds existing keys — zero config for most users.
+- Positive: Test Connection endpoint validates setup before running pipelines.
+- Negative: Three different SSE parsing paths (Anthropic, OpenAI, Local) must be maintained.
+- Mitigation: OpenAI and Local share the same `/v1/chat/completions` format; only Anthropic differs.
+
+### Key Architecture Decisions
+
+
+
+
+
+```mermaid
+graph TB
+    subgraph "New Composables"
+        UA[useApiSources.ts]
+        UAC[useAgentConfigs.ts]
+    end
+    subgraph "Existing Composables"
+        UF[useForge.ts]
+        UR[useRelay.ts]
+        US[useSpecs.ts]
+        UG[useGateInbox.ts]
+    end
+
+    UAC -->|reads| UA
+    UR -->|uses| UAC
+    UF -->|uses| UA
+```
