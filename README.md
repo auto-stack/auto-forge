@@ -71,9 +71,9 @@ cargo run    # Starts at http://127.0.0.1:3031
 **Frontend:**
 ```bash
 cd frontend
-npm install
-npm run dev  # Dev server with hot reload
-npm run build  # Production build
+pnpm install
+pnpm run dev  # Dev server with hot reload
+pnpm run build  # Production build
 ```
 
 ### Access

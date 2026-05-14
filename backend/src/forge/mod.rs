@@ -41,6 +41,8 @@ pub struct ForgeSession {
     pub pending_spec_changes: Vec<SpecChange>,
     #[serde(default)]
     pub focus_section: Option<String>,
+    #[serde(default)]
+    pub active_profession: Option<String>,
 }
 
 /// Section type determines the lifecycle states and allowed transitions.
@@ -293,6 +295,9 @@ pub struct ForgeMessage {
     pub timestamp: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallInfo>>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profession_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -454,6 +459,8 @@ pub struct CreateForgeSessionRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendMessageRequest {
     pub content: String,
+    #[serde(default)]
+    pub profession_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1477,11 +1484,24 @@ mod handlers {
         Ok(Json(result))
     }
 
+    pub async fn pick_folder() -> Json<Option<String>> {
+        let path = tokio::task::spawn_blocking(|| {
+            rfd::FileDialog::new()
+                .set_title("Select Project Folder")
+                .pick_folder()
+                .map(|p| p.to_string_lossy().to_string())
+        })
+        .await
+        .ok()
+        .flatten();
+        Json(path)
+    }
+
     // ─── System Prompt & Tools ───────────────────────────────────────────
 
     fn build_system_prompt(_focus_section: &Option<String>) -> String {
         String::from(
-            "You are AutoForge, an expert AI coding assistant. \
+            "You are an AI coding assistant. \
              You can read and write files, run shell commands, search code, \
              and manage project specifications (Jades). \
              Use the tools available to help the user build software."
@@ -1500,16 +1520,25 @@ mod handlers {
             name: None,
             pending_spec_changes: vec![],
             focus_section: None,
+            active_profession: None,
             messages: vec![ForgeMessage {
                 id: format!("m-{}", uuid::Uuid::new_v4()),
                 role: String::from("system"),
-                content: String::from(
-                    "You are AutoSmith Forge, a spec-driven AI coding assistant. \
-                     Help the user build software by understanding goals, \
-                     proposing specs, and generating code.",
-                ),
+                content: {
+                    let relay = crate::relay::RelayRegistry::new();
+                    let agent_name = relay.default_agent_for("assistant")
+                        .map(|c| c.name.as_str())
+                        .unwrap_or("Assistant Agent");
+                    format!(
+                        "You are {}, a spec-driven AI coding assistant. \
+                         Help the user build software by understanding goals, \
+                         proposing specs, and generating code.",
+                        agent_name,
+                    )
+                },
                 timestamp: now_secs(),
                 tool_calls: None,
+                profession_id: None,
             }],
         };
 
@@ -1530,12 +1559,20 @@ mod handlers {
         Path(sid): Path<String>,
         Json(req): Json<SendMessageRequest>,
     ) -> Json<ForgeMessageResponse> {
+        // Resolve effective profession: explicit > session sticky > assistant
+        let effective_profession = {
+            let store = forge_sessions().lock().unwrap();
+            let session_prof = store.get(&sid).and_then(|s| s.active_profession.clone());
+            req.profession_id.clone().or(session_prof).unwrap_or_else(|| String::from("assistant"))
+        };
+
         let user_msg = ForgeMessage {
             id: format!("m-{}", uuid::Uuid::new_v4()),
             role: String::from("user"),
             content: req.content,
             timestamp: now_secs(),
             tool_calls: None,
+            profession_id: Some(effective_profession.clone()),
         };
 
         forge_sessions().lock().unwrap().push_message(&sid, user_msg.clone());
@@ -1544,6 +1581,7 @@ mod handlers {
             let mut store = forge_sessions().lock().unwrap();
             if let Some(session) = store.get_mut(&sid) {
                 session.status = ForgeStatus::Thinking;
+                session.active_profession = Some(effective_profession);
                 let session_clone = session.clone();
                 store.save(&session_clone);
             }
@@ -1555,6 +1593,7 @@ mod handlers {
             content: String::new(),
             timestamp: now_secs(),
             tool_calls: None,
+            profession_id: None,
         };
 
         Json(ForgeMessageResponse { message: assistant_msg })
@@ -1573,12 +1612,15 @@ mod handlers {
             let _provider = ai.clone();
 
             // Inject project/session context for Jades tools
-            let focus_section = {
+            let (focus_section, active_profession) = {
                 let store = forge_sessions().lock().unwrap();
                 match store.get(&sid) {
                     Some(session) => {
                         crate::forge::tools::set_tool_context(&session.project_path, &sid);
-                        session.focus_section.clone()
+                        (
+                            session.focus_section.clone(),
+                            session.active_profession.clone().unwrap_or_else(|| String::from("assistant")),
+                        )
                     }
                     None => {
                         let _ = event_tx.send(Ok(Event::default().data(
@@ -1641,7 +1683,26 @@ mod handlers {
             }
 
             // Build system prompt and tool set
-            let system_prompt = build_system_prompt(&focus_section);
+            let system_prompt = {
+                let relay = crate::relay::RelayRegistry::new();
+                let agent_config = relay.default_agent_for(&active_profession);
+                match agent_config.and_then(|cfg| relay.spawn_agent_from_config(cfg)) {
+                    Some(agent) => agent.render_system_prompt(),
+                    None => {
+                        // Model resolution failed — use agent name if available, else generic
+                        let name = agent_config
+                            .map(|c| c.name.as_str())
+                            .unwrap_or("Assistant");
+                        format!(
+                            "You are {}, an AI coding assistant.\n\
+                             You can read and write files, run shell commands, search code, \
+                             and manage project specifications (Jades). \
+                             Use the tools available to help the user build software.",
+                            name
+                        )
+                    }
+                }
+            };
             let all_tools = registry.definitions();
 
             // ReAct loop: chat → tool_use → execute → tool_result → chat → ...
@@ -1744,6 +1805,7 @@ mod handlers {
                                         result: turn_tool_calls.iter().find(|c| c.id == id).and_then(|c| c.result.clone()),
                                         status: "success".to_string(),
                                     }]),
+                                    profession_id: None,
                                 };
                                 forge_sessions().lock().unwrap().push_message(&sid, tool_msg);
                             }
@@ -1781,6 +1843,7 @@ mod handlers {
                         } else {
                             Some(turn_tool_calls.clone())
                         },
+                        profession_id: Some(active_profession.clone()),
                     };
                     forge_sessions().lock().unwrap().push_message(&sid, assistant_msg.clone());
 
@@ -2188,6 +2251,7 @@ If no goal IDs exist, number them sequentially."#,
                 messages: vec![],
                 pending_spec_changes: vec![],
                 focus_section: None,
+                active_profession: None,
             });
             (session.project_path.clone(), session.pending_spec_changes.clone())
         };
@@ -2271,6 +2335,7 @@ where
         .route("/api/forge/project/close", post(handlers::close_project))
         .route("/api/forge/project/recent", get(handlers::list_recent_projects))
         .route("/api/forge/project/browse", get(handlers::browse_directory))
+        .route("/api/forge/project/pick-folder", get(handlers::pick_folder))
         // Forge
         .route("/api/forge/chats/session", post(handlers::create_forge_session))
         .route("/api/forge/chats/sessions", get(handlers::list_forge_sessions))

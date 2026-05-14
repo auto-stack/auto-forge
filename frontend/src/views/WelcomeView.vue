@@ -2,13 +2,16 @@
   <div class="welcome-view">
     <div class="welcome-card">
       <div class="welcome-logo">
-        <Flame :size="48" />
+        <Flame :size="64" />
       </div>
       <h1 class="welcome-title">AutoForge</h1>
       <p class="welcome-subtitle">Spec-driven, serial-agent AI coding assistant</p>
 
       <div class="open-section">
         <div class="path-input-row">
+          <button class="btn-browse" @click="handleBrowse" title="Browse for folder">
+            <FolderOpen :size="14" />
+          </button>
           <input
             v-model="projectPath"
             type="text"
@@ -70,6 +73,15 @@ async function handleOpen() {
   await openProject(path)
 }
 
+async function handleBrowse() {
+  try {
+    const resp = await fetch('/api/forge/project/pick-folder')
+    if (!resp.ok) return
+    const path: string | null = await resp.json()
+    if (path) projectPath.value = path
+  } catch { /* dialog failed or cancelled */ }
+}
+
 let browseTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(projectPath, (val) => {
@@ -126,7 +138,7 @@ onMounted(() => {
 }
 
 .welcome-title {
-  font-size: 1.8rem;
+  font-size: 2.4rem;
   font-weight: 700;
   color: var(--af-fg);
 }
@@ -145,6 +157,26 @@ onMounted(() => {
 .path-input-row {
   display: flex;
   gap: 0.5rem;
+}
+
+.btn-browse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  background: var(--af-card);
+  color: var(--af-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.btn-browse:hover {
+  border-color: var(--af-primary);
+  color: var(--af-primary);
 }
 
 .path-input {

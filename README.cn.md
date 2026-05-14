@@ -71,9 +71,9 @@ cargo run    # 启动于 http://127.0.0.1:3031
 **前端：**
 ```bash
 cd frontend
-npm install
-npm run dev  # 开发服务器（热重载）
-npm run build  # 生产构建
+pnpm install
+pnpm run dev  # 开发服务器（热重载）
+pnpm run build  # 生产构建
 ```
 
 ### 访问

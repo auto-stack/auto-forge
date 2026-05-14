@@ -109,6 +109,8 @@ pub struct AgentInstance {
     pub soul: SoulConfig,
     pub model: ModelConfig,
     pub context: AgentContext,
+    /// Display name from AgentConfig (e.g. "Nicole"), not the profession or soul title.
+    pub display_name: String,
 }
 
 impl AgentInstance {
@@ -118,12 +120,31 @@ impl AgentInstance {
         soul: SoulConfig,
         model: ModelConfig,
     ) -> Self {
+        let display_name = profession.name.clone();
         Self {
             id: format!("agent-{}", uuid::Uuid::new_v4()),
             profession,
             soul,
             model,
             context: AgentContext::default(),
+            display_name,
+        }
+    }
+
+    /// Spawn with an explicit display name from AgentConfig.
+    pub fn spawn_named(
+        profession: Profession,
+        soul: SoulConfig,
+        model: ModelConfig,
+        display_name: String,
+    ) -> Self {
+        Self {
+            id: format!("agent-{}", uuid::Uuid::new_v4()),
+            profession,
+            soul,
+            model,
+            context: AgentContext::default(),
+            display_name,
         }
     }
 
@@ -131,12 +152,18 @@ impl AgentInstance {
     pub fn render_system_prompt(&self) -> String {
         let mut parts = Vec::new();
 
+        // Identity — use the configured display name, not the app name
+        parts.push(format!(
+            "You are {}, an AI coding assistant.\n",
+            self.display_name
+        ));
+
         // Soul identity
         parts.push(self.soul.render());
 
         // Profession scope
         parts.push(format!(
-            "## Profession: {}\n\nYou are a {}. Your phase is {}.\n",
+            "## Profession: {}\n\nYour role is {}. Your phase is {}.\n",
             self.profession.name,
             self.profession.name,
             self.profession.phase.as_str()

@@ -122,7 +122,7 @@ impl RelayRegistry {
         let model = config::resolve_model(config, &self.api_sources)?;
         let profession = self.professions.get(&config.profession_id)?.clone();
         let soul = self.souls.get(&config.soul_id)?.clone();
-        Some(AgentInstance::spawn(profession, soul, model))
+        Some(AgentInstance::spawn_named(profession, soul, model, config.name.clone()))
     }
 
     /// Find the default agent config for a given profession.

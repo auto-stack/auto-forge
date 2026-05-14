@@ -6,6 +6,7 @@ export interface ForgeMessage {
   content: string
   timestamp: number
   tool_calls?: ToolCallInfo[]
+  profession_id?: string
 }
 
 export interface SpecChange {
@@ -31,6 +32,7 @@ export interface ForgeSession {
   pending_spec_changes?: SpecChange[]
   current_phase_index?: number | null
   phase_history?: PhaseHistoryEntry[]
+  active_profession?: string
 }
 
 export interface ForgeStreamEvent {

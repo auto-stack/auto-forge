@@ -132,7 +132,7 @@ export function useForge() {
     }
   }
 
-  async function sendMessage(content: string) {
+  async function sendMessage(content: string, professionId?: string) {
     if (!sessionId.value || isLoading.value) return
 
     const userMsg: ForgeMessage = {
@@ -140,16 +140,19 @@ export function useForge() {
       role: 'user',
       content,
       timestamp: Date.now(),
+      profession_id: professionId,
     }
     messages.value.push(userMsg)
     isLoading.value = true
     error.value = null
 
     try {
+      const body: Record<string, string> = { content }
+      if (professionId) body.profession_id = professionId
       const resp = await fetch(`${API_BASE}/${sessionId.value}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(body),
       })
       if (!resp.ok) throw new Error(`Failed to send message: ${resp.status}`)
 
@@ -163,14 +166,22 @@ export function useForge() {
   async function streamResponse() {
     if (!sessionId.value) return
 
-    const assistantMsg: ForgeMessage = {
-      id: `a-${Date.now()}`,
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      tool_calls: [],
+    // Lazily created on first content — avoids showing an empty "assistant" bubble
+    let assistantMsg: ForgeMessage | null = null
+
+    function ensureAssistantMsg(): ForgeMessage {
+      if (!assistantMsg) {
+        assistantMsg = {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          tool_calls: [],
+        }
+        messages.value.push(assistantMsg)
+      }
+      return assistantMsg
     }
-    messages.value.push(assistantMsg)
 
     try {
       const eventSource = new EventSource(`${API_BASE}/${sessionId.value}/stream`)
@@ -192,21 +203,25 @@ export function useForge() {
           }
 
           if (data.type === 'delta' && data.text) {
-            assistantMsg.content += data.text
+            const msg = ensureAssistantMsg()
+            msg.content += data.text
           } else if (data.type === 'tool_call') {
+            const msg = ensureAssistantMsg()
             const call: ToolCallInfo = {
               id: data.id ?? `tc-${Date.now()}`,
               name: data.name ?? 'unknown',
               arguments: (data.arguments as Record<string, unknown>) ?? {},
               status: 'running',
             }
-            assistantMsg.tool_calls = assistantMsg.tool_calls ?? []
-            assistantMsg.tool_calls.push(call)
+            msg.tool_calls = msg.tool_calls ?? []
+            msg.tool_calls.push(call)
           } else if (data.type === 'tool_result') {
-            const call = assistantMsg.tool_calls?.find((c) => c.id === data.id)
-            if (call) {
-              call.result = data.result ?? ''
-              call.status = 'success'
+            if (assistantMsg) {
+              const call = assistantMsg.tool_calls?.find((c) => c.id === data.id)
+              if (call) {
+                call.result = data.result ?? ''
+                call.status = 'success'
+              }
             }
           } else if (data.type === 'phase_change' && data.phase) {
             if (session.value) {
@@ -215,18 +230,19 @@ export function useForge() {
           } else if (data.type === 'done') {
             eventSource.close()
             isLoading.value = false
-            // Refresh session to get updated phase/status from server
             if (sessionId.value) {
               restoreSession(sessionId.value)
             }
-            loadSessionList() // refresh list so preview updates
+            loadSessionList()
           } else if (data.type === 'error') {
             eventSource.close()
-            assistantMsg.content += `\n\n[Error: ${data.message}]`
+            const msg = ensureAssistantMsg()
+            msg.content += `\n\n[Error: ${data.message}]`
             isLoading.value = false
           }
         } catch {
-          assistantMsg.content += event.data
+          const msg = ensureAssistantMsg()
+          msg.content += event.data
         }
       }
 

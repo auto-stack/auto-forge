@@ -111,12 +111,18 @@
         <div class="chat-inner">
           <div
             v-for="msg in filteredMessages"
+            v-show="msg.role !== 'tool'"
             :key="msg.id"
             class="message"
             :class="msg.role"
           >
             <div class="message-header">
-              <span class="role-badge" :class="msg.role">{{ msg.role }}</span>
+              <span class="role-badge" :class="msg.role">
+                {{ msg.role === 'system' ? assistantName
+                   : msg.role === 'assistant' && msg.profession_id
+                     ? agentConfigs.find(c => c.profession_id === msg.profession_id)?.name ?? msg.profession_id
+                     : msg.role }}
+              </span>
               <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
             </div>
             <div class="message-content" :class="{ 'has-border': msg.role === 'assistant' && msg.content.length > 200 }">
@@ -127,9 +133,9 @@
               />
               <div v-else-if="msg.role === 'system'" class="system-welcome">
                 <span class="welcome-icon">👋</span>
-                <span>Hi! I'm <strong>AutoForge</strong>, a spec-driven AI coding assistant. I'm glad to help you build your next great project!</span>
+                <span>Hi! I'm <strong>{{ assistantName }}</strong>, your AI coding assistant. I'm glad to help you build your next great project!</span>
               </div>
-              <div v-else-if="msg.content">{{ msg.content }}</div>
+              <div v-else-if="msg.content" class="user-text" v-html="renderMentions(msg.content)"></div>
             </div>
             <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="tool-calls">
               <div
@@ -174,11 +180,12 @@
           </div>
           <div v-if="isLoading && !hasPendingAssistant" class="message assistant pending">
             <div class="message-header">
-              <span class="role-badge assistant">assistant</span>
+              <span class="role-badge assistant">{{ assistantName }}</span>
             </div>
             <div class="message-content">
-              <span class="typing">Thinking</span>
-              <span class="typing-dots">...</span>
+              <span class="typing-dots">
+                <span></span><span></span><span></span>
+              </span>
             </div>
           </div>
           <div v-if="error" class="message error">
@@ -199,13 +206,19 @@
       <div v-else class="chats-input-bar">
         <div class="input-inner">
           <div class="input-row">
-            <textarea
-              v-model="inputText"
-              class="chats-input"
-              placeholder="Describe what you want to build... (Shift+Enter to send)"
-              :disabled="isLoading"
-              @keydown.shift.enter.prevent="sendMessage"
-            />
+            <div class="input-compose">
+              <div class="input-backdrop" v-html="renderInputMentions(inputText)"></div>
+              <textarea
+                ref="textareaRef"
+                v-model="inputText"
+                class="chats-input"
+                placeholder="Describe what you want to build... (Enter to send, @ for agent)"
+                :disabled="isLoading"
+                @input="handleInput"
+                @keydown="handleKeydown"
+                @keydown.enter.exact.prevent="sendMessage"
+              />
+            </div>
             <button
               class="send-btn"
               :disabled="!inputText.trim() || isLoading"
@@ -214,6 +227,14 @@
               <Send :size="16" />
             </button>
           </div>
+          <MentionDropdown
+            ref="mentionRef"
+            :professions="professionOptions"
+            :visible="mentionVisible"
+            :filter="mentionFilter"
+            :anchor-rect="mentionAnchor"
+            @select="handleMentionSelect"
+          />
           <div class="input-extras">
             <div class="model-select-wrap">
               <Cpu :size="12" />
@@ -246,8 +267,10 @@ import {
 import { useForge } from '@/composables/useForge'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useProject } from '@/composables/useProject'
+import { useAgentConfigs } from '@/composables/useAgentConfigs'
 import { setEventCallbacks } from '@/composables/useEventRouter'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
+import MentionDropdown from '@/components/MentionDropdown.vue'
 import GateCard from '@/components/GateCard.vue'
 import SecretaryMessage from '@/components/SecretaryMessage.vue'
 import ReportCard from '@/components/ReportCard.vue'
@@ -278,7 +301,128 @@ const {
 
 const { projectPath } = useProject()
 const { currentSecretary, badgeCount: gateBadgeCount, resolveGate: resolveGateInbox, snoozeGate } = useGateInbox()
+const { configs: agentConfigs, loadConfigs: loadAgentConfigs } = useAgentConfigs()
 const reportData = ref<ReportData | null>(null)
+
+// @mention state
+const mentionVisible = ref(false)
+const mentionFilter = ref('')
+const mentionAnchor = ref<DOMRect | null>(null)
+const mentionRef = ref<InstanceType<typeof MentionDropdown>>()
+const targetProfession = ref<string | null>(null)
+
+const professionOptions = computed(() =>
+  agentConfigs.value
+    .filter(c => c.is_default)
+    .map(c => ({ id: c.profession_id, name: c.name }))
+)
+
+const assistantName = computed(() =>
+  agentConfigs.value.find(c => c.profession_id === 'assistant' && c.is_default)?.name ?? 'Assistant Agent'
+)
+
+function professionDisplayName(professionId: string): string {
+  return agentConfigs.value.find(c => c.profession_id === professionId)?.name ?? professionId
+}
+
+/** Build a set of known agent names (lowercased) for mention detection */
+const mentionNames = computed(() => {
+  const names = new Map<string, string>() // lowercase name → display name
+  for (const c of agentConfigs.value) {
+    if (c.is_default) {
+      names.set(c.name.toLowerCase(), c.name)
+      names.set(c.profession_id.toLowerCase(), c.name)
+    }
+  }
+  return names
+})
+
+/** Escape HTML, then wrap @mentions in styled spans */
+function renderMentions(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return escaped.replace(/@(\w+)/g, (match, name) => {
+    const displayName = mentionNames.value.get(name.toLowerCase())
+    if (displayName) {
+      return `<span class="inline-mention">@${displayName}</span>`
+    }
+    return match
+  })
+}
+
+/** Same as renderMentions but for the input backdrop (adds trailing newline) */
+function renderInputMentions(text: string): string {
+  if (!text) return ''
+  return renderMentions(text) + '\n'
+}
+
+function handleInput(e: Event) {
+  const el = e.target as HTMLTextAreaElement
+  const val = el.value
+  const pos = el.selectionStart
+
+  // Look backwards from cursor for a @ that starts a mention
+  const textBeforeCursor = val.slice(0, pos)
+  const atIdx = textBeforeCursor.lastIndexOf('@')
+  if (atIdx >= 0) {
+    // @ must be at start of text or preceded by whitespace
+    const charBefore = atIdx > 0 ? val[atIdx - 1] : ''
+    if (charBefore === '' || /\s/.test(charBefore)) {
+      const afterAt = textBeforeCursor.slice(atIdx + 1)
+      // Only show dropdown if no spaces after @ (still typing the name)
+      if (!afterAt.includes(' ')) {
+        mentionFilter.value = afterAt
+        mentionAnchor.value = el.getBoundingClientRect()
+        mentionVisible.value = true
+        return
+      }
+    }
+  }
+  mentionVisible.value = false
+}
+
+function handleMentionSelect(id: string) {
+  targetProfession.value = id
+  const name = professionDisplayName(id)
+  // Replace the @filter at cursor position with @DisplayName
+  const val = inputText.value
+  const ta = textareaRef.value as HTMLTextAreaElement | undefined
+  const pos = ta?.selectionStart ?? val.length
+  const textBeforeCursor = val.slice(0, pos)
+  const atIdx = textBeforeCursor.lastIndexOf('@')
+  if (atIdx >= 0) {
+    const before = val.slice(0, atIdx)
+    const after = val.slice(pos)
+    inputText.value = `${before}@${name} ${after}`
+  } else {
+    inputText.value = `@${name} ${val}`
+  }
+  mentionVisible.value = false
+  // Focus textarea after dropdown closes
+  nextTick(() => {
+    const ta = textareaRef.value as HTMLTextAreaElement | undefined
+    ta?.focus()
+  })
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (!mentionVisible.value || !mentionRef.value?.hasItems()) return
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    mentionRef.value.moveDown()
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    mentionRef.value.moveUp()
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault()
+    const id = mentionRef.value.currentId()
+    if (id) handleMentionSelect(id)
+  } else if (e.key === 'Escape') {
+    mentionVisible.value = false
+  }
+}
 
 const expandedDiffs = ref<Set<string>>(new Set())
 const editedSpecs = ref<Record<string, string>>({})
@@ -293,6 +437,7 @@ const projectName = computed(() => {
   return parts.length > 0 ? parts[parts.length - 1] : null
 })
 const selectedModel = ref('glm-5')
+const textareaRef = ref<HTMLTextAreaElement>()
 
 const filteredMessages = computed(() => {
   const q = chatSearch.value.trim().toLowerCase()
@@ -365,11 +510,34 @@ async function scrollToBottom() {
 
 watch(messages, scrollToBottom, { deep: true })
 
+/** Resolve an @mention word to a profession_id (handles both names and ids) */
+function resolveMention(word: string): string | undefined {
+  const lower = word.toLowerCase()
+  // Try exact profession_id match first
+  if (agentConfigs.value.some(c => c.profession_id === lower)) return lower
+  // Try matching against agent display names (case-insensitive)
+  const match = agentConfigs.value.find(c => c.name.toLowerCase() === lower)
+  return match?.profession_id
+}
+
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text) return
   inputText.value = ''
-  await forgeSendMessage(text)
+  mentionVisible.value = false
+
+  // Extract profession_id from the first @mention in text for routing,
+  // but keep the full text (including @mention) as the message content
+  let professionId: string | undefined = targetProfession.value ?? undefined
+  targetProfession.value = null
+
+  const mentionMatch = text.match(/(?:^|\s)@(\w+)/)
+  if (mentionMatch) {
+    const resolved = resolveMention(mentionMatch[1])
+    if (resolved) professionId = resolved
+  }
+
+  await forgeSendMessage(text, professionId)
 }
 
 async function handleApprove(editedSpecs?: Record<string, string>) {
@@ -494,6 +662,7 @@ onMounted(async () => {
     await resume()
   }
   await loadSessionList()
+  await loadAgentConfigs()
 })
 </script>
 
@@ -850,6 +1019,21 @@ onMounted(async () => {
   font-weight: 600;
 }
 
+.user-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.user-text :deep(.inline-mention) {
+  display: inline;
+  font-weight: 600;
+  color: var(--af-primary);
+  background: hsl(var(--primary) / 0.1);
+  padding: 0 4px;
+  border-radius: 4px;
+  cursor: default;
+}
+
 .msg-time {
   font-size: 0.65rem;
   color: var(--af-muted);
@@ -1066,18 +1250,28 @@ onMounted(async () => {
   color: hsl(var(--af-success));
 }
 
-.typing {
-  color: var(--af-muted);
-  font-size: 0.85rem;
-}
-
 .typing-dots {
-  animation: blink 1.4s infinite both;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
 }
 
-@keyframes blink {
-  0%, 80%, 100% { opacity: 0; }
-  40% { opacity: 1; }
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--af-muted);
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: 0s; }
+.typing-dots span:nth-child(2) { animation-delay: 0.16s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
 }
 
 /* ─── Mobile Responsive ───────────────────────────────────────────────────── */
@@ -1136,30 +1330,68 @@ onMounted(async () => {
 
 .input-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.5rem;
 }
 
-.chats-input {
+.input-compose {
   flex: 1;
+  position: relative;
   background: hsl(var(--muted-foreground) / 0.04);
   border: 1px solid hsl(var(--primary) / 0.18);
   border-radius: 20px;
-  padding: 0.55rem 1rem;
-  color: var(--af-fg);
-  font-size: 0.9rem;
-  resize: none;
   min-height: 80px;
   max-height: 180px;
-  outline: none;
-  font-family: inherit;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
-.chats-input:focus {
+.input-compose:focus-within {
   border-color: hsl(var(--primary) / 0.45);
   background: var(--af-bg);
   box-shadow: 0 0 0 3px hsl(var(--primary) / 0.08);
+}
+
+.input-backdrop {
+  position: absolute;
+  inset: 0;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+}
+
+.input-backdrop :deep(.inline-mention) {
+  display: inline;
+  font-weight: 600;
+  color: transparent;
+  background: hsl(var(--primary) / 0.12);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+.input-compose .chats-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 80px;
+  max-height: 180px;
+  padding: 0.55rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--af-fg);
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  box-shadow: none !important;
+  overflow-y: auto;
 }
 
 .chats-input::placeholder {

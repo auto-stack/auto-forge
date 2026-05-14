@@ -15,7 +15,7 @@ thread_local! {
     static CURRENT_SESSION_ID: RefCell<String> = RefCell::new(String::new());
 }
 
-/// Set the project and session context for Jades tools.
+/// Set the project and session context for specs tools.
 pub fn set_tool_context(project: &str, session_id: &str) {
     CURRENT_PROJECT.with(|p| *p.borrow_mut() = project.to_string());
     CURRENT_SESSION_ID.with(|s| *s.borrow_mut() = session_id.to_string());
@@ -73,9 +73,9 @@ impl ToolRegistry {
         registry.register(Box::new(EditFileTool));
         registry.register(Box::new(ShellTool));
         registry.register(Box::new(SearchTool));
-        registry.register(Box::new(ReadJadeTool));
-        registry.register(Box::new(WriteJadeTool));
-        registry.register(Box::new(ListJadesTool));
+        registry.register(Box::new(ReadSpecsTool));
+        registry.register(Box::new(WriteSpecsTool));
+        registry.register(Box::new(ListSpecsTool));
         registry
     }
 
@@ -146,8 +146,14 @@ impl Tool for ReadFileTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
-        std::fs::read_to_string(path)
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", path.display(), e)))
+        let full_path = CURRENT_PROJECT.with(|p| {
+            let project = p.borrow();
+            if project.is_empty() { path.to_path_buf() }
+            else { Path::new(&*project).join(path) }
+        });
+
+        std::fs::read_to_string(&full_path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))
     }
 
     fn is_read_only(&self) -> bool { true }
@@ -199,14 +205,20 @@ impl Tool for WriteFileTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
+        let full_path = CURRENT_PROJECT.with(|p| {
+            let project = p.borrow();
+            if project.is_empty() { path.to_path_buf() }
+            else { Path::new(&*project).join(path) }
+        });
+
         // Create parent directories if needed
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = full_path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| ToolError::ExecutionFailed(format!("Failed to create directories: {}", e)))?;
         }
 
-        std::fs::write(path, content)
-            .map(|_| format!("Successfully wrote {} bytes to {}", content.len(), path.display()))
+        std::fs::write(&full_path, content)
+            .map(|_| format!("Successfully wrote {} bytes to {}", content.len(), full_path.display()))
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", path.display(), e)))
     }
 }
@@ -265,21 +277,27 @@ impl Tool for EditFileTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", path.display(), e)))?;
+        let full_path = CURRENT_PROJECT.with(|p| {
+            let project = p.borrow();
+            if project.is_empty() { path.to_path_buf() }
+            else { Path::new(&*project).join(path) }
+        });
+
+        let content = std::fs::read_to_string(&full_path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))?;
 
         if !content.contains(old_str) {
             return Err(ToolError::ExecutionFailed(format!(
                 "old_string not found in file '{}'. \
                  The text must match exactly (including whitespace and newlines).",
-                path.display()
+                full_path.display()
             )));
         }
 
         let new_content = content.replacen(old_str, new_str, 1);
-        std::fs::write(path, new_content)
-            .map(|_| format!("Successfully edited {}", path.display()))
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", path.display(), e)))
+        std::fs::write(&full_path, new_content)
+            .map(|_| format!("Successfully edited {}", full_path.display()))
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", full_path.display(), e)))
     }
 }
 
@@ -324,7 +342,12 @@ impl Tool for ShellTool {
             }
         }
 
-        let output = std::process::Command::new("bash")
+        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        let mut command = std::process::Command::new("bash");
+        if !project.is_empty() {
+            command.current_dir(&project);
+        }
+        let output = command
             .arg("-c")
             .arg(cmd)
             .output()
@@ -404,8 +427,14 @@ impl Tool for SearchTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
+        let full_path = CURRENT_PROJECT.with(|p| {
+            let project = p.borrow();
+            if project.is_empty() { search_path.to_path_buf() }
+            else { Path::new(&*project).join(search_path) }
+        });
+
         let mut results = Vec::new();
-        walk_dir(search_path, pattern, &mut results)
+        walk_dir(&full_path, pattern, &mut results)
             .map_err(|e| ToolError::ExecutionFailed(format!("Search error: {}", e)))?;
 
         if results.is_empty() {
@@ -482,18 +511,18 @@ fn search_file(path: &Path, pattern: &str, results: &mut Vec<String>) -> Result<
     Ok(())
 }
 
-// ─── Jades Tools ─────────────────────────────────────────────────────────────
+// ─── Specs Tools ─────────────────────────────────────────────────────────────
 
-/// Read a Jades (Specs) section.
-struct ReadJadeTool;
+/// Read a Specs section.
+struct ReadSpecsTool;
 
-impl Tool for ReadJadeTool {
+impl Tool for ReadSpecsTool {
     fn name(&self) -> &'static str {
-        "read_jade"
+        "read_specs"
     }
 
     fn description(&self) -> &'static str {
-        "Read the content and status of a Jades (Specs) section. \
+        "Read the content and status of a Specs section. \
          Use this to examine the current project specification during Intake or SpecDraft."
     }
 
@@ -558,16 +587,16 @@ impl Tool for ReadJadeTool {
     fn is_read_only(&self) -> bool { true }
 }
 
-/// List all Jades sections.
-struct ListJadesTool;
+/// List all Specs sections.
+struct ListSpecsTool;
 
-impl Tool for ListJadesTool {
+impl Tool for ListSpecsTool {
     fn name(&self) -> &'static str {
-        "list_jades"
+        "list_specs"
     }
 
     fn description(&self) -> &'static str {
-        "List all Jades (Specs) sections with their titles and statuses. \
+        "List all Specs sections with their titles and statuses. \
          Use this to get an overview of the project specification."
     }
 
@@ -625,16 +654,16 @@ impl Tool for ListJadesTool {
     fn is_read_only(&self) -> bool { true }
 }
 
-/// Draft a Jades section update (stored in pending_spec_changes until approved).
-struct WriteJadeTool;
+/// Draft a Specs section update (stored in pending_spec_changes until approved).
+struct WriteSpecsTool;
 
-impl Tool for WriteJadeTool {
+impl Tool for WriteSpecsTool {
     fn name(&self) -> &'static str {
-        "write_jade"
+        "write_specs"
     }
 
     fn description(&self) -> &'static str {
-        "Draft an update to a Jades (Specs) section. \
+        "Draft an update to a Specs section. \
          The change is queued in pending_spec_changes and applied to the Specs only after human approval. \
          Use this during SpecDraft phase to propose updates to goals, architecture, designs, plans, or tests."
     }
@@ -810,9 +839,9 @@ mod tests {
         assert!(registry.get("edit_file").is_some());
         assert!(registry.get("shell").is_some());
         assert!(registry.get("search").is_some());
-        assert!(registry.get("read_jade").is_some());
-        assert!(registry.get("write_jade").is_some());
-        assert!(registry.get("list_jades").is_some());
+        assert!(registry.get("read_specs").is_some());
+        assert!(registry.get("write_specs").is_some());
+        assert!(registry.get("list_specs").is_some());
     }
 
     #[test]
