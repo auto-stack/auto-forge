@@ -16,7 +16,7 @@
   >
     <template #detail="{ item: rowItem, project }">
       <template v-if="editingId === rowItem.id">
-        <MarkdownEditor
+        <AutoDownEditor
           :content="rowItem.content"
           @save="$emit('save', { ...rowItem, content: $event, modified_at: Date.now() })"
           @cancel="$emit('cancel-edit')"
@@ -41,7 +41,7 @@
 import type { SpecItem } from '@/types/specs'
 import CategoryList from './CategoryList.vue'
 import SpecItemDetail from '@/components/SpecItemDetail.vue'
-import MarkdownEditor from '@/components/editors/MarkdownEditor.vue'
+import AutoDownEditor from '@/components/editors/autodown/core/AutoDownEditor.vue'
 import { extractArchitectureSummary } from '@/utils/categorySummary'
 
 defineProps<{

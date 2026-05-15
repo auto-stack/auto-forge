@@ -27,7 +27,7 @@
             @save="onTestSave(rowItem, $event)"
             @cancel="$emit('cancel-edit')"
           />
-          <MarkdownEditor
+          <AutoDownEditor
             v-else
             :content="rowItem.content"
             @save="onMarkdownSave(rowItem, $event)"
@@ -55,7 +55,7 @@
 import type { SpecItem, SectionType } from '@/types/specs'
 import SpecItemRow from '@/components/SpecItemRow.vue'
 import SpecItemDetail from '@/components/SpecItemDetail.vue'
-import MarkdownEditor from '@/components/editors/MarkdownEditor.vue'
+import AutoDownEditor from '@/components/editors/autodown/core/AutoDownEditor.vue'
 import TestEditor from '@/components/editors/TestEditor.vue'
 import { Inbox } from 'lucide-vue-next'
 

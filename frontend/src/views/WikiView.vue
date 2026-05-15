@@ -167,13 +167,13 @@
                 <label>Tags (comma-separated)</label>
                 <input v-model="createForm.tagsInput" type="text" placeholder="tag1, tag2" />
               </div>
-              <MarkdownEditor :content="createForm.content" @save="handleCreateSave" @cancel="cancelCreate" />
+              <AutoDownEditor :content="createForm.content" @save="handleCreateSave" @cancel="cancelCreate" />
             </div>
           </div>
 
           <!-- Editing wiki page -->
           <div v-else-if="viewState === 'editing' && activePage" class="content-body">
-            <MarkdownEditor :content="activePage.content" @save="handleEditSave" @cancel="viewState = 'viewing'" />
+            <AutoDownEditor :content="activePage.content" @save="handleEditSave" @cancel="viewState = 'viewing'" />
           </div>
 
           <!-- New folder -->
@@ -207,7 +207,7 @@ import {
 import { useWiki } from '@/composables/useWiki'
 import { useProject } from '@/composables/useProject'
 import MarkdownContent from '@/components/MarkdownContent.vue'
-import MarkdownEditor from '@/components/editors/MarkdownEditor.vue'
+import AutoDownEditor from '@/components/editors/autodown/core/AutoDownEditor.vue'
 import TreeView from '@/components/TreeView.vue'
 import DropZone from '@/components/DropZone.vue'
 
@@ -591,6 +591,8 @@ watch(project, (val) => {
 
 .content-scroll {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 1rem;
 }
@@ -611,8 +613,12 @@ watch(project, (val) => {
 }
 
 .content-body {
+  flex: 1;
+  width: 100%;
   max-width: 960px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .content-footer {

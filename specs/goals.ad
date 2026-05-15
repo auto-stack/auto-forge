@@ -25,7 +25,7 @@
 | G16 | @Mention Agent Targeting directs chat messages to named agents with sticky profession routing | P0 | Implemented | UI Team |
 | G17 | Bring-In Tool enables agents to hand off mid-conversation with structured context transfer | P0 | Proposed | Core Team |
 | G18 | Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing | P0 | Done | Docs Team |
-| G19 | AutoDown editor enables structured markdown editing with Auto language syntax highlighting for Wiki content | P1 | Proposed | Docs Team |
+| G19 | AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content | P1 | Proposed | Docs Team |
 
 ---
 
@@ -515,16 +515,55 @@ Wiki is AutoForge's **knowledge index & compression layer**. It stores objective
 
 ---
 
-## G19 AutoDown editor enables structured markdown editing with Auto language syntax highlighting
+## G19 AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
 **Status:** proposed
 **Depends on:** G18
 
-- [ ] Markdown-based editor (baseline)
-- [ ] Auto language syntax extensions: type definitions, function signatures, struct definitions, Flow syntax (`$Flow`, `$Step`)
-- [ ] Live preview with syntax highlighting
-- [ ] Used for Wiki content editing
-- [ ] Future: may extend to other spec sections
+- [ ] Block-based WYSIWYG editor replaces split-pane Markdown editor
+- [ ] Native Markdown parse/serialize via Tiptap with bidirectional sync
+- [ ] Slash commands, bubble menu, and drag handle for Notion-like UX
+- [ ] Custom blocks render as Vue components via Tiptap node views
+- [ ] AutoDown extensions: callouts, math, mermaid diagrams, spec references
+- [ ] Used for Wiki content editing initially; extendable to Spec sections
 
-AutoDown is Markdown extended with Auto language syntax, providing structured editing capabilities for Wiki content. Initially supports basic Markdown with Auto language highlighting; future versions may add more sophisticated structured editing features.
+AutoDown Editor is a Tiptap-based rich text editor that presents Markdown content as editable blocks. Each paragraph, heading, list, code block, and custom element is a distinct block with interactive Vue rendering. The editor serializes to clean Markdown for backend persistence and extends to AutoDown syntax for project-specific block types.
+
+---
+
+## G19.1 Phase 1 — Markdown WYSIWYG Editor
+**Status:** proposed
+**Depends on:** G19
+
+- [ ] Tiptap editor core integrated into frontend with Vue 3 composition API
+- [ ] StarterKit blocks: paragraph, heading, list, code block, blockquote, HR, image, link, table, task list
+- [ ] Slash command palette for block insertion via "/"
+- [ ] Bubble menu for inline formatting on text selection
+- [ ] Drag handle for block reordering
+- [ ] Replaces `MarkdownEditor.vue` in Wiki and Spec views
+- [ ] Markdown round-trip: load from string, save to string, no data loss
+
+---
+
+## G19.2 Phase 2 — AutoDown Extensions
+**Status:** proposed
+**Depends on:** G19.1
+
+- [ ] Callout block with info/warning/tip/danger types
+- [ ] Math block with KaTeX rendering
+- [ ] Mermaid diagram block with live rendering
+- [ ] Spec reference block (`[[G1]]`) with clickable links
+- [ ] Custom `marked` tokenizers for each AutoDown syntax extension
+- [ ] Each extension is a self-contained pair: Tiptap Node + Vue component
+
+---
+
+## G19.3 Phase 3 — Advanced Editing Features
+**Status:** proposed
+**Depends on:** G19.2
+
+- [ ] Multi-column layout blocks
+- [ ] Real-time collaborative cursors (Yjs integration)
+- [ ] AI-assisted inline completion
+- [ ] Version diff view between two document states
 
 Let me know once you've added these and fixed the bug, and I can continue with the next phase of planning!

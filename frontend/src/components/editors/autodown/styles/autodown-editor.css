@@ -1,0 +1,466 @@
+/* ─── Editor Chrome ─── */
+.autodown-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 320px;
+  border: 1px solid var(--af-border);
+  border-radius: 8px;
+  background: var(--af-card);
+  overflow: hidden;
+}
+
+.autodown-editor.is-focused {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+}
+
+.autodown-editor-content-wrapper {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  overflow-y: auto;
+}
+
+.autodown-editor-content {
+  outline: none;
+  min-height: 100%;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--af-fg);
+}
+
+.autodown-editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--af-muted);
+  pointer-events: none;
+  height: 0;
+}
+
+/* ─── Editor Actions ─── */
+.autodown-editor-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--af-border);
+  background: hsl(var(--muted-foreground) / 0.03);
+}
+
+.autodown-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  background: hsl(var(--primary));
+  color: white;
+  cursor: pointer;
+}
+
+.autodown-save-btn:hover {
+  opacity: 0.9;
+}
+
+.autodown-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--af-border);
+  background: transparent;
+  color: var(--af-muted);
+  cursor: pointer;
+}
+
+.autodown-cancel-btn:hover {
+  color: var(--af-fg);
+  background: hsl(var(--muted-foreground) / 0.05);
+}
+
+/* ─── Typography ─── */
+.autodown-editor-content h1,
+.autodown-editor-content h2,
+.autodown-editor-content h3 {
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+  color: var(--af-fg);
+}
+
+.autodown-editor-content h1 {
+  font-size: 1.5rem;
+}
+
+.autodown-editor-content h2 {
+  font-size: 1.25rem;
+}
+
+.autodown-editor-content h3 {
+  font-size: 1.1rem;
+}
+
+.autodown-editor-content p {
+  margin: 0.5rem 0;
+}
+
+.autodown-editor-content ul,
+.autodown-editor-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.autodown-editor-content ul {
+  list-style-type: disc;
+}
+
+.autodown-editor-content ol {
+  list-style-type: decimal;
+}
+
+.autodown-editor-content li {
+  margin: 0.25rem 0;
+}
+
+.autodown-editor-content li > p {
+  margin: 0;
+}
+
+.autodown-editor-content blockquote {
+  margin: 0.75rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--af-border);
+  color: var(--af-muted);
+}
+
+.autodown-editor-content pre {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  background: hsl(var(--muted-foreground) / 0.06);
+  border: 1px solid var(--af-border);
+  overflow-x: auto;
+}
+
+.autodown-editor-content pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background: none;
+  padding: 0;
+  border: none;
+  color: var(--af-fg);
+}
+
+.autodown-editor-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  background: hsl(var(--muted-foreground) / 0.08);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  color: var(--af-fg);
+}
+
+.autodown-editor-content hr {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid var(--af-border);
+}
+
+.autodown-editor-content a.autodown-link {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.autodown-editor-content a.autodown-link:hover {
+  opacity: 0.8;
+}
+
+.autodown-editor-content img.autodown-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+}
+
+/* ─── Task List ─── */
+.autodown-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.autodown-task-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.autodown-task-list li > label {
+  display: flex;
+  align-items: center;
+  margin-top: 0.15rem;
+}
+
+.autodown-task-list li > div {
+  flex: 1;
+}
+
+.autodown-task-item {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* ─── Table ─── */
+.autodown-editor-content .tableWrapper,
+.autodown-editor-content .autodown-table,
+.autodown-editor-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.82rem;
+}
+
+.autodown-editor-content .tableWrapper > table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.autodown-editor-content .tableWrapper th,
+.autodown-editor-content .tableWrapper td,
+.autodown-editor-content .autodown-table th,
+.autodown-editor-content .autodown-table td,
+.autodown-editor-content table th,
+.autodown-editor-content table td {
+  border: 1px solid var(--af-border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.autodown-editor-content .tableWrapper th,
+.autodown-editor-content .autodown-table th,
+.autodown-editor-content table th {
+  background: hsl(var(--muted-foreground) / 0.06);
+  font-weight: 600;
+}
+
+/* ─── Selected Node ─── */
+.ProseMirror-selectednode {
+  outline: 2px solid hsl(var(--primary) / 0.3);
+  border-radius: 4px;
+}
+
+/* ─── Drag Handle ─── */
+.autodown-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: grab;
+  color: var(--af-muted);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.autodown-drag-handle:hover {
+  background: hsl(var(--muted-foreground) / 0.08);
+  color: var(--af-fg);
+}
+
+.autodown-editor-content-wrapper:hover .autodown-drag-handle {
+  opacity: 1;
+}
+
+/* ─── Slash Menu ─── */
+.autodown-slash-menu {
+  position: absolute;
+  z-index: 50;
+  background: var(--af-card);
+  border: 1px solid var(--af-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.35rem;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.autodown-slash-menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.autodown-slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--af-fg);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-size: 0.82rem;
+  transition: background 0.1s ease;
+}
+
+.autodown-slash-menu-item:hover,
+.autodown-slash-menu-item.active {
+  background: hsl(var(--primary) / 0.1);
+}
+
+.autodown-slash-menu-icon {
+  flex-shrink: 0;
+  color: var(--af-muted);
+}
+
+.autodown-slash-menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.autodown-slash-menu-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.autodown-slash-menu-desc {
+  font-size: 0.72rem;
+  color: var(--af-muted);
+}
+
+.autodown-slash-menu-empty {
+  padding: 0.75rem;
+  text-align: center;
+  color: var(--af-muted);
+  font-size: 0.8rem;
+}
+
+/* ─── Bubble Menu ─── */
+.autodown-bubble-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem;
+  background: var(--af-card);
+  border: 1px solid var(--af-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.autodown-bubble-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--af-muted);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.autodown-bubble-btn:hover {
+  background: hsl(var(--muted-foreground) / 0.08);
+  color: var(--af-fg);
+}
+
+.autodown-bubble-btn.active {
+  background: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
+}
+
+/* ─── Gap Cursor ─── */
+.ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+}
+
+.ProseMirror-gapcursor:after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 2px solid hsl(var(--primary));
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes ProseMirror-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+
+/* ─── Table Menu ─── */
+.autodown-table-menu {
+  position: absolute;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.25rem;
+  background: var(--af-card);
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  pointer-events: auto;
+}
+
+.autodown-table-menu-group {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.autodown-table-menu-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--af-border);
+  margin: 0 0.1rem;
+}
+
+.autodown-table-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--af-muted);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.autodown-table-menu-btn:hover {
+  background: hsl(var(--muted-foreground) / 0.08);
+  color: var(--af-fg);
+}
+
+.autodown-table-menu-btn.danger:hover {
+  background: hsl(var(--af-error) / 0.08);
+  color: hsl(var(--af-error));
+}

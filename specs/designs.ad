@@ -1567,3 +1567,1664 @@ Layout — dual-region sidebar + content panel:
 | `DropZone` | `frontend/src/components/DropZone.vue` | HTML5 drag-drop file upload |
 | `WikiView` | `frontend/src/views/WikiView.vue` | Dual-region sidebar + content panel |
 | `App.vue` | `frontend/src/App.vue` | Tab registration (BookOpen icon) |
+# Designs
+
+> Module-level interfaces, state machines, and data models for the Agents Relay module.
+
+
+## Designs
+
+---
+
+## D1 AgentInstance & Soul Rendering
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/agent.rs`
+**Depends on:** A2
+
+```rust
+pub struct AgentInstance {
+    pub id: String,
+    pub profession: Profession,
+    pub soul: SoulConfig,
+    pub model: ModelConfig,
+    pub context: AgentContext,
+}
+
+impl AgentInstance {
+    /// Spawn a new agent for a pipeline step.
+    /// Loads Soul from disk, resolves model config (with fallback chain).
+    pub fn spawn(
+        profession: &Profession,
+        soul_id: &str,
+        handoff: &HandoffDocument,
+        specs: &SpecsDocument,
+    ) -> Result<Self, AgentError>;
+
+    /// Render the system prompt from Soul + Profession + context.
+    pub fn render_system_prompt(&self) -> String;
+
+    /// Render the user message from Handoff + relevant Specs.
+    pub fn render_user_message(&self) -> Vec<ChatMessage>;
+
+    /// Execute one turn of the ReAct loop.
+    pub async fn turn(&mut self, tools: &[Box<dyn Tool>]) -> TurnResult;
+}
+
+pub struct SoulConfig {
+    pub id: String,
+    pub name: String,
+    pub markdown: String,
+    pub values: Vec<String>,
+    pub handoff_ritual: String,
+}
+
+pub struct ModelConfig {
+    pub provider: Provider,
+    pub model: String,
+    pub temperature: f32,
+    pub max_tokens: u32,
+    pub reasoning_budget: Option<u32>,
+    pub fallback_chain: Vec<String>,
+}
+
+pub enum Provider {
+    Anthropic,
+    OpenAI,
+    Local { url: String },
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unresolved: Soul ID provided
+    Unresolved --> Resolved: Soul loaded from disk
+    Resolved --> Ready: Model config validated
+    Ready --> Thinking: Turn started
+    Thinking --> ToolCall: LLM requests tool
+    ToolCall --> Thinking: Tool result returned
+    Thinking --> Complete: LLM finishes
+    Thinking --> Error: API failure
+    Error --> Ready: Fallback model activated
+    Error --> Failed: Fallback exhausted
+    Complete --> [*]
+    Failed --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | UUID for this agent instance |
+| `profession.id` | `String` | Reference to Profession registry |
+| `soul.id` | `String` | Reference to Soul config file |
+| `model.provider` | `Provider` | API provider enum |
+| `model.fallback_chain` | `Vec<String>` | Ordered list of alternative models |
+| `context.budget_used` | `u64` | Tokens consumed this step |
+| `context.turns_taken` | `u32` | Number of LLM turns this step |
+
+
+---
+
+## D2 PipelineEngine & Flow Execution
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/pipeline.rs`
+**Depends on:** A1, D1
+
+```rust
+pub struct PipelineEngine {
+    pub flow: FlowSpec,
+    pub current_step: usize,
+    pub current_agent: Option<AgentInstance>,
+    pub checkpoints: Vec<Checkpoint>,
+    pub status: PipelineStatus,
+    pub run_id: String,
+}
+
+impl PipelineEngine {
+    /// Load a flow spec and initialize the pipeline.
+    pub fn new(flow: FlowSpec, run_id: String) -> Self;
+
+    /// Execute the next step in the flow.
+    pub async fn execute_next(&mut self) -> StepResult;
+
+    /// Pause the current run, saving checkpoint.
+    pub async fn pause(&mut self) -> Result<Checkpoint, PipelineError>;
+
+    /// Resume from a checkpoint.
+    pub async fn resume(checkpoint: &Checkpoint) -> Result<Self, PipelineError>;
+
+    /// Rollback to a previous checkpoint.
+    pub async fn rollback(target: u64) -> Result<(), PipelineError>;
+
+    /// Handle human approval/rejection at a gate.
+    pub async fn resolve_gate(&mut self, decision: GateDecision) -> Result<(), PipelineError>;
+}
+
+pub enum PipelineStatus {
+    Idle,
+    Running { agent_id: String, started_at: u64 },
+    WaitingForHuman { gate: Gate, since: u64 },
+    Completed { result: CompletionResult },
+    Failed { error: String, checkpoint: u64 },
+    Paused { at_checkpoint: u64 },
+}
+
+pub enum StepResult {
+    Handoff { to: String, checkpoint: Checkpoint },
+    GateTriggered { gate: Gate },
+    LoopBack { to: String, iteration: u32 },
+    Complete,
+    Error { message: String },
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: Flow loaded
+    Idle --> Running: execute_next() called
+    Running --> Running: Loop iteration
+    Running --> WaitingForHuman: Gate triggered
+    WaitingForHuman --> Running: Approved
+    WaitingForHuman --> Running: Rejected (redraft)
+    Running --> Paused: pause() called
+    Paused --> Running: resume() called
+    Running --> Completed: Final step done
+    Running --> Failed: Unrecoverable error
+    Failed --> Idle: reset
+    Completed --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `flow.id` | `String` | Flow specification identifier |
+| `current_step` | `usize` | Index into flow.steps vector |
+| `status` | `PipelineStatus` | Current state machine state |
+| `checkpoints` | `Vec<Checkpoint>` | Ordered list of saved states |
+| `run_id` | `String` | Unique run identifier |
+
+```
+fn execute_next():
+    step = flow.steps[current_step]
+    profession = registry.get(&step.profession_id)
+    
+    // Gate check
+    if step.gate == Human:
+        status = WaitingForHuman { gate: step.gate }
+        return StepResult::GateTriggered { gate }
+    
+    // Spawn agent
+    agent = AgentInstance::spawn(profession, ...)
+    status = Running { agent_id: agent.id, started_at: now() }
+    
+    // Run agent turn loop
+    loop:
+        result = agent.turn(filtered_tools)
+        if result.is_handoff():
+            checkpoint = create_checkpoint(agent, result)
+            advance_step_or_loop()
+            return StepResult::Handoff { to: next_profession, checkpoint }
+        if result.is_budget_exceeded():
+            return StepResult::Error { message: "Budget exceeded" }
+        if agent.turns_taken >= step.max_turns:
+            return StepResult::Error { message: "Max turns exceeded" }
+```
+
+
+---
+
+## D3 HandoffDocument Generation
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/handoff.rs`
+**Depends on:** G3, D1
+
+```rust
+pub struct HandoffDocument {
+    pub from: String,
+    pub to: String,
+    pub run_id: String,
+    pub checkpoint_id: u64,
+    pub summary: String,
+    pub decisions: Vec<Decision>,
+    pub open_questions: Vec<Question>,
+    pub spec_updates: Vec<SpecUpdate>,
+    pub work_product: Vec<WorkProduct>,
+    pub context_for_next: ContextPointers,
+    pub token_usage: TokenUsage,
+}
+
+impl HandoffDocument {
+    /// Generate from agent turn history and current state.
+    pub fn generate(
+        agent: &AgentInstance,
+        turn_history: &[TurnRecord],
+        specs: &SpecsDocument,
+    ) -> Result<Self, HandoffError>;
+
+    /// Render as markdown for the next agent's consumption.
+    pub fn render(&self) -> String;
+
+    /// Compress raw turn history into summary using cheap model or rules.
+    pub async fn compress_history(
+        history: &[TurnRecord],
+        model: &ModelConfig,
+    ) -> Result<String, CompressionError>;
+}
+
+pub struct ContextPointers {
+    pub files_to_read: Vec<String>,
+    pub specs_to_follow: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+pub struct TokenUsage {
+    pub step_input: u64,
+    pub step_output: u64,
+    pub cumulative: u64,
+    pub budget_remaining: u64,
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Collecting: Agent turn complete
+    Collecting --> Summarizing: Raw history gathered
+    Summarizing --> Structured: Decisions extracted
+    Structured --> Validated: Open questions identified
+    Validated --> Rendered: Work product catalogued
+    Rendered --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `summary` | `String` | ≤200 words executive summary |
+| `decisions.id` | `String` | Decision identifier |
+| `decisions.status` | `String` | made / deferred / rejected |
+| `open_questions.id` | `String` | Question identifier |
+| `spec_updates.section_id` | `String` | Which spec section was modified |
+| `work_product.path` | `String` | File path or artifact location |
+| `work_product.lines` | `u32` | Size indicator for context sizing |
+
+```
+fn generate(agent, turn_history, specs):
+    // Phase 1: Summarize (cheap model or rules)
+    summary = compress_history(turn_history, cheap_model)
+    
+    // Phase 2: Extract decisions from agent's explicit handoff tool calls
+    decisions = extract_decisions(turn_history)
+    
+    // Phase 3: Identify open questions from handoff tool calls
+    questions = extract_open_questions(turn_history)
+    
+    // Phase 4: Catalog spec changes made by agent
+    spec_updates = diff_specs(original_specs, current_specs)
+    
+    // Phase 5: List files touched
+    work_product = agent.context.files_touched
+    
+    // Phase 6: Build context pointers for next agent
+    pointers = build_context_pointers(agent.profession, next_profession, specs)
+    
+    return HandoffDocument { ... }
+```
+
+
+---
+
+## D4 Checkpoint Serialization
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/checkpoint.rs`
+**Depends on:** A3
+
+```rust
+pub struct Checkpoint {
+    pub id: u64,
+    pub run_id: String,
+    pub timestamp: u64,
+    pub git_commit: Option<String>,
+    pub git_diff: Option<String>,
+    pub ledger_state: SpecsDocument,
+    pub handoff: HandoffDocument,
+    pub file_manifest: Vec<FileState>,
+    pub token_usage: TokenUsage,
+}
+
+pub struct FileState {
+    pub path: String,
+    pub hash: String,  // SHA-256
+    pub size: u64,
+}
+
+impl Checkpoint {
+    /// Create checkpoint from current pipeline state.
+    pub async fn create(engine: &PipelineEngine) -> Result<Self, CheckpointError>;
+
+    /// Serialize to disk.
+    pub fn save(&self, dir: &Path) -> Result<(), CheckpointError>;
+
+    /// Load from disk.
+    pub fn load(dir: &Path, checkpoint_id: u64) -> Result<Self, CheckpointError>;
+
+    /// Restore file system state from checkpoint.
+    pub async fn restore_files(&self, project_dir: &Path) -> Result<(), CheckpointError>;
+
+    /// Restore git state.
+    pub async fn restore_git(&self) -> Result<(), CheckpointError>;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Capturing: Handoff triggered
+    Capturing --> GitSnapshot: File manifest built
+    GitSnapshot --> LedgerSnapshot: Git commit or diff captured
+    LedgerSnapshot --> Serializing: Ledger embedded
+    Serializing --> Persisted: JSON written to disk
+    Persisted --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `u64` | Monotonic within run |
+| `git_commit` | `Option<String>` | Full SHA if auto-commit succeeded |
+| `git_diff` | `Option<String>` | Patch if working tree was dirty |
+| `ledger_state` | `SpecsDocument` | Deep copy of specs at this point |
+| `file_manifest` | `Vec<FileState>` | Hash of every touched file |
+
+
+---
+
+## D5 TokenBudget Enforcement
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/budget.rs`
+**Depends on:** G5
+
+```rust
+pub struct TokenBudget {
+    pub limit: u64,
+    pub warning_at: u64,
+    pub strategy: BudgetStrategy,
+}
+
+pub enum BudgetStrategy {
+    HardStop,
+    EscalateModel,
+    SummarizeContext,
+    SkipOptional,
+}
+
+pub struct BudgetTracker {
+    pub run_budget: TokenBudget,
+    pub step_budgets: HashMap<String, TokenBudget>,
+    pub cumulative: u64,
+    pub per_step: HashMap<String, u64>,
+}
+
+impl BudgetTracker {
+    /// Record token usage from an API response.
+    pub fn record(&mut self, step: &str, input: u64, output: u64);
+
+    /// Check if current spend triggers any budget action.
+    pub fn check(&self, step: &str) -> BudgetAction;
+
+    /// Estimate "parallel cost" for analytics.
+    pub fn estimate_parallel_cost(&self, num_agents: u32, avg_context: u64) -> u64;
+}
+
+pub enum BudgetAction {
+    None,
+    Warning { remaining: u64 },
+    Compress,
+    HardStop,
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `limit` | `u64` | Hard token limit |
+| `warning_at` | `u64` | Percentage (0-1) of limit where warning fires |
+| `strategy` | `BudgetStrategy` | Action when limit reached |
+| `cumulative` | `u64` | Total tokens this run |
+| `per_step` | `HashMap` | Tokens per profession/step |
+
+---
+
+## D6 RelayMode & GSD Flow Control
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/pipeline.rs`
+**Depends on:** G6, D2
+
+```rust
+pub enum RelayMode {
+    GSD,      // Get Shit Done — autonomous, only GoalGate is human
+    Check,    // Human reviews every gate
+}
+
+pub enum ForgePhase {
+    Intake,
+    Discovery,
+    GoalGate,
+    Design,
+    Planning,
+    Execution,
+    Verification,
+    Report,
+}
+
+pub struct PipelineEngine {
+    pub flow: FlowSpec,
+    pub current_step: usize,
+    pub current_agent: Option<AgentInstance>,
+    pub checkpoints: Vec<Checkpoint>,
+    pub status: PipelineStatus,
+    pub run_id: String,
+    pub mode: RelayMode,  // NEW
+}
+
+impl PipelineEngine {
+    /// Evaluate gate based on RelayMode.
+    /// GSD: only GoalGate triggers human pause.
+    /// Check: every gate triggers human pause.
+    pub fn evaluate_gate(&self, step: &FlowStep) -> GateDecision;
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `mode` | `RelayMode` | GSD (default) or Check |
+| `phase` | `ForgePhase` | Extended to 8 phases including Discovery, GoalGate, Design, Planning, Report |
+
+```
+fn evaluate_gate(step, mode):
+    if mode == Check:
+        return HumanGate
+    if mode == GSD:
+        if step.profession == "advisor" and step.exit == "handoff_to_architect":
+            return HumanGate  // Goal approval required
+        return AutoGate  // Everything else autonomous
+```
+
+---
+
+## D7 Profession Registry (v2)
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/profession.rs`
+**Depends on:** G1, G7
+
+```rust
+pub struct Profession {
+    pub id: String,
+    pub name: String,
+    pub phase: ForgePhase,
+    pub owned_sections: Vec<SectionType>,
+    pub readable_sections: Vec<SectionType>,
+    pub allowed_tools: Vec<String>,
+    pub handoff_to: Vec<String>,
+    pub approval_gates: Vec<String>,
+    pub max_turns: u32,
+    pub token_budget: u64,
+}
+```
+
+
+| Profession | Phase | Owned Specs | Model Tier | Gate |
+|---|---|---|---|---|
+| Assistant | Intake | None | Light | Auto |
+| Advisor | Discovery | Goals | Medium | Human (GSD) / Human (Check) |
+| Architect | Design | Architecture, Designs | Heavy | Auto (GSD) / Human (Check) |
+| Planner | Planning | Plans | Medium | Auto |
+| Coder | Execution | None (code) | Heavy | Auto |
+| Tester | Execution | Tests | Medium | Auto |
+| Reviewer | Verification | Reviews | Heavy | Auto |
+| Documenter | Report | Reports | Light | Auto |
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | profession identifier |
+| `phase` | `ForgePhase` | which phase this profession runs in |
+| `owned_sections` | `Vec<SectionType>` | specs this profession can write |
+| `readable_sections` | `Vec<SectionType>` | specs this profession can read |
+| `approval_gates` | `Vec<String>` | handoff targets that require approval |
+
+
+---
+
+## D8 GateCard & SecretaryMessage Components
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/`
+**Depends on:** A5, A6
+
+```typescript
+// GateCard.vue
+interface GateCardProps {
+  gate: PendingGate
+  mode: 'inline' | 'secretary'
+}
+
+// SecretaryMessage.vue
+interface SecretaryMessageProps {
+  gate: PendingGate
+  queuePosition?: number
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Proposed
+    Proposed --> Approved : boss clicks Approve
+    Proposed --> Rejected : boss clicks Reject
+    Proposed --> Snoozed : boss clicks Snooze
+    Proposed --> Reviewing : boss clicks Review →
+    Reviewing --> Proposed : drawer closed
+    Snoozed --> Proposed : timer expires
+    Approved --> Resolved : auto-collapse 3s
+    Rejected --> Resolved : advisor reworks
+    Resolved --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `gate.id` | `string` | session_id or run_id |
+| `gate.type` | `'session' \| 'run'` | source composable |
+| `gate.gateType` | `'goal' \| 'spec' \| 'review'` | approval type |
+| `gate.profession` | `string` | who is waiting |
+| `gate.since` | `number` | timestamp |
+
+
+---
+
+## D9 useGateInbox State Machine
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/composables/useGateInbox.ts`
+**Depends on:** A5
+
+```typescript
+interface PendingGate {
+  id: string
+  type: 'session' | 'run'
+  gateType: 'goal' | 'spec' | 'review'
+  title: string
+  profession: string
+  since: number
+  context: {
+    sessionId?: string
+    runId?: string
+    sectionId?: string
+    itemId?: string
+  }
+}
+
+interface GateInboxState {
+  pending: PendingGate[]
+  active: PendingGate | null
+  resolved: PendingGate[]
+}
+
+function registerGate(gate: PendingGate): void
+function resolveGate(id: string): void
+function dismissSecretary(): void
+function snoozeGate(id: string, minutes: number): void
+```
+
+```
+fn registerGate(gate):
+    if active is null:
+        active = gate
+    else:
+        pending.push(gate)
+
+fn resolveGate(id):
+    if active?.id == id:
+        resolved.push(active)
+        active = pending.shift() ?? null
+    else:
+        pending.remove(where g.id == id)
+        resolved.push(g)
+
+fn snoozeGate(id, minutes):
+    if active?.id == id:
+        pending.push(active)
+        active = null
+        setTimeout(() => registerGate(active), minutes * 60000)
+```
+
+
+---
+
+## D10 Category Renderer Polymorphism
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/views/SpecsView.vue`
+**Depends on:** A5
+
+```typescript
+const categoryComponents: Record<SectionType, Component> = {
+  goals: GoalsTable,
+  architecture: ArchitectureCards,
+  designs: DesignCards,
+  plans: PlansTimeline,
+  tests: TestsCards,
+  reviews: ReviewCards,
+  reports: ReportDashboard,
+}
+```
+
+| Event | Payload | Description |
+|---|---|---|
+| `toggle` | `{ id: string }` | Expand/collapse item detail |
+| `jump` | `{ id: string }` | Navigate to linked spec ID |
+| `edit` | `{ item: SpecItem }` | Enter edit mode for item |
+| `status-change` | `{ id: string; status: Status }` | Update item status |
+| `save` | `{ item: SpecItem }` | Persist edited item |
+| `delete` | `{ id: string }` | Remove item from section |
+
+
+---
+
+## D11 RelationsPanel & AutoLinkContent
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/`
+**Depends on:** A5
+
+```typescript
+// RelationsPanel.vue
+interface RelationsPanelProps {
+  item: SpecItem
+}
+
+// AutoLinkContent.vue
+interface AutoLinkContentProps {
+  content: string
+}
+// Regex: /\b([GRAPTVXIS]\d+(?:\.\d+)?)\b/
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `parents` | `{ id, title, section_type, status }[]` | Upstream depends_on |
+| `children` | `{ id, title, section_type, status }[]` | Downstream related |
+
+```
+fn render(content):
+    parts = splitByRegex(content, ID_REF_REGEX)
+    for part in parts:
+        if part.matches(ID_REF_REGEX):
+            render(<SpecLink id={part} />)
+        else:
+            render(<span>{part}</span>)
+```
+
+
+---
+
+## D12 Relay PipelinePanel Node-Graph
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/views/RelayView.vue`
+**Depends on:** A5
+
+```typescript
+interface PipelineNode {
+  id: string
+  profession: string
+  status: 'pending' | 'working' | 'done' | 'error' | 'waiting_gate'
+  tokens: number
+  cost: number
+  elapsedMs: number
+  outputs: string[]
+  currentAction?: string
+}
+
+interface PipelineEdge {
+  from: string
+  to: string
+  type: 'forward' | 'retry' | 'handoff'
+}
+```
+
+- Desktop (`≥1024px`): horizontal flexbox with absolute-positioned SVG connectors
+- Mobile (`<1024px`): vertical timeline with CSS border-left connectors
+
+
+---
+
+## D13 Expanded Node Card
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/NodeCard.vue`
+**Depends on:** D12
+
+```typescript
+interface NodeCardProps {
+  node: PipelineNode
+}
+```
+
+1. **Overview**: tokens, elapsed time, status, profession icon
+2. **Actions**: chronological tool call history (read_jade, write_file, etc.)
+3. **Output**: specs touched with click-to-jump links
+
+
+---
+
+## D14 Responsive 3-Zone Layout System
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/App.vue`
+**Depends on:** —
+
+| Breakpoint | Zone A | Zone B | Zone C |
+|---|---|---|---|
+| `≥1280px` | 220px sidebar | flex main | 280–320px context |
+| `1024–1279px` | 220px sidebar | flex main | hidden, toggle drawer |
+| `<1024px` | tab nav | full main | bottom sheet |
+
+```css
+.autoforge-app {
+  display: flex;
+  height: 100vh;
+}
+.view-rail { width: 180px; flex-shrink: 0; }
+.view-main { flex: 1; display: flex; min-width: 0; }
+```
+
+
+
+---
+
+## D15 GateBanner (Specs View)
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/GateBanner.vue`
+**Depends on:** A5, D9
+
+```typescript
+interface GateBannerProps {
+  sectionId: string
+  gate: PendingGate
+}
+
+// Events
+emit('approve', gateId: string)
+emit('reject', gateId: string)
+emit('openInChat', gateId: string)
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Hidden: no active gate for section
+    Hidden --> Visible: gate_reached for this section
+    Visible --> Hidden: gate_resolved or approved
+    Visible --> Expanded: user clicks View Diff
+    Expanded --> Visible: user collapses diff
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `sectionId` | `string` | Which spec section this banner guards |
+| `gate.profession` | `string` | Who is waiting (e.g., "architect") |
+| `gate.title` | `string` | One-line summary of what needs approval |
+| `gate.since` | `number` | Timestamp when gate was reached |
+
+
+---
+
+## D16 GatePanel (Relay View)
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/GatePanel.vue`
+**Depends on:** A5, D9
+
+```typescript
+interface GatePanelProps {
+  runId: string
+  gate: PendingGate
+  professionIcon: string
+}
+
+// Events
+emit('approve', runId: string)
+emit('reject', runId: string)
+emit('reviewInSpecs', sectionId: string)
+```
+
+- Renders inside `PipelinePanel` when `currentRun.waiting_for_gate` is non-null
+- Shows profession icon, gate title, and elapsed waiting time
+- Provides Approve / Reject / Review in Specs actions
+- Non-blocking: pipeline animation continues in background
+
+
+---
+
+## D17 ReportCard (Chat Terminal)
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/ReportCard.vue`
+**Depends on:** A5
+
+```typescript
+interface ReportCardProps {
+  report: {
+    runId: string
+    goalsMet: string
+    testsPass: string
+    driftDetected: string
+    cost: string
+    confidence: 'High' | 'Medium' | 'Low'
+    deliverables: string[]
+  }
+}
+```
+
+- `collapsed` (default): Shows summary line only — "✅ Relay Complete — Report X42"
+- `expanded`: Shows full metrics table, cost breakdown, deliverables list, drift notes
+
+- [View Full Report] → opens Reports section in Specs drawer
+- [Download Markdown] → triggers download of report markdown
+- [Open Changed Files] → opens file diff viewer
+
+
+---
+
+## D18 SSE Frontend Event Router
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/composables/useEventRouter.ts`
+**Depends on:** A5, D9
+
+```typescript
+interface SSEEvent {
+  type: 'run_started' | 'step_advanced' | 'spec_written'
+       | 'gate_reached' | 'gate_resolved'
+       | 'handoff_submitted' | 'run_completed'
+  runId: string
+  payload: Record<string, unknown>
+}
+
+function useEventRouter() {
+  function handleEvent(event: SSEEvent, currentView: 'chat' | 'specs' | 'relay')
+}
+```
+
+| Event | Chat View | Specs View | Relay View |
+|---|---|---|---|
+| `run_started` | System message | — | Highlight run |
+| `step_advanced` | **NO action** (ambient only) | — | Animate node |
+| `spec_written` | — | Flash changed section | — |
+| `gate_reached` | SecretaryMessage | GateBanner | GatePanel |
+| `gate_resolved` | Collapse message | Hide banner | Hide panel |
+| `handoff_submitted` | — | — | Append to Live Log |
+| `run_completed` | ReportCard | Update Reports | Mark run done |
+
+
+---
+
+## D19 API Source Configuration
+**Status:** draft
+**Module:** `backend/src/relay/config.rs`
+**Depends on:** G13
+
+```rust
+pub struct ApiSource {
+    pub id: String,
+    pub name: String,
+    pub provider: Provider,
+    pub api_key_env: String,
+    pub api_key_stored: Option<String>,
+    pub base_url: Option<String>,
+    pub is_available: bool,
+    pub models: Vec<ModelDefinition>,
+}
+
+pub struct ModelDefinition {
+    pub id: String,
+    pub name: String,
+    pub tier: ModelTier,
+}
+
+pub enum ModelTier { Light, Mid, Heavy }
+
+// CRUD + detection
+pub fn load_api_sources() -> Vec<ApiSource>
+pub fn save_api_sources(sources: &[ApiSource]) -> Result<(), ConfigError>
+pub fn detect_available_providers() -> Vec<ApiSource>
+
+// Per-source operations
+pub fn resolve_api_key(source: &ApiSource) -> Option<String>
+pub async fn test_connection(source: &ApiSource, model: &str) -> Result<ConnectionTestResult, ConfigError>
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unconfigured: First startup
+    Unconfigured --> Detecting: auto-detect triggered
+    Detecting --> Detected: keys/env found
+    Detecting --> Empty: nothing found
+    Detected --> Configured: user saves
+    Empty --> Configured: user adds source manually
+    Configured --> Testing: test_connection()
+    Testing --> Available: connection OK
+    Testing --> Unavailable: connection failed
+    Available --> Configured: edit
+    Unavailable --> Configured: fix and retry
+    Configured --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique identifier (e.g., "anthropic-primary") |
+| `name` | `String` | Human-readable display name |
+| `provider` | `Provider` | Anthropic, OpenAI, or Local{url} |
+| `api_key_env` | `String` | Env var name or "settings:KEY" for ~/.claude |
+| `api_key_stored` | `Option<String>` | Base64-obfuscated key |
+| `base_url` | `Option<String>` | Custom endpoint (proxies, local) |
+| `is_available` | `bool` | Startup detection result |
+| `models` | `Vec<ModelDefinition>` | Available models with tier labels |
+
+```
+fn detect_available_providers():
+    sources = []
+
+    // 1. Check ~/.claude/settings.json for Anthropic key
+    if settings.env has ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY:
+        sources.push(ApiSource {
+            provider: Anthropic,
+            models: [
+                ModelDefinition { id: "claude-3-5-haiku-20241022", tier: Light },
+                ModelDefinition { id: "claude-3-5-sonnet-20241022", tier: Mid },
+                ModelDefinition { id: "claude-3-opus-20240229", tier: Heavy },
+            ],
+            is_available: true,
+        })
+
+    // 2. Check OPENAI_API_KEY env var
+    if env has OPENAI_API_KEY:
+        sources.push(ApiSource {
+            provider: OpenAI,
+            models: [
+                ModelDefinition { id: "gpt-4o-mini", tier: Light },
+                ModelDefinition { id: "gpt-4o", tier: Mid },
+                ModelDefinition { id: "o1", tier: Heavy },
+            ],
+            is_available: true,
+        })
+
+    // 3. Check localhost:11434 for Ollama
+    if http://localhost:11434/api/tags responds:
+        sources.push(ApiSource {
+            provider: Local { url: "http://localhost:11434" },
+            models: fetch from /api/tags,
+            is_available: true,
+        })
+
+    return sources
+
+fn resolve_api_key(source):
+    if source.api_key_env starts with "settings:":
+        return read ~/.claude/settings.json -> env[key]
+    if env has source.api_key_env:
+        return env[source.api_key_env]
+    if source.api_key_stored is Some:
+        return base64_decode(source.api_key_stored)
+    return None
+```
+
+
+| Tier | Anthropic | OpenAI | Purpose |
+|---|---|---|---|
+| Light | claude-3-5-haiku | gpt-4o-mini | Routing, test gen, docs |
+| Mid | claude-3-5-sonnet | gpt-4o | Planning, coding |
+| Heavy | claude-3-opus | o1 | Architecture, review |
+
+
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/forge/config/api-sources` | List all sources |
+| POST | `/api/forge/config/api-sources` | Create source |
+| PUT | `/api/forge/config/api-sources/{id}` | Update source |
+| DELETE | `/api/forge/config/api-sources/{id}` | Delete source |
+| POST | `/api/forge/config/api-sources/{id}/test` | Test connectivity |
+
+
+
+---
+
+## D20 Multi-Provider AI Dispatch
+**Status:** draft
+**Module:** `backend/src/ai.rs`
+**Depends on:** G13, D19
+
+```rust
+/// Dispatch a streaming chat request to the correct provider.
+/// Returns error message on failure, None on success.
+pub async fn dispatch_chat(
+    source: &ApiSource,
+    model: &str,
+    system: &str,
+    messages: Vec<ChatMessage>,
+    tx: UnboundedSender<AIStreamDelta>,
+) -> Option<String>
+
+/// Build provider-specific request URL.
+fn build_api_url(source: &ApiSource) -> String
+
+/// Build provider-specific auth headers.
+fn build_auth_headers(source: &ApiSource) -> HeaderMap
+
+/// Parse provider-specific SSE stream into text deltas.
+fn parse_sse_delta(provider: &Provider, data: &str) -> Option<String>
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Routing: dispatch_chat()
+    Routing --> AnthropicStream: provider == Anthropic
+    Routing --> OpenAIStream: provider == OpenAI
+    Routing --> LocalStream: provider == Local
+    AnthropicStream --> Emitting: SSE content_block_delta
+    OpenAIStream --> Emitting: SSE choices[0].delta.content
+    LocalStream --> Emitting: Ollama /api/chat response
+    Emitting --> Emitting: more deltas
+    Emitting --> Done: stream ends
+    Emitting --> Error: connection/API error
+    Done --> [*]
+    Error --> [*]
+```
+
+| Provider | Auth Header | API Path | SSE Format |
+|---|---|---|---|
+| Anthropic | `x-api-key: {key}` | `/v1/messages` | `event: content_block_delta` → `delta.text` |
+| OpenAI | `Authorization: Bearer {key}` | `/v1/chat/completions` | `choices[0].delta.content` |
+| Local | None (or Bearer) | `/v1/chat/completions` | Same as OpenAI (Ollama-compatible) |
+
+```
+fn dispatch_chat(source, model, system, messages, tx):
+    url = build_api_url(source)
+    headers = build_auth_headers(source)
+    body = build_request_body(source.provider, model, system, messages)
+
+    resp = http_post(url, headers, body, stream=true)
+    if not resp.ok:
+        return Some(format("API error ({})", resp.status))
+
+    for chunk in resp.bytes_stream():
+        for sse_event in parse_sse(chunk):
+            text = parse_sse_delta(source.provider, sse_event.data)
+            if text:
+                tx.send(AIStreamDelta { text })
+
+    return None  // success
+
+fn build_api_url(source):
+    match source.provider:
+        Anthropic => "{base}/v1/messages"
+        OpenAI => "{base}/v1/chat/completions"
+        Local => "{source.url}/v1/chat/completions"
+
+fn parse_sse_delta(provider, data):
+    json = parse(data)
+    match provider:
+        Anthropic => json.delta.text  (from content_block_delta)
+        OpenAI => json.choices[0].delta.content
+        Local => json.choices[0].delta.content  // Ollama compatible
+```
+
+- `ClaudeProvider::chat_stream()` refactored into `dispatch_chat()`
+- `ToolClaudeProvider` in `forge/ai.rs` generalized to use `dispatch_chat()` with `ApiSource`
+- Existing `ModelConfig::cheap()/standard()/strong()` kept as fallback defaults
+- `ai.rs` `load_api_config()` replaced by `config::resolve_api_key()`
+
+---
+
+## D21 Unified Provider Layer
+**Status:** done
+**Module:** `backend/src/provider/`
+
+```rust
+// provider/claude.rs
+pub struct ClaudeProvider {
+    pub(crate) client: reqwest::Client,
+    pub(crate) api_key: Option<String>,
+    pub(crate) base_url: String,
+}
+
+impl ClaudeProvider {
+    pub fn new() -> Self;
+    pub fn is_available(&self) -> bool;
+    pub async fn chat_stream(&self, request: AIRequest, tx: UnboundedSender<AIStreamDelta>) -> Option<String>;
+    pub async fn chat(&self, request: AIRequest) -> AIResponse;
+    pub async fn chat_turn(&self, request: ToolChatRequest, tx: UnboundedSender<ToolChatEvent>) -> Option<String>;
+}
+
+// provider/sse.rs
+pub struct SseParser { buffer: Vec<u8> }
+
+impl SseParser {
+    pub fn new() -> Self;
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>, SseError>;
+    pub fn finish(self) -> Result<Vec<StreamEvent>, SseError>;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Streaming: HTTP response received
+    Streaming --> Parsing: SSE chunk arrives
+    Parsing --> Emitting: complete frame found
+    Emitting --> Streaming: more chunks
+    Emitting --> Done: stream ends
+    Parsing --> Done: stream ends
+    Done --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `client` | `reqwest::Client` | Reusable HTTP client |
+| `api_key` | `Option<String>` | Loaded from ~/.claude/settings.json or env |
+| `base_url` | `String` | API endpoint (default: https://api.anthropic.com) |
+
+---
+
+## D22 CLI REPL Interface
+**Status:** done
+**Module:** `backend/src/cli/`
+
+```rust
+// cli/repl.rs
+pub async fn run_repl(
+    provider: Arc<ClaudeProvider>,
+    registry: &ToolRegistry,
+    system_prompt: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+
+// cli/settings.rs
+pub struct Settings {
+    pub env: HashMap<String, String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub permission: Option<String>,
+}
+pub fn load() -> Settings
+pub fn inject_env(settings: &Settings)
+pub fn ensure_template()
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Prompt
+    Prompt --> Processing: user input
+    Processing --> Streaming: chat_turn()
+    Streaming --> Compacting: response done
+    Compacting --> Prompt: context managed
+    Prompt --> [*]: :quit
+```
+
+| Command | Action |
+|---|---|
+| `:quit` / `:q` | Exit REPL |
+| `:help` | Show available commands |
+| `:reset` | Clear conversation history |
+| `:messages` | Show message count |
+
+---
+
+## D23 Runtime Infrastructure
+**Status:** done
+**Module:** `backend/src/runtime/`
+
+```rust
+// runtime/context.rs
+pub struct ContextManager {
+    max_tokens: u32,
+    keep_recent: usize,
+}
+
+impl ContextManager {
+    pub fn new() -> Self;
+    pub fn maybe_compact(&self, messages: &mut Vec<InputMessage>) -> bool;
+}
+
+// runtime/session.rs
+pub struct Session { path: PathBuf }
+
+impl Session {
+    pub fn new(project_path: &str) -> Self;
+    pub fn append(&self, message: &InputMessage) -> Result<()>;
+    pub fn load(&self) -> Result<Vec<InputMessage>>;
+}
+
+// runtime/permission.rs
+pub enum PermissionMode { Allow, Ask, ReadOnly }
+pub enum PermissionDecision { Allowed, AskUser, Denied }
+
+pub struct PermissionPolicy { mode: PermissionMode }
+
+impl PermissionPolicy {
+    pub fn check(&self, tool_name: &str, is_write: bool) -> PermissionDecision;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Allow: mode == Allow
+    [*] --> Ask: mode == Ask
+    [*] --> ReadOnly: mode == ReadOnly
+    ReadOnly --> Allowed: read-only tool
+    ReadOnly --> Denied: write tool
+    Ask --> Allowed: user approves
+    Ask --> Denied: user denies
+    Allow --> Allowed: any tool
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `max_tokens` | `u32` | Token threshold for compaction (default 100k) |
+| `keep_recent` | `usize` | Messages to preserve during compaction |
+| `path` | `PathBuf` | Session directory at ~/.autoforge/sessions/{hash}/ |
+
+
+---
+
+## D24 bring_in Tool & Chat Handoff
+**Status:** proposed
+**Module:** `backend/src/forge/tools.rs`, `backend/src/forge/mod.rs`
+**Depends on:** A9, G17
+
+```rust
+// forge/tools.rs — BringInTool
+pub struct BringInTool;
+
+impl Tool for BringInTool {
+    fn name(&self) -> &str { "bring_in" }
+    fn description(&self) -> &str {
+        "Bring in another agent to handle this conversation. \
+         Use when you've classified the user's intent and know \
+         which specialist should take over."
+    }
+    fn is_read_only(&self) -> bool { true }
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Profession ID of the agent to bring in (e.g., 'advisor', 'coder')"
+                },
+                "classification": {
+                    "type": "string",
+                    "enum": ["NEW_GOAL", "REQ_UPDATE", "QUESTION", "DIRECT"],
+                    "description": "Your classification of the user's intent"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Brief explanation of why you're handing off"
+                }
+            },
+            "required": ["target", "reason"]
+        })
+    }
+    fn execute(&self, args: &serde_json::Value) -> Result<serde_json::Value, ToolError>;
+}
+```
+
+```rust
+// forge/mod.rs — HandoffNote (lightweight, for chat only)
+pub struct HandoffNote {
+    pub from_agent: String,       // "Nicole"
+    pub from_profession: String,  // "assistant"
+    pub to_profession: String,    // "advisor"
+    pub classification: String,   // "NEW_GOAL"
+    pub summary: String,          // Agent's summary of conversation so far
+    pub warnings: Vec<String>,    // e.g., "No existing specs found for this topic"
+}
+
+impl HandoffNote {
+    pub fn render(&self) -> String {
+        format!(
+            "## Handoff Note\n\
+             {} ({}) handed off to you.\n\
+             **Classification:** {}\n\
+             **Summary:** {}\n\
+             {}\n\
+             Continue the conversation from here — do not ask the user to repeat what was already discussed.",
+            self.from_agent,
+            self.from_profession,
+            self.classification,
+            self.summary,
+            if self.warnings.is_empty() { String::new() }
+            else { format!("**Warnings:** {}", self.warnings.join("; ")) }
+        )
+    }
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant N as Nicole (assistant)
+    participant T as BringInTool
+    participant S as ForgeSession
+    participant I as Isaac (advisor)
+
+    U->>N: "I want to add OAuth2 login"
+    N->>N: classify → NEW_GOAL
+    N->>T: bring_in(target: "advisor", classification: "NEW_GOAL", reason: "...")
+    T->>S: set active_profession = "advisor"
+    T->>S: inject HandoffNote as system message
+    T-->>N: tool result: "Handed off to Isaac (advisor)"
+    N-->>U: [handoff card: Nicole → Isaac]
+    Note over I: Next streaming turn uses Isaac's system prompt
+    I->>I: reads HandoffNote + full conversation history
+    I->>U: "I see you want OAuth2. Let me check existing goals..."
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `target` | `String` | Must be in caller's `handoff_to` list, else rejected |
+| `classification` | `String` | QUESTION / DIRECT / NEW_GOAL / REQ_UPDATE |
+| `reason` | `String` | Free-text explanation, included in HandoffNote |
+| `from_agent` | `String` | Display name of calling agent (from AgentConfig) |
+| `summary` | `String` | Auto-generated from tool result (LLM's reason field) |
+
+### Validation Rules
+
+1. `target` must exist in `ProfessionRegistry`
+2. `target` must be in calling agent's `handoff_to` list (from Profession config)
+3. `target` must differ from current `active_profession`
+4. On validation failure: tool returns error, LLM continues in current role
+
+### SSE Events
+
+```json
+// New event type: agent_handoff
+{
+  "type": "agent_handoff",
+  "from_agent": "Nicole",
+  "from_profession": "assistant",
+  "to_profession": "advisor",
+  "to_agent": "Isaac",
+  "classification": "NEW_GOAL",
+  "reason": "User wants to add a new feature (OAuth2 login)"
+}
+```
+
+### Frontend Rendering
+
+The `tool_call` for `bring_in` renders as a HandoffCard instead of a generic tool result:
+- Shows "Nicole → Isaac" with arrow icon
+- Shows classification badge (NEW_GOAL)
+- Shows reason text
+- Active profession badge updates to show Isaac
+
+---
+
+## D25 Wiki Knowledge Layer — Storage, Tree API, Raw Resources, and Agent Tools
+**Status:** done
+**Depends on:** G18, A10
+
+### Data Model
+
+```rust
+struct WikiPage {
+    slug: String,            // path-based: "guide/getting-started"
+    title: String,
+    content: String,         // markdown content
+    source_type: WikiSource,  // Manual, Guide, ApiRef, Custom
+    tags: Vec<String>,
+    version: u32,
+    created_at: u64,
+    updated_at: u64,
+}
+
+struct TreeNode {
+    name: String,
+    path: String,            // relative path from wiki/ or raw/ root
+    node_type: String,       // "file" | "folder"
+    children: Option<Vec<TreeNode>>,
+    size: Option<u64>,
+    modified: Option<u64>,
+}
+
+enum WikiSource { Manual, Guide, ApiRef, Custom }
+```
+
+### Storage Layout
+
+```
+{project}/
+├── specs/          # existing specs
+├── wiki/
+│   ├── _manifest.json    # page metadata index
+│   ├── guide/
+│   │   ├── getting-started.md
+│   │   └── advanced/
+│   │       └── api-reference.md
+│   └── readme.md
+└── raw/
+    ├── datasheets/
+    │   ├── stm32f4-datasheet.pdf
+    │   └── pinout.png
+    └── meeting-notes/
+        └── 2024-01-15.md
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/forge/wiki/{project}/tree` | GET | Wiki directory tree (TreeNode[]) |
+| `/api/forge/wiki/{project}/pages` | GET/POST | List/Create wiki pages |
+| `/api/forge/wiki/{project}/page/{*slug}` | GET/PUT/DELETE | Read/Update/Delete wiki page (path-based) |
+| `/api/forge/wiki/{project}/search` | POST | Full-text search |
+| `/api/forge/raw/{project}/tree` | GET | Raw directory tree |
+| `/api/forge/raw/{project}/upload` | POST | Multipart file upload (50MB limit) |
+| `/api/forge/raw/{project}/file/{*path}` | GET/DELETE | Serve/Delete raw file |
+| `/api/forge/raw/{project}/mkdir` | POST | Create raw subdirectory |
+
+### Agent Tools
+
+| Tool | Description | Profession Access |
+|---|---|---|
+| `query_wiki` | Full-text search (semantic RAG planned) | All professions |
+| `create_wiki_page` | Create page with path-based slug | Coder, Documenter |
+| `update_wiki_page` | Update page content with versioning | Coder, Documenter |
+| `list_wiki` | List all wiki pages with metadata | All professions |
+
+---
+
+## D26 Wiki Frontend — Tree Navigation, Raw Import, and Tab Integration
+**Status:** done
+**Depends on:** D25
+
+### Types (`frontend/src/types/wiki.ts`)
+
+```typescript
+type WikiSource = 'manual' | 'guide' | 'api_ref' | 'custom'
+
+interface WikiPage {
+  slug: string
+  title: string
+  content: string
+  source_type: WikiSource
+  tags: string[]
+  version: number
+  created_at: number
+  updated_at: number
+}
+
+interface WikiPageMeta {
+  slug: string
+  title: string
+  source_type: WikiSource
+  tags: string[]
+  version: number
+  updated_at: number
+}
+
+interface TreeNode {
+  name: string
+  path: string
+  type: 'file' | 'folder'
+  children?: TreeNode[]
+  size?: number
+  modified?: number
+}
+```
+
+### Composable (`frontend/src/composables/useWiki.ts`)
+
+Singleton pattern with module-level refs for wiki pages, trees, and upload state:
+
+```typescript
+const _pages = ref<WikiPageMeta[]>([])
+const _activePage = ref<WikiPage | null>(null)
+const _wikiTree = ref<TreeNode[]>([])
+const _rawTree = ref<TreeNode[]>([])
+const _uploadProgress = ref<number | null>(null)
+
+// Wiki CRUD
+loadPages(project), loadPage(project, slug), createPage(...)
+updatePage(project, slug, data), deletePage(project, slug), searchWiki(project, query)
+
+// Tree operations
+loadWikiTree(project), loadRawTree(project)
+
+// Raw operations
+uploadRawFiles(project, files[], prefix?), deleteRawFile(project, path)
+createRawFolder(project, path), rawFileUrl(project, path)
+```
+
+### View (`frontend/src/views/WikiView.vue`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty: no selection
+    Empty --> Viewing: click wiki page in tree
+    Empty --> ViewingRaw: click raw file in tree
+    Viewing --> Editing: click Edit button
+    Editing --> Viewing: save or cancel
+    Viewing --> Empty: delete page
+    ViewingRaw --> Empty: delete file
+    Empty --> Creating: click + button
+    Creating --> Viewing: save new page
+    Empty --> NewFolder: click folder+ button
+    NewFolder --> Empty: create folder
+```
+
+Layout — dual-region sidebar + content panel:
+
+```
+.wiki-view
+└── .wiki-body
+    ├── .wiki-nav (240px sidebar, collapsible)
+    │   ├── .wiki-nav-header (Wiki title + [+][<] buttons)
+    │   └── .wiki-nav-list
+    │       ├── tree-section "Raw"
+    │       │   ├── TreeView (recursive file tree)
+    │       │   └── DropZone (drag-drop upload)
+    │       └── tree-section "Wiki"
+    │           └── TreeView (recursive page tree)
+    └── .wiki-content
+        ├── content-header (title + Edit/Delete)
+        └── content-scroll
+            ├── MarkdownContent (wiki view)
+            ├── MarkdownEditor (wiki edit/create)
+            ├── img/iframe/MarkdownContent (raw preview)
+            └── Empty state
+```
+
+### Components
+
+| Component | File | Purpose |
+|---|---|---|
+| `wiki.ts` | `frontend/src/types/wiki.ts` | WikiPage, WikiPageMeta, TreeNode types |
+| `useWiki` | `frontend/src/composables/useWiki.ts` | Singleton state + wiki/raw API calls |
+| `TreeView` | `frontend/src/components/TreeView.vue` | Recursive tree with folder expand + file icons |
+| `DropZone` | `frontend/src/components/DropZone.vue` | HTML5 drag-drop file upload |
+| `WikiView` | `frontend/src/views/WikiView.vue` | Dual-region sidebar + content panel |
+| `App.vue` | `frontend/src/App.vue` | Tab registration (BookOpen icon) |
+
+---
+
+## D27 AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
+**Status:** draft
+**Module:** `frontend/src/components/editors/autodown/`
+**Depends on:** A11, D26
+
+```typescript
+// AutoDownEditor.vue props/events
+interface AutoDownEditorProps {
+  content: string           // Markdown source
+  placeholder?: string
+  editable?: boolean
+  autofocus?: boolean
+}
+
+interface AutoDownEditorEvents {
+  'update': [markdown: string]     // Debounced on every change
+  'save': [markdown: string]       // Ctrl+S
+  'blur': []
+  'focus': []
+}
+
+// Extension factory
+function createExtensions(options?: EditorOptions): Extension[]
+
+// Slash item API
+interface SlashItem {
+  title: string
+  description: string
+  icon: Component
+  searchTerms: string[]
+  command: (ctx: { editor: Editor; range: Range }) => void
+}
+```
+
+
+```mermaid
+stateDiagram-v2
+    [*] --> Loading: mount
+    Loading --> Ready: editor initialized
+    Ready --> Editing: user types
+    Editing --> Editing: input
+    Editing --> SlashMenuOpen: type '/'
+    SlashMenuOpen --> Editing: select item or Esc
+    Editing --> BubbleMenuOpen: text selected
+    BubbleMenuOpen --> Editing: apply format or blur
+    Editing --> Dragging: drag handle engaged
+    Dragging --> Ready: drop completes
+    Editing --> Saving: Ctrl+S
+    Saving --> Ready: emit save event
+    Ready --> [*]: unmount
+```
+
+
+| Field | Type | Description |
+|---|---|---|
+| `editor` | `Editor` | Tiptap Editor instance (ProseMirror wrapper) |
+| `doc` | `JSONContent` | ProseMirror document tree (internal source of truth) |
+| `markdown` | `string` | Serialized persistence format |
+| `slashQuery` | `string` | Current filter text after '/' |
+| `slashRange` | `Range` | ProseMirror selection range when '/' triggered |
+| `bubbleVisible` | `boolean` | Whether bubble menu should render |
+
+
+```
+fn onUpdate({ editor }):
+    markdown = editor.storage.markdown.getMarkdown()
+    emit('update', markdown)
+
+fn onSlashTrigger({ query, range }):
+    slashQuery = query
+    slashRange = range
+    slashItems = filter(allSlashItems, query)
+    slashMenuOpen = true
+
+fn onSlashSelect(item):
+    editor.chain().focus().deleteRange(slashRange).run()
+    item.command({ editor, range: slashRange })
+    slashMenuOpen = false
+
+fn onKeydown(event):
+    if event.key == 'Mod-s':
+        event.preventDefault()
+        emit('save', editor.storage.markdown.getMarkdown())
+    if event.key == 'Mod-a':
+        // Notion-style: first press selects node, second selects all
+        if not selectionCoversFullNode:
+            editor.commands.selectTextWithinNodeBoundaries()
+            event.preventDefault()
+```

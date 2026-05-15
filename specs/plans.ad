@@ -312,3 +312,341 @@
 | P17.12 | Frontend: WikiView overhaul — dual-region sidebar, raw file preview, path-based page creation | UI | 3 days | P17.11 | Done |
 | P17.13 | Integration: agent tools registered per profession, wiki tools in allowed_tools | Core | 1 day | P17.2, P17.3 | Done |
 | P17.14 | Integration tests: wiki CRUD, tree navigation, raw upload/download | Core | 2 days | P17.13 | Proposed |
+# Plans
+
+> Phased implementation roadmap for the Agents Relay module.
+
+
+## Plans
+
+---
+
+## P1 Agents Relay — Foundation
+**Status:** done
+**Depends on:** G1, G2, G3, D1, D3
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P1.1 | Soul + Profession data model and registry | Tooling | 3 days | D1 | Done |
+| P1.2 | Built-in professions (Intaker, Planner, Architect, Coder, Tester, Reviewer) | Tooling | 2 days | P1.1 | Done |
+| P1.3 | Default Soul configs in `.autoforge/souls/` | Tooling | 2 days | P1.1 | Done |
+| P1.4 | ModelConfig with provider abstraction and fallback chain | Tooling | 2 days | P1.1 | Done |
+| P1.5 | Refactor existing Forge into reusable `AgentTurn` engine | Tooling | 3 days | P1.2 | Done |
+| P1.6 | HandoffDocument schema and generation | Tooling | 3 days | D3 | Done |
+| P1.7 | Context scoping: filter specs by profession | Tooling | 2 days | P1.6 | Done |
+| P1.8 | Handoff compression (cheap model or rule-based) | Tooling | 2 days | P1.6 | Done |
+| P1.9 | Unit tests for AgentInstance and Handoff generation | Tooling | 2 days | P1.5, P1.6 | Done |
+
+
+
+---
+
+## P2 Agents Relay — Flow Engine
+**Status:** done
+**Depends on:** G2, G6, D2, P1
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P2.1 | FlowSpec parser (AutoDown-based DSL) | Tooling | 3 days | D2 | Done |
+| P2.2 | PipelineEngine state machine | Tooling | 3 days | D2 | Done |
+| P2.3 | Step execution: spawn agent, run turn, collect result | Tooling | 2 days | P1.5, P2.2 | Done |
+| P2.4 | Flow branching: Intaker → DIRECT vs full pipeline | Tooling | 2 days | P2.2 | Done |
+| P2.5 | Flow looping: Coder ↔ Tester with max iteration bound | Tooling | 2 days | P2.2 | Done |
+| P2.6 | Human gates: pause, notify, approve/reject/edit | Tooling | 3 days | D2 | Done |
+| P2.7 | Gate rejection routing back to drafting profession | Tooling | 2 days | P2.6 | Done |
+| P2.8 | Deterministic orchestrator unit tests | Tooling | 2 days | P2.1-P2.7 | Done |
+
+
+
+---
+
+## P3 Agents Relay — Checkpoint & Durability
+**Status:** done
+**Depends on:** G4, D4, P2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P3.1 | Checkpoint data model and JSON serialization | Tooling | 2 days | D4 | Done |
+| P3.2 | File manifest capture (hash, size) | Tooling | 2 days | D4 | Done |
+| P3.3 | Git integration: auto-commit or diff capture | Tooling | 2 days | D4 | Done |
+| P3.4 | Checkpoint save/load on disk | Tooling | 2 days | P3.1 | Done |
+| P3.5 | Resume from checkpoint: restore files, ledger, state | Tooling | 3 days | P3.4 | Done |
+| P3.6 | Rehydrate agent from checkpoint (no chat history) | Tooling | 2 days | P3.5 | Done |
+| P3.7 | Rollback to previous checkpoint | Tooling | 2 days | P3.4 | Done |
+| P3.8 | Fork run from checkpoint with different parameters | Tooling | 2 days | P3.7 | Done |
+| P3.9 | Crash recovery integration tests | Tooling | 2 days | P3.5-P3.8 | Done |
+
+
+
+---
+
+## P4 Agents Relay — Token Budgeting & Analytics
+**Status:** done
+**Depends on:** G5, D5, P2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P4.1 | TokenBudget and BudgetTracker data model | Tooling | 2 days | D5 | Done |
+| P4.2 | Per-step and per-run token tracking | Tooling | 2 days | D5 | Done |
+| P4.3 | Budget enforcement: warning, compression, hard-stop | Tooling | 2 days | P4.2 | Done |
+| P4.4 | Model escalation fallback on budget exceed | Tooling | 2 days | P4.3 | Done |
+| P4.5 | Cost analytics API (per run, per profession, cumulative) | Tooling | 2 days | P4.2 | Done |
+| P4.6 | "Savings vs parallel" estimation heuristic | Tooling | 2 days | P4.5 | Done |
+| P4.7 | Unit tests for budget enforcement | Tooling | 2 days | P4.3 | Done |
+
+
+
+---
+
+## P5 Agents Relay — Frontend Agents View
+**Status:** done
+**Depends on:** G5, G6, P2, P3, P4
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P5.1 | Pipeline visualization component (horizontal flow) | UI | 3 days | P2.2 | Done |
+| P5.2 | Run cards with live status and token spend | UI | 2 days | P4.5 | Done |
+| P5.3 | Checkpoint timeline viewer | UI | 2 days | P3.4 | Done |
+| P5.4 | Cost charts (per run, per profession, cumulative) | UI | 2 days | P4.5 | Done |
+| P5.5 | Role/Profession config panel | UI | 2 days | P1.2 | Done |
+| P5.6 | Human gate approval UI (diff view, approve/reject/edit) | UI | 3 days | P2.6 | Done |
+| P5.7 | Run control buttons: pause, resume, rollback, fork | UI | 2 days | P3.5, P3.7, P3.8 | Done |
+| P5.8 | Frontend integration tests | UI | 2 days | P5.1-P5.7 | Done |
+
+
+
+---
+
+## P6 Agents Relay — Integration & Dogfooding
+**Status:** done
+**Depends on:** G1, G2, G3, G4, G5, G6, P1, P2, P3, P4, P5
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P6.1 | End-to-end flow: Intake → Planner → Architect → Coder → Tester → Reviewer | Tooling | 3 days | P1-P5 | Done |
+| P6.2 | Migrate Agents module design into Ledger specs | Tooling | 2 days | P6.1 | Done |
+| P6.3 | Dogfooding: use Forge to implement P1-P5 specs | Tooling | 5 days | P6.2 | Done |
+| P6.4 | Drift detection on Agents module specs | Tooling | 2 days | P6.3 | Done |
+| P6.5 | Documentation and tutorial for custom flows | Tooling | 2 days | P6.1 | Done |
+
+---
+
+## P7 Relay Refactor — New Design v2
+**Status:** done
+**Depends on:** G6, G7, D6, D7
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P7.1 | Rename `Intaker` profession to `Assistant`; update `profession.rs` registry | Tooling | 1 day | D7 | Done |
+| P7.2 | Add `Advisor` profession with Goals ownership and Discovery phase | Tooling | 1 day | D7 | Done |
+| P7.3 | Add `RelayMode` enum (`GSD` / `Check`) to `pipeline.rs` and `session` model | Tooling | 1 day | D6 | Done |
+| P7.4 | Extend `ForgePhase` enum: add Discovery, GoalGate, Design, Planning, Report | Tooling | 1 day | D6 | Done |
+| P7.5 | Update `PipelineEngine` gate logic: GSD only pauses at GoalGate; Check pauses at all gates | Tooling | 2 days | D6, P7.3 | Done |
+| P7.6 | Remove `APIs` from `SectionType` and Architect's `owned_sections` | Tooling | 0.5 day | G7 | Done |
+| P7.7 | Update all soul files: rename `intaker.md` → `assistant.md`; add `advisor.md`; remove API references | Tooling | 1 day | P7.1, P7.2 | Done |
+| P7.8 | Update `FlowSpec` default flow: Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter | Tooling | 1 day | P7.1-P7.5 | Done |
+| P7.9 | Update frontend: remove `ApisSchema` component; add `RelayMode` toggle (GSD/Check) | UI | 2 days | P7.3 | Done |
+| P7.10 | Update frontend pipeline visualization to show 8 professions | UI | 1 day | P7.8 | Done |
+| P7.11 | Update `design/docs` to match new spec categories (already done) | Tooling | 0.5 day | — | Done |
+| P7.12 | Write integration tests for new flow (S7.1–S7.4) | Tooling | 2 days | P7.1-P7.10 | Done |
+| P7.13 | Run full test suite: `cargo check -p auto-forge` and `cargo test -p auto-forge` | Tooling | 0.5 day | P7.12 | Done |
+
+
+---
+
+## P8 Chat-First Gates & Smart Secretary
+**Status:** implemented
+**Depends on:** G8
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P8.1 | GateCard component with diff rendering and Approve/Reject/Edit actions | Alice | 3 days | — | Done |
+| P8.2 | SecretaryMessage component with queue UI, snooze, dismiss | Alice | 2 days | P8.1 | Done |
+| P8.3 | useGateInbox composable with cross-session registration and badge count | Bob | 2 days | — | Done |
+| P8.4 | useForge ↔ useRelay gate state integration | Bob | 2 days | P8.3 | Done |
+| P8.5 | ReportCard terminal completion component | Alice | 1 day | — | Done |
+
+
+
+
+---
+
+## P9 Live Pipeline Node-Graph
+**Status:** implemented
+**Depends on:** G10
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P9.1 | PipelinePanel node-graph layout (dots, connectors, status colors) | Bob | 3 days | — | Done |
+| P9.2 | Expanded node card with token burn, specs touched, current action | Bob | 2 days | P9.1 | Done |
+| P9.3 | Retry loop backward edge with iteration counter | Alice | 1 day | P9.1 | Done |
+| P9.4 | Live Log panel streaming tool calls | Alice | 2 days | — | Done |
+| P9.5 | Specs Touched panel with click-to-jump | Alice | 1 day | P9.4 | Done |
+| P9.6 | Cost Breakdown panel with per-profession token bars | Bob | 1 day | — | Done |
+
+
+
+---
+
+## P10 Specs Workspace Depth
+**Status:** implemented
+**Depends on:** G9
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P10.1 | Category renderers (GoalsTable, ArchitectureCards, PlansTimeline, TestsCards, ReviewCards, ReportDashboard) | Alice | 4 days | — | Done |
+| P10.2 | RelationsPanel with parent/child lists and jump navigation | Bob | 2 days | P10.1 | Done |
+| P10.3 | AutoLinkContent for clickable ID references in markdown | Bob | 2 days | — | Done |
+| P10.4 | GateBanner sticky banner for sections with active gates | Alice | 1 day | P8.1 | Done |
+| P10.5 | Drift Check button with results visualization | Bob | 2 days | P10.2 | Done |
+
+
+
+---
+
+## P11 Mode Awareness & Integration
+**Status:** implemented
+**Depends on:** G8, G9, G10
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P11.1 | GSD / Check mode toggle in AppHeader | Alice | 1 day | — | Done |
+| P11.2 | Conditional gate rendering (all gates vs Goal Gate only) | Alice | 2 days | P11.1 | Done |
+| P11.3 | SSE event handlers for spec_written, handoff_submitted, gate_reached, gate_resolved | Bob | 2 days | P8.4, P9.1 | Done |
+| P11.4 | useSpecs document cache invalidation on relay spec mutations | Bob | 1 day | P11.3 | Done |
+
+
+
+---
+
+## P12 Responsive & Accessibility Polish
+**Status:** implemented
+**Depends on:** G10
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P12.1 | Mobile layout with bottom sheets and tabs | Alice | 2 days | — | Done |
+| P12.2 | Keyboard shortcuts (Ctrl+1/2/3/K) | Bob | 1 day | — | Done |
+| P12.3 | Focus management for gate cards and secretary messages | Alice | 2 days | P8.1, P8.2 | Done |
+| P12.4 | Screen reader annotations for node graph and relations panel | Bob | 2 days | P9.1, P10.2 | Done |
+
+
+---
+
+## P13 Project Concept — VS Code–style Workspace
+**Status:** done
+**Depends on:** G12
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P13.1 | Backend project.rs: ProjectConfig, find_specs_dir, browse_directory | Core | 2 days | — | Done |
+| P13.2 | SpecsStore refactor: new_default, open_project, close_project, is_project_open | Core | 1 day | P13.1 | Done |
+| P13.3 | Project API endpoints: status, open, close, recent, browse | Core | 1 day | P13.2 | Done |
+| P13.4 | Backend auto-restore last project on startup | Core | 0.5 day | P13.3 | Done |
+| P13.5 | Frontend useProject composable with singleton state | Core | 1 day | P13.3 | Done |
+| P13.6 | WelcomeView with path input, browse, recent projects list | Core | 1 day | P13.5 | Done |
+| P13.7 | App.vue conditional rendering + project indicator in nav rail | Core | 0.5 day | P13.6 | Done |
+| P13.8 | SpecsView dynamic project from useProject (replace hardcoded auto-lang) | Core | 0.5 day | P13.7 | Done |
+| P13.9 | ChatsView passes projectPath on session creation | Core | 0.5 day | P13.7 | Done |
+| P13.10 | Move docs/specs/ to top-level specs/ directory | Core | 0.5 day | P13.8 | Done |
+
+
+---
+
+## P14 API Source Configuration
+**Status:** proposed
+**Depends on:** G13
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P14.1 | Backend config.rs: ApiSource, ModelDefinition, ModelTier types + CRUD + auto-detect | Core | 2 days | — | Proposed |
+| P14.2 | Extend relay/mod.rs: load api_sources into RelayRegistry, resolve_api_key | Core | 1 day | P14.1 | Proposed |
+| P14.3 | Config API endpoints: CRUD + test connection (5 routes in relay/api.rs) | Core | 1 day | P14.2 | Proposed |
+| P14.4 | Refactor ai.rs: dispatch_chat() with Anthropic/OpenAI/Local provider routing | Core | 3 days | P14.1 | Proposed |
+| P14.5 | Generalize forge/ai.rs ToolClaudeProvider to ToolProviderDispatcher | Core | 2 days | P14.4 | Proposed |
+| P14.6 | Frontend useApiSources.ts composable with singleton state | Core | 1 day | P14.3 | Proposed |
+| P14.7 | ApiSourcesView.vue: source list + detail editor + model management | Core | 3 days | P14.6 | Proposed |
+| P14.8 | App.vue: add APIs tab, remove Demo, import ApiSourcesView | Core | 0.5 day | P14.7 | Proposed |
+| P14.9 | First-startup auto-detection: detect Claude/OpenAI/Ollama and generate defaults | Core | 1 day | P14.1 | Proposed |
+| P14.10 | Integration tests: multi-provider dispatch, CRUD persistence, test connection | Core | 2 days | P14.5, P14.8 | Proposed |
+
+---
+
+## P15 Merge auto-code-rs into auto-forge
+**Status:** done
+**Depends on:** —
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P15.1 | Unified provider layer (ClaudeProvider + SseParser + unified types) | Core | 3 days | — | Done |
+| P15.2 | Unified tool system (ToolError, ToolRegistry, is_read_only) | Core | 1 day | P15.1 | Done |
+| P15.3 | Runtime infrastructure (ContextManager, Session, PermissionPolicy) | Core | 1 day | P15.1 | Done |
+| P15.4 | CLI mode (clap dispatch, REPL, settings) | Core | 1 day | P15.2, P15.3 | Done |
+| P15.5 | Move Auto language assets to auto-lang monorepo | Core | 1 day | — | Done |
+| P15.6 | Cleanup: archive auto-code-rs, update docs, verify tests | Core | 0.5 day | P15.1-P15.5 | Done |
+
+---
+
+## P16 Chat Agent Handoff — bring_in Tool
+**Status:** proposed
+**Depends on:** G17, D24, A9
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P16.1 | BringInTool struct with JSON schema, validation, and execute method | Core | 1 day | D24 | Proposed |
+| P16.2 | Update assistant profession `allowed_tools` to include `bring_in` | Core | 0.5 day | P16.1 | Proposed |
+| P16.3 | Tool handler: validate target is in `handoff_to`, switch `active_profession`, persist session | Core | 1 day | P16.1 | Proposed |
+| P16.4 | HandoffNote struct with render() method for injecting context | Core | 0.5 day | D24 | Proposed |
+| P16.5 | Inject HandoffNote as system message before next agent's turn in `forge_stream` | Core | 1 day | P16.3, P16.4 | Proposed |
+| P16.6 | SSE `agent_handoff` event emission after bring_in executes | Core | 0.5 day | P16.3 | Proposed |
+| P16.7 | Update Nicole's soul to instruct bring_in usage after classification | Core | 0.5 day | P16.1 | Proposed |
+| P16.8 | Frontend: handle `agent_handoff` SSE event, update profession badge | Core | 0.5 day | P16.6 | Proposed |
+| P16.9 | Frontend: HandoffCard component for bring_in tool_call rendering | Core | 1 day | P16.8 | Proposed |
+| P16.10 | Integration tests: bring_in validation, handoff note injection, SSE event | Core | 1 day | P16.5, P16.6 | Proposed |
+
+---
+
+## P17 Wiki Knowledge Layer — Storage, Multi-Level Directories, Raw Import, and Frontend
+**Status:** done
+**Depends on:** G18, A10, D25
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P17.1 | WikiPage data model + storage in `{project}/wiki/` with _manifest.json | Core | 2 days | D25 | Done |
+| P17.2 | `list_wiki` and `create_wiki_page` tools for agents | Core | 1 day | P17.1 | Done |
+| P17.3 | `update_wiki_page` tool with version tracking | Core | 1 day | P17.1 | Done |
+| P17.4 | Embedding computation: integrate local embedding model or API-based embeddings | Core | 2 days | P17.1 | Proposed |
+| P17.5 | `query_wiki` tool with FAISS vector similarity search (top-K retrieval) | Core | 2 days | P17.4 | Proposed |
+| P17.6 | Frontend: Wiki tab with dual-region sidebar (Raw tree + Wiki tree) and markdown rendering | UI | 3 days | P17.1 | Done |
+| P17.7 | Frontend: full-text + semantic search UI for wiki | UI | 2 days | P17.5, P17.6 | Proposed |
+| P17.8 | Frontend: markdown editor with live preview for wiki page editing | UI | 2 days | P17.6 | Done |
+| P17.9 | Backend: TreeNode + recursive directory tree builder + path-based CRUD (multi-level slugs) | Core | 2 days | P17.1 | Done |
+| P17.10 | Backend: Raw file API — multipart upload, file serve, delete, mkdir with path traversal protection | Core | 2 days | P17.9 | Done |
+| P17.11 | Frontend: TreeView recursive component + DropZone native HTML5 drag-and-drop upload | UI | 2 days | P17.9, P17.10 | Done |
+| P17.12 | Frontend: WikiView overhaul — dual-region sidebar, raw file preview, path-based page creation | UI | 3 days | P17.11 | Done |
+| P17.13 | Integration: agent tools registered per profession, wiki tools in allowed_tools | Core | 1 day | P17.2, P17.3 | Done |
+| P17.14 | Integration tests: wiki CRUD, tree navigation, raw upload/download | Core | 2 days | P17.13 | Proposed |
+
+---
+
+## P18 AutoDown Editor — WYSIWYG Block-Based Markdown Editor
+**Status:** draft
+**Depends on:** G19, A11, D27
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P18.1 | Add Tiptap dependencies and scaffold directory structure | UI | 1 day | — | Draft |
+| P18.2 | Create `createExtensions()` factory with StarterKit + Markdown | UI | 1 day | P18.1 | Draft |
+| P18.3 | Build `AutoDownEditor.vue` core wrapper with `useEditor` | UI | 1 day | P18.2 | Draft |
+| P18.4 | Implement slash command extension + `SlashMenu.vue` | UI | 1 day | P18.3 | Draft |
+| P18.5 | Implement bubble menu extension + `BubbleMenu.vue` | UI | 1 day | P18.3 | Draft |
+| P18.6 | Integrate drag handle for block reordering | UI | 1 day | P18.3 | Draft |
+| P18.7 | Style all blocks with AutoForge CSS variables | UI | 1 day | P18.4-P18.6 | Draft |
+| P18.8 | Replace `MarkdownEditor.vue` in WikiView and Spec views | UI | 1 day | P18.7 | Draft |
+| P18.9 | Write round-trip Markdown parse/serialize tests | UI | 1 day | P18.8 | Draft |
+| P18.10 | Implement Callout block with `:::type` syntax | UI | 1 day | P18.9 | Draft |
+| P18.11 | Implement Math block with KaTeX rendering | UI | 1 day | P18.9 | Draft |
+| P18.12 | Implement Mermaid diagram block | UI | 1 day | P18.9 | Draft |
+| P18.13 | Implement SpecRef block with `[[G1]]` syntax | UI | 1 day | P18.9 | Draft |
+| P18.14 | Add CodeBlock with language selector and ImageBlock with resize | UI | 1 day | P18.10-P18.13 | Draft |
+| P18.15 | Write AutoDown extension parse/serialize tests | UI | 1 day | P18.14 | Draft |
