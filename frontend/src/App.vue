@@ -116,6 +116,7 @@
       <template v-else>
         <ChatsView v-if="currentView === 'chats'" />
         <SpecsView v-else-if="currentView === 'specs'" />
+        <WikiView v-else-if="currentView === 'wiki'" />
         <RelayView v-else-if="currentView === 'agents'" />
         <AgentsConfigView v-else-if="currentView === 'agents-config'" />
         <ApiSourcesView v-else-if="currentView === 'apis'" />
@@ -132,7 +133,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import {
-  Flame, MessageSquare, Scroll, Orbit, Server, Users,
+  Flame, MessageSquare, Scroll, BookOpen, Orbit, Server, Users,
   Sun, Moon, Monitor, Check, Palette,
   FolderOpen, X,
 } from 'lucide-vue-next'
@@ -147,6 +148,7 @@ import SpecsView from './views/SpecsView.vue'
 import RelayView from './views/RelayView.vue'
 import AgentsConfigView from './views/AgentsConfigView.vue'
 import ApiSourcesView from './views/ApiSourcesView.vue'
+import WikiView from './views/WikiView.vue'
 
 const { mode, setMode } = useTheme()
 const { current: accentCurrent, setAccent, options: accentOptions } = useAccentColor()
@@ -224,15 +226,16 @@ const themeOptions = [
   { value: 'auto' as const, label: 'System', icon: Monitor },
 ]
 
-const tabs: { id: 'chats' | 'specs' | 'agents' | 'agents-config' | 'apis'; label: string; icon: unknown }[] = [
+const tabs: { id: 'chats' | 'specs' | 'wiki' | 'agents' | 'agents-config' | 'apis'; label: string; icon: unknown }[] = [
   { id: 'chats', label: 'Chat', icon: MessageSquare },
   { id: 'specs', label: 'Specs', icon: Scroll },
+  { id: 'wiki', label: 'Wiki', icon: BookOpen },
   { id: 'agents', label: 'Relay', icon: Orbit },
   { id: 'agents-config', label: 'Agents', icon: Users },
   { id: 'apis', label: 'APIs', icon: Server },
 ]
 
-const currentView = ref<'chats' | 'specs' | 'agents' | 'agents-config' | 'apis'>('chats')
+const currentView = ref<'chats' | 'specs' | 'wiki' | 'agents' | 'agents-config' | 'apis'>('chats')
 </script>
 
 <style>

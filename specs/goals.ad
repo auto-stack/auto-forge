@@ -24,7 +24,7 @@
 | G15 | CLI Mode provides interactive REPL chat as forge chat subcommand | P1 | Removed | Core Team |
 | G16 | @Mention Agent Targeting directs chat messages to named agents with sticky profession routing | P0 | Implemented | UI Team |
 | G17 | Bring-In Tool enables agents to hand off mid-conversation with structured context transfer | P0 | Proposed | Core Team |
-| G18 | Wiki module provides project-scoped knowledge base with LLM-compressed reference docs and semantic RAG search | P0 | Proposed | Docs Team |
+| G18 | Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing | P0 | Done | Docs Team |
 | G19 | AutoDown editor enables structured markdown editing with Auto language syntax highlighting for Wiki content | P1 | Proposed | Docs Team |
 
 ---
@@ -493,24 +493,25 @@ Perfect! Here's the exact content to append to `specs/goals.ad`:
 
 ---
 
-## G18 Wiki module provides project-scoped knowledge base with LLM-compressed reference docs and semantic RAG search
-**Status:** proposed
+## G18 Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
+**Status:** done
 **Depends on:** G12
 
-- [ ] Wiki storage in `specs/wiki/` or `.autoforge/wiki/` (project-scoped, one wiki per project)
-- [ ] LLM-compressed markdown entries (5-10 page summaries from 3000-page manuals)
-- [ ] Semantic vector indexing (Chroma or FAISS) for RAG retrieval
-- [ ] Agent wiki tool: `query_wiki` (semantic search, returns relevant passages)
-- [ ] Agent wiki tool: `create_wiki_page` and `update_wiki_page` (unrestricted editing with versioning)
-- [ ] Wiki supports hierarchical organization (folders) + tags
-- [ ] Version control: full history with revert capability
-- [ ] Left column `Wiki` tab alongside `Chats` and `Specs`
-- [ ] Three-column layout: nav (left), content (middle), metadata/right (right)
-- [ ] Content types: chip manuals, register tables, how-to guides, API references
-- [ ] Token savings: ~87.5% (500 token RAG retrieval vs 4000 token full manual)
-- [ ] Offline, local operation (no external network dependency)
+- [x] Wiki storage in `{project}/wiki/` directory with `_manifest.json` metadata
+- [x] Multi-level directory support (path-based slugs like `guide/getting-started`)
+- [x] Raw resource directory `{project}/raw/` for original documents (PDF, images, text)
+- [x] Tree API for both wiki/ and raw/ directory structures
+- [x] Multipart file upload to raw/ with drag-and-drop UI (DropZone)
+- [x] Raw file serving with MIME type detection and preview (image, PDF, markdown, text)
+- [x] Wiki tab with collapsible sidebar and BookOpen icon in navigation rail
+- [x] Dual-region sidebar: Raw (file tree + DropZone) and Wiki (page tree)
+- [x] View/Edit/Create modes with MarkdownContent and MarkdownEditor
+- [x] Agent wiki tools: `list_wiki`, `create_wiki_page`, `update_wiki_page`
+- [x] Full-text search via `searchWiki` API
+- [ ] Semantic vector indexing (RAG) for semantic retrieval
+- [ ] Version history with revert capability
 
-Wiki is AutoForge's **knowledge index & compression layer**. It stores objective, reusable reference material (chip manuals, technical specs, best practices) — separate from Specs which store project-specific engineering constraints. Agents use semantic RAG to retrieve only relevant passages, dramatically reducing token cost compared to loading full documentation.
+Wiki is AutoForge's **knowledge index & compression layer**. It stores objective, reusable reference material (chip manuals, technical specs, best practices) — separate from Specs which store project-specific engineering constraints. The `raw/` directory holds original documents; agents (Documenter) process raw content into structured wiki pages.
 
 ---
 

@@ -976,8 +976,8 @@ const event = { type: 'agent_handoff', from_agent: 'Nicole', to_agent: 'Isaac', 
 
 ---
 
-## S17.1 [G18] Wiki page CRUD operations
-**Status:** proposed
+## S17.1 [G18] Wiki page CRUD operations with multi-level directory support
+**Status:** done
 **Test File:** `backend/tests/wiki_crud.rs`
 **Depends on:** G18, D25
 
@@ -1012,7 +1012,7 @@ const event = { type: 'agent_handoff', from_agent: 'Nicole', to_agent: 'Isaac', 
 ---
 
 ## S17.3 [G18] Wiki tool profession access control
-**Status:** proposed
+**Status:** done
 **Test File:** `backend/tests/wiki_tools.rs`
 **Depends on:** G18, D25
 
@@ -1040,3 +1040,121 @@ const event = { type: 'agent_handoff', from_agent: 'Nicole', to_agent: 'Isaac', 
 - Embeddings computed on page create/update.
 - FAISS index stays in sync with page content.
 - Embedding dimensions are consistent.
+
+---
+
+## S18.1 [G18] Wiki tab renders in navigation rail with BookOpen icon
+**Status:** done
+**Test File:** `frontend/src/App.vue` (component test)
+**Depends on:** G18, D26
+
+1. Render `<App />`
+2. Assert nav rail contains "Wiki" tab with BookOpen icon
+3. Click Wiki tab
+4. Assert `currentView === 'wiki'`
+5. Assert `<WikiView>` component is mounted
+
+- Wiki tab appears after Specs and before Relay in nav rail.
+- Clicking switches view to WikiView.
+
+---
+
+## S18.2 [G18] WikiView sidebar loads dual-region tree (Raw + Wiki) and filters by search
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Depends on:** G18, D26
+
+1. Render `<WikiView />` with mock API returning 3 pages
+2. Assert sidebar shows 3 page items (title + tags)
+3. Type search query matching only 1 page title
+4. Assert sidebar filters to 1 item
+
+- Page list loads from `GET /api/forge/wiki/{project}/pages`.
+- Search input filters pages client-side by title and tags.
+
+---
+
+## S18.3 [G18] Clicking wiki page loads full content and renders markdown
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Depends on:** G18, D26
+
+1. Render `<WikiView />` with mocked `loadPage`
+2. Click first page in sidebar
+3. Assert `loadPage(project, slug)` called with correct slug
+4. Assert `MarkdownContent` component renders with page content
+5. Assert content header shows page title, source type badge, version
+
+- Full page content loaded from `GET /api/forge/wiki/{project}/page/{slug}`.
+- Markdown rendered via existing `MarkdownContent.vue`.
+
+---
+
+## S18.4 [G18] Edit mode switches to MarkdownEditor and saves updates
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Depends on:** G18, D26
+
+1. Render `<WikiView />`, select a page
+2. Click "Edit" button
+3. Assert `MarkdownEditor` component replaces `MarkdownContent`
+4. Modify content in editor
+5. Click "Save"
+6. Assert `updatePage(project, slug, data)` called with updated content
+7. Assert view returns to `MarkdownContent` with updated content
+
+- Edit button toggles between view and edit modes.
+- Save calls `PUT /api/forge/wiki/{project}/page/{slug}` and reloads.
+
+---
+
+## S18.5 [G18] Create new page flow with path-based slug creates page and adds to tree
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Depends on:** G18, D26
+
+1. Render `<WikiView />`
+2. Click "+" button in sidebar header
+3. Fill slug, title, content in inline form
+4. Click "Create"
+5. Assert `createPage(project, page)` called with correct data
+6. Assert new page appears in sidebar
+7. Assert newly created page is selected and rendered
+
+- Create flow calls `POST /api/forge/wiki/{project}/pages`.
+- New page immediately appears in sidebar after creation.
+
+---
+
+## S18.6 [G18] Delete page removes from tree after confirmation
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Depends on:** G18, D26
+
+1. Render `<WikiView />`, select a page
+2. Click "Delete" button
+3. Assert confirmation dialog appears
+4. Confirm deletion
+5. Assert `deletePage(project, slug)` called
+6. Assert page removed from sidebar
+7. Assert empty state shown (no page selected)
+
+- Delete calls `DELETE /api/forge/wiki/{project}/page/{slug}`.
+- Confirmation dialog prevents accidental deletion.
+
+---
+
+## S18.7 [G18] Wiki sidebar collapse state persists to localStorage
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Depends on:** G18, D26
+
+1. Render `<WikiView />`
+2. Click sidebar collapse button
+3. Assert sidebar width reduces to icon-only mode
+4. Assert `localStorage.getItem('autoforge-wiki-sidebar-collapsed') === 'true'`
+5. Reload component
+6. Assert sidebar starts collapsed (reads from localStorage)
+
+- Collapse state persisted across page reloads.
+- Key: `autoforge-wiki-sidebar-collapsed`.

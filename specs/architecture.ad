@@ -406,21 +406,26 @@ graph LR
 ---
 
 ## A10 Wiki Knowledge Layer Architecture
-**Status:** proposed
+**Status:** done
 **Depends on:** G18
 
-Specs capture project-specific engineering decisions (WHAT to build). Wiki captures objective, reusable reference knowledge (HOW to do it). Loading full technical manuals (3000+ pages) into agent context is prohibitively expensive. Wiki provides an LLM-compressed knowledge layer: manuals are summarized to 5-10 pages, indexed with semantic vectors, and agents retrieve only relevant passages via RAG — achieving ~87.5% token savings.
+Wiki provides a dual-root knowledge storage: `wiki/` for agent-processed markdown pages and `raw/` for original source documents (PDFs, images, text files). Both support multi-level directory hierarchies. Agents (Documenter) process raw resources into structured wiki pages.
 
 ```mermaid
 graph TB
+    subgraph "Raw Storage"
+        RD[raw/ directory]
+        UF[File Upload API]
+        DZ[DropZone UI]
+    end
     subgraph "Wiki Storage"
         WS[wiki/ directory]
-        MD[LLM-Compressed Markdown]
-        MF[metadata.json]
+        MD[Markdown Pages]
+        MF[_manifest.json]
     end
-    subgraph "Index Layer"
-        VI[Vector Index]
-        EM[Embedding Model]
+    subgraph "Tree API"
+        WT[Wiki Tree]
+        RT[Raw Tree]
     end
     subgraph "Agent Tools"
         QW[query_wiki]
@@ -428,40 +433,35 @@ graph TB
         UW[update_wiki_page]
     end
     subgraph "UI"
-        WT[Wiki Tab]
-        WE[AutoDown Editor]
+        WTab[Wiki Tab]
+        TV[TreeView]
+        WE[MarkdownEditor]
     end
 
+    RD --> UF
+    UF --> DZ
     WS --> MD
     WS --> MF
-    MD --> EM --> VI
-    QW -->|semantic search| VI
-    QW -->|retrieve| MD
+    MD --> WT
+    RD --> RT
+    QW -->|search| MD
     CW -->|write| WS
     UW -->|write| WS
-    WT -->|render| MD
-    WT -->|edit| WE
+    WTab --> TV
+    TV -->|wiki tree| WT
+    TV -->|raw tree| RT
+    WTab -->|edit| WE
 ```
 
 | Approach | Pros | Cons |
 |---|---|---|
-| LLM-compressed Markdown + vector index (chosen) | ~87.5% token savings, human-readable, git-friendly | Embedding model dependency, index rebuild on changes |
-| Full-text search only (no vectors) | Simpler, no embedding model needed | No semantic matching, poor recall for paraphrased queries |
-| Knowledge graph (structured triples) | Precise numerical queries, relationship traversal | Complex setup, not needed for most wiki content |
+| Dual-root (wiki/ + raw/) with tree navigation (chosen) | Clear separation of raw vs processed, supports drag-drop import, hierarchical organization | Two directory trees to manage |
+| Flat slug list (no directories) | Simpler implementation | Poor organization for large knowledge bases |
+| Single root with source_type tagging | Fewer directories | Mixing raw and processed in same tree is confusing |
 | External wiki (Notion, Confluence) | No storage implementation needed | Network dependency, not offline, API latency |
 
-- Positive: Wiki is project-scoped — each project has its own knowledge base.
-- Positive: Agents retrieve only relevant passages, not full documents.
-- Positive: Markdown storage is version-controllable and human-readable.
-- Negative: Embedding model adds a dependency (local model or API).
-- Mitigation: Start with FAISS (in-memory, no external DB); embed locally via small model or API call.
-
-### Wiki vs Specs Distinction
-
-| Aspect | Specs | Wiki |
-|---|---|---|
-| Content | Engineering constraints, decisions | Objective facts, reference material |
-| Scope | Project-specific | Project-scoped, potentially cross-project |
-| Mutability | Formal change control (gates) | Free editing (agents + users) |
-| Agent access | Read via profession ownership | Query via RAG, create/update freely |
-| Examples | Goals, Architecture, Plans | Chip manuals, how-to guides, API refs |
+- Positive: Raw/ and wiki/ are clearly separated — agents process raw into wiki.
+- Positive: Tree navigation scales to large knowledge bases with nested folders.
+- Positive: Drag-and-drop upload makes importing resources effortless.
+- Negative: Semantic RAG (vector search) not yet implemented — uses text search for now.
+- Mitigation: RAG can be layered on top of existing wiki pages without restructuring.

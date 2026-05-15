@@ -5,7 +5,7 @@ edition = "2021"
 description = "AutoForge backend — spec-driven AI coding assistant"
 
 [dependencies]
-axum = { version = "0.8", features = ["json", "ws"] }
+axum = { version = "0.8", features = ["json", "ws", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }

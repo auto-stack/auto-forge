@@ -1,5 +1,5 @@
 project = "auto-forge"
-version = 17
+version = 18
 
 [[section]]
 id = "goals"
