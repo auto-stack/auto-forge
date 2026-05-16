@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
 
+pub mod errand;
 pub mod project;
 pub mod tools;
 pub mod wiki;
@@ -44,6 +45,8 @@ pub struct ForgeSession {
     pub focus_section: Option<String>,
     #[serde(default)]
     pub active_profession: Option<String>,
+    #[serde(default)]
+    pub errand_sessions: Vec<crate::forge::errand::ErrandSession>,
 }
 
 /// Section type determines the lifecycle states and allowed transitions.
@@ -543,6 +546,49 @@ pub enum ForgeStreamEvent {
         to_agent: String,
         classification: String,
         reason: String,
+    },
+    #[serde(rename = "errand_start")]
+    ErrandStart {
+        errand_id: String,
+        profession_id: String,
+        task: String,
+        tool_call_id: String,
+    },
+    #[serde(rename = "errand_turn_start")]
+    ErrandTurnStart {
+        errand_id: String,
+        turn: u32,
+        profession_id: String,
+        tool_call_id: String,
+    },
+    #[serde(rename = "errand_delta")]
+    ErrandDelta {
+        errand_id: String,
+        text: String,
+        tool_call_id: String,
+    },
+    #[serde(rename = "errand_tool_call")]
+    ErrandToolCall {
+        errand_id: String,
+        id: String,
+        name: String,
+        arguments: Value,
+        tool_call_id: String,
+    },
+    #[serde(rename = "errand_tool_result")]
+    ErrandToolResult {
+        errand_id: String,
+        id: String,
+        result: String,
+        tool_call_id: String,
+    },
+    #[serde(rename = "errand_complete")]
+    ErrandComplete {
+        errand_id: String,
+        status: String,
+        result: String,
+        token_usage: u64,
+        tool_call_id: String,
     },
 }
 
@@ -1584,6 +1630,7 @@ mod handlers {
             pending_spec_changes: vec![],
             focus_section: None,
             active_profession: None,
+            errand_sessions: vec![],
             messages: vec![ForgeMessage {
                 id: format!("m-{}", uuid::Uuid::new_v4()),
                 role: String::from("system"),
@@ -1865,12 +1912,62 @@ mod handlers {
                                     c.status = "error".to_string();
                                 }
                                 chat_messages.push(ChatMessage::tool_result(&id, &err));
+
+                                // Notify frontend about the error
+                                let event = Event::default().data(
+                                    serde_json::to_string(&ForgeStreamEvent::ToolResult {
+                                        id: id.clone(),
+                                        result: err,
+                                    })
+                                    .unwrap(),
+                                );
+                                let _ = event_tx.send(Ok(event));
                             } else if let Some(tool) = registry.get(&name) {
                                 let result = tool.execute(input);
-                                let result_str = match result {
+                                let mut result_str = match result {
                                     Ok(r) => r,
                                     Err(e) => format!("Error: {}", e),
                                 };
+
+                                // ── Handle dispatch tool result ──
+                                if name == "dispatch" {
+                                    if let Ok(dispatch_data) = serde_json::from_str::<serde_json::Value>(&result_str) {
+                                        if dispatch_data.get("dispatch").and_then(|v| v.as_bool()) == Some(true) {
+                                            let agent = dispatch_data["agent"].as_str().unwrap_or("gofer");
+                                            let task = dispatch_data["task"].as_str().unwrap_or("");
+                                            let context = dispatch_data["context"].as_str();
+                                            let max_turns = dispatch_data.get("max_turns").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
+
+                                            let mut errand = crate::forge::errand::ErrandSession::new(
+                                                sid.clone(),
+                                                agent.to_string(),
+                                                task.to_string(),
+                                                context.map(|s| s.to_string()),
+                                                max_turns,
+                                                id.clone(),
+                                            );
+
+                                            match errand.run_sync(ai_for_turns.clone(), &registry, &project_path_for_tools, Some(event_tx.clone())) {
+                                                Ok(errand_result) => {
+                                                    result_str = errand_result;
+                                                }
+                                                Err(e) => {
+                                                    result_str = format!("Error running errand: {}", e);
+                                                }
+                                            }
+
+                                            // Persist errand to session
+                                            {
+                                                let mut store = forge_sessions().lock().unwrap();
+                                                if let Some(session) = store.get_mut(&sid) {
+                                                    session.errand_sessions.push(errand);
+                                                    let clone = session.clone();
+                                                    store.save(&clone);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
 
                                 // Update call with result
                                 if let Some(c) = turn_tool_calls.iter_mut().find(|c| c.id == id) {
@@ -2421,6 +2518,7 @@ If no goal IDs exist, number them sequentially."#,
                 pending_spec_changes: vec![],
                 focus_section: None,
                 active_profession: None,
+                errand_sessions: vec![],
             });
             (session.project_path.clone(), session.pending_spec_changes.clone())
         };
@@ -2474,6 +2572,46 @@ If no goal IDs exist, number them sequentially."#,
         Json(serde_json::json!({"status": "ok", "phase": "spec_draft"}))
     }
 
+    // ─── Errand Endpoints ────────────────────────────────────────────────
+
+    pub async fn list_errands(Path(sid): Path<String>) -> Json<Vec<serde_json::Value>> {
+        let store = forge_sessions().lock().unwrap();
+        let errands = if let Some(session) = store.get(&sid) {
+            session
+                .errand_sessions
+                .iter()
+                .map(|e| {
+                    serde_json::json!({
+                        "id": e.id,
+                        "profession_id": e.profession_id,
+                        "task": e.task,
+                        "status": match &e.status {
+                            crate::forge::errand::ErrandStatus::Running => "running",
+                            crate::forge::errand::ErrandStatus::Completed { .. } => "completed",
+                            crate::forge::errand::ErrandStatus::Failed { .. } => "failed",
+                            crate::forge::errand::ErrandStatus::Truncated { .. } => "truncated",
+                        },
+                        "started_at": e.started_at,
+                        "completed_at": e.completed_at,
+                    })
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+        Json(errands)
+    }
+
+    pub async fn get_errand(Path((sid, eid)): Path<(String, String)>) -> Json<Option<crate::forge::errand::ErrandSession>> {
+        let store = forge_sessions().lock().unwrap();
+        let errand = if let Some(session) = store.get(&sid) {
+            session.errand_sessions.iter().find(|e| e.id == eid).cloned()
+        } else {
+            None
+        };
+        Json(errand)
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────
 
     fn now_secs() -> u64 {
@@ -2512,6 +2650,8 @@ where
         .route("/api/forge/chats/{sid}/message", post(handlers::send_forge_message))
         .route("/api/forge/chats/{sid}/stream", get(handlers::forge_stream))
         .route("/api/forge/chats/{sid}/history", get(handlers::forge_history))
+        .route("/api/forge/chats/{sid}/errands", get(handlers::list_errands))
+        .route("/api/forge/chats/{sid}/errands/{eid}", get(handlers::get_errand))
         .route("/api/forge/chats/{sid}/approve", post(handlers::approve_spec))
         .route("/api/forge/chats/{sid}/reject", post(handlers::reject_spec))
         // Specs (more specific routes FIRST)

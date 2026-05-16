@@ -71,7 +71,7 @@ const draftContent = ref(props.content)
 
 .pane-label {
   padding: 0.35rem 0.6rem;
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -86,7 +86,7 @@ const draftContent = ref(props.content)
   border: none;
   background: transparent;
   color: var(--af-fg);
-  font-size: 0.82rem;
+  font-size: 0rem;
   line-height: 1.6;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   resize: none;
@@ -96,7 +96,7 @@ const draftContent = ref(props.content)
 .preview-pane :deep(.markdown-content) {
   flex: 1;
   padding: 0.6rem 0.75rem;
-  font-size: 0.82rem;
+  font-size: 0rem;
   line-height: 1.6;
   overflow-y: auto;
 }
@@ -111,7 +111,7 @@ const draftContent = ref(props.content)
   align-items: center;
   gap: 0.3rem;
   padding: 0.4rem 0.8rem;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 600;
   border-radius: 6px;
   border: none;
@@ -129,7 +129,7 @@ const draftContent = ref(props.content)
   align-items: center;
   gap: 0.3rem;
   padding: 0.4rem 0.8rem;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   border-radius: 6px;
   border: 1px solid var(--af-border);
   background: transparent;

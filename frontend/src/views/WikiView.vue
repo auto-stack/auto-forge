@@ -423,7 +423,7 @@ watch(project, (val) => {
 }
 
 .wiki-nav-title {
-  font-size: 0.85rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--af-fg);
 }
@@ -468,7 +468,7 @@ watch(project, (val) => {
   padding: 0.5rem 0.75rem;
   cursor: pointer;
   color: var(--af-muted);
-  font-size: 0.72rem;
+  font-size: 0rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -518,7 +518,7 @@ watch(project, (val) => {
   gap: 0.25rem;
   padding: 0.75rem;
   color: var(--af-muted);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 
 /* ─── Content ─────────────────────────────────────────── */
@@ -563,7 +563,7 @@ watch(project, (val) => {
   align-items: center;
   gap: 0.3rem;
   padding: 0.4rem 0.7rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   border-radius: 6px;
   border: 1px solid var(--af-border);
   background: hsl(var(--muted-foreground) / 0.04);
@@ -608,7 +608,7 @@ watch(project, (val) => {
 }
 
 .loading {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   color: var(--af-muted);
 }
 
@@ -639,7 +639,7 @@ watch(project, (val) => {
 }
 
 .footer-tag {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
   background: hsl(var(--primary) / 0.08);
@@ -652,7 +652,7 @@ watch(project, (val) => {
 }
 
 .meta-item {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 
@@ -681,7 +681,7 @@ watch(project, (val) => {
 
 .download-link {
   color: hsl(var(--primary));
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   text-decoration: none;
 }
 
@@ -702,7 +702,7 @@ watch(project, (val) => {
 
 .form-field label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 600;
   color: var(--af-muted);
   margin-bottom: 0.25rem;
@@ -712,7 +712,7 @@ watch(project, (val) => {
 .form-field select {
   width: 100%;
   padding: 0.45rem 0.6rem;
-  font-size: 0.82rem;
+  font-size: 0rem;
   border: 1px solid var(--af-border);
   border-radius: 6px;
   background: var(--af-card);

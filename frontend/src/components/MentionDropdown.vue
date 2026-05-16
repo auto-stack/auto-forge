@@ -9,6 +9,7 @@
         @click="$emit('select', prof.id)"
         @mouseenter="index = i"
       >
+        <AgentAvatar :profession-id="prof.id" :name="prof.name" size="sm" />
         <span class="mention-name">@{{ prof.id }}</span>
         <span class="mention-label">{{ prof.name }}</span>
       </button>
@@ -18,6 +19,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import AgentAvatar from './AgentAvatar.vue'
 
 export interface ProfessionOption {
   id: string
@@ -86,7 +88,7 @@ defineExpose({
   border-radius: 5px;
   background: transparent;
   color: var(--af-fg);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   cursor: pointer;
   text-align: left;
   transition: background 0.1s;
@@ -108,6 +110,6 @@ defineExpose({
 
 .mention-label {
   color: var(--af-muted);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 </style>

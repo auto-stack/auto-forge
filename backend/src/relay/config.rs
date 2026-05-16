@@ -90,6 +90,10 @@ fn api_sources_path() -> PathBuf {
     config_dir().join("api_sources.json")
 }
 
+pub fn avatars_dir() -> PathBuf {
+    config_dir().join("avatars")
+}
+
 /// Load API sources from disk. Returns empty vec if file doesn't exist.
 pub fn load_api_sources() -> Vec<ApiSource> {
     let path = api_sources_path();
@@ -331,6 +335,8 @@ pub struct AgentConfig {
     pub max_tokens: u32,
     #[serde(default)]
     pub reasoning_budget: Option<u32>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
 }
 
 fn default_temperature() -> f32 {
@@ -380,14 +386,14 @@ pub fn save_agent_configs(configs: &[AgentConfig]) -> Result<(), ConfigError> {
     Ok(())
 }
 
-/// Generate 8 default agent configs, one per built-in profession.
+/// Generate 9 default agent configs, one per built-in profession.
 pub fn generate_default_agents() -> Vec<AgentConfig> {
     generate_default_agents_with_source("")
 }
 
-/// Generate 8 default agent configs with the given API source ID.
+/// Generate 9 default agent configs with the given API source ID.
 pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
-    let defaults: [(&str, &str, &str, ModelTier); 8] = [
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
         ("assistant", "Nicole", "assistant", ModelTier::Light),
         ("advisor", "Isaac", "advisor", ModelTier::Mid),
         ("architect", "Vera", "architect", ModelTier::Heavy),
@@ -396,6 +402,7 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
         ("coder", "Ash", "coder", ModelTier::Mid),
         ("reviewer", "Marcus", "reviewer", ModelTier::Heavy),
         ("documenter", "Luna", "documenter", ModelTier::Light),
+        ("gofer", "Gus", "gofer", ModelTier::Light),
     ];
 
     defaults
@@ -410,23 +417,39 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             temperature: 0.3,
             max_tokens: 4096,
             reasoning_budget: if tier == ModelTier::Heavy { Some(4096) } else { None },
+            avatar_url: None,
         })
         .to_vec()
 }
 
-/// Load agent configs, generating defaults if empty.
+/// Load agent configs, merging missing defaults with existing ones.
 /// When generating defaults, auto-assigns the first available API source.
 pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
-    let configs = load_agent_configs();
-    if !configs.is_empty() {
-        return configs;
-    }
-
+    let existing = load_agent_configs();
     let defaults = generate_default_agents_with_source(
         api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
     );
-    let _ = save_agent_configs(&defaults);
-    defaults
+
+    // If no configs exist, save and return defaults
+    if existing.is_empty() {
+        let _ = save_agent_configs(&defaults);
+        return defaults;
+    }
+
+    // Merge: start with existing, add any missing default agents
+    let mut merged = existing;
+    let mut added = false;
+    for default in &defaults {
+        if !merged.iter().any(|c| c.id == default.id) {
+            merged.push(default.clone());
+            added = true;
+        }
+    }
+
+    if added {
+        let _ = save_agent_configs(&merged);
+    }
+    merged
 }
 
 /// Resolve an AgentConfig into a concrete ModelConfig for use by AgentInstance.
@@ -458,7 +481,7 @@ mod tests {
     fn test_model_tier_serde() {
         let tier = ModelTier::Mid;
         let json = serde_json::to_string(&tier).unwrap();
-        assert_eq!(json, "\"standard\"");
+        assert_eq!(json, "\"mid\"");
         let parsed: ModelTier = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, ModelTier::Mid);
     }

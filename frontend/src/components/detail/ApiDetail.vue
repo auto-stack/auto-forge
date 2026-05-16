@@ -98,7 +98,7 @@ const remainingContent = computed(() => {
 }
 
 .section-label {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -135,7 +135,7 @@ const remainingContent = computed(() => {
   align-items: center;
   justify-content: center;
   padding: 0.1rem 0.4rem;
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 700;
   border-radius: 4px;
   text-transform: uppercase;
@@ -172,14 +172,14 @@ const remainingContent = computed(() => {
 
 .endpoint-path {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
+  font-size: 0rem;
   color: var(--af-fg);
   background: none;
 }
 
 .endpoint-desc {
   margin-top: 0.25rem;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   color: var(--af-muted);
   padding-left: calc(42px + 0.5rem);
 }

@@ -364,6 +364,7 @@ mod tests {
             readable_sections: vec![],
             allowed_tools: vec!["read_file".to_string()],
             handoff_to: vec![],
+            dispatchable_to: vec![],
             approval_gates: vec![],
             max_turns: 5,
             token_budget: 10_000,

@@ -511,3 +511,83 @@ graph TD
 - Positive: Extension system means adding a new block type does not touch core editor code.
 - Negative: Bundle size increase requires code-splitting the editor into a lazy-loaded chunk.
 - Negative: ProseMirror has a learning curve for developers implementing custom node views.
+
+---
+
+## A12 Errand Dispatch Architecture
+**Status:** approved
+**Depends on:** G22, A9
+
+`bring_in` is for **Relay phase transitions** — the baton changes hands, the active profession switches, and the new agent continues the conversation. `dispatch` is for **fire-and-forget tasks** — the master stays in control, a side-agent does grunt work, and only the result returns. Conflating these two patterns would break both. Keeping them separate preserves the Relay pipeline's determinism while adding lightweight task delegation.
+
+```mermaid
+graph TB
+    subgraph "Master Session (Claude Sonnet)"
+        M[Architect: Vera]
+        M -->|dispatch(task)| DT[Dispatch Tool]
+    end
+    subgraph "Errand Runner"
+        DT -->|spawn| ES[ErrandSession]
+        ES -->|chat via| CM[Cheap Model]
+        CM -->|tools| TR[ToolRegistry subset]
+        TR -->|shell/read_file/search| FS[File System]
+    end
+    subgraph "Result Flow"
+        ES -->|final message| R[Result String]
+        R -->|tool_result| M
+        R -->|persist| EP[Errand Persistence]
+    end
+    subgraph "Frontend"
+        M -->|SSE| FE[Master Chat Stream]
+        ES -->|SSE| FE
+        FE -->|render| MC[Collapsible Errand Thread]
+    end
+```
+
+| | `bring_in` (Relay) | `dispatch` (Errand) |
+|---|---|---|
+| **Purpose** | Phase transition | Task delegation |
+| **Caller state** | Suspended | Continues immediately |
+| **Active profession** | Changes to target | Unchanged |
+| **Chat history** | Merged into main thread | Isolated, nested view |
+| **Context pollution** | Handoff note injected | Only summary returns |
+| **Approval gates** | Yes (configurable) | No |
+| **Model cost** | Same tier as pipeline | Cheapest tier |
+| **Audit trail** | Checkpoint + handoff doc | Full errand chat log |
+| **LLM coordination** | Receives full history | Receives only task + context |
+
+```mermaid
+sequenceDiagram
+    participant M as Master (Vera)
+    participant D as Dispatch Tool
+    participant E as ErrandSession (Gus)
+    participant L as Cheap LLM
+    participant F as Frontend
+
+    M->>D: dispatch(task="find auth impl")
+    D->>E: spawn(gofer, task)
+    E->>L: turn 1: shell grep
+    L->>E: grep results (500 lines)
+    E->>L: turn 2: read_file jwt.rs
+    L->>E: file contents
+    E->>L: turn 3: summarize
+    L->>E: "JWT via jsonwebtoken crate"
+    E->>D: return summary
+    D->>M: tool_result: summary
+    E->>F: SSE errand events
+    M->>F: SSE master events
+    F->>F: render master msg + collapsible errand thread
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **Tool-based dispatch with isolated ErrandSession** (chosen) | Clean separation from Relay, master stays active, context isolated, cheapest model | More backend infrastructure (ErrandSession, nested SSE) |
+| **bring_in to gofer then bring_in back** | Reuses existing handoff code | Pollutes chat history with handoff notes, changes active profession, requires two handoffs |
+| **Sub-agent raw API call (no session)** | Minimal backend code | No audit trail, no frontend visibility, no persistence |
+| **Inline tool expansion (give architect shell/search)** | No new agent needed | Master's context polluted with large tool outputs |
+
+- Positive: Master's context window stays clean — only the dispatch call and result are added.
+- Positive: Errand runs on cheapest model, saving ~80% on research tasks.
+- Positive: Boss can audit every errand by expanding the nested thread.
+- Negative: ErrandSession requires parallel message tracking and separate SSE routing.
+- Mitigation: ErrandSession is a lightweight struct (~50 lines) that reuses existing TurnEngine.

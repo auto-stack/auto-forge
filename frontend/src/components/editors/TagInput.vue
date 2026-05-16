@@ -77,7 +77,7 @@ function onBackspace() {
   align-items: center;
   gap: 0.15rem;
   padding: 0.15rem 0.4rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   border-radius: 4px;
   background: hsl(var(--primary) / 0.08);
   color: hsl(var(--primary));
@@ -107,7 +107,7 @@ function onBackspace() {
   border: none;
   background: transparent;
   color: var(--af-fg);
-  font-size: 0.82rem;
+  font-size: 0rem;
   outline: none;
   padding: 0.15rem 0;
 }

@@ -183,7 +183,7 @@ function runMixedDemo() {
 }
 
 .demo-header h2 {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 500;
 }
 
@@ -201,7 +201,7 @@ function runMixedDemo() {
   border: none;
   border-radius: 6px;
   padding: 0.3rem 0.7rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -242,7 +242,7 @@ function runMixedDemo() {
 }
 
 .panel-label {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -256,7 +256,7 @@ function runMixedDemo() {
 }
 
 .raw-text {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   color: var(--af-fg);
   white-space: pre-wrap;
@@ -269,11 +269,11 @@ function runMixedDemo() {
   flex-shrink: 0;
   padding: 0.75rem 1.25rem;
   border-top: 1px solid var(--af-border);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .demo-info h3 {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   margin-bottom: 0.4rem;
 }
@@ -293,7 +293,7 @@ function runMixedDemo() {
   background: hsl(var(--muted-foreground) / 0.06);
   padding: 0.1rem 0.3rem;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 

@@ -49,7 +49,7 @@ const safeRows = computed(() => props.rows ?? [])
 .streaming-table table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 
 .streaming-table th,

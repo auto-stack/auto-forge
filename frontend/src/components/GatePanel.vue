@@ -1,7 +1,8 @@
 <template>
   <div class="gate-panel">
     <div class="gate-panel-header">
-      <div class="gate-panel-icon">{{ professionIcon || '🔒' }}</div>
+      <AgentAvatar v-if="professionId" :profession-id="professionId" size="md" />
+      <div class="gate-panel-icon" v-else>🔒</div>
       <div class="gate-panel-info">
         <div class="gate-panel-title">{{ gate.title }}</div>
         <div class="gate-panel-meta">
@@ -33,16 +34,17 @@
 
 <script setup lang="ts">
 import { Check, X, Scroll } from 'lucide-vue-next'
+import AgentAvatar from './AgentAvatar.vue'
 import type { PendingGate } from '@/composables/useGateInbox'
 
 interface Props {
   runId: string
   gate: PendingGate
-  professionIcon?: string
+  professionId?: string
 }
 
 withDefaults(defineProps<Props>(), {
-  professionIcon: undefined,
+  professionId: undefined,
 })
 
 defineEmits<{
@@ -78,7 +80,7 @@ function formatElapsed(since: number): string {
 }
 
 .gate-panel-icon {
-  font-size: 1.2rem;
+  font-size: 1.28rem;
   flex-shrink: 0;
 }
 
@@ -88,7 +90,7 @@ function formatElapsed(since: number): string {
 }
 
 .gate-panel-title {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 500;
   color: var(--af-fg);
 }
@@ -101,7 +103,7 @@ function formatElapsed(since: number): string {
 }
 
 .gate-panel-profession {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   background: hsl(var(--primary) / 0.1);
@@ -110,7 +112,7 @@ function formatElapsed(since: number): string {
 }
 
 .gate-panel-waiting {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 
@@ -126,7 +128,7 @@ function formatElapsed(since: number): string {
   padding: 0.35rem 0.7rem;
   border: none;
   border-radius: 5px;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;

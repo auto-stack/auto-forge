@@ -325,7 +325,7 @@ onMounted(loadSources)
 }
 
 .sidebar-header h2 {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   font-weight: 600;
   color: var(--af-fg);
 }
@@ -334,12 +334,12 @@ onMounted(loadSources)
   padding: 1.5rem 1rem;
   text-align: center;
   color: var(--af-muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .sidebar-empty .hint {
   margin: 0.5rem 0 1rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 
 .source-list {
@@ -388,7 +388,7 @@ onMounted(loadSources)
 .source-icon.local { background: hsl(220 60% 50% / 0.12); color: hsl(220 60% 50%); }
 
 .source-name {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
 }
 
@@ -396,7 +396,7 @@ onMounted(loadSources)
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 
@@ -449,7 +449,7 @@ onMounted(loadSources)
 .test-banner {
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   margin-bottom: 1rem;
 }
 
@@ -480,7 +480,7 @@ onMounted(loadSources)
 }
 
 .form-group label {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   color: var(--af-fg);
 }
@@ -496,7 +496,7 @@ onMounted(loadSources)
   border-radius: 5px;
   background: var(--af-card);
   color: var(--af-fg);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -506,7 +506,7 @@ onMounted(loadSources)
 }
 
 .form-hint {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 
@@ -532,7 +532,7 @@ onMounted(loadSources)
   gap: 0.3rem;
   padding: 0.4rem 0.5rem;
   background: hsl(var(--secondary));
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--af-muted);
   text-transform: uppercase;
@@ -552,7 +552,7 @@ onMounted(loadSources)
   border-radius: 4px;
   background: var(--af-card);
   color: var(--af-fg);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   outline: none;
 }
 
@@ -570,7 +570,7 @@ onMounted(loadSources)
   border-top: 1px solid var(--af-border);
   background: transparent;
   color: var(--af-primary);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   cursor: pointer;
 }
 
@@ -583,7 +583,7 @@ onMounted(loadSources)
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   transition: all 0.15s;
 }
 
@@ -683,7 +683,7 @@ onMounted(loadSources)
   border-radius: 6px;
   background: transparent;
   color: var(--af-primary);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   cursor: pointer;
   transition: all 0.15s;
   margin-bottom: 0.4rem;
@@ -710,7 +710,7 @@ onMounted(loadSources)
   border-radius: 5px;
   background: transparent;
   color: var(--af-muted);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   cursor: pointer;
 }
 
@@ -738,7 +738,7 @@ onMounted(loadSources)
 }
 
 .scan-hint {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-muted);
   margin-bottom: 1rem;
 }
@@ -785,12 +785,12 @@ onMounted(loadSources)
 .scan-item-icon.local { background: hsl(220 60% 50% / 0.12); color: hsl(220 60% 50%); }
 
 .scan-item-name {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 500;
 }
 
 .scan-item-models {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 

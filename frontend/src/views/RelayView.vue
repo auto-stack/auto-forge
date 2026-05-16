@@ -94,7 +94,7 @@
                 @click="toggleStep(step.id)"
                 @keydown.enter="toggleStep(step.id)"
               >
-                <div class="step-icon" aria-hidden="true">{{ professionIcon(step.profession_id) }}</div>
+                <AgentAvatar :profession-id="step.profession_id" size="sm" aria-hidden="true" />
                 <div class="step-name">{{ step.profession_id }}</div>
                 <div v-if="step.gate === 'human'" class="step-gate" aria-hidden="true">🔒</div>
                 <div v-if="step.status === 'running'" class="step-pulse" aria-hidden="true" />
@@ -109,7 +109,7 @@
                 class="expanded-step-card"
               >
                 <div class="expanded-header">
-                  <span class="expanded-icon">{{ professionIcon(step.profession_id) }}</span>
+                  <AgentAvatar :profession-id="step.profession_id" size="md" />
                   <span class="expanded-name">{{ step.profession_id }}</span>
                   <StatusBadge :status="step.status" size="sm" />
                 </div>
@@ -191,7 +191,7 @@
             v-if="showGatePanel && currentRun.waiting_for_gate"
             :run-id="currentRun.run_id"
             :gate="currentGate!"
-            :profession-icon="professionIcon(currentRun.waiting_for_gate.profession_id)"
+            :profession-id="currentRun.waiting_for_gate.profession_id"
             @approve="onApprove"
             @reject="onReject"
             @review-in-specs="onReviewInSpecs"
@@ -285,6 +285,7 @@ import { useGateInbox } from '@/composables/useGateInbox'
 import { useForgeMode } from '@/composables/useForgeMode'
 import StatusBadge from '@/components/StatusBadge.vue'
 import GatePanel from '@/components/GatePanel.vue'
+import AgentAvatar from '@/components/AgentAvatar.vue'
 
 const {
   runs, currentRun, professions, souls, loading, error,
@@ -442,7 +443,7 @@ function professionIcon(id: string): string {
 }
 
 .agents-header h2 {
-  font-size: 0.85rem;
+  font-size: 1.05rem;
   font-weight: 500;
   color: var(--af-fg);
 }
@@ -459,7 +460,7 @@ function professionIcon(id: string): string {
   padding: 0.4rem 0.7rem;
   border-radius: 6px;
   border: none;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -496,7 +497,7 @@ function professionIcon(id: string): string {
   padding: 0.5rem 1.25rem;
   background: hsl(0 70% 50% / 0.08);
   color: hsl(0 70% 45%);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   border-bottom: 1px solid var(--af-border);
 }
 
@@ -516,7 +517,7 @@ function professionIcon(id: string): string {
 }
 
 .panel-title {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -525,7 +526,7 @@ function professionIcon(id: string): string {
 }
 
 .empty-state {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-muted);
   text-align: center;
   padding: 1rem 0;
@@ -554,7 +555,7 @@ function professionIcon(id: string): string {
 }
 
 .run-id {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   color: var(--af-fg);
   font-family: 'JetBrains Mono', monospace;
@@ -563,7 +564,7 @@ function professionIcon(id: string): string {
 .run-card-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
   margin-bottom: 0.4rem;
 }
@@ -591,7 +592,7 @@ function professionIcon(id: string): string {
 }
 
 .run-title {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 600;
   color: var(--af-fg);
   font-family: 'JetBrains Mono', monospace;
@@ -606,7 +607,7 @@ function professionIcon(id: string): string {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   background: hsl(var(--muted-foreground) / 0.06);
@@ -621,7 +622,7 @@ function professionIcon(id: string): string {
 .budget-label {
   display: flex;
   justify-content: space-between;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
   margin-bottom: 0.3rem;
 }
@@ -688,9 +689,8 @@ function professionIcon(id: string): string {
   opacity: 0.5;
 }
 
-.step-icon { font-size: 1rem; }
-.step-name { font-size: 0.65rem; font-weight: 500; color: var(--af-fg); }
-.step-gate { font-size: 0.6rem; position: absolute; top: 2px; right: 2px; }
+.step-name { font-size: 0.73rem; font-weight: 500; color: var(--af-fg); }
+.step-gate { font-size: 0.68rem; position: absolute; top: 2px; right: 2px; }
 .step-pulse {
   position: absolute;
   top: 2px; left: 2px;
@@ -725,7 +725,7 @@ function professionIcon(id: string): string {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   color: hsl(38 80% 35%);
   margin-bottom: 0.5rem;
@@ -749,12 +749,12 @@ function professionIcon(id: string): string {
   align-items: center;
   padding: 0.3rem 0;
   border-bottom: 1px solid var(--af-border);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .history-row:last-child { border-bottom: none; }
 .history-profession { font-weight: 500; color: var(--af-fg); }
-.history-time { color: var(--af-muted); font-family: monospace; font-size: 0.75rem; }
+.history-time { color: var(--af-muted); font-family: monospace; font-size: 0.83rem; }
 
 /* Expanded step card */
 .expanded-step-card {
@@ -778,10 +778,9 @@ function professionIcon(id: string): string {
   margin-bottom: 0.4rem;
 }
 
-.expanded-icon { font-size: 1rem; }
 .expanded-name {
   flex: 1;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--af-fg);
 }
@@ -797,7 +796,7 @@ function professionIcon(id: string): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 
 .metric-label { color: var(--af-muted); }
@@ -809,7 +808,7 @@ function professionIcon(id: string): string {
 }
 
 .expanded-hint {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   color: var(--af-muted);
 }
 
@@ -818,7 +817,7 @@ function professionIcon(id: string): string {
   position: absolute;
   bottom: 2px;
   right: 2px;
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: hsl(var(--af-error));
   background: hsl(var(--af-error) / 0.1);
@@ -846,14 +845,14 @@ function professionIcon(id: string): string {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   padding: 0.2rem 0;
 }
 
 .log-time {
   color: var(--af-muted);
   font-family: monospace;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   flex-shrink: 0;
 }
 
@@ -888,7 +887,7 @@ function professionIcon(id: string): string {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 
 .cost-label {
@@ -934,12 +933,12 @@ function professionIcon(id: string): string {
 .profession-item, .soul-item {
   padding: 0.4rem 0.5rem;
   border-radius: 5px;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   background: hsl(var(--muted-foreground) / 0.04);
 }
 
 .profession-name { font-weight: 500; color: var(--af-fg); }
-.profession-phase { font-size: 0.65rem; color: var(--af-muted); text-transform: capitalize; }
+.profession-phase { font-size: 0.73rem; color: var(--af-muted); text-transform: capitalize; }
 
 /* ─── Mobile Responsive ───────────────────────────────────────────────────── */
 
@@ -995,7 +994,7 @@ function professionIcon(id: string): string {
 }
 
 .modal-content h3 {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   font-weight: 600;
   margin-bottom: 1rem;
   color: var(--af-fg);
@@ -1007,7 +1006,7 @@ function professionIcon(id: string): string {
 
 .form-group label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   color: var(--af-muted);
   margin-bottom: 0.3rem;
@@ -1020,7 +1019,7 @@ function professionIcon(id: string): string {
   border-radius: 5px;
   background: var(--af-bg);
   color: var(--af-fg);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .steps-builder {

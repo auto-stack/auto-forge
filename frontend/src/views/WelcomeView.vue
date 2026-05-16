@@ -138,13 +138,13 @@ onMounted(() => {
 }
 
 .welcome-title {
-  font-size: 2.4rem;
+  font-size: 2.48rem;
   font-weight: 700;
   color: var(--af-fg);
 }
 
 .welcome-subtitle {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   color: var(--af-muted);
   margin-top: -0.5rem;
 }
@@ -186,7 +186,7 @@ onMounted(() => {
   border-radius: 6px;
   background: var(--af-card);
   color: var(--af-fg);
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-family: inherit;
   outline: none;
   transition: border-color 0.15s;
@@ -205,7 +205,7 @@ onMounted(() => {
   color: #fff;
   border: none;
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -239,7 +239,7 @@ onMounted(() => {
   border: none;
   background: transparent;
   color: var(--af-fg);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   cursor: pointer;
   text-align: left;
   transition: background 0.1s;
@@ -252,7 +252,7 @@ onMounted(() => {
 
 .error-text {
   margin-top: 0.4rem;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-error, #dc2626);
 }
 
@@ -264,7 +264,7 @@ onMounted(() => {
 }
 
 .recent-title {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -298,12 +298,12 @@ onMounted(() => {
 }
 
 .recent-name {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 500;
 }
 
 .recent-path {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
   overflow: hidden;
   text-overflow: ellipsis;

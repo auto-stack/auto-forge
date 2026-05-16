@@ -107,7 +107,7 @@ import { computed } from 'vue'
   appearance: none;
   -webkit-appearance: none;
   padding: 0.2rem 1.5rem 0.2rem 0.6rem;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;

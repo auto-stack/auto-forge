@@ -23,6 +23,8 @@ pub struct Profession {
     pub allowed_tools: Vec<String>,
     /// Professions that may receive handoffs from this one.
     pub handoff_to: Vec<String>,
+    /// Professions that may be dispatched to as errand agents from this one.
+    pub dispatchable_to: Vec<String>,
     /// Human approval is required before handing off to these professions.
     pub approval_gates: Vec<String>,
     /// Max LLM turns before forced handoff.
@@ -43,6 +45,7 @@ pub enum ForgePhase {
     Execution,
     Verification,
     Report,
+    Errand,
 }
 
 impl ForgePhase {
@@ -56,6 +59,7 @@ impl ForgePhase {
             ForgePhase::Execution => "execution",
             ForgePhase::Verification => "verification",
             ForgePhase::Report => "report",
+            ForgePhase::Errand => "errand",
         }
     }
 }
@@ -84,6 +88,7 @@ impl ProfessionRegistry {
             readable_sections: vec![],
             allowed_tools: vec![
                 String::from("bring_in"),
+                String::from("dispatch"),
                 String::from("shell"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
@@ -93,6 +98,7 @@ impl ProfessionRegistry {
                 String::from("coder"),
             ],
             approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
             max_turns: 3,
             token_budget: 2_000,
         });
@@ -114,9 +120,12 @@ impl ProfessionRegistry {
                 String::from("read_file"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
+                String::from("bring_in"),
+                String::from("dispatch"),
             ],
             handoff_to: vec![String::from("architect")],
             approval_gates: vec![String::from("architect")],
+            dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 8_000,
         });
@@ -142,9 +151,11 @@ impl ProfessionRegistry {
                 String::from("read_file"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
+                String::from("bring_in"),
             ],
             handoff_to: vec![String::from("planner")],
             approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 12_000,
         });
@@ -169,9 +180,11 @@ impl ProfessionRegistry {
                 String::from("read_file"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
+                String::from("bring_in"),
             ],
             handoff_to: vec![String::from("tester")],
             approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 8_000,
         });
@@ -195,9 +208,11 @@ impl ProfessionRegistry {
                 String::from("read_file"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
+                String::from("bring_in"),
             ],
             handoff_to: vec![String::from("coder")],
             approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 8_000,
         });
@@ -225,12 +240,14 @@ impl ProfessionRegistry {
                 String::from("list_wiki"),
                 String::from("create_wiki_page"),
                 String::from("update_wiki_page"),
+                String::from("dispatch"),
             ],
             handoff_to: vec![
                 String::from("tester"),
                 String::from("architect"),
             ],
             approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
             max_turns: 15,
             token_budget: 20_000,
         });
@@ -258,9 +275,11 @@ impl ProfessionRegistry {
                 String::from("list_specs"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
+                String::from("dispatch"),
             ],
             handoff_to: vec![String::from("documenter")],
             approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 15_000,
         });
@@ -291,6 +310,36 @@ impl ProfessionRegistry {
             ],
             handoff_to: vec![],
             approval_gates: vec![],
+            dispatchable_to: vec![],
+            max_turns: 5,
+            token_budget: 4_000,
+        });
+
+        // ─── Gofer (Errand Runner) ───────────────────────────────────────────
+        self.register(Profession {
+            id: String::from("gofer"),
+            name: String::from("Gofer"),
+            phase: ForgePhase::Errand,
+            owned_sections: vec![],
+            readable_sections: vec![
+                SectionType::Goals,
+                SectionType::Architecture,
+                SectionType::Designs,
+                SectionType::Plans,
+                SectionType::Tests,
+            ],
+            allowed_tools: vec![
+                String::from("shell"),
+                String::from("read_file"),
+                String::from("search"),
+                String::from("list_specs"),
+                String::from("read_specs"),
+                String::from("query_wiki"),
+                String::from("list_wiki"),
+            ],
+            handoff_to: vec![],
+            approval_gates: vec![],
+            dispatchable_to: vec![],
             max_turns: 5,
             token_budget: 4_000,
         });
@@ -395,6 +444,6 @@ mod tests {
     fn test_list_returns_all_builtin() {
         let registry = ProfessionRegistry::new();
         let list = registry.list();
-        assert_eq!(list.len(), 8);
+        assert_eq!(list.len(), 9);
     }
 }

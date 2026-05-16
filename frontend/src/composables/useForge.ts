@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import type { ForgeMessage, ForgeSession, ForgeSessionSummary, ForgeStreamEvent } from '@/types/forge'
+import type { ForgeMessage, ForgeSession, ForgeSessionSummary, ForgeStreamEvent, ErrandState } from '@/types/forge'
 import type { ToolCallInfo } from '@/types/tool'
 import { useEventRouter, type SSEEvent } from './useEventRouter'
 
@@ -13,6 +13,7 @@ const _isLoading = ref(false)
 const _error = ref<string | null>(null)
 const _sessionList = ref<ForgeSessionSummary[]>([])
 const _resuming = ref(false)
+const _errands = ref<Record<string, ErrandState>>({})
 
 export function useForge() {
   const session = _session
@@ -20,6 +21,7 @@ export function useForge() {
   const isLoading = _isLoading
   const error = _error
   const sessionList = _sessionList
+  const errands = _errands
 
   const sessionId = computed(() => session.value?.id ?? null)
   const sessionStatus = computed(() => session.value?.status ?? 'idle')
@@ -170,6 +172,12 @@ export function useForge() {
     let assistantMsg: ForgeMessage | null = null
 
     function newAssistantMsg(professionId?: string): ForgeMessage {
+      // Reuse the current assistant message if it's completely empty (no content, no tool calls).
+      // This prevents creating ghost messages for turns that only contained tool calls.
+      if (assistantMsg && assistantMsg.content === '' && (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0)) {
+        assistantMsg.profession_id = professionId ?? assistantMsg.profession_id
+        return assistantMsg
+      }
       const msg: ForgeMessage = {
         id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         role: 'assistant',
@@ -250,6 +258,45 @@ export function useForge() {
             const msg = ensureAssistantMsg()
             msg.content += `\n\n[Error: ${data.message}]`
             isLoading.value = false
+          } else if (data.type === 'errand_start' && data.errand_id) {
+            _errands.value[data.errand_id] = {
+              errand_id: data.errand_id,
+              profession_id: data.profession_id || 'gofer',
+              tool_call_id: data.tool_call_id || '',
+              task: data.task || '',
+              content: '',
+              tool_calls: [],
+              status: 'running',
+            }
+          } else if (data.type === 'errand_delta' && data.errand_id && data.text) {
+            const e = _errands.value[data.errand_id]
+            if (e) e.content += data.text
+          } else if (data.type === 'errand_tool_call' && data.errand_id) {
+            const e = _errands.value[data.errand_id]
+            if (e) {
+              e.tool_calls.push({
+                id: data.id || `etc-${Date.now()}`,
+                name: data.name || 'unknown',
+                arguments: (data.arguments as Record<string, unknown>) ?? {},
+                status: 'running',
+              })
+            }
+          } else if (data.type === 'errand_tool_result' && data.errand_id) {
+            const e = _errands.value[data.errand_id]
+            if (e) {
+              const tc = e.tool_calls.find((c) => c.id === data.id)
+              if (tc) {
+                tc.result = data.result ?? ''
+                tc.status = 'success'
+              }
+            }
+          } else if (data.type === 'errand_complete' && data.errand_id) {
+            const e = _errands.value[data.errand_id]
+            if (e) {
+              e.status = (data.status as ErrandState['status']) || 'completed'
+              e.result = data.result || e.content
+              e.token_usage = data.token_usage
+            }
           }
         } catch {
           const msg = ensureAssistantMsg()
@@ -376,5 +423,6 @@ export function useForge() {
     rejectSpec,
     renameSession,
     deleteSession,
+    errands,
   }
 }

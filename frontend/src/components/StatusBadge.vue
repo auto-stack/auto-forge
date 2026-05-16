@@ -17,7 +17,7 @@ defineProps<{
   align-items: center;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -25,11 +25,11 @@ defineProps<{
 }
 .status-badge.sm {
   padding: 0.1rem 0.4rem;
-  font-size: 0.6rem;
+  font-size: 0.68rem;
 }
 .status-badge.md {
   padding: 0.25rem 0.6rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 
 .status-badge.empty {

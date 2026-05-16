@@ -26,6 +26,69 @@
 | G17 | Bring-In Tool enables agents to hand off mid-conversation with structured context transfer | P0 | Proposed | Core Team |
 | G18 | Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing | P0 | Done | Docs Team |
 | G19 | AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content | P1 | Proposed | Docs Team |
+| G20 | Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search with hierarchical tags and tag cloud navigation | P1 | Proposed | Docs Team |
+| G21 | Hierarchical Goals View enables one-level tree display with parent-child relationships and typed tag-based classification | P0 | Draft | UI Team |
+| G22 | Errand Agent Dispatch enables any profession to offload research tasks without context pollution | P0 | Implemented | Core Team |
+
+### G21: Hierarchical Goals View
+
+**Functional Requirements:**
+
+1. **One-Level Goal Hierarchy**
+   - Goals can have parent-child relationships (one level deep only)
+   - Each parent goal can have multiple subgoals
+   - Each subgoal has exactly one parent (or is top-level)
+   - Subgoals detected automatically via dotted ID notation (e.g., `G9.1` is child of `G9`, `G9.1.2` is invalid)
+   - Data model: `parent_id` field derived from ID parsing (not manually set)
+
+2. **Tree Visualization - Default State**
+   - Tree view is the default (and only) view mode
+   - **All branches collapsed by default** - only top-level goals visible on initial load
+   - Visual hierarchy with indentation and connecting lines when expanded
+   - Show goal metadata (ID, priority, status, stakeholder) in tree nodes
+   - Expand/collapse state persists across sessions
+   - Typed tag badges visible on nodes (e.g., "module: wiki", "team: ui")
+
+3. **Navigation & Interaction**
+   - Click on goal node to view full details
+   - Expand/collapse branches independently via chevron/arrow
+   - "Expand all" / "Collapse all" controls
+   - Breadcrumb navigation showing current location in hierarchy
+
+4. **Agent-Driven Goal Creation**
+   - Agents create goals with dotted IDs (e.g., `G21.1`) to indicate parent relationship
+   - No human UI for manual goal creation/editing required
+   - Parent relationship automatically derived from ID parsing
+
+5. **Typed Tag System**
+   - Tags use `kind:value` format (e.g., `module:wiki`, `team:ui`, `priority:p0`)
+   - Multiple tags per goal
+   - Tags display as badges on tree nodes
+   - Tag kinds align with G20's hierarchical tagging system
+
+6. **Search & Filtering**
+   - Filters/search apply to all levels of the tree (expanded and collapsed)
+   - Matching goals auto-expand their parent branches to show results
+   - Filter results show matched nodes with full context
+
+**Implementation Decisions:**
+
+| Decision | Choice |
+|----------|--------|
+| Hierarchy Depth | One level (parent → subgoals only) |
+| Subgoal Detection | Dotted ID notation (e.g., `G9.1` is child of `G9`) |
+| Classification System | Typed tags (`kind:value`) |
+| Default View State | All branches collapsed |
+| View Modes | Tree view only (no flat toggle) |
+| Search Scope | All levels (auto-expand matches) |
+
+**Success Criteria:**
+- Tree view renders efficiently for 100+ goals
+- Expand/collapse operations complete in <100ms
+- Existing subgoals (G9.1, G20.1, etc.) automatically detected via ID parsing
+- Typed tags display correctly as badges on tree nodes
+- Search/filter works across all levels with auto-expand
+- All branches collapsed on initial load
 
 ---
 
@@ -567,3 +630,64 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - [ ] Version diff view between two document states
 
 Let me know once you've added these and fixed the bug, and I can continue with the next phase of planning!
+
+---
+
+## G22 Errand Agent Dispatch enables any profession to offload research tasks without context pollution
+**Status:** implemented
+**Depends on:** G1, G17, G13
+
+- [x] `dispatch` tool available to all relay professions for firing lightweight side-tasks
+- [x] `gofer` profession defined with minimal soul, cheap model tier, and short turn limit
+- [x] Errand runs in isolated message context — master's chat history stays clean
+- [x] Only final summary/fact returns to caller; intermediate tool outputs remain in errand log
+- [x] Full errand chat log persisted and visible in same session view for boss audit
+- [x] Errand agents do NOT participate in relay pipeline — no `handoff_to`, no approval gates
+- [x] Gofer uses cheapest configured model tier (e.g., Claude Haiku or GPT-4o-mini)
+
+
+1. **Dispatch Tool Interface**
+   - Any profession calls `dispatch` with: `agent` (profession_id, default "gofer"), `task` (string), `context` (optional caller context)
+   - Backend validates target is in `dispatchable_to` list (not `handoff_to`)
+   - Tool returns after errand completes or hits max_turns
+
+2. **Gofer Profession Definition**
+   - Profession id: `gofer`, display name: "Gofer", persona: "Gus"
+   - Phase: `ForgePhase::Errand` (new phase, lower than Intake)
+   - Tools: `shell`, `read_file`, `search`, `list_specs`, `read_specs`, `query_wiki`
+   - No `handoff_to`, no `approval_gates`, `max_turns: 5`, `token_budget: 4_000`
+   - Model tier: `Light` (cheapest available provider)
+
+3. **Isolated Errand Context**
+   - Each dispatch spawns a new `ErrandSession` with its own `message_history` Vec
+   - Errand session linked to parent session via `parent_session_id`
+   - System prompt = gofer soul + task description + caller context
+   - Errand runs standard ReAct loop but writes to isolated message list
+
+4. **Result Compression**
+   - Final assistant message from errand is returned as the `dispatch` tool result string
+   - Optional: errand can be instructed to return structured JSON (list of files, key findings)
+   - Master's chat history only grows by the dispatch tool call + result (~200-400 tokens)
+
+5. **Audit Trail & Visibility**
+   - Full errand message history persisted to `errands/` subdirectory in session store
+   - Frontend renders errand as a collapsible thread nested under caller's message
+   - Boss can expand to see all tool calls, reasoning, and intermediate outputs
+   - Errand thread shows token cost separately from master session cost
+
+
+| Decision | Choice |
+|----------|--------|
+| Dispatch mechanism | Tool-based (`dispatch` tool) not `bring_in` |
+| Context isolation | Separate `ErrandSession` message list, not shared history |
+| Model selection | Cheapest configured tier (Light) — configurable per API source |
+| Errand visibility | Collapsible nested thread in same chat view |
+| Persistence | JSON files in `errands/` subdir, not SQLite |
+| Max turns | 5 (hard cap to prevent runaway) |
+| Return format | Plain text summary (default), optional structured JSON |
+
+- Architect can dispatch "find how auth works" and receive 200-token summary instead of 5k-token grep output
+- Master's chat history does not contain errand tool outputs
+- Errand thread visible and expandable in frontend
+- Gofer runs on cheapest model, saving ~80% on errand token cost vs master model
+- Errand completes within 5 turns or returns truncated result

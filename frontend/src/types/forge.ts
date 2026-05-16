@@ -36,7 +36,7 @@ export interface ForgeSession {
 }
 
 export interface ForgeStreamEvent {
-  type: 'turn_start' | 'delta' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff'
+  type: 'turn_start' | 'delta' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete'
   text?: string
   id?: string
   name?: string
@@ -63,6 +63,25 @@ export interface ForgeStreamEvent {
   to_agent?: string
   classification?: string
   reason?: string
+  // errand fields
+  errand_id?: string
+  tool_call_id?: string
+  task?: string
+  turn?: number
+  token_usage?: number
+  status?: string
+}
+
+export interface ErrandState {
+  errand_id: string
+  profession_id: string
+  tool_call_id: string
+  task: string
+  content: string
+  tool_calls: { id: string; name: string; arguments: Record<string, unknown>; result?: string; status: string }[]
+  status: 'running' | 'completed' | 'failed' | 'truncated'
+  result?: string
+  token_usage?: number
 }
 
 export interface ForgeSessionSummary {

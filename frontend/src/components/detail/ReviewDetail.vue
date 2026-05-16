@@ -135,7 +135,7 @@ const processedContent = computed(() => {
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem 0.5rem;
-  font-size: 0.72rem;
+  font-size: 0rem;
   font-weight: 600;
   border-radius: 6px;
   border: 1px solid transparent;
@@ -183,7 +183,7 @@ const processedContent = computed(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  font-size: 0.82rem;
+  font-size: 0rem;
   border-bottom: 1px solid var(--af-border);
   transition: background 0.12s;
 }
@@ -203,7 +203,7 @@ const processedContent = computed(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -234,7 +234,7 @@ const processedContent = computed(() => {
 }
 
 .row-note {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: var(--af-muted);
   max-width: 200px;
   text-align: right;

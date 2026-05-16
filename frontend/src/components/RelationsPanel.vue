@@ -110,7 +110,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: var(--af-muted);
 }
 
@@ -134,7 +134,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -144,7 +144,7 @@ watch(
 
 .relations-count {
   margin-left: auto;
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   padding: 0.05rem 0.35rem;
   border-radius: 999px;
   background: hsl(var(--muted-foreground) / 0.1);
@@ -167,7 +167,7 @@ watch(
   border: 1px solid var(--af-border);
   cursor: pointer;
   transition: all 0.12s;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .relations-chip:hover {
@@ -176,7 +176,7 @@ watch(
 }
 
 .chip-icon {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   line-height: 1;
 }
 
@@ -184,7 +184,7 @@ watch(
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
   color: hsl(var(--primary));
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 
 .chip-title {
@@ -199,7 +199,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: var(--af-muted);
   padding: 0.5rem 0;
 }

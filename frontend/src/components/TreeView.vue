@@ -129,7 +129,7 @@ const fileIcon = computed(() => {
 }
 
 .tree-name {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   color: var(--af-fg);
   white-space: nowrap;
   overflow: hidden;

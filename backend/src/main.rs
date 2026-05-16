@@ -42,11 +42,17 @@ async fn main() {
         .merge(auto_forge::forge::routes())
         .with_state(app_state);
 
+    let avatars_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoforge")
+        .join("avatars");
+
     let mut app = api_routes;
     if forge_dist_dir.exists() {
         app = app.nest_service("/forge", tower_http::services::ServeDir::new(&forge_dist_dir));
         tracing::info!("AutoForge UI served at /forge ({})", forge_dist_dir.display());
     }
+    app = app.nest_service("/avatars", tower_http::services::ServeDir::new(&avatars_dir));
 
     let app = app.layer(cors);
 

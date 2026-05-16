@@ -286,7 +286,7 @@ html, body, #app {
   background: hsl(var(--primary) / 0.06);
   border-radius: 5px;
   color: var(--af-fg);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
 }
 
 .project-name {
@@ -317,7 +317,7 @@ html, body, #app {
 }
 
 .brand-text {
-  font-size: 0.85rem;
+  font-size: 1.05rem;
   font-weight: 600;
 }
 
@@ -341,7 +341,7 @@ html, body, #app {
   color: var(--af-muted);
   cursor: pointer;
   transition: all 0.15s;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .rail-tab:hover {
@@ -361,7 +361,7 @@ html, body, #app {
 }
 
 .tab-label {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .rail-footer {
@@ -411,7 +411,7 @@ html, body, #app {
 }
 
 .accent-menu-title {
-  font-size: 0.7rem;
+  font-size: 0.88rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -499,7 +499,7 @@ html, body, #app {
   border-radius: 5px;
   background: transparent;
   color: var(--af-fg);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   cursor: pointer;
   transition: all 0.1s;
   text-align: left;
@@ -531,7 +531,7 @@ html, body, #app {
 }
 
 .version {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   color: var(--af-muted);
   font-weight: 400;
   margin-left: 0.35rem;
@@ -560,7 +560,7 @@ html, body, #app {
 /* ─── Tab Badge ───────────────────────────────────────────────────────────── */
 
 .tab-badge {
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 600;
   min-width: 16px;
   height: 16px;
@@ -587,7 +587,7 @@ html, body, #app {
 }
 
 .mode-btn {
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 600;
   padding: 0.2rem 0.4rem;
   border: none;

@@ -13,6 +13,7 @@ export interface AgentConfigDto {
   temperature: number
   max_tokens: number
   reasoning_budget: number | null
+  avatar_url?: string
 }
 
 // Singleton state
@@ -30,6 +31,10 @@ export function useAgentConfigs() {
 
   function getByProfession(professionId: string): AgentConfigDto | undefined {
     return _configs.value.find(c => c.profession_id === professionId && c.is_default)
+  }
+
+  function getById(id: string): AgentConfigDto | undefined {
+    return _configs.value.find(c => c.id === id)
   }
 
   async function loadConfigs() {
@@ -120,6 +125,7 @@ export function useAgentConfigs() {
     defaultConfigs,
     customConfigs,
     getByProfession,
+    getById,
     loadConfigs,
     createConfig,
     updateConfig,

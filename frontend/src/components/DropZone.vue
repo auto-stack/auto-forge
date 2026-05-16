@@ -59,7 +59,7 @@ function handleDrop(e: DragEvent) {
 }
 
 .drop-text {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
 }
 
 .progress-bar {

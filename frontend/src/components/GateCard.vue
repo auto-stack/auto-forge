@@ -122,14 +122,14 @@ watch(() => props.changes, (changes) => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   color: var(--af-fg);
 }
 
-.gate-icon { font-size: 1.1rem; }
+.gate-icon { font-size: 1.18rem; }
 .gate-title { flex: 1; }
 .gate-profession {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
   background: hsl(var(--primary) / 0.08);
@@ -165,7 +165,7 @@ watch(() => props.changes, (changes) => {
 }
 
 .diff-title {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   color: var(--af-fg);
   text-transform: capitalize;
@@ -173,7 +173,7 @@ watch(() => props.changes, (changes) => {
 }
 
 .diff-status {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   color: hsl(var(--af-warning));
 }
@@ -198,7 +198,7 @@ watch(() => props.changes, (changes) => {
 }
 
 .diff-label {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   text-transform: uppercase;
   color: var(--af-muted);
@@ -206,7 +206,7 @@ watch(() => props.changes, (changes) => {
 }
 
 .diff-content {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   background: var(--af-bg);
   border: 1px solid var(--af-border);
@@ -222,7 +222,7 @@ watch(() => props.changes, (changes) => {
 .diff-content.old { color: var(--af-muted); }
 
 .diff-editor {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   background: var(--af-bg);
   border: 1px solid var(--af-border);
@@ -253,7 +253,7 @@ watch(() => props.changes, (changes) => {
   padding: 0.4rem 0.9rem;
   border: none;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;

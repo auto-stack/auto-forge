@@ -137,13 +137,13 @@ const processedContent = computed(() => {
 }
 
 .metric-name {
-  font-size: 0.72rem;
+  font-size: 0rem;
   color: var(--af-muted);
   font-weight: 500;
 }
 
 .metric-value {
-  font-size: 1.1rem;
+  font-size: 1.18rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--af-fg);
@@ -162,7 +162,7 @@ const processedContent = computed(() => {
 }
 
 .metric-target {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 </style>

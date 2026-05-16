@@ -103,7 +103,7 @@ function onTestSave(item: SpecItem, payload: { title: string; content: string; t
   gap: 0.4rem;
   padding: 2.5rem 1rem;
   color: var(--af-muted);
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 
 .empty-state svg {
@@ -112,7 +112,7 @@ function onTestSave(item: SpecItem, payload: { title: string; content: string; t
 }
 
 .empty-hint {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: hsl(var(--muted-foreground) / 0.6);
 }
 </style>

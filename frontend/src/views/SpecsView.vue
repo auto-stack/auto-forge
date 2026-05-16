@@ -431,7 +431,7 @@ watch(project, (newVal) => {
 }
 
 .section-nav-title {
-  font-size: 0.85rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--af-fg);
 }
@@ -474,7 +474,7 @@ watch(project, (newVal) => {
 }
 
 .section-name {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   color: var(--af-fg);
 }
@@ -486,7 +486,7 @@ watch(project, (newVal) => {
 }
 
 .section-count {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 
@@ -537,7 +537,7 @@ watch(project, (newVal) => {
 }
 
 .header-project {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--af-fg);
   white-space: nowrap;
@@ -564,7 +564,7 @@ watch(project, (newVal) => {
   background: transparent;
   border: none;
   outline: none;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-fg);
   width: 100%;
 }
@@ -584,7 +584,7 @@ watch(project, (newVal) => {
   align-items: center;
   gap: 0.35rem;
   padding: 0.4rem 0.7rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   border-radius: 6px;
   border: 1px solid var(--af-border);
   background: hsl(var(--muted-foreground) / 0.04);
@@ -620,7 +620,7 @@ watch(project, (newVal) => {
 }
 
 .editor-header h3 {
-  font-size: 1.1rem;
+  font-size: 1.18rem;
   font-weight: 700;
   color: var(--af-fg);
   margin: 0;
@@ -647,7 +647,7 @@ watch(project, (newVal) => {
   align-items: center;
   gap: 0.3rem;
   padding: 0.4rem 0.7rem;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   border-radius: 6px;
   border: 1px dashed var(--af-border);
   background: transparent;
@@ -672,7 +672,7 @@ watch(project, (newVal) => {
 }
 
 .loading {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   color: var(--af-muted);
 }
 

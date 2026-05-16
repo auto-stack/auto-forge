@@ -104,7 +104,7 @@ defineEmits<{
 
 .id-badge {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.72rem;
+  font-size: 0rem;
   font-weight: 700;
   padding: 0.2rem 0.5rem;
   border-radius: 6px;
@@ -122,14 +122,14 @@ defineEmits<{
 }
 
 .row-title {
-  font-size: 0.88rem;
+  font-size: 0.96rem;
   font-weight: 500;
   color: var(--af-fg);
   line-height: 1.35;
 }
 
 .row-summary {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: var(--af-muted);
   line-height: 1.4;
   overflow: hidden;

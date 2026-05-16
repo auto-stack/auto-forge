@@ -83,6 +83,7 @@ impl ToolRegistry {
         registry.register(Box::new(WriteSpecsTool));
         registry.register(Box::new(ListSpecsTool));
         registry.register(Box::new(BringInTool));
+        registry.register(Box::new(DispatchTool));
         registry.register(Box::new(QueryWikiTool));
         registry.register(Box::new(ListWikiTool));
         registry.register(Box::new(CreateWikiPageTool));
@@ -791,7 +792,7 @@ impl Tool for BringInTool {
     fn description(&self) -> &'static str {
         "Bring in another agent specialist to handle this conversation. \
          Use after classifying the user's intent — call this to hand off to the right expert. \
-         You can bring in: 'advisor' for new features and requirements, 'coder' for direct code changes."
+         You can bring in: 'advisor' for new features and requirements, 'architect' for architecture and design, 'coder' for direct code changes."
     }
 
     fn input_schema(&self) -> Value {
@@ -800,7 +801,7 @@ impl Tool for BringInTool {
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "Profession ID to bring in: 'advisor' or 'coder'"
+                    "description": "Profession ID to bring in: 'advisor', 'architect', or 'coder'"
                 },
                 "classification": {
                     "type": "string",
@@ -809,7 +810,7 @@ impl Tool for BringInTool {
                 },
                 "reason": {
                     "type": "string",
-                    "description": "Brief explanation of why you're handing off and what the user wants"
+                    "description": "Detailed summary of the user's request including their exact wording and key details. This is the baton passed to the next agent — it must be complete enough that the next agent can continue without asking the user to repeat themselves. NEVER leave this empty or generic."
                 }
             },
             "required": ["target", "reason"]
@@ -868,6 +869,108 @@ impl Tool for BringInTool {
             "target": target,
             "classification": classification,
             "reason": reason,
+            "from_profession": current,
+        }).to_string())
+    }
+
+    fn is_read_only(&self) -> bool { true }
+}
+
+// ─── Dispatch Tool (Errand Runner) ───────────────────────────────────────────
+
+/// Dispatches a lightweight research or errand task to a side agent.
+/// The errand agent runs in isolation with a cheap model and returns only a summary.
+struct DispatchTool;
+
+impl Tool for DispatchTool {
+    fn name(&self) -> &'static str {
+        "dispatch"
+    }
+
+    fn description(&self) -> &'static str {
+        "Dispatch a lightweight research or errand task to a side agent. \
+         Use this when you need to look up code, search files, or gather facts \
+         without polluting your own context window. \\n\\n \
+         The errand agent runs in isolation with a cheap model and returns \
+         only a summary. Full logs are available for audit."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "required": ["task"],
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Profession to dispatch to. Default: gofer",
+                    "enum": ["gofer"]
+                },
+                "task": {
+                    "type": "string",
+                    "description": "Clear, specific task description. Include what to find, where to look, and what format to return."
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional context from the caller. Why do you need this? What will you do with the result?"
+                },
+                "max_turns": {
+                    "type": "integer",
+                    "description": "Maximum turns for the errand. Default: 5",
+                    "default": 5,
+                    "maximum": 10
+                }
+            }
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let agent = args
+            .get("agent")
+            .and_then(|v| v.as_str())
+            .unwrap_or("gofer");
+        let task = args
+            .get("task")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'task' argument".into()))?;
+        let context = args
+            .get("context")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let max_turns = args
+            .get("max_turns")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(5) as u32;
+
+        let current = CURRENT_PROFESSION.with(|p| p.borrow().clone());
+
+        // Validate: target profession must exist
+        let registry = crate::relay::ProfessionRegistry::new();
+        if registry.get(agent).is_none() {
+            return Err(ToolError::InvalidInput(format!(
+                "Unknown profession '{}'. Valid options: gofer",
+                agent
+            )));
+        }
+
+        // Validate: caller must have target in dispatchable_to
+        let profession = registry.get(&current)
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("Unknown profession '{}'", current)))?;
+
+        if !profession.dispatchable_to.contains(&agent.to_string()) {
+            return Err(ToolError::InvalidInput(format!(
+                "Cannot dispatch to '{}'. Allowed targets: {}",
+                agent,
+                profession.dispatchable_to.join(", ")
+            )));
+        }
+
+        // Return dispatch instruction — forge_stream handler will execute the errand
+        Ok(serde_json::json!({
+            "dispatch": true,
+            "agent": agent,
+            "task": task,
+            "context": context,
+            "max_turns": max_turns,
             "from_profession": current,
         }).to_string())
     }
@@ -1233,7 +1336,7 @@ mod tests {
     fn test_tool_registry() {
         let registry = ToolRegistry::new();
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 13);
+        assert_eq!(defs.len(), 14);
         assert!(registry.get("read_file").is_some());
         assert!(registry.get("write_file").is_some());
         assert!(registry.get("edit_file").is_some());
@@ -1260,5 +1363,43 @@ mod tests {
         assert!(SearchTool.is_read_only());
         assert!(!WriteFileTool.is_read_only());
         assert!(!ShellTool.is_read_only());
+    }
+
+    #[test]
+    fn test_dispatch_tool_validation() {
+        let tool = DispatchTool;
+
+        // Missing task should fail
+        let result = tool.execute(serde_json::json!({"agent": "gofer"}));
+        assert!(result.is_err(), "Should fail without task");
+
+        // Invalid agent should fail
+        set_current_profession("advisor");
+        let result = tool.execute(serde_json::json!({
+            "agent": "nonexistent",
+            "task": "test"
+        }));
+        assert!(result.is_err(), "Should fail with unknown agent");
+
+        // Valid dispatch should return JSON instruction
+        let result = tool.execute(serde_json::json!({
+            "agent": "gofer",
+            "task": "Find auth code",
+            "context": "Need to know how login works"
+        }));
+        assert!(result.is_ok(), "{:?}", result);
+        let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(json["dispatch"], true);
+        assert_eq!(json["agent"], "gofer");
+        assert_eq!(json["task"], "Find auth code");
+    }
+
+    #[test]
+    fn test_tool_registry_includes_dispatch() {
+        let registry = ToolRegistry::new();
+        assert!(registry.get("dispatch").is_some(), "dispatch tool should be registered");
+        let dispatch = registry.get("dispatch").unwrap();
+        assert!(dispatch.name() == "dispatch");
+        assert!(dispatch.is_read_only());
     }
 }

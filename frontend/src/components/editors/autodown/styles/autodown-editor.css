@@ -25,7 +25,7 @@
 .autodown-editor-content {
   outline: none;
   min-height: 100%;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   line-height: 1.6;
   color: var(--af-fg);
 }
@@ -52,7 +52,7 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.35rem 0.7rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 600;
   border-radius: 6px;
   border: none;
@@ -70,7 +70,7 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.35rem 0.7rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   border-radius: 6px;
   border: 1px solid var(--af-border);
   background: transparent;
@@ -95,15 +95,15 @@
 }
 
 .autodown-editor-content h1 {
-  font-size: 1.5rem;
+  font-size: 1.58rem;
 }
 
 .autodown-editor-content h2 {
-  font-size: 1.25rem;
+  font-size: 1.33rem;
 }
 
 .autodown-editor-content h3 {
-  font-size: 1.1rem;
+  font-size: 1.18rem;
 }
 
 .autodown-editor-content p {
@@ -150,7 +150,7 @@
 
 .autodown-editor-content pre code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   line-height: 1.5;
   background: none;
   padding: 0;
@@ -225,13 +225,13 @@
   width: 100%;
   border-collapse: collapse;
   margin: 0.75rem 0;
-  font-size: 0.82rem;
+  font-size: 0rem;
 }
 
 .autodown-editor-content .tableWrapper > table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: 0rem;
 }
 
 .autodown-editor-content .tableWrapper th,
@@ -313,7 +313,7 @@
   cursor: pointer;
   text-align: left;
   width: 100%;
-  font-size: 0.82rem;
+  font-size: 0rem;
   transition: background 0.1s ease;
 }
 
@@ -335,11 +335,11 @@
 
 .autodown-slash-menu-title {
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .autodown-slash-menu-desc {
-  font-size: 0.72rem;
+  font-size: 0rem;
   color: var(--af-muted);
 }
 
@@ -347,7 +347,7 @@
   padding: 0.75rem;
   text-align: center;
   color: var(--af-muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 /* ─── Bubble Menu ─── */

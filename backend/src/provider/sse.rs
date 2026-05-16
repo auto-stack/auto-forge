@@ -1,39 +1,52 @@
 //! Incremental SSE parser ported from auto-code-rs.
 use crate::provider::types::{ApiError, StreamEvent};
-pub struct SseParser { buffer: String }
+
+pub struct SseParser { buffer: Vec<u8> }
+
 impl SseParser {
-    pub fn new() -> Self { Self { buffer: String::new() } }
+    pub fn new() -> Self { Self { buffer: Vec::new() } }
+
     pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>, ApiError> {
-        let text = std::str::from_utf8(chunk).map_err(|e| ApiError::Sse(format!("invalid utf-8: {e}")))?;
-        self.buffer.push_str(text);
+        self.buffer.extend_from_slice(chunk);
         self.drain_frames()
     }
+
     pub fn finish(mut self) -> Result<Vec<StreamEvent>, ApiError> {
-        let remaining = self.buffer.trim().to_owned();
-        if remaining.is_empty() { return Ok(vec![]); }
-        self.buffer = remaining + "\n\n";
+        // Append trailing newline to flush any final frame
+        self.buffer.extend_from_slice(b"\n\n");
         self.drain_frames()
     }
+
     fn drain_frames(&mut self) -> Result<Vec<StreamEvent>, ApiError> {
         let mut events = Vec::new();
         while let Some(frame) = self.next_frame() {
-            if let Some(event) = self.parse_frame(&frame)? { events.push(event); }
+            if let Some(event) = self.parse_frame(&frame)? {
+                events.push(event);
+            }
         }
         Ok(events)
     }
+
     fn next_frame(&mut self) -> Option<String> {
-        if let Some(pos) = self.buffer.find("\r\n\r\n") {
-            let frame = self.buffer[..pos].to_owned();
-            self.buffer = self.buffer[pos + 4..].to_owned();
-            return Some(frame);
+        // Find frame boundary in raw bytes, then decode only the complete frame
+        if let Some(pos) = Self::find_boundary(&self.buffer, b"\r\n\r\n") {
+            let frame_bytes = self.buffer.drain(..pos).collect::<Vec<u8>>();
+            // drain also removes the boundary
+            self.buffer.drain(..4);
+            return String::from_utf8(frame_bytes).ok();
         }
-        if let Some(pos) = self.buffer.find("\n\n") {
-            let frame = self.buffer[..pos].to_owned();
-            self.buffer = self.buffer[pos + 2..].to_owned();
-            return Some(frame);
+        if let Some(pos) = Self::find_boundary(&self.buffer, b"\n\n") {
+            let frame_bytes = self.buffer.drain(..pos).collect::<Vec<u8>>();
+            self.buffer.drain(..2);
+            return String::from_utf8(frame_bytes).ok();
         }
         None
     }
+
+    fn find_boundary(buf: &[u8], boundary: &[u8]) -> Option<usize> {
+        buf.windows(boundary.len()).position(|w| w == boundary)
+    }
+
     fn parse_frame(&self, frame: &str) -> Result<Option<StreamEvent>, ApiError> {
         let mut event_type: Option<String> = None;
         let mut data_parts: Vec<String> = Vec::new();
@@ -57,4 +70,5 @@ impl SseParser {
         Ok(Some(event))
     }
 }
+
 impl Default for SseParser { fn default() -> Self { Self::new() } }

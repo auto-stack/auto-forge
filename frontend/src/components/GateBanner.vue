@@ -89,12 +89,12 @@ function formatElapsed(since: number): string {
 }
 
 .gate-banner-icon {
-  font-size: 0.95rem;
+  font-size: 1.03rem;
   flex-shrink: 0;
 }
 
 .gate-banner-text {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-fg);
   white-space: nowrap;
   overflow: hidden;
@@ -102,7 +102,7 @@ function formatElapsed(since: number): string {
 }
 
 .gate-banner-waiting {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
   flex-shrink: 0;
 }
@@ -153,7 +153,7 @@ function formatElapsed(since: number): string {
   background: var(--af-bg);
   border: 1px solid var(--af-border);
   border-radius: 6px;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: var(--af-muted);
 }
 </style>

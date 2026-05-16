@@ -25,9 +25,7 @@
         :class="{ default: agent.is_default, editing: editingId === agent.id }"
         @click="startEdit(agent)"
       >
-        <div class="card-avatar" :class="agent.profession_id">
-          <span class="avatar-emoji">{{ professionEmoji(agent.profession_id) }}</span>
-        </div>
+        <AgentAvatar :profession-id="agent.profession_id" :name="agent.name" :agent-id="agent.id" size="lg" />
         <div class="card-name">{{ agent.name }}</div>
         <div class="card-badges">
           <span class="badge profession-badge">{{ agent.profession_id }}</span>
@@ -55,6 +53,35 @@
         </div>
 
         <div class="edit-form">
+          <!-- Avatar Editor -->
+          <div class="avatar-editor">
+            <AgentAvatar
+              :profession-id="editing.profession_id"
+              :name="editing.name"
+              :agent-id="editing.id"
+              :image-url="editing.avatar_url"
+              size="lg"
+            />
+            <div class="avatar-actions">
+              <input
+                ref="avatarInput"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                style="display: none"
+                @change="handleAvatarUpload"
+              />
+              <button class="btn-small" @click="avatarInput?.click()">
+                <Upload :size="12" /> Upload
+              </button>
+              <button class="btn-small" :disabled="generatingAvatar" @click="handleAvatarGenerate">
+                <Sparkles :size="12" /> {{ generatingAvatar ? 'Generating...' : 'Generate' }}
+              </button>
+              <button v-if="editing.avatar_url" class="btn-small btn-danger" @click="handleAvatarRemove">
+                <Trash2 :size="12" /> Remove
+              </button>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label>Name</label>
@@ -135,9 +162,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { Plus, X, Trash2, Users } from 'lucide-vue-next'
+import { ref, onMounted, computed, watch } from 'vue'
+import { Plus, X, Trash2, Users, Upload, Sparkles } from 'lucide-vue-next'
 import { useAgentConfigs, type AgentConfigDto } from '@/composables/useAgentConfigs'
+import AgentAvatar from '@/components/AgentAvatar.vue'
 import { useApiSources, type ApiSource } from '@/composables/useApiSources'
 import { useSouls } from '@/composables/useSouls'
 
@@ -146,13 +174,15 @@ const {
   loadConfigs, createConfig, updateConfig, deleteConfig, resetDefaults,
 } = useAgentConfigs()
 const { sources: apiSources, loadSources } = useApiSources()
-const { loadSouls, getSoulMarkdown } = useSouls()
+const { souls, soulMap, loadSouls, getSoulMarkdown } = useSouls()
 
 const editing = ref<AgentConfigDto | null>(null)
 const editingId = ref<string | null>(null)
 const isNew = ref(false)
 const saving = ref(false)
 const soulMarkdown = ref('')
+const avatarInput = ref<HTMLInputElement | null>(null)
+const generatingAvatar = ref(false)
 
 const professions = [
   { id: 'assistant', name: 'Assistant' },
@@ -163,6 +193,7 @@ const professions = [
   { id: 'tester', name: 'Tester' },
   { id: 'reviewer', name: 'Reviewer' },
   { id: 'documenter', name: 'Documenter' },
+  { id: 'gofer', name: 'Gofer' },
 ]
 
 const tiers = [
@@ -175,6 +206,7 @@ const professionEmoji = (id: string) => {
   const map: Record<string, string> = {
     assistant: '🎯', advisor: '🔍', architect: '🏗️', planner: '📅',
     coder: '💻', tester: '🧪', reviewer: '📝', documenter: '📊',
+    gofer: '🔎',
   }
   return map[id] || '🤖'
 }
@@ -187,6 +219,7 @@ const soulPreviews: Record<string, string> = {
   coder: 'Implements designs following plans and tests.',
   tester: 'Generates and runs tests to verify correctness.',
   reviewer: 'Audits work against goals and quality standards.',
+  gofer: 'Fetches facts and gathers information on request.',
   documenter: 'Compiles reports and generates documentation.',
 }
 
@@ -207,6 +240,13 @@ function startEdit(agent: AgentConfigDto) {
   isNew.value = false
   soulMarkdown.value = getSoulMarkdown(agent.soul_id)
 }
+
+// Re-populate soul markdown when souls load (handles race condition)
+watch([() => editing.value?.soul_id, soulMap], () => {
+  if (editing.value) {
+    soulMarkdown.value = getSoulMarkdown(editing.value.soul_id)
+  }
+}, { immediate: true })
 
 function startCreate() {
   editing.value = {
@@ -249,6 +289,58 @@ async function handleDelete(id: string) {
   await deleteConfig(id)
 }
 
+async function handleAvatarUpload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !editing.value) return
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const resp = await fetch(`/api/forge/config/agents/${editing.value.id}/avatar`, {
+      method: 'POST',
+      body: formData,
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const data = await resp.json()
+    editing.value.avatar_url = data.avatar_url
+    // Also update in the global configs list so the grid updates immediately
+    const idx = configs.value.findIndex(c => c.id === editing.value!.id)
+    if (idx >= 0) configs.value[idx].avatar_url = data.avatar_url
+  } catch (err) {
+    alert('Upload failed: ' + (err instanceof Error ? err.message : String(err)))
+  } finally {
+    input.value = ''
+  }
+}
+
+async function handleAvatarGenerate() {
+  if (!editing.value) return
+  generatingAvatar.value = true
+  try {
+    const resp = await fetch(`/api/forge/config/agents/${editing.value.id}/avatar/generate`, {
+      method: 'POST',
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const data = await resp.json()
+    editing.value.avatar_url = data.avatar_url
+    const idx = configs.value.findIndex(c => c.id === editing.value!.id)
+    if (idx >= 0) configs.value[idx].avatar_url = data.avatar_url
+  } catch (err) {
+    alert('Generation failed: ' + (err instanceof Error ? err.message : String(err)))
+  } finally {
+    generatingAvatar.value = false
+  }
+}
+
+function handleAvatarRemove() {
+  if (!editing.value) return
+  editing.value.avatar_url = undefined
+  const idx = configs.value.findIndex(c => c.id === editing.value!.id)
+  if (idx >= 0) configs.value[idx].avatar_url = undefined
+}
+
 async function handleResetDefaults() {
   if (!confirm('Reset to 8 default agents? Custom agents will be kept.')) return
   await resetDefaults()
@@ -276,7 +368,7 @@ onMounted(() => {
 }
 
 .agents-header h2 {
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 600;
 }
 
@@ -293,14 +385,17 @@ onMounted(() => {
   height: 50%;
   color: var(--af-muted);
   gap: 0.75rem;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 
 /* Grid */
 .agents-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  align-items: stretch;
 }
 
 .agent-card {
@@ -313,6 +408,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  height: 100%;
 }
 
 .agent-card:hover {
@@ -329,27 +425,8 @@ onMounted(() => {
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
 }
 
-.card-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.8rem;
-}
-
-.card-avatar.assistant { background: hsl(25 80% 50% / 0.1); }
-.card-avatar.advisor { background: hsl(280 60% 50% / 0.1); }
-.card-avatar.architect { background: hsl(200 60% 50% / 0.1); }
-.card-avatar.planner { background: hsl(140 60% 40% / 0.1); }
-.card-avatar.coder { background: hsl(340 70% 50% / 0.1); }
-.card-avatar.tester { background: hsl(60 70% 45% / 0.1); }
-.card-avatar.reviewer { background: hsl(170 60% 40% / 0.1); }
-.card-avatar.documenter { background: hsl(220 60% 50% / 0.1); }
-
 .card-name {
-  font-size: 0.95rem;
+  font-size: 1.03rem;
   font-weight: 600;
 }
 
@@ -360,7 +437,7 @@ onMounted(() => {
 }
 
 .badge {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 600;
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
@@ -383,7 +460,7 @@ onMounted(() => {
 }
 
 .card-soul-preview {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: var(--af-muted);
   line-height: 1.4;
 }
@@ -391,7 +468,8 @@ onMounted(() => {
 .card-actions {
   display: flex;
   gap: 0.3rem;
-  margin-top: 0.3rem;
+  margin-top: auto;
+  padding-top: 0.3rem;
 }
 
 /* Edit Panel */
@@ -466,7 +544,7 @@ onMounted(() => {
 }
 
 .form-group label {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 500;
 }
 
@@ -476,7 +554,7 @@ onMounted(() => {
   border-radius: 6px;
   background: var(--af-bg);
   color: var(--af-fg);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -491,7 +569,7 @@ onMounted(() => {
 }
 
 .form-hint {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 
@@ -555,7 +633,7 @@ onMounted(() => {
 .tier-option.active.heavy .tier-bar { background: hsl(280 50% 45%); }
 
 .tier-label {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 500;
 }
 
@@ -567,7 +645,7 @@ onMounted(() => {
 }
 
 .advanced-section summary {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 500;
   cursor: pointer;
   color: var(--af-muted);
@@ -586,7 +664,7 @@ onMounted(() => {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   transition: all 0.15s;
 }
 
@@ -622,5 +700,31 @@ onMounted(() => {
 .btn-small:hover {
   background: hsl(var(--muted-foreground) / 0.06);
   color: var(--af-fg);
+}
+
+.btn-small.btn-danger {
+  color: hsl(var(--af-error));
+  border-color: hsl(var(--af-error) / 0.3);
+}
+
+.btn-small.btn-danger:hover {
+  background: hsl(var(--af-error) / 0.08);
+}
+
+/* Avatar Editor */
+.avatar-editor {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: hsl(var(--muted-foreground) / 0.04);
+  border: 1px solid var(--af-border);
+  border-radius: 10px;
+}
+
+.avatar-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
 </style>

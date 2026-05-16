@@ -12,7 +12,7 @@ use crate::relay::store::{
     RunState, RunStore, RunSummary,
 };
 use crate::relay::config::{self, AgentConfig, ApiSource, ConnectionTestResult};
-use axum::extract::Path;
+use axum::extract::{Multipart, Path};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, Sse};
 use axum::routing::{get, post, put};
@@ -133,12 +133,13 @@ pub async fn list_souls() -> Json<SoulsResponse> {
         SoulDto { id: "tester".into(), name: "Quinn".into(), markdown: include_str!("souls/tester.md").into() },
         SoulDto { id: "reviewer".into(), name: "Marcus".into(), markdown: include_str!("souls/reviewer.md").into() },
         SoulDto { id: "documenter".into(), name: "Luna".into(), markdown: include_str!("souls/documenter.md").into() },
+        SoulDto { id: "gofer".into(), name: "Gus".into(), markdown: include_str!("souls/gofer.md").into() },
     ];
     Json(SoulsResponse { souls })
 }
 
 pub async fn get_soul(Path(id): Path<String>) -> Result<Json<SoulDto>, StatusCode> {
-    let map: [(&str, &str, &str); 8] = [
+    let map: [(&str, &str, &str); 9] = [
         ("assistant", "Nicole", include_str!("souls/assistant.md")),
         ("advisor", "Isaac", include_str!("souls/advisor.md")),
         ("planner", "Felix", include_str!("souls/planner.md")),
@@ -147,6 +148,7 @@ pub async fn get_soul(Path(id): Path<String>) -> Result<Json<SoulDto>, StatusCod
         ("tester", "Quinn", include_str!("souls/tester.md")),
         ("reviewer", "Marcus", include_str!("souls/reviewer.md")),
         ("documenter", "Luna", include_str!("souls/documenter.md")),
+        ("gofer", "Gus", include_str!("souls/gofer.md")),
     ];
     let (name, markdown) = map.iter()
         .find(|(sid, _, _)| *sid == id)
@@ -537,6 +539,149 @@ pub async fn reset_agent_defaults() -> Json<Vec<AgentConfig>> {
     Json(defaults)
 }
 
+#[derive(serde::Serialize)]
+pub struct AvatarUrlResponse {
+    pub avatar_url: String,
+}
+
+/// Upload an avatar image for an agent.
+pub async fn upload_agent_avatar(
+    Path(id): Path<String>,
+    mut multipart: Multipart,
+) -> Result<Json<AvatarUrlResponse>, StatusCode> {
+    let field = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    let ext = field
+        .file_name()
+        .and_then(|n| {
+            let n = n.to_lowercase();
+            if n.ends_with(".png") {
+                Some("png")
+            } else if n.ends_with(".jpg") || n.ends_with(".jpeg") {
+                Some("jpg")
+            } else if n.ends_with(".gif") {
+                Some("gif")
+            } else if n.ends_with(".webp") {
+                Some("webp")
+            } else {
+                Some("png")
+            }
+        })
+        .unwrap_or("png");
+
+    let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+    if data.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let dir = config::avatars_dir();
+    std::fs::create_dir_all(&dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let filename = format!("{}.{}", id, ext);
+    let path = dir.join(&filename);
+    std::fs::write(&path, &data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let avatar_url = format!("/avatars/{}?v={}", filename, ts);
+
+    // Update config
+    {
+        let mut configs = AGENT_CONFIGS.lock().unwrap();
+        if let Some(idx) = configs.iter().position(|c| c.id == id) {
+            configs[idx].avatar_url = Some(avatar_url.clone());
+            let _ = config::save_agent_configs(&configs);
+        }
+    }
+
+    Ok(Json(AvatarUrlResponse { avatar_url }))
+}
+
+/// Generate an avatar image using Pollinations.ai.
+pub async fn generate_agent_avatar(
+    Path(id): Path<String>,
+) -> Result<Json<AvatarUrlResponse>, StatusCode> {
+    let (name, profession_id) = {
+        let configs = AGENT_CONFIGS.lock().unwrap();
+        let cfg = configs.iter().find(|c| c.id == id).ok_or(StatusCode::NOT_FOUND)?;
+        (cfg.name.clone(), cfg.profession_id.clone())
+    };
+
+    let prompt = format!(
+        "A professional friendly avatar portrait of a {} named {}, minimalist flat illustration style, solid pastel background, clean vector look, centered face, warm expression, no text, no watermark",
+        profession_id, name
+    );
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as u32;
+    let url = format!(
+        "https://image.pollinations.ai/prompt/{}?width=512&height=512&seed={}&nologo=true&negative=blurry,ugly,deformed,text,watermark,logo",
+        urlencoding::encode(&prompt),
+        seed
+    );
+
+    let client = reqwest::Client::new();
+    let mut last_err = String::new();
+    let resp = {
+        let mut response = None;
+        for attempt in 1..=3 {
+            match client
+                .get(&url)
+                .header("User-Agent", "auto-forge/0.1")
+                .timeout(std::time::Duration::from_secs(60))
+                .send()
+                .await
+            {
+                Ok(r) if r.status().is_success() => {
+                    response = Some(r);
+                    break;
+                }
+                Ok(r) => {
+                    last_err = format!("HTTP {}", r.status());
+                    tracing::warn!("Avatar gen attempt {} failed: HTTP {}", attempt, r.status());
+                }
+                Err(e) => {
+                    last_err = e.to_string();
+                    tracing::warn!("Avatar gen attempt {} failed: {}", attempt, e);
+                }
+            }
+            if attempt < 3 {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+        }
+        response.ok_or_else(|| {
+            tracing::error!("Failed to generate avatar after 3 attempts: {}", last_err);
+            StatusCode::BAD_GATEWAY
+        })?
+    };
+
+    let data = resp.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+
+    let dir = config::avatars_dir();
+    std::fs::create_dir_all(&dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let filename = format!("{}.png", id);
+    let path = dir.join(&filename);
+    std::fs::write(&path, &data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let avatar_url = format!("/avatars/{}?v={}", filename, seed);
+
+    {
+        let mut configs = AGENT_CONFIGS.lock().unwrap();
+        if let Some(idx) = configs.iter().position(|c| c.id == id) {
+            configs[idx].avatar_url = Some(avatar_url.clone());
+            let _ = config::save_agent_configs(&configs);
+        }
+    }
+
+    Ok(Json(AvatarUrlResponse { avatar_url }))
+}
+
 // -------------------------------------------------------------------------
 // Router
 // -------------------------------------------------------------------------
@@ -566,4 +711,6 @@ where
         .route("/api/forge/config/agents", get(list_agent_configs).post(create_agent_config))
         .route("/api/forge/config/agents/{id}", put(update_agent_config).delete(delete_agent_config))
         .route("/api/forge/config/agents/reset-defaults", post(reset_agent_defaults))
+        .route("/api/forge/config/agents/{id}/avatar", post(upload_agent_avatar))
+        .route("/api/forge/config/agents/{id}/avatar/generate", post(generate_agent_avatar))
 }

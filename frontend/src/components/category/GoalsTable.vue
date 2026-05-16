@@ -108,12 +108,12 @@ function toggle(id: string) {
 .goals-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 .goals-table th {
   text-align: left;
   padding: 0.6rem 0.75rem;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -135,7 +135,7 @@ function toggle(id: string) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
   color: var(--af-muted);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 .col-goal {
   color: var(--af-fg);
@@ -144,7 +144,7 @@ function toggle(id: string) {
 .priority-badge {
   display: inline-flex;
   padding: 0.1rem 0.4rem;
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 700;
   border-radius: 4px;
   background: hsl(var(--muted-foreground) / 0.08);
@@ -165,7 +165,7 @@ function toggle(id: string) {
 .children-count {
   display: inline-flex;
   padding: 0.1rem 0.4rem;
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 600;
   border-radius: 999px;
   background: hsl(var(--primary) / 0.08);
@@ -173,7 +173,7 @@ function toggle(id: string) {
 }
 .children-empty {
   color: var(--af-muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 .detail-row td {
   padding: 0.75rem;
@@ -187,14 +187,14 @@ function toggle(id: string) {
   gap: 0.4rem;
   padding: 2.5rem 1rem;
   color: var(--af-muted);
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 .empty-state svg {
   color: hsl(var(--muted-foreground) / 0.3);
   margin-bottom: 0.3rem;
 }
 .empty-hint {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: hsl(var(--muted-foreground) / 0.6);
 }
 </style>

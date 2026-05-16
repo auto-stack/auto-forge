@@ -8,7 +8,7 @@
     tabindex="0"
   >
     <div class="secretary-header">
-      <span class="secretary-icon">📋</span>
+      <AgentAvatar :profession-id="gate.profession" size="md" />
       <div class="secretary-info">
         <div class="secretary-title">{{ gate.title }}</div>
         <div class="secretary-meta">
@@ -53,6 +53,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Check, X, Clock, Eye } from 'lucide-vue-next'
+import AgentAvatar from './AgentAvatar.vue'
 import type { PendingGate } from '@/composables/useGateInbox'
 
 interface Props {
@@ -113,19 +114,13 @@ function formatElapsed(since: number): string {
   gap: 0.5rem;
 }
 
-.secretary-icon {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-  margin-top: 0.1rem;
-}
-
 .secretary-info {
   flex: 1;
   min-width: 0;
 }
 
 .secretary-title {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 500;
   color: var(--af-fg);
   line-height: 1.3;
@@ -139,7 +134,7 @@ function formatElapsed(since: number): string {
 }
 
 .secretary-profession {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   background: hsl(var(--primary) / 0.1);
@@ -148,7 +143,7 @@ function formatElapsed(since: number): string {
 }
 
 .secretary-waiting {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
 }
 
@@ -185,7 +180,7 @@ function formatElapsed(since: number): string {
   padding: 0.3rem 0.6rem;
   border: none;
   border-radius: 5px;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -216,7 +211,7 @@ function formatElapsed(since: number): string {
 }
 
 .secretary-queue {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
   padding-top: 0.2rem;
 }

@@ -650,3 +650,38 @@
 | P18.13 | Implement SpecRef block with `[[G1]]` syntax | UI | 1 day | P18.9 | Draft |
 | P18.14 | Add CodeBlock with language selector and ImageBlock with resize | UI | 1 day | P18.10-P18.13 | Draft |
 | P18.15 | Write AutoDown extension parse/serialize tests | UI | 1 day | P18.14 | Draft |
+
+---
+
+## P19 Gofer Errand Profession — Dispatch Tool & Isolated Side-Sessions
+**Status:** done
+**Depends on:** G22, A12, D28
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| P19.1 | Add `ForgePhase::Errand` variant and `Profession::dispatchable_to` field | Core | 0.5 day | — | Done |
+| P19.2 | Register `gofer` profession in `profession.rs` with Errand phase, minimal tools, no handoff_to | Core | 0.5 day | P19.1 | Done |
+| P19.3 | Add `dispatch` tool to `ToolRegistry` with JSON schema and validation | Core | 1 day | P19.2 | Done |
+| P19.4 | Create `gofer.md` soul file: ultra-minimal prompt, fact-only, no opinions | Core | 0.5 day | P19.2 | Done |
+| P19.5 | Implement `ErrandSession` struct with isolated message history and run loop | Core | 2 days | P19.3 | Done |
+| P19.6 | Add `errand_sessions: Vec<ErrandSession>` to `ForgeSession` | Core | 0.5 day | P19.5 | Done |
+| P19.7 | Implement `ErrandSession::run()` — mini ReAct loop with cheap model provider | Core | 2 days | P19.5 | Done |
+| P19.8 | Implement `ErrandSession::save()` and `::load()` persistence to `errands/` subdir | Core | 1 day | P19.5 | Done |
+| P19.9 | Add `dispatch` to `allowed_tools` for all relay professions (assistant through tester) | Core | 0.5 day | P19.3 | Done |
+| P19.10 | Add `dispatchable_to: ["gofer"]` to all relay professions | Core | 0.5 day | P19.1 | Done |
+| P19.11 | Extend SSE event enum: ErrandStart, ErrandTurnStart, ErrandText, ErrandToolCall, ErrandToolResult, ErrandComplete | Core | 1 day | P19.5 | Done |
+| P19.12 | Backend: route errand SSE events through master session's event_tx | Core | 1 day | P19.11 | Done |
+| P19.13 | Frontend: ErrandThread component — collapsible nested card with tool call history | UI | 2 days | P19.11 | Done |
+| P19.14 | Frontend: handle errand SSE events, append to errand thread instead of main message list | UI | 1 day | P19.13 | Done |
+| P19.15 | Frontend: show errand cost badge (token usage) separate from master session | UI | 1 day | P19.13 | Done |
+| P19.16 | Frontend: "Expand all errand threads" / "Collapse all" toggle in chat header | UI | 0.5 day | P19.13 | Done |
+| P19.17 | API endpoint: GET /api/forge/sessions/{sid}/errands for listing errand history | Core | 0.5 day | P19.8 | Done |
+| P19.18 | API endpoint: GET /api/forge/sessions/{sid}/errands/{eid} for full errand log | Core | 0.5 day | P19.8 | Done |
+| P19.19 | Integration tests: dispatch tool validation, errand isolation, result return, persistence | Core | 1 day | P19.7, P19.8 | Done |
+| P19.20 | Integration tests: SSE errand events, frontend rendering, cost tracking | Core | 1 day | P19.12, P19.14 | Done |
+| P19.21 | Dogfooding: use dispatch in advisor/architect souls for codebase research tasks | Core | 0.5 day | P19.4 | Done |
+
+- **Risk:** Errand runs on cheap model and returns low-quality results. **Mitigation:** Default to mid-tier model for first release; add `model_tier` parameter to dispatch later.
+- **Risk:** Errand gets stuck in infinite loop. **Mitigation:** Hard `max_turns` cap (5 default, 10 max) with automatic truncation.
+- **Risk:** Master dispatches too many errands, causing queue backlog. **Mitigation:** Max 3 concurrent errands per session; excess enqueue and return "busy" status.
+- **Risk:** Errand SSE events interfere with master stream parsing. **Mitigation:** Errand events include `errand_id` field; frontend filters by parent message ID.

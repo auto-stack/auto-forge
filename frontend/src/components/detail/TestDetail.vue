@@ -129,7 +129,7 @@ function extractSteps(content: string): string[] {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.5rem;
-  font-size: 0.72rem;
+  font-size: 0rem;
   font-weight: 600;
   border-radius: 6px;
   border: 1px solid var(--af-border);
@@ -153,7 +153,7 @@ function extractSteps(content: string): string[] {
 }
 
 .block-label {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -172,7 +172,7 @@ function extractSteps(content: string): string[] {
   padding: 0.6rem 0.75rem;
   background: hsl(var(--muted-foreground) / 0.04);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   line-height: 1.5;
   color: var(--af-fg);
   overflow-x: auto;
@@ -194,7 +194,7 @@ function extractSteps(content: string): string[] {
 }
 
 .steps-list li {
-  font-size: 0.82rem;
+  font-size: 0rem;
   color: var(--af-fg);
   line-height: 1.5;
   padding-left: 0.3rem;
@@ -213,7 +213,7 @@ function extractSteps(content: string): string[] {
 }
 
 .expected-body {
-  font-size: 0.82rem;
+  font-size: 0rem;
   color: var(--af-fg);
   line-height: 1.5;
   white-space: pre-wrap;

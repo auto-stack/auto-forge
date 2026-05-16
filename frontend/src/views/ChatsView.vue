@@ -79,6 +79,15 @@
           </div>
         </div>
         <div class="header-actions">
+          <button
+            v-if="Object.keys(errands).length > 0"
+            class="errand-toggle-btn"
+            :title="allErrandsExpanded ? 'Collapse all errands' : 'Expand all errands'"
+            @click="toggleAllErrands"
+          >
+            <span class="errand-toggle-label">{{ allErrandsExpanded ? 'Collapse' : 'Expand' }}</span>
+            <span class="errand-toggle-badge">{{ Object.keys(errands).length }}</span>
+          </button>
           <span class="session-badge phase" :class="sessionPhase">
             {{ sessionPhase }}
           </span>
@@ -117,6 +126,12 @@
             :class="msg.role"
           >
             <div class="message-header">
+              <AgentAvatar
+                v-if="msg.role === 'assistant' && msg.profession_id"
+                :profession-id="msg.profession_id"
+                :name="agentConfigs.find(c => c.profession_id === msg.profession_id)?.name"
+                size="sm"
+              />
               <span class="role-badge" :class="msg.role">
                 {{ msg.role === 'system' ? assistantName
                    : msg.role === 'assistant' && msg.profession_id
@@ -126,9 +141,12 @@
               <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
             </div>
             <div class="message-content" :class="{ 'has-border': msg.role === 'assistant' && msg.content.length > 200 }">
+              <span v-if="msg.role === 'assistant' && msg.content === '' && isStreamingMessage(msg)" class="typing-dots">
+                <span></span><span></span><span></span>
+              </span>
               <StreamingRenderer
-                v-if="msg.role === 'assistant'"
-                :source="msg.content"
+                v-else-if="msg.role === 'assistant'"
+                :source="questionnaireFor(msg)?.strippedContent ?? msg.content"
                 :streaming="isStreamingMessage(msg)"
               />
               <div v-else-if="msg.role === 'system'" class="system-welcome">
@@ -137,6 +155,11 @@
               </div>
               <div v-else-if="msg.content" class="user-text" v-html="renderMentions(msg.content)"></div>
             </div>
+            <QuestionnaireCard
+              v-if="msg.role === 'assistant' && questionnaireFor(msg)?.questions"
+              :questions="questionnaireFor(msg)!.questions"
+              @submit="(answers: AnswersMap) => onQuestionnaireSubmit(answers, msg)"
+            />
             <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="tool-calls">
               <template v-for="tc in msg.tool_calls" :key="tc.id">
                 <!-- Handoff card for bring_in -->
@@ -146,7 +169,7 @@
                     <span class="handoff-arrow">→</span>
                     <span class="handoff-agent target">{{ getHandoffTarget(tc) }}</span>
                   </div>
-                  <div v-if="tc.arguments?.reason" class="handoff-reason">{{ tc.arguments.reason }}</div>
+                  <div class="handoff-reason">{{ handoffReason(tc) }}</div>
                   <span v-if="tc.arguments?.classification" class="handoff-badge">{{ tc.arguments.classification }}</span>
                 </div>
                 <!-- Shell card -->
@@ -159,6 +182,43 @@
                   <pre v-if="tc.result && tc._expanded" class="shell-output">{{ tc.result }}</pre>
                   <button v-if="tc.result && !tc._expanded" class="shell-toggle" @click="tc._expanded = true">show output</button>
                   <button v-if="tc.result && tc._expanded" class="shell-toggle" @click="tc._expanded = false">hide</button>
+                </div>
+                <!-- Dispatch / Errand card -->
+                <div v-else-if="tc.name === 'dispatch'" class="errand-card" :class="tc.status">
+                  <div class="errand-header" @click="tc._expanded = !tc._expanded">
+                    <span class="errand-icon">🔍</span>
+                    <span class="errand-name">Errand: {{ getErrandTask(tc) }}</span>
+                    <span class="errand-status" :class="getErrandStatus(tc)?.status || 'running'">
+                      {{ getErrandStatus(tc)?.status || 'running' }}
+                    </span>
+                    <span v-if="getErrandStatus(tc)?.token_usage" class="errand-cost">
+                      {{ getErrandStatus(tc)?.token_usage }} tok
+                    </span>
+                    <ChevronDown v-if="!tc._expanded" :size="14" class="tool-chevron" />
+                    <ChevronUp v-else :size="14" class="tool-chevron" />
+                  </div>
+                  <div v-if="tc._expanded" class="errand-body">
+                    <div class="errand-task">{{ getErrandTask(tc) }}</div>
+                    <!-- Live errand content -->
+                    <div v-if="getErrandContent(tc)" class="errand-content">
+                      <StreamingRenderer :source="getErrandContent(tc)" :streaming="getErrandStatus(tc)?.status === 'running'" />
+                    </div>
+                    <!-- Errand tool calls -->
+                    <div v-if="getErrandToolCalls(tc).length > 0" class="errand-tool-calls">
+                      <div v-for="(etc, i) in getErrandToolCalls(tc)" :key="i" class="errand-sub-tool">
+                        <div class="errand-sub-tool-header">
+                          <span class="errand-sub-tool-name">{{ etc.name }}</span>
+                          <span class="errand-sub-tool-status" :class="etc.status">{{ etc.status }}</span>
+                        </div>
+                        <pre v-if="etc.result" class="errand-sub-tool-result">{{ etc.result }}</pre>
+                      </div>
+                    </div>
+                    <!-- Final result -->
+                    <div v-if="getErrandStatus(tc)?.result && getErrandStatus(tc)?.status !== 'running'" class="errand-result">
+                      <div class="errand-result-label">Result</div>
+                      <pre class="errand-result-text">{{ getErrandStatus(tc)?.result }}</pre>
+                    </div>
+                  </div>
                 </div>
                 <!-- Generic tool card -->
                 <div v-else
@@ -202,6 +262,7 @@
           </div>
           <div v-if="isLoading && !hasPendingAssistant" class="message assistant pending">
             <div class="message-header">
+              <AgentAvatar profession-id="assistant" :name="assistantName" size="sm" />
               <span class="role-badge assistant">{{ assistantName }}</span>
             </div>
             <div class="message-content">
@@ -257,23 +318,7 @@
             :anchor-rect="mentionAnchor"
             @select="handleMentionSelect"
           />
-          <div class="input-extras">
-            <div class="model-select-wrap">
-              <Cpu :size="12" />
-              <select v-model="selectedModel" class="model-select" title="Model">
-                <option v-for="m in modelOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-              </select>
-            </div>
-            <button
-              class="thinking-toggle"
-              :class="{ active: thinkingMode }"
-              @click="thinkingMode = !thinkingMode"
-              title="Toggle thinking mode"
-            >
-              <Lightbulb :size="12" />
-              <span>Thinking</span>
-            </button>
-          </div>
+
         </div>
       </div>
     </div>
@@ -284,7 +329,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import {
   Send, ChevronDown, ChevronUp, Plus, PanelLeft,
-  Check, X, Clipboard, RefreshCw, Lightbulb, Cpu, Search, Trash2, Pencil,
+  Check, X, Clipboard, RefreshCw, Search, Trash2, Pencil,
 } from 'lucide-vue-next'
 import { useForge } from '@/composables/useForge'
 import { useGateInbox } from '@/composables/useGateInbox'
@@ -293,10 +338,15 @@ import { useAgentConfigs } from '@/composables/useAgentConfigs'
 import { setEventCallbacks } from '@/composables/useEventRouter'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
 import MentionDropdown from '@/components/MentionDropdown.vue'
+import AgentAvatar from '@/components/AgentAvatar.vue'
 import GateCard from '@/components/GateCard.vue'
 import SecretaryMessage from '@/components/SecretaryMessage.vue'
 import ReportCard from '@/components/ReportCard.vue'
+import QuestionnaireCard from '@/components/QuestionnaireCard.vue'
 import type { ReportData } from '@/components/ReportCard.vue'
+import type { Question } from '@/components/QuestionnaireCard.vue'
+
+type AnswersMap = Record<string, string | string[]>
 
 const {
   session,
@@ -319,6 +369,7 @@ const {
   rejectSpec,
   renameSession,
   deleteSession,
+  errands,
 } = useForge()
 
 const { projectPath } = useProject()
@@ -350,6 +401,44 @@ function professionDisplayName(professionId: string): string {
 function getHandoffTarget(tc: { arguments?: Record<string, unknown> }): string {
   const target = (tc.arguments?.target as string) || ''
   return professionDisplayName(target)
+}
+
+function handoffReason(tc: { arguments?: Record<string, unknown>; result?: string }): string {
+  // Prefer arguments reason, fall back to parsed result JSON reason
+  const argReason = (tc.arguments?.reason as string) || ''
+  if (argReason.trim()) return argReason
+  try {
+    const result = JSON.parse(tc.result || '{}')
+    return (result.reason as string) || 'Handed off to continue the conversation.'
+  } catch {
+    return tc.result || 'Handed off to continue the conversation.'
+  }
+}
+
+// ─── Errand helpers ─────────────────────────────────────────────────────────
+
+function getErrandByToolCallId(toolCallId: string) {
+  return Object.values(errands.value).find((e) => e.tool_call_id === toolCallId) || null
+}
+
+function getErrandTask(tc: { arguments?: Record<string, unknown> }): string {
+  return (tc.arguments?.task as string) || 'Research task'
+}
+
+function getErrandState(tc: { id: string }) {
+  return getErrandByToolCallId(tc.id)
+}
+
+function getErrandContent(tc: { id: string }): string {
+  return getErrandState(tc)?.content || ''
+}
+
+function getErrandStatus(tc: { id: string }) {
+  return getErrandState(tc)
+}
+
+function getErrandToolCalls(tc: { id: string }) {
+  return getErrandState(tc)?.tool_calls || []
 }
 
 /** Build a set of known agent names (lowercased) for mention detection */
@@ -455,6 +544,18 @@ const expandedDiffs = ref<Set<string>>(new Set())
 const editedSpecs = ref<Record<string, string>>({})
 const chatSearch = ref('')
 const thinkingMode = ref(false)
+const allErrandsExpanded = ref(false)
+
+function toggleAllErrands() {
+  allErrandsExpanded.value = !allErrandsExpanded.value
+  // Update all errand cards
+  for (const key in errands.value) {
+    const e = errands.value[key]
+    if (e) {
+      ;(e as any)._expanded = allErrandsExpanded.value
+    }
+  }
+}
 
 const projectName = computed(() => {
   const path = session.value?.project_path
@@ -463,7 +564,6 @@ const projectName = computed(() => {
   const parts = path.replace(/\\/g, '/').split('/').filter(Boolean)
   return parts.length > 0 ? parts[parts.length - 1] : null
 })
-const selectedModel = ref('glm-5')
 const textareaRef = ref<HTMLTextAreaElement>()
 
 const filteredMessages = computed(() => {
@@ -474,13 +574,6 @@ const filteredMessages = computed(() => {
     m.role.toLowerCase().includes(q)
   )
 })
-const modelOptions = [
-  { value: 'glm-5', label: 'GLM-5' },
-  { value: 'glm-5.1', label: 'GLM-5.1' },
-  { value: 'glm-5-turbo', label: 'GLM-5 Turbo' },
-  { value: 'glm-4.7', label: 'GLM-4.7' },
-]
-
 function toggleDiff(sectionId: string) {
   if (expandedDiffs.value.has(sectionId)) {
     expandedDiffs.value.delete(sectionId)
@@ -522,6 +615,239 @@ const lastAssistantMessage = computed(() => {
 
 function isStreamingMessage(msg: typeof messages.value[number]): boolean {
   return isLoading.value && msg === lastAssistantMessage.value
+}
+
+/** Parse questionnaire JSON from a message, returning questions + stripped content */
+function questionnaireFor(msg: typeof messages.value[number]): { questions: Question[]; strippedContent: string } | undefined {
+  if (msg.role !== 'assistant') return undefined
+
+  // 1. Try structured JSON block first
+  const blockRegex = /```json\s*\n([\s\S]*?)\n\s*```/g
+  let match: RegExpExecArray | null
+  while ((match = blockRegex.exec(msg.content)) !== null) {
+    try {
+      const json = JSON.parse(match[1].trim())
+      if (json.type === 'questionnaire' && Array.isArray(json.questions) && json.questions.length > 0) {
+        const stripped = msg.content.replace(match[0], '').trim()
+        return { questions: json.questions, strippedContent: stripped }
+      }
+    } catch { /* ignore invalid JSON */ }
+  }
+
+  // 2. Fallback: detect free-text questions with optional sub-bullet options
+  const lines = msg.content.split('\n')
+  const questions: Question[] = []
+  let consumedLines: number[] = []
+
+  function isBullet(line: string): boolean {
+    return /^\s*(?:[-*•])\s+/.test(line)
+  }
+
+  function isNumbered(line: string): boolean {
+    return /^\s*\d+\.\s+/.test(line)
+  }
+
+  function stripNumbering(text: string): string {
+    return text.replace(/^\s*\d+\.\s+/, '').trim()
+  }
+
+  function stripMarkdown(text: string): string {
+    return text.replace(/\*\*/g, '').trim()
+  }
+
+  // Pass 1: scan for parent questions (numbered or standalone lines ending with ?)
+  // followed by child bullet options
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i].trim()
+
+    if (!line || line.startsWith('```') || consumedLines.includes(i)) {
+      i++
+      continue
+    }
+
+    // A parent question:
+    // - Numbered items: contains ? anywhere (lenient — numbered lists are usually questions)
+    // - Non-numbered: must end with ?
+    // - Must not be a bullet itself
+    // - Must have reasonable length
+    const isNumberedQuestion = isNumbered(line) && line.includes('?') && line.length > 10
+    const isStandaloneQuestion = !isNumbered(line) && !isBullet(line) && line.endsWith('?') && line.length > 15
+    const isParentCandidate = isNumberedQuestion || isStandaloneQuestion
+
+    if (isParentCandidate) {
+      // Look ahead for child bullet options
+      const childOptions: string[] = []
+      let j = i + 1
+      while (j < lines.length) {
+        const nextLine = lines[j]
+        if (isBullet(nextLine)) {
+          const optText = stripMarkdown(nextLine.replace(/^\s*(?:[-*•])\s+/, '').trim())
+          if (optText) childOptions.push(optText)
+          j++
+        } else if (nextLine.trim() === '') {
+          j++
+        } else {
+          break
+        }
+      }
+
+      const parentText = stripMarkdown(stripNumbering(line))
+
+      if (childOptions.length >= 2) {
+        questions.push({
+          id: `q${questions.length + 1}`,
+          text: parentText,
+          type: 'multiple',
+          options: childOptions,
+          otherLabel: 'Other:',
+          otherPlaceholder: 'Type additional details...',
+        })
+        consumedLines.push(i)
+        for (let k = i + 1; k < j; k++) consumedLines.push(k)
+        i = j
+        continue
+      } else if (childOptions.length === 1) {
+        questions.push({
+          id: `q${questions.length + 1}`,
+          text: parentText,
+          type: 'single',
+          options: [childOptions[0]],
+          otherLabel: 'Other:',
+          otherPlaceholder: 'Type additional details...',
+        })
+        consumedLines.push(i)
+        for (let k = i + 1; k < j; k++) consumedLines.push(k)
+        i = j
+        continue
+      } else {
+        questions.push({ id: `q${questions.length + 1}`, text: parentText, type: 'text', placeholder: 'Type your answer...' })
+        consumedLines.push(i)
+        i++
+        continue
+      }
+    }
+
+    i++
+  }
+
+  // Pass 2: detect inline options after colon (comma or "or" separated)
+  for (let i = 0; i < lines.length; i++) {
+    if (consumedLines.includes(i)) continue
+    const line = lines[i].trim()
+    if (!line.endsWith('?') || line.startsWith('```') || line.length <= 15) continue
+
+    // Pattern: "Label: opt1, opt2, or opt3?" or "Label — opt1 / opt2 / opt3?"
+    const colonMatch = line.match(/^(.+?)[:：\u2014\u2013\u2015-]\s*(.+)\?\s*$/)
+    if (colonMatch) {
+      const label = stripMarkdown(colonMatch[1]).trim()
+      const optionsText = colonMatch[2]
+      // Split by comma, slash, or " or "
+      const opts = optionsText
+        .split(/[,，、/\/]|\s+or\s+/)
+        .map(s => stripMarkdown(s).trim())
+        .filter(s => s.length > 0 && s.toLowerCase() !== 'etc')
+      if (opts.length >= 2) {
+        questions.push({
+          id: `q${questions.length + 1}`,
+          text: label,
+          type: 'single',
+          options: opts,
+          otherLabel: 'Other:',
+          otherPlaceholder: 'Type additional details...',
+        })
+        consumedLines.push(i)
+      }
+    }
+  }
+
+  // Pass 3: detect markdown tables that act as questionnaires (rows with ? placeholders)
+  if (questions.length === 0) {
+    // Scan for markdown table blocks
+    let tableStart = -1
+    let tableEnd = -1
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim().startsWith('|') && lines[i].includes('|', lines[i].indexOf('|') + 1)) {
+        if (tableStart === -1) tableStart = i
+        tableEnd = i
+      } else if (tableStart !== -1 && lines[i].trim() === '') {
+        // empty line ends table
+        break
+      }
+    }
+
+    if (tableStart !== -1 && tableEnd > tableStart + 1) {
+      const tableLines = lines.slice(tableStart, tableEnd + 1)
+      // Skip separator line (contains ---)
+      const dataRows = tableLines.filter(l => !l.includes('---') && !l.includes(':--'))
+      if (dataRows.length >= 2) {
+        const headerCells = dataRows[0].split('|').map(c => c.trim()).filter(Boolean)
+        const hasPriorityHeader = headerCells.some(h => /priority|priority/i.test(h))
+        const rows = dataRows.slice(1)
+        const hasPlaceholders = rows.some(r => r.includes('?') || r.includes('???'))
+
+        if (hasPriorityHeader || hasPlaceholders) {
+          // Try to extract priority options from preceding text
+          const precedingText = lines.slice(0, tableStart).join('\n')
+          const p0Match = precedingText.match(/P0\s*\(([^)]+)\)/)
+          const p1Match = precedingText.match(/P1\s*\(([^)]+)\)/)
+          const p2Match = precedingText.match(/P2\s*\(([^)]+)\)/)
+          let priorityOptions = ['P0 (Critical)', 'P1 (Important)', 'P2 (Nice-to-have)']
+          if (p0Match && p1Match && p2Match) {
+            priorityOptions = [`P0 (${p0Match[1]})`, `P1 (${p1Match[1]})`, `P2 (${p2Match[1]})`]
+          }
+
+          for (const row of rows) {
+            const cells = row.split('|').map(c => c.trim()).filter(Boolean)
+            if (cells.length >= 2) {
+              const featureName = cells[0].replace(/\*\*/g, '').trim()
+              if (featureName && !featureName.toLowerCase().includes('other')) {
+                questions.push({
+                  id: `q${questions.length + 1}`,
+                  text: `Priority for "${featureName}"`,
+                  type: 'single',
+                  options: priorityOptions,
+                })
+              }
+            }
+          }
+          consumedLines = Array.from({ length: tableEnd - tableStart + 1 }, (_, i) => tableStart + i)
+        }
+      }
+    }
+  }
+
+  if (questions.length >= 2) {
+    const remaining = lines.filter((_, idx) => !consumedLines.includes(idx)).join('\n').trim()
+    return { questions, strippedContent: remaining }
+  }
+
+  return undefined
+}
+
+/** Handle questionnaire submission: send compact numbered answers */
+async function onQuestionnaireSubmit(answers: Record<string, string | string[]>, msg: typeof messages.value[number]) {
+  const q = questionnaireFor(msg)
+  if (!q) return
+  const parts: string[] = []
+  for (let idx = 0; idx < q.questions.length; idx++) {
+    const question = q.questions[idx]
+    const answer = answers[question.id]
+    const other = answers[`${question.id}__other`] as string | undefined
+    const qNum = `Q${idx + 1}`
+    if (Array.isArray(answer) && answer.length > 0) {
+      const ans = answer.join(', ') + (other ? `, Other: ${other}` : '')
+      parts.push(`${qNum}: ${ans}`)
+    } else if (answer && (answer as string).trim() !== '') {
+      parts.push(`${qNum}: ${answer}${other ? `, Other: ${other}` : ''}`)
+    } else if (other) {
+      parts.push(`${qNum}: Other: ${other}`)
+    }
+  }
+  if (parts.length === 0) return
+  const text = parts.join('; ')
+  inputText.value = text
+  await sendMessage()
 }
 
 function formatTime(ts: number): string {
@@ -729,7 +1055,7 @@ onMounted(async () => {
 }
 
 .sidebar-title {
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   font-weight: 500;
   color: var(--af-muted);
   text-transform: uppercase;
@@ -788,7 +1114,7 @@ onMounted(async () => {
 }
 
 .session-preview {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-fg);
   line-height: 1.4;
   overflow: hidden;
@@ -843,7 +1169,7 @@ onMounted(async () => {
 
 .session-rename-input {
   width: 100%;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-fg);
   background: hsl(var(--muted-foreground) / 0.06);
   border: 1px solid hsl(var(--primary) / 0.35);
@@ -855,13 +1181,13 @@ onMounted(async () => {
 }
 
 .session-count {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   color: var(--af-muted);
 }
 
 .session-status,
 .session-phase {
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 500;
   color: var(--af-muted);
 }
@@ -878,7 +1204,7 @@ onMounted(async () => {
 .session-phase.verification { color: hsl(var(--af-accent)); }
 
 .session-empty {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-muted);
   text-align: center;
   padding: 1rem 0;
@@ -912,7 +1238,7 @@ onMounted(async () => {
 }
 
 .chats-header h2 {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   color: var(--af-muted);
   text-transform: uppercase;
@@ -931,7 +1257,7 @@ onMounted(async () => {
 }
 
 .header-project {
-  font-size: 0.7rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--af-primary);
   line-height: 1;
@@ -961,14 +1287,14 @@ onMounted(async () => {
   border: none;
   outline: none;
   color: var(--af-fg);
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-family: inherit;
   min-width: 0;
 }
 
 .search-input::placeholder {
   color: var(--af-muted);
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .header-actions {
@@ -978,7 +1304,7 @@ onMounted(async () => {
 }
 
 .session-badge {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--af-muted);
 }
@@ -1036,7 +1362,7 @@ onMounted(async () => {
 }
 
 .role-badge {
-  font-size: 0.7rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--af-muted);
 }
@@ -1062,12 +1388,12 @@ onMounted(async () => {
 }
 
 .msg-time {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   color: var(--af-muted);
 }
 
 .message-content {
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1.6;
   color: var(--af-fg);
   white-space: pre-wrap;
@@ -1077,14 +1403,14 @@ onMounted(async () => {
 
 /* Override markstream-vue heading sizes to match body text scale */
 .message-content :deep(.markstream-vue) {
-  --ms-text-body: 0.9rem;
+  --ms-text-body: 1.0rem;
 }
 
 .message-content :deep(h1),
 .message-content :deep(h2),
 .message-content :deep(h3),
 .message-content :deep(h4) {
-  font-size: 0.95rem;
+  font-size: 1.03rem;
   font-weight: 600;
   margin: 0.75rem 0 0.35rem;
   line-height: 1.4;
@@ -1123,7 +1449,7 @@ onMounted(async () => {
 
 .message-content.error {
   color: hsl(var(--af-error));
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 
 .message.user .message-content {
@@ -1131,11 +1457,11 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 0.6rem 0.9rem;
   max-width: 100%;
-  font-size: 0.9rem;
+  font-size: 0.98rem;
 }
 
 .message.system .message-content {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 
 .system-welcome {
@@ -1147,7 +1473,7 @@ onMounted(async () => {
 }
 
 .welcome-icon {
-  font-size: 1.1rem;
+  font-size: 1.18rem;
   flex-shrink: 0;
 }
 
@@ -1212,7 +1538,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.98rem;
 }
 
 .handoff-agent {
@@ -1225,12 +1551,12 @@ onMounted(async () => {
 
 .handoff-arrow {
   color: var(--af-muted);
-  font-size: 1.1rem;
+  font-size: 1.18rem;
 }
 
 .handoff-reason {
   color: var(--af-muted);
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   flex-basis: 100%;
 }
 
@@ -1239,7 +1565,7 @@ onMounted(async () => {
   color: hsl(var(--primary));
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1266,18 +1592,18 @@ onMounted(async () => {
 }
 
 .tool-icon {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
 }
 
 .tool-name {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   color: var(--af-fg);
   flex: 1;
 }
 
 .tool-status {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   color: var(--af-muted);
 }
@@ -1305,7 +1631,7 @@ onMounted(async () => {
 }
 
 .tool-section-title {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   text-transform: uppercase;
   color: var(--af-muted);
@@ -1314,7 +1640,7 @@ onMounted(async () => {
 }
 
 .tool-code {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: var(--af-muted);
   background: hsl(var(--muted-foreground) / 0.04);
   padding: 0.35rem 0.5rem;
@@ -1345,18 +1671,18 @@ onMounted(async () => {
 .shell-icon {
   color: var(--af-success);
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .shell-cmd {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   color: var(--af-fg);
   flex: 1;
   font-family: monospace;
 }
 
 .shell-status {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   color: var(--af-muted);
 }
@@ -1369,7 +1695,7 @@ onMounted(async () => {
 .shell-output {
   margin: 0.4rem 0 0;
   padding: 0.35rem 0.5rem;
-  font-size: 0.73rem;
+  font-size: 0.81rem;
   color: var(--af-muted);
   background: hsl(var(--muted-foreground) / 0.04);
   border-radius: 4px;
@@ -1383,10 +1709,178 @@ onMounted(async () => {
   background: none;
   border: none;
   color: var(--af-primary);
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   cursor: pointer;
   padding: 0.15rem 0;
   margin-top: 0.2rem;
+}
+
+/* ─── Errand Card ─────────────────────────────────────────────────────────── */
+
+.errand-card {
+  background: hsl(var(--muted-foreground) / 0.03);
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.errand-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.errand-icon {
+  font-size: 0.9rem;
+}
+
+.errand-name {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--af-fg);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.errand-status {
+  font-size: 0.73rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.errand-status.running { color: hsl(var(--af-info)); }
+.errand-status.completed { color: hsl(var(--af-success)); }
+.errand-status.failed { color: hsl(var(--af-error)); }
+.errand-status.truncated { color: hsl(var(--af-warning)); }
+
+.errand-cost {
+  font-size: 0.7rem;
+  color: var(--af-muted);
+  background: hsl(var(--muted-foreground) / 0.08);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.errand-body {
+  padding: 0.35rem 0.6rem 0.5rem;
+  border-top: 1px solid var(--af-border);
+}
+
+.errand-task {
+  font-size: 0.8rem;
+  color: var(--af-muted);
+  margin-bottom: 0.4rem;
+  font-style: italic;
+}
+
+.errand-content {
+  font-size: 0.84rem;
+  color: var(--af-fg);
+  line-height: 1.45;
+  margin-bottom: 0.4rem;
+}
+
+.errand-tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.errand-sub-tool {
+  background: hsl(var(--muted-foreground) / 0.05);
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+}
+
+.errand-sub-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.errand-sub-tool-name {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--af-fg);
+}
+
+.errand-sub-tool-status {
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.errand-sub-tool-status.running { color: hsl(var(--af-info)); }
+.errand-sub-tool-status.success { color: hsl(var(--af-success)); }
+.errand-sub-tool-status.error { color: hsl(var(--af-error)); }
+
+.errand-sub-tool-result {
+  margin: 0.2rem 0 0;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.78rem;
+  color: var(--af-muted);
+  background: hsl(var(--muted-foreground) / 0.04);
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.errand-result {
+  margin-top: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  background: hsl(var(--af-success) / 0.06);
+  border-radius: 4px;
+  border-left: 3px solid hsl(var(--af-success));
+}
+
+.errand-result-label {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: hsl(var(--af-success));
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+}
+
+.errand-result-text {
+  font-size: 0.82rem;
+  color: var(--af-fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+/* Errand toggle button in header */
+.errand-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: hsl(var(--muted-foreground) / 0.08);
+  border: 1px solid var(--af-border);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+  color: var(--af-fg);
+  cursor: pointer;
+}
+
+.errand-toggle-btn:hover {
+  background: hsl(var(--muted-foreground) / 0.14);
+}
+
+.errand-toggle-badge {
+  background: var(--af-primary);
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.3rem;
+  border-radius: 10px;
 }
 
 .typing-dots {
@@ -1494,7 +1988,7 @@ onMounted(async () => {
   position: absolute;
   inset: 0;
   padding: 0.55rem 1rem;
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   font-family: inherit;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -1524,7 +2018,7 @@ onMounted(async () => {
   border: none;
   background: transparent;
   color: var(--af-fg);
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   font-family: inherit;
   line-height: 1.5;
   resize: none;
@@ -1569,70 +2063,6 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-.input-extras {
-  display: flex;
-  align-items: center;
-  padding: 0 0.5rem;
-}
-
-.thinking-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.5rem;
-  background: transparent;
-  border: 1px solid var(--af-border);
-  border-radius: 12px;
-  color: var(--af-muted);
-  font-size: 0.7rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.thinking-toggle:hover {
-  background: hsl(var(--muted-foreground) / 0.05);
-  color: var(--af-fg);
-}
-
-.thinking-toggle.active {
-  background: hsl(var(--primary) / 0.08);
-  border-color: hsl(var(--primary) / 0.25);
-  color: var(--af-primary);
-}
-
-.model-select-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.5rem;
-  background: transparent;
-  border: 1px solid var(--af-border);
-  border-radius: 12px;
-  color: var(--af-muted);
-  font-size: 0.7rem;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.model-select-wrap:hover {
-  background: hsl(var(--muted-foreground) / 0.05);
-  color: var(--af-fg);
-}
-
-.model-select {
-  appearance: none;
-  background: transparent;
-  border: none;
-  color: inherit;
-  font-size: inherit;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  outline: none;
-  padding-right: 0.2rem;
-}
-
 /* ─── Phase Badge ─────────────────────────────────────────────────────────── */
 
 .session-badge.phase {
@@ -1661,12 +2091,12 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   color: var(--af-fg);
 }
 
 .approval-icon {
-  font-size: 1.1rem;
+  font-size: 1.18rem;
 }
 
 .approval-actions {
@@ -1682,7 +2112,7 @@ onMounted(async () => {
   padding: 0.4rem 0.9rem;
   border: none;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -1734,7 +2164,7 @@ onMounted(async () => {
 }
 
 .diff-title {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   font-weight: 500;
   color: var(--af-fg);
   text-transform: capitalize;
@@ -1742,7 +2172,7 @@ onMounted(async () => {
 }
 
 .diff-status {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   color: hsl(var(--af-warning));
 }
@@ -1771,7 +2201,7 @@ onMounted(async () => {
 }
 
 .diff-label {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   font-weight: 500;
   text-transform: uppercase;
   color: var(--af-muted);
@@ -1779,7 +2209,7 @@ onMounted(async () => {
 }
 
 .diff-content {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   background: var(--af-bg);
   border: 1px solid var(--af-border);
@@ -1797,7 +2227,7 @@ onMounted(async () => {
 }
 
 .diff-editor {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   background: var(--af-bg);
   border: 1px solid var(--af-border);

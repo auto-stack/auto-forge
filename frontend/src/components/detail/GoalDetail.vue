@@ -106,7 +106,7 @@ const remainingContent = computed(() => {
 }
 
 .block-label {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -134,7 +134,7 @@ const remainingContent = computed(() => {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
-  font-size: 0.82rem;
+  font-size: 0rem;
   color: var(--af-fg);
   line-height: 1.4;
 }
@@ -148,7 +148,7 @@ const remainingContent = computed(() => {
 }
 
 .criteria-check {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   color: hsl(var(--primary));
   min-width: 1rem;
   text-align: center;
@@ -170,7 +170,7 @@ const remainingContent = computed(() => {
 }
 
 .details-body {
-  font-size: 0.82rem;
+  font-size: 0rem;
   color: var(--af-fg);
   line-height: 1.6;
   white-space: pre-wrap;

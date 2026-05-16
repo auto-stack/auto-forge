@@ -149,18 +149,18 @@ const remainingContent = computed(() => {
   border-radius: 6px;
   background: hsl(var(--primary) / 0.1);
   color: hsl(var(--primary));
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 
 .phase-name {
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   font-weight: 600;
   color: var(--af-fg);
 }
 
 .phase-version {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
   background: hsl(var(--muted-foreground) / 0.08);
   padding: 0.1rem 0.35rem;
@@ -189,7 +189,7 @@ const remainingContent = computed(() => {
 }
 
 .progress-text {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--af-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -207,7 +207,7 @@ const remainingContent = computed(() => {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
-  font-size: 0.82rem;
+  font-size: 0rem;
   color: var(--af-fg);
   line-height: 1.4;
 }
@@ -221,7 +221,7 @@ const remainingContent = computed(() => {
 }
 
 .task-check {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   color: hsl(var(--primary));
   min-width: 1rem;
   text-align: center;

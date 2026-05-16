@@ -159,7 +159,7 @@ function onSave() {
 }
 
 .form-row label {
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 600;
   color: var(--af-muted);
 }
@@ -172,7 +172,7 @@ function onSave() {
   border: 1px solid var(--af-border);
   background: hsl(var(--background));
   color: var(--af-fg);
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   outline: none;
 }
 
@@ -184,7 +184,7 @@ function onSave() {
 
 .form-textarea.code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
 }
 
 .form-input.monospace {
@@ -204,7 +204,7 @@ function onSave() {
 }
 
 .step-num {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-muted);
   min-width: 1.2rem;
 }
@@ -216,7 +216,7 @@ function onSave() {
   border: 1px solid var(--af-border);
   background: hsl(var(--background));
   color: var(--af-fg);
-  font-size: 0.82rem;
+  font-size: 0rem;
   outline: none;
 }
 
@@ -243,7 +243,7 @@ function onSave() {
   align-items: center;
   gap: 0.3rem;
   padding: 0.3rem 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   border-radius: 6px;
   border: 1px dashed var(--af-border);
   background: transparent;
@@ -269,7 +269,7 @@ function onSave() {
   align-items: center;
   gap: 0.3rem;
   padding: 0.4rem 0.8rem;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-weight: 600;
   border-radius: 6px;
   border: none;
@@ -287,7 +287,7 @@ function onSave() {
   align-items: center;
   gap: 0.3rem;
   padding: 0.4rem 0.8rem;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   border-radius: 6px;
   border: 1px solid var(--af-border);
   background: transparent;

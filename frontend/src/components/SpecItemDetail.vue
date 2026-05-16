@@ -99,7 +99,7 @@ const hasMeta = computed(() =>
 }
 
 .detail-content :deep(.markdown-content) {
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   line-height: 1.65;
 }
 
@@ -115,7 +115,7 @@ const hasMeta = computed(() =>
   align-items: center;
   gap: 0.2rem;
   padding: 0.2rem 0.5rem;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   border-radius: 6px;
   background: hsl(var(--muted-foreground) / 0.06);
   color: var(--af-muted);
@@ -141,7 +141,7 @@ const hasMeta = computed(() =>
   align-items: center;
   gap: 0.3rem;
   padding: 0.35rem 0.65rem;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   border-radius: 6px;
   border: 1px solid var(--af-border);
   background: transparent;

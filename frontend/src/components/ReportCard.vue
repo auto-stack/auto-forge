@@ -116,13 +116,13 @@ const expanded = ref(false)
 
 .report-title {
   flex: 1;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   font-weight: 500;
   color: var(--af-fg);
 }
 
 .report-confidence {
-  font-size: 0.65rem;
+  font-size: 0.73rem;
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
   font-weight: 500;
@@ -170,7 +170,7 @@ const expanded = ref(false)
   padding: 0.3rem 0.4rem;
   background: hsl(var(--muted-foreground) / 0.04);
   border-radius: 5px;
-  font-size: 0.75rem;
+  font-size: 0.83rem;
 }
 
 .metric-label {
@@ -187,7 +187,7 @@ const expanded = ref(false)
 }
 
 .section-title {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
   text-transform: uppercase;
   color: var(--af-muted);
@@ -198,7 +198,7 @@ const expanded = ref(false)
 .report-deliverables ul {
   margin: 0;
   padding-left: 1.1rem;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: var(--af-fg);
   line-height: 1.5;
 }
@@ -222,7 +222,7 @@ const expanded = ref(false)
   border-radius: 5px;
   background: transparent;
   color: var(--af-fg);
-  font-size: 0.75rem;
+  font-size: 0.83rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
