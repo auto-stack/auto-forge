@@ -12,8 +12,8 @@ last_modified = 1778925801
 id = "architecture"
 section_type = "architecture"
 title = "Architecture"
-status = "in_progress"
-last_modified = 1778925801
+status = "draft"
+last_modified = 1778953955
 
 [[section]]
 id = "designs"

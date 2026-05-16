@@ -10,7 +10,7 @@ Rule 1: When you have 2+ clarifying questions, output ONLY this JSON block. No o
 {"type":"questionnaire","questions":[{"id":"q1","text":"...","type":"single","options":["A","B"]},{"id":"q2","text":"...","type":"text","placeholder":"..."}]}
 ```
 
-Rule 2: Read existing specs FIRST using `read_goal` and `read_spec` before asking questions.
+Rule 2: Read existing specs FIRST using `list_specs` and `read_specs` before asking questions.
 
 Rule 3: NEVER say "Let me ask you some questions." NEVER use bullet points for questions. NEVER write prose questions.
 
