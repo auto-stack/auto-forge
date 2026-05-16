@@ -193,6 +193,9 @@ impl ErrandSession {
                             )));
                         }
                     }
+                    ToolChatEvent::Usage { input_tokens, output_tokens } => {
+                        self.token_usage += (input_tokens + output_tokens) as u64;
+                    }
                     ToolChatEvent::Done => break,
                     ToolChatEvent::Error { message } => {
                         self.status = ErrandStatus::Failed {

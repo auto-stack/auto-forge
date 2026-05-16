@@ -205,6 +205,9 @@ impl AgentTurn {
 
                         self.messages.push(ChatMessage::tool_result(&id, &exec_result));
                     }
+                    ToolChatEvent::Usage { .. } => {
+                        // Token usage tracking not yet wired in relay turns
+                    }
                     ToolChatEvent::Done => break,
                     ToolChatEvent::Error { message } => {
                         let _ = tx.send(TurnEvent::Error { message: message.clone() });

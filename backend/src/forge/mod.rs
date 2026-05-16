@@ -2076,6 +2076,10 @@ mod handlers {
                                 }
                             }
                         }
+                        ToolChatEvent::Usage { input_tokens, output_tokens } => {
+                            // Token usage is tracked per-turn; could be accumulated on session if needed
+                            let _ = (input_tokens, output_tokens);
+                        }
                         ToolChatEvent::Done => break,
                         ToolChatEvent::Error { message } => {
                             let event = Event::default().data(

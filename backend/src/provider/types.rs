@@ -360,6 +360,8 @@ pub enum ToolChatEvent {
     TextDelta { text: String },
     /// The AI wants to use a tool.
     ToolUse { id: String, name: String, input: Value },
+    /// Token usage for this turn.
+    Usage { input_tokens: u32, output_tokens: u32 },
     /// The stream completed (no more events).
     Done,
     /// An error occurred.

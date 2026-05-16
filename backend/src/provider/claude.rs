@@ -296,6 +296,12 @@ impl ClaudeProvider {
                             let _ = tx.send(ToolChatEvent::ToolUse { id, name, input });
                         }
                     }
+                    StreamEvent::MessageDelta { usage, .. } => {
+                        let _ = tx.send(ToolChatEvent::Usage {
+                            input_tokens: usage.input_tokens,
+                            output_tokens: usage.output_tokens,
+                        });
+                    }
                     _ => {}
                 }
             }
@@ -335,6 +341,12 @@ impl ClaudeProvider {
                             partial_json_acc.clear();
                             let _ = tx.send(ToolChatEvent::ToolUse { id, name, input });
                         }
+                    }
+                    StreamEvent::MessageDelta { usage, .. } => {
+                        let _ = tx.send(ToolChatEvent::Usage {
+                            input_tokens: usage.input_tokens,
+                            output_tokens: usage.output_tokens,
+                        });
                     }
                     _ => {}
                 }
