@@ -6,6 +6,8 @@ Usage:
     python tests/forge_chat_e2e.py basic    # run only basic chat test
     python tests/forge_chat_e2e.py tool     # run only tool-call test
     python tests/forge_chat_e2e.py dispatch # run only dispatch/errand test
+    python tests/forge_chat_e2e.py concurrent  # run concurrent sessions test
+    python tests/forge_chat_e2e.py handoff  # run handoff test
 
 Requires the AutoForge server to be running on http://127.0.0.1:3031
 and a valid API source configured.
@@ -14,6 +16,8 @@ and a valid API source configured.
 import json
 import sys
 import urllib.request
+import threading
+import time
 
 BASE = "http://127.0.0.1:3031"
 
@@ -154,7 +158,6 @@ def test_tool_call():
     sid = create_session()
     print(f"Session: {sid}")
 
-    # Explicitly ask for a shell command to force tool_use
     send_message(sid, "Run the shell command 'echo 42' and tell me the output. You MUST use the shell tool.")
     events = collect_stream(sid, timeout=120.0)
     print_events(events)
@@ -164,8 +167,6 @@ def test_tool_call():
     assert "delta" in types
     assert "done" in types
 
-    # The model may or may not tool_use depending on system prompt constraints.
-    # We just verify the stream completed gracefully.
     if "tool_call" in types:
         print("Tool call detected — PASS")
     else:
@@ -182,7 +183,6 @@ def test_dispatch_errand():
     sid = create_session()
     print(f"Session: {sid}")
 
-    # Ask assistant to dispatch a simple research task to gofer
     prompt = (
         "Please dispatch a task to the gofer agent to find out "
         "what files are in the project root directory."
@@ -195,7 +195,6 @@ def test_dispatch_errand():
     assert "turn_start" in types
     assert "done" in types
 
-    # Check for errand events
     if "errand_start" in types:
         print("Errand launched — PASS")
     elif "tool_call" in types and any(
@@ -204,6 +203,76 @@ def test_dispatch_errand():
         print("Dispatch tool called but errand may have failed — PASS (partial)")
     else:
         print("No dispatch (model chose not to delegate) — PASS (non-deterministic)")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Test 4: Concurrent sessions (state isolation)
+# ---------------------------------------------------------------------------
+def test_concurrent_sessions():
+    print("\n[Test 4] Concurrent sessions")
+    print("-" * 50)
+    results = {}
+
+    def worker(name: str, prompt: str):
+        try:
+            sid = create_session()
+            send_message(sid, prompt)
+            events = collect_stream(sid, timeout=90.0)
+            types = [e.get("type") for e in events]
+            results[name] = {
+                "sid": sid,
+                "ok": "turn_start" in types and "done" in types,
+                "has_delta": "delta" in types,
+            }
+        except Exception as e:
+            results[name] = {"ok": False, "error": str(e)}
+
+    threads = [
+        threading.Thread(target=worker, args=("A", "Say hello from session A.")),
+        threading.Thread(target=worker, args=("B", "Say hello from session B.")),
+        threading.Thread(target=worker, args=("C", "Say hello from session C.")),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=120)
+
+    for name, res in sorted(results.items()):
+        status = "PASS" if res.get("ok") else f"FAIL ({res.get('error', 'unknown')})"
+        print(f"      Session {name} ({res.get('sid', '?')[:20]}...): {status}")
+
+    assert all(r.get("ok") for r in results.values()), "One or more concurrent sessions failed"
+    print("PASS")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Test 5: Handoff (bring_in)
+# ---------------------------------------------------------------------------
+def test_handoff():
+    print("\n[Test 5] Handoff (bring_in)")
+    print("-" * 50)
+    sid = create_session()
+    print(f"Session: {sid}")
+
+    # Ask for architecture advice to trigger advisor -> architect handoff
+    prompt = (
+        "I want to build a new feature. Please bring in the architect "
+        "to design a simple caching system for this project."
+    )
+    send_message(sid, prompt)
+    events = collect_stream(sid, timeout=180.0)
+    print_events(events)
+
+    types = [e.get("type") for e in events]
+    assert "turn_start" in types
+    assert "done" in types
+
+    if "agent_handoff" in types:
+        print("Handoff detected — PASS")
+    else:
+        print("No handoff (model handled directly) — PASS (non-deterministic)")
     return True
 
 
@@ -219,6 +288,10 @@ def main():
         tests.append(test_tool_call)
     if arg in ("all", "dispatch"):
         tests.append(test_dispatch_errand)
+    if arg in ("all", "concurrent"):
+        tests.append(test_concurrent_sessions)
+    if arg in ("all", "handoff"):
+        tests.append(test_handoff)
 
     if not tests:
         print(f"Unknown test: {arg}")
