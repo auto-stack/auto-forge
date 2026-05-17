@@ -774,3 +774,72 @@ The result is a system that:
 - Keeps humans in control **at the spec layer**, before code is written
 
 > *"A single blacksmith finishes one sword a day. Ten blacksmiths working in parallel finish ten swords — each flawed. But five blacksmiths working in relay, each a master of their stage, finish one sword — perfect. AutoForge chooses the relay."*
+
+
+---
+
+## 13. Update: Automatic Relay Mode (Implemented)
+
+**Date:** 2026-05-17
+**Status:** Implemented
+**Goal:** G23
+
+The original design assumed the Relay pipeline would be started manually via the Agents view. In practice, the most common workflow is:
+
+1. User brainstorms with **Isaac (Advisor)** in chat
+2. Isaac writes goals to the Ledger
+3. User wants the system to **automatically** execute the rest of the pipeline
+
+### 13.1 New Primitive: `spawn_relay`
+
+`spawn_relay` is the third orchestration primitive, alongside `bring_in` and `dispatch`:
+
+| Primitive | Trigger | Effect | Context |
+|-----------|---------|--------|---------|
+| `bring_in` | Agent calls tool | Switches chat profession | Chat history merged |
+| `dispatch` | Agent calls tool | Spawns isolated errand | Summary returns to chat |
+| `spawn_relay` | Agent calls tool | **Launches background pipeline** | Chat shows relay card only |
+
+### 13.2 Chat-to-Relay Bridge
+
+When Isaac calls `spawn_relay`:
+
+1. **Tool validation** — `SpawnRelayTool` checks profession allowlist, validates flow_id/mode
+2. **Run creation** — Forge stream handler creates `RunEntry` in `RunStore` with selected `FlowSpec`
+3. **Driver spawn** — `tokio::spawn(relay::driver::drive_run(...))` starts background execution
+4. **Chat notification** — `RelaySpawned` SSE event emitted; chat shows 🚀 relay card
+5. **Background execution** — Driver loops: advance → AgentTurn → submit_handoff → repeat
+6. **Gate handling** — Driver polls every 2s when `WaitForHuman`; boss approves in RelayView
+7. **Completion** — `RelayComplete` SSE event emitted; chat card updates to "completed"
+
+### 13.3 Post-Discovery Flow
+
+A new built-in flow skips `intake` and `discover` since chat already did the work:
+
+```
+architect → planner → tester → coder → tester → reviewer → documenter
+```
+
+This is the default flow Isaac uses when spawning a relay after goal writing.
+
+### 13.4 Background Driver
+
+`relay/driver.rs` is the execution layer that was missing from the original design:
+
+- **Before:** PipelineEngine had state machine + API, but no one actually ran `AgentTurn`
+- **After:** Driver bridges PipelineEngine ↔ AgentTurn ↔ ClaudeProvider
+
+The driver:
+- Builds `AgentInstance` from `RelayRegistry` default config per step
+- Constructs step messages from: task + previous handoff + gate feedback
+- Runs `AgentTurn::run()` with fresh `ToolRegistry` each step
+- Wires `ToolChatEvent::Usage` for real token tracking
+- Adds tool guard to block tools not in profession's `allowed_tools`
+
+### 13.5 Frontend Changes
+
+- **Chat header:** "Relay" button appears when active relay runs exist
+- **Relay cards:** Inline in chat with status, flow name, "Monitor →" link
+- **Relay view:** Auto-refreshes on `run_started`, `step_advanced`, `handoff_submitted`, `gate_resolved` events
+- **New SSE events:** `RelaySpawned`, `RelayUpdate`, `RelayGateWaiting`, `RelayComplete`
+

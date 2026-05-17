@@ -102,6 +102,38 @@ auto-forge/
     └── specs/          # Spec templates and project data
 ```
 
+## Testing
+
+### Relay Pipeline Tests
+
+Fast mock test (zero LLM cost) — validates the pipeline state machine, gate logic, and monitoring UI:
+
+```bash
+# Start the backend
+cd backend && cargo run
+
+# Run the mock relay test
+python backend/tests/forge_relay_mock.py
+```
+
+This creates relay runs via the API and manually drives them through steps with synthetic handoffs. It tests:
+- **Post-discovery flow** — 7 steps, no gates, completes automatically
+- **Standard flow** — 9 steps, advisor gate pause + approval
+- **Reject + retry** — gate rejection stores feedback, re-executes step, then approves
+
+To watch the runs in the UI, open `http://localhost:5174/forge/relay` while the test runs.
+
+### Full E2E Chat Test
+
+To test the automatic relay feature through the chat layer (requires LLM API key):
+
+1. Open `http://localhost:5174/forge/chats`
+2. Send: *"I want to build a simple cache module. Goals: G1-get/set/delete, G2-TTL expiry, G3-unit tests. Write specs then spawn a post-discovery relay."*
+3. Isaac should call `spawn_relay` — a 🚀 relay card appears
+4. Click **"Monitor →"** to open the Relay view
+5. Watch steps progress; approve gates if they appear
+6. Chat shows `relay_complete` when finished
+
 ## Documentation
 
 - [Spec-Driven Forge Design](docs/design/spec-driven-forge.md) — core design philosophy

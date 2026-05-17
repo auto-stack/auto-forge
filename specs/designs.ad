@@ -3452,3 +3452,195 @@ You are Gus, an AI research assistant. You do not make decisions, give opinions,
 | tester | ✅ | [gofer] |
 | coder | ✅ | [gofer] |
 | gofer | ❌ | [] |
+
+---
+
+## D29 Spawn Relay Tool & Background Driver
+**Status:** implemented
+**Module:** `backend/src/forge/tools.rs`, `backend/src/relay/driver.rs`, `backend/src/forge/mod.rs`
+**Depends on:** G23, A13, D2, D24, D28
+
+### SpawnRelayTool
+
+```rust
+pub struct SpawnRelayTool;
+
+impl Tool for SpawnRelayTool {
+    fn name(&self) -> &'static str { "spawn_relay" }
+
+    fn description(&self) -> &'static str {
+        "Spawn an autonomous background relay pipeline. \
+         Use this after you have completed discovery and written goals \
+         to hand off execution to a serial pipeline of profession agents."
+    }
+
+    fn input_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "required": ["flow_id", "task"],
+            "properties": {
+                "flow_id": {
+                    "type": "string",
+                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix"]
+                },
+                "task": { "type": "string" },
+                "mode": { "type": "string", "enum": ["gsd", "check"], "default": "gsd" },
+                "context": { "type": "string" }
+            }
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        // 1. Validate flow_id and mode
+        // 2. Validate caller profession has spawn_relay in allowed_tools
+        // 3. Generate run_id = format!("run-{}", Uuid::new_v4())
+        // 4. Return JSON with relay_spawned, run_id, flow_id, monitor_url
+    }
+}
+```
+
+### Profession Allowlist
+
+| Profession | `spawn_relay` in allowed_tools | Typical use case |
+|---|---|---|
+| assistant | ✅ | Intake complete → spawn standard flow |
+| advisor | ✅ | **Discovery complete → spawn post_discovery flow** |
+| architect | ✅ | Design complete → spawn from planner step |
+| planner | ❌ | — |
+| tester | ❌ | — |
+| coder | ❌ | — |
+| reviewer | ❌ | — |
+| documenter | ❌ | — |
+
+### Forge Stream Handler Interception
+
+```rust
+// In forge_stream ReAct loop, after tool execution:
+if name == "spawn_relay" {
+    if let Ok(data) = serde_json::from_str::<Value>(&result_str) {
+        if data.get("relay_spawned").and_then(|v| v.as_bool()) == Some(true) {
+            // 1. Build FlowSpec from flow_id
+            let flow = match flow_id.as_str() {
+                "standard" => standard_spec_flow(),
+                "post_discovery" => post_discovery_flow(),
+                // ...
+            };
+
+            // 2. Start run in RunStore
+            start_run(run_store, flow, &run_id);
+            set_mode_on_engine(mode);
+
+            // 3. Spawn background driver
+            tokio::spawn(relay::driver::drive_run(
+                run_id.clone(),
+                run_store.clone(),
+                event_sender(),
+                provider.clone(),
+                task,
+                project_path,
+            ));
+
+            // 4. Emit RelaySpawned SSE to chat
+            event_tx.send(ForgeStreamEvent::RelaySpawned { ... });
+
+            // 5. Replace result with friendly message
+            result_str = "Relay pipeline started: {run_id}...";
+        }
+    }
+}
+```
+
+### RelayDriver
+
+```rust
+pub async fn drive_run(
+    run_id: String,
+    run_store: RunStore,
+    event_tx: broadcast::Sender<RunEventBroadcast>,
+    provider: ClaudeProviderState,
+    initial_task: String,
+    project_path: String,
+) {
+    set_tool_context(&project_path, &run_id);
+
+    loop {
+        match advance_run(&run_store, &run_id) {
+            Some(ExecuteStep { step_id, profession_id, .. }) => {
+                // Build agent from RelayRegistry default config
+                let agent = build_agent(&profession_id);
+
+                // Build messages: task + previous handoff + gate feedback
+                let messages = build_step_messages(...);
+
+                // Run AgentTurn
+                let mut turn = AgentTurn::new(agent, ToolRegistry::new(), messages);
+                turn.max_turns = turn.agent.profession.max_turns;
+                let result = turn.run(&*provider, event_drain_tx).await;
+
+                // Build and submit handoff
+                let handoff = turn.to_handoff(&result, "next", &run_id, 0);
+                let next = submit_handoff(&run_store, &run_id, handoff);
+
+                // Handle next result...
+            }
+            Some(WaitForHuman { .. }) => {
+                wait_for_gate_resolution(&run_store, &run_id, &event_tx).await;
+            }
+            Some(Completed) | Some(Failed { .. }) | None => break,
+        }
+    }
+}
+```
+
+### Step Message Construction
+
+```
+## Task
+
+{initial_task}
+
+## Previous Agent's Handoff
+
+{previous_handoff.render()}
+
+## Feedback from Previous Attempt
+
+- {gate_feedback[0]}
+- {gate_feedback[1]}
+
+You are step '{step_id}' ({profession_id}) in a relay pipeline.
+Do your work using available tools. When finished, stop making tool calls.
+```
+
+### Frontend SSE Events
+
+```typescript
+// New ForgeStreamEvent variants
+interface ForgeStreamEvent {
+  type: 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
+  run_id: string
+  flow_id?: string
+  step_id?: string
+  profession_id?: string
+  status?: string
+  summary?: string
+  tokens_used?: number
+}
+```
+
+### Chat UI: Relay Card
+
+```vue
+<div class="relay-card">
+  <div class="relay-header">
+    <span class="relay-icon">🚀</span>
+    <span class="relay-name">Relay: {{ flow_id }}</span>
+    <span class="relay-status" :class="status">{{ status }}</span>
+    <button class="relay-view-btn" @click="goToRelayRun(run_id)">
+      Monitor →
+    </button>
+  </div>
+  <div v-if="task" class="relay-task">{{ task }}</div>
+  <div v-if="summary" class="relay-summary">{{ summary }}</div>
+</div>
+```

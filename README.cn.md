@@ -102,6 +102,38 @@ auto-forge/
     └── specs/          # 规格模板与项目数据
 ```
 
+## 测试
+
+### 接力流水线测试
+
+快速模拟测试（零 LLM 成本）—— 验证流水线状态机、关卡逻辑和监控 UI：
+
+```bash
+# 启动后端
+cd backend && cargo run
+
+# 运行模拟接力测试
+python backend/tests/forge_relay_mock.py
+```
+
+该测试通过 API 创建接力运行，并使用合成交接文档手动驱动各步骤。测试覆盖：
+- **Post-discovery 流程** — 7 个步骤，无关卡，自动完成
+- **Standard 流程** — 9 个步骤，顾问关卡暂停 + 审批
+- **拒绝与重试** — 关卡拒绝存储反馈，重新执行步骤，然后审批
+
+要在 UI 中观察运行状态，请在测试运行时打开 `http://localhost:5174/forge/relay`。
+
+### 完整 E2E 聊天测试
+
+要通过聊天层测试自动接力功能（需要 LLM API 密钥）：
+
+1. 打开 `http://localhost:5174/forge/chats`
+2. 发送：*"我想构建一个简单的缓存模块。目标：G1-增删改查，G2-TTL 过期，G3-单元测试。写完规格后启动 post-discovery 接力。"*
+3. Isaac 应该会调用 `spawn_relay` —— 聊天中出现 🚀 接力卡片
+4. 点击 **"Monitor →"** 打开 Relay 视图
+5. 观察步骤进度；如果出现关卡则进行审批
+6. 完成后聊天显示 `relay_complete`
+
 ## 文档
 
 - [规格驱动 Forge 设计](docs/design/spec-driven-forge.md) — 核心设计理念

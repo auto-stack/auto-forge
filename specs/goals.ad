@@ -29,6 +29,7 @@
 | G20 | Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search with hierarchical tags and tag cloud navigation | P1 | Proposed | Docs Team |
 | G21 | Hierarchical Goals View enables one-level tree display with parent-child relationships and typed tag-based classification | P0 | Draft | UI Team |
 | G22 | Errand Agent Dispatch enables any profession to offload research tasks without context pollution | P0 | Implemented | Core Team |
+| G23 | Automatic Relay Mode lets chat agents spawn background relay pipelines without chat pollution | P0 | Implemented | Core Team |
 
 ### G21: Hierarchical Goals View
 
@@ -691,3 +692,55 @@ Let me know once you've added these and fixed the bug, and I can continue with t
 - Errand thread visible and expandable in frontend
 - Gofer runs on cheapest model, saving ~80% on errand token cost vs master model
 - Errand completes within 5 turns or returns truncated result
+
+### G23: Automatic Relay Mode
+
+
+
+1. **Chat-to-Relay Bridge**
+   - Chat agents (Advisor, Assistant, Architect) can call `spawn_relay` tool to launch an autonomous background relay pipeline
+   - Tool accepts `flow_id` (standard, post_discovery, fast_track, bug_fix), `task`, `mode` (gsd/check), optional `context`
+   - Tool validates that caller's profession has `spawn_relay` in `allowed_tools`
+   - Tool returns `run_id`, `monitor_url`, and confirmation JSON
+
+2. **Background Auto-Driver**
+   - New `relay/driver.rs` module drives relay runs to completion in background tokio tasks
+   - Loop: `advance_run` → `AgentTurn::run()` → `submit_handoff` → repeat
+   - At `WaitForHuman` gates: driver polls every 2s until gate is resolved via RelayView
+   - Driver sets `CURRENT_PROJECT` thread-local so specs tools work in relay context
+   - Driver constructs step messages from: initial task + previous handoff + gate feedback
+
+3. **New Flow: Post-Discovery**
+   - Skips `intake` and `discover` steps since chat already completed discovery
+   - Pipeline: architect → planner → tester → coder → tester → reviewer → documenter
+   - Loop back from `run-tests` to `code` on failure (max 3 iterations)
+
+4. **Chat Integration**
+   - Forge stream handler intercepts `spawn_relay` tool results
+   - Creates `RunEntry` in `RunStore`, spawns background driver
+   - Emits `RelaySpawned` SSE event to chat frontend
+   - Replaces raw tool JSON with friendly message: "Relay pipeline started: {run_id}"
+
+5. **Frontend Relay Cards**
+   - New `RelaySpawned`, `RelayUpdate`, `RelayGateWaiting`, `RelayComplete` SSE events
+   - Chat header shows "Relay" button when active relay runs exist
+   - Inline relay cards show: flow name, status badge, "Monitor →" link to RelayView
+   - Relay view auto-refreshes on run events
+
+6. **Token Tracking in Relay Turns**
+   - `ToolChatEvent::Usage` wired into `TurnResult::tokens_used`
+   - `AgentTurn::to_handoff()` uses real token counts instead of estimates
+   - Tool guard added to `AgentTurn::run()` to block tools not in profession's `allowed_tools`
+
+
+| Decision | Choice |
+|----------|--------|
+| Trigger mechanism | Tool-based (`spawn_relay`) not system watcher |
+| Driver concurrency | One background task per relay run |
+| Gate polling | 2-second sleep loop (simple, no extra channels) |
+| Context passing | Initial task string + previous HandoffDocument::render() |
+| Profession allowlist | assistant, advisor, architect can spawn relays |
+
+- Advisor soul updated to teach Isaac when to call `spawn_relay` vs `bring_in`
+- `post_discovery` flow added to built-in flows alongside `standard`, `fast_track`, `bug_fix`
+- Relay API exposes `run_store()` and `event_sender()` for forge module access

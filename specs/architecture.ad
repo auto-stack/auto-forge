@@ -1140,3 +1140,80 @@ sequenceDiagram
 - Positive: Boss can audit every errand by expanding the nested thread.
 - Negative: ErrandSession requires parallel message tracking and separate SSE routing.
 - Mitigation: ErrandSession is a lightweight struct (~50 lines) that reuses existing TurnEngine.
+
+---
+
+## A13 Automatic Relay Mode Architecture
+**Status:** approved
+**Depends on:** G23, A1, A9, A12
+
+`spawn_relay` is the third orchestration primitive alongside `bring_in` (phase transition) and `dispatch` (errand). It bridges the **chat layer** (Forge) and the **pipeline layer** (Relay) by allowing a chat agent to launch an autonomous background pipeline that runs without further chat involvement.
+
+```mermaid
+graph TB
+    subgraph "Chat Layer (Forge)"
+        I[Isaac — Advisor]
+        I -->|writes goals| SP[Specs]
+        I -->|spawn_relay| ST[SpawnRelayTool]
+    end
+    
+    subgraph "Bridge"
+        ST -->|returns run_id| FH[Forge Stream Handler]
+        FH -->|creates| RE[RunEntry in RunStore]
+        FH -->|spawns| DR[RelayDriver]
+        FH -->|SSE| FE[Chat Frontend]
+    end
+    
+    subgraph "Pipeline Layer (Relay)"
+        DR -->|advance_run| PE[PipelineEngine]
+        PE -->|ExecuteStep| AT[AgentTurn]
+        AT -->|LLM + tools| PR[Provider]
+        AT -->|submit_handoff| PE
+        PE -->|WaitForHuman| GW[Gate Wait Loop]
+        GW -->|poll| RE
+    end
+    
+    subgraph "Monitoring"
+        RE -->|SSE| RV[RelayView]
+        RV -->|resolve_gate| PE
+    end
+```
+
+### Three Orchestration Primitives
+
+| Primitive | Layer | Scope | Chat Pollution | Human Involvement |
+|-----------|-------|-------|----------------|-------------------|
+| `bring_in` | Forge | Switches chat profession | Handoff note injected | Optional gates |
+| `dispatch` | Forge | Isolated errand, master continues | Collapsible errand thread | None |
+| `spawn_relay` | **Forge → Relay** | **Full background pipeline** | **One relay card only** | **Gate approval in RelayView** |
+
+### Driver Loop
+
+```
+advance_run() → ExecuteStep { step_id, profession_id }
+    ↓
+build_agent(profession_id) → AgentInstance
+build_step_messages(task, previous_handoff, feedback) → Vec<ChatMessage>
+    ↓
+AgentTurn::run(provider, messages) → TurnResult
+    ↓
+to_handoff(turn_result) → HandoffDocument
+    ↓
+submit_handoff(handoff) → AdvanceResult
+    ↓
+├─ ExecuteStep → loop back to top
+├─ WaitForHuman → sleep 2s, poll gate status, loop back
+├─ Completed → emit run_completed event, exit
+└─ Failed → emit run_failed event, exit
+```
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Driver location | `relay/driver.rs` (separate module) | Keeps pipeline engine pure; driver is an execution layer |
+| Gate waiting | Polling loop (not channels) | Simple, no deadlock risk, easy to inspect state |
+| Context construction | Initial task + previous handoff render + gate feedback | Gives each agent enough context without full chat history |
+| Tool registry per turn | Fresh `ToolRegistry::new()` | Tools are stateless; no need to share across steps |
+| Project context | `set_tool_context()` thread-local | Reuses existing specs tool infrastructure |
+| Flow selection | `post_discovery` skips chat-done work | Avoids wasting tokens on redundant intake/discover |
