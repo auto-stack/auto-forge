@@ -34,6 +34,16 @@ static EVENT_TX: LazyLock<broadcast::Sender<RunEventBroadcast>> = LazyLock::new(
     tx
 });
 
+/// Access the global run store.
+pub fn run_store() -> &'static RunStore {
+    &RUN_STORE
+}
+
+/// Clone the global event broadcast sender.
+pub fn event_sender() -> broadcast::Sender<RunEventBroadcast> {
+    EVENT_TX.clone()
+}
+
 #[derive(Clone, Debug)]
 pub struct RunEventBroadcast {
     pub run_id: String,

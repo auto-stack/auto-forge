@@ -590,6 +590,32 @@ pub enum ForgeStreamEvent {
         token_usage: u64,
         tool_call_id: String,
     },
+    #[serde(rename = "relay_spawned")]
+    RelaySpawned {
+        run_id: String,
+        flow_id: String,
+        status: String,
+    },
+    #[serde(rename = "relay_update")]
+    RelayUpdate {
+        run_id: String,
+        step_id: String,
+        profession_id: String,
+        status: String,
+    },
+    #[serde(rename = "relay_gate_waiting")]
+    RelayGateWaiting {
+        run_id: String,
+        gate: String,
+        step_id: String,
+    },
+    #[serde(rename = "relay_complete")]
+    RelayComplete {
+        run_id: String,
+        status: String,
+        summary: String,
+        tokens_used: u64,
+    },
 }
 
 // ─── Specs Types ────────────────────────────────────────────────────────────
@@ -1965,6 +1991,79 @@ mod handlers {
                                                     store.save(&clone);
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+
+                                // ── Handle spawn_relay tool result ──
+                                if name == "spawn_relay" {
+                                    if let Ok(relay_data) = serde_json::from_str::<serde_json::Value>(&result_str) {
+                                        if relay_data.get("relay_spawned").and_then(|v| v.as_bool()) == Some(true) {
+                                            let run_id = relay_data["run_id"].as_str().unwrap_or("").to_string();
+                                            let flow_id = relay_data["flow_id"].as_str().unwrap_or("standard").to_string();
+                                            let mode_str = relay_data["mode"].as_str().unwrap_or("gsd").to_string();
+                                            let task = relay_data["task"].as_str().unwrap_or("").to_string();
+
+                                            // Build FlowSpec
+                                            let flow = match flow_id.as_str() {
+                                                "standard" => crate::relay::flows::standard_spec_flow(),
+                                                "post_discovery" => crate::relay::flows::post_discovery_flow(),
+                                                "fast_track" => crate::relay::flows::fast_track_flow(),
+                                                "bug_fix" => crate::relay::flows::bug_fix_flow(),
+                                                _ => crate::relay::flows::standard_spec_flow(),
+                                            };
+
+                                            // Set mode on flow engine
+                                            let mode = match mode_str.as_str() {
+                                                "check" => crate::relay::pipeline::RelayMode::Check,
+                                                _ => crate::relay::pipeline::RelayMode::GSD,
+                                            };
+
+                                            // Start run in store
+                                            let run_store = crate::relay::api::run_store();
+                                            let _ = crate::relay::store::start_run(run_store, flow, &run_id);
+
+                                            // Set mode on the engine after creation
+                                            {
+                                                let mut map = run_store.lock().unwrap();
+                                                if let Some(entry) = map.get_mut(&run_id) {
+                                                    entry.engine.mode = mode;
+                                                }
+                                            }
+
+                                            // Get project path from session
+                                            let project_path = {
+                                                let store = forge_sessions().lock().unwrap();
+                                                store.get(&sid)
+                                                    .map(|s| s.project_path.clone())
+                                                    .unwrap_or_default()
+                                            };
+
+                                            // Spawn background driver
+                                            tokio::spawn(crate::relay::driver::drive_run(
+                                                run_id.clone(),
+                                                run_store.clone(),
+                                                crate::relay::api::event_sender(),
+                                                ai_for_turns.clone(),
+                                                task,
+                                                project_path,
+                                            ));
+
+                                            // Emit to chat SSE
+                                            let event = Event::default().data(
+                                                serde_json::to_string(&ForgeStreamEvent::RelaySpawned {
+                                                    run_id: run_id.clone(),
+                                                    flow_id: flow_id.clone(),
+                                                    status: "started".into(),
+                                                }).unwrap(),
+                                            );
+                                            let _ = event_tx.send(Ok(event));
+
+                                            // Replace tool result with a friendly message
+                                            result_str = format!(
+                                                "Relay pipeline started: {} (flow: {}, mode: {}). Monitor in Relay view.",
+                                                run_id, flow_id, mode_str
+                                            );
                                         }
                                     }
                                 }

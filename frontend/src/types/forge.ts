@@ -36,7 +36,7 @@ export interface ForgeSession {
 }
 
 export interface ForgeStreamEvent {
-  type: 'turn_start' | 'delta' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete'
+  type: 'turn_start' | 'delta' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete' | 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
   text?: string
   id?: string
   name?: string
@@ -70,6 +70,12 @@ export interface ForgeStreamEvent {
   turn?: number
   token_usage?: number
   status?: string
+  // relay fields
+  flow_id?: string
+  step_id?: string
+  gate?: string
+  summary?: string
+  tokens_used?: number
 }
 
 export interface ErrandState {
@@ -82,6 +88,15 @@ export interface ErrandState {
   status: 'running' | 'completed' | 'failed' | 'truncated'
   result?: string
   token_usage?: number
+}
+
+export interface RelayRunState {
+  run_id: string
+  flow_id: string
+  status: 'started' | 'running' | 'gate_waiting' | 'completed' | 'failed'
+  steps: { step_id: string; profession_id: string }[]
+  summary?: string
+  tokens_used?: number
 }
 
 export interface ForgeSessionSummary {

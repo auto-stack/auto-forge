@@ -46,6 +46,27 @@ pub fn fast_track_flow() -> FlowSpec {
     flow
 }
 
+/// Post-discovery flow: skips intake and advisor since chat already did discovery.
+///
+/// Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter
+pub fn post_discovery_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("post-discovery");
+    flow.add_step(FlowStep::new("design", "architect"));
+    flow.add_step(FlowStep::new("plan", "planner"));
+    flow.add_step(FlowStep::new("draft-tests", "tester"));
+    flow.add_step(FlowStep::new("code", "coder"));
+    flow.add_step(
+        FlowStep::new("run-tests", "tester")
+            .with_exit(crate::relay::flow::ExitRouting::Loop {
+                target_step_id: "code".into(),
+                max_iterations: 3,
+            }),
+    );
+    flow.add_step(FlowStep::new("review", "reviewer"));
+    flow.add_step(FlowStep::new("report", "documenter"));
+    flow
+}
+
 /// A bug-fix flow with tester-review loop.
 ///
 /// Coder → Tester → Reviewer, with loop back to Coder if tests fail.
@@ -101,6 +122,19 @@ mod tests {
         assert_eq!(flow.steps.len(), 2);
         assert_eq!(flow.steps[0].profession_id, "assistant");
         assert_eq!(flow.steps[1].profession_id, "coder");
+    }
+
+    #[test]
+    fn test_post_discovery_flow_has_seven_steps() {
+        let flow = post_discovery_flow();
+        assert_eq!(flow.steps.len(), 7);
+        assert_eq!(flow.steps[0].profession_id, "architect");
+        assert_eq!(flow.steps[1].profession_id, "planner");
+        assert_eq!(flow.steps[2].profession_id, "tester");
+        assert_eq!(flow.steps[3].profession_id, "coder");
+        assert_eq!(flow.steps[4].profession_id, "tester");
+        assert_eq!(flow.steps[5].profession_id, "reviewer");
+        assert_eq!(flow.steps[6].profession_id, "documenter");
     }
 
     #[test]

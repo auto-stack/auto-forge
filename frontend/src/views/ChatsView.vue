@@ -80,6 +80,14 @@
         </div>
         <div class="header-actions">
           <button
+            v-if="Object.keys(relayRuns).length > 0"
+            class="errand-toggle-btn relay-toggle-btn"
+            @click="openRelayView"
+          >
+            <span class="errand-toggle-label">Relay</span>
+            <span class="errand-toggle-badge">{{ Object.keys(relayRuns).length }}</span>
+          </button>
+          <button
             v-if="Object.keys(errands).length > 0"
             class="errand-toggle-btn"
             :title="allErrandsExpanded ? 'Collapse all errands' : 'Expand all errands'"
@@ -182,6 +190,21 @@
                   <pre v-if="tc.result && tc._expanded" class="shell-output">{{ tc.result }}</pre>
                   <button v-if="tc.result && !tc._expanded" class="shell-toggle" @click="tc._expanded = true">show output</button>
                   <button v-if="tc.result && tc._expanded" class="shell-toggle" @click="tc._expanded = false">hide</button>
+                </div>
+                <!-- Spawn Relay card -->
+                <div v-else-if="tc.name === 'spawn_relay'" class="relay-card" :class="tc.status">
+                  <div class="relay-header">
+                    <span class="relay-icon">🚀</span>
+                    <span class="relay-name">Relay: {{ tc.arguments?.flow_id || 'standard' }}</span>
+                    <span class="relay-status" :class="getRelayStatus(tc)?.status || 'started'">
+                      {{ getRelayStatus(tc)?.status || 'started' }}
+                    </span>
+                    <button v-if="getRelayStatus(tc)?.run_id" class="relay-view-btn" @click="goToRelayRun(getRelayStatus(tc)!.run_id)">
+                      Monitor →
+                    </button>
+                  </div>
+                  <div v-if="tc.arguments?.task" class="relay-task">{{ tc.arguments.task }}</div>
+                  <div v-if="getRelayStatus(tc)?.summary" class="relay-summary">{{ getRelayStatus(tc)?.summary }}</div>
                 </div>
                 <!-- Dispatch / Errand card -->
                 <div v-else-if="tc.name === 'dispatch'" class="errand-card" :class="tc.status">
@@ -370,6 +393,7 @@ const {
   renameSession,
   deleteSession,
   errands,
+  relayRuns,
 } = useForge()
 
 const { projectPath } = useProject()
@@ -439,6 +463,22 @@ function getErrandStatus(tc: { id: string }) {
 
 function getErrandToolCalls(tc: { id: string }) {
   return getErrandState(tc)?.tool_calls || []
+}
+
+// ─── Relay helpers ──────────────────────────────────────────────────────────
+
+function getRelayStatus(tc: { arguments?: Record<string, unknown> }) {
+  const runId = (tc.arguments?.run_id as string) || ''
+  if (!runId) return null
+  return relayRuns.value[runId] || null
+}
+
+function goToRelayRun(runId: string) {
+  window.open(`/forge/relay?run=${encodeURIComponent(runId)}`, '_blank')
+}
+
+function openRelayView() {
+  window.open('/forge/relay', '_blank')
 }
 
 /** Build a set of known agent names (lowercased) for mention detection */
@@ -1881,6 +1921,87 @@ onMounted(async () => {
   font-weight: 600;
   padding: 0.05rem 0.3rem;
   border-radius: 10px;
+}
+
+.relay-toggle-btn {
+  background: hsl(var(--af-warning) / 0.12);
+  border-color: hsl(var(--af-warning) / 0.3);
+}
+
+.relay-toggle-btn:hover {
+  background: hsl(var(--af-warning) / 0.2);
+}
+
+/* ─── Relay Card ───────────────────────────────────────────────────────────── */
+
+.relay-card {
+  background: linear-gradient(135deg, hsl(var(--af-warning) / 0.06), hsl(var(--af-warning) / 0.02));
+  border: 1px solid hsl(var(--af-warning) / 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 0.35rem 0.6rem;
+}
+
+.relay-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.relay-icon {
+  font-size: 0.9rem;
+}
+
+.relay-name {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--af-fg);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.relay-status {
+  font-size: 0.73rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.relay-status.started { color: hsl(var(--af-muted)); }
+.relay-status.running { color: hsl(var(--af-info)); }
+.relay-status.gate_waiting { color: hsl(var(--af-warning)); }
+.relay-status.completed { color: hsl(var(--af-success)); }
+.relay-status.failed { color: hsl(var(--af-error)); }
+
+.relay-view-btn {
+  background: hsl(var(--af-warning) / 0.15);
+  border: 1px solid hsl(var(--af-warning) / 0.3);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
+  color: hsl(var(--af-warning));
+  cursor: pointer;
+}
+
+.relay-view-btn:hover {
+  background: hsl(var(--af-warning) / 0.25);
+}
+
+.relay-task {
+  font-size: 0.8rem;
+  color: var(--af-muted);
+  margin-top: 0.2rem;
+  font-style: italic;
+}
+
+.relay-summary {
+  font-size: 0.82rem;
+  color: var(--af-fg);
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.4rem;
+  background: hsl(var(--muted-foreground) / 0.04);
+  border-radius: 4px;
 }
 
 .typing-dots {

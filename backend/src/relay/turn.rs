@@ -171,9 +171,14 @@ impl AgentTurn {
 
                         // Execute the tool
                         let exec_result = if let Some(tool) = self.tool_registry.get(&name) {
-                            match tool.execute(input.clone()) {
-                                Ok(r) => r,
-                                Err(e) => format!("Error: {}", e),
+                            let allowed: Vec<String> = self.agent.profession.allowed_tools.clone();
+                            if !allowed.is_empty() && !allowed.contains(&name) {
+                                format!("Tool '{}' is not available for profession '{}'", name, self.agent.profession.id)
+                            } else {
+                                match tool.execute(input.clone()) {
+                                    Ok(r) => r,
+                                    Err(e) => format!("Error: {}", e),
+                                }
                             }
                         } else {
                             format!("Tool '{}' not found or not allowed for profession '{}'", name, self.agent.profession.id)
@@ -205,8 +210,8 @@ impl AgentTurn {
 
                         self.messages.push(ChatMessage::tool_result(&id, &exec_result));
                     }
-                    ToolChatEvent::Usage { .. } => {
-                        // Token usage tracking not yet wired in relay turns
+                    ToolChatEvent::Usage { input_tokens, output_tokens } => {
+                        result.tokens_used += (input_tokens + output_tokens) as u64;
                     }
                     ToolChatEvent::Done => break,
                     ToolChatEvent::Error { message } => {
@@ -312,8 +317,8 @@ impl AgentTurn {
             });
         }
         handoff.token_usage = crate::relay::handoff::TokenUsage {
-            step_input: result.tokens_used / 2, // estimate
-            step_output: result.tokens_used / 2,
+            step_input: result.tokens_used,
+            step_output: 0, // provider gives cumulative; we track total
             cumulative: result.tokens_used,
             budget_remaining: self
                 .agent

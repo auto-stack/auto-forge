@@ -89,6 +89,7 @@ impl ProfessionRegistry {
             allowed_tools: vec![
                 String::from("bring_in"),
                 String::from("dispatch"),
+                String::from("spawn_relay"),
                 String::from("shell"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
@@ -122,6 +123,7 @@ impl ProfessionRegistry {
                 String::from("list_wiki"),
                 String::from("bring_in"),
                 String::from("dispatch"),
+                String::from("spawn_relay"),
             ],
             handoff_to: vec![String::from("architect")],
             approval_gates: vec![String::from("architect")],
@@ -152,6 +154,7 @@ impl ProfessionRegistry {
                 String::from("query_wiki"),
                 String::from("list_wiki"),
                 String::from("bring_in"),
+                String::from("spawn_relay"),
             ],
             handoff_to: vec![String::from("planner")],
             approval_gates: vec![],

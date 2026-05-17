@@ -84,6 +84,7 @@ impl ToolRegistry {
         registry.register(Box::new(ListSpecsTool));
         registry.register(Box::new(BringInTool));
         registry.register(Box::new(DispatchTool));
+        registry.register(Box::new(SpawnRelayTool));
         registry.register(Box::new(QueryWikiTool));
         registry.register(Box::new(ListWikiTool));
         registry.register(Box::new(CreateWikiPageTool));
@@ -878,6 +879,122 @@ impl Tool for BringInTool {
 
 // ─── Dispatch Tool (Errand Runner) ───────────────────────────────────────────
 
+/// Spawns an autonomous background relay pipeline.
+/// Use this after completing discovery/goal-writing to hand off execution
+/// to a serial pipeline of profession agents.
+struct SpawnRelayTool;
+
+impl Tool for SpawnRelayTool {
+    fn name(&self) -> &'static str {
+        "spawn_relay"
+    }
+
+    fn description(&self) -> &'static str {
+        "Spawn an autonomous background relay pipeline. \
+         Use this after you have completed discovery and written goals \
+         to hand off execution to a serial pipeline of profession agents \
+         (architect → planner → coder → tester → reviewer → documenter). \
+         The pipeline runs in the background without polluting chat. \
+         The boss can monitor progress in the Relay view and approve gates."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "required": ["flow_id", "task"],
+            "properties": {
+                "flow_id": {
+                    "type": "string",
+                    "description": "Flow template to use. 'standard' = full pipeline; 'post_discovery' = skips intake/advisor (use after chat discovery); 'fast_track' = coder only; 'bug_fix' = coder → tester → reviewer",
+                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix"]
+                },
+                "task": {
+                    "type": "string",
+                    "description": "Clear description of what needs to be built or accomplished."
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Execution mode. 'gsd' = autonomous (only goal gate pauses). 'check' = human reviews every gate.",
+                    "enum": ["gsd", "check"],
+                    "default": "gsd"
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional additional context beyond what's in specs."
+                }
+            }
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let flow_id = args
+            .get("flow_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'flow_id' argument".into()))?;
+        let task = args
+            .get("task")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'task' argument".into()))?;
+        let mode = args
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("gsd");
+        let context = args
+            .get("context")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let current = CURRENT_PROFESSION.with(|p| p.borrow().clone());
+
+        // Validate: current profession must have spawn_relay in allowed_tools
+        let registry = crate::relay::ProfessionRegistry::new();
+        let profession = registry.get(&current)
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("Unknown profession '{}'", current)))?;
+
+        if !profession.allowed_tools.contains(&"spawn_relay".to_string()) {
+            return Err(ToolError::InvalidInput(format!(
+                "Profession '{}' cannot spawn relay pipelines",
+                current
+            )));
+        }
+
+        // Validate flow_id
+        let valid_flows = ["standard", "post_discovery", "fast_track", "bug_fix"];
+        if !valid_flows.contains(&flow_id) {
+            return Err(ToolError::InvalidInput(format!(
+                "Unknown flow_id '{}'. Valid options: {}",
+                flow_id,
+                valid_flows.join(", ")
+            )));
+        }
+
+        // Validate mode
+        let valid_modes = ["gsd", "check"];
+        if !valid_modes.contains(&mode) {
+            return Err(ToolError::InvalidInput(format!(
+                "Unknown mode '{}'. Valid options: {}",
+                mode,
+                valid_modes.join(", ")
+            )));
+        }
+
+        let run_id = format!("run-{}", uuid::Uuid::new_v4());
+
+        Ok(serde_json::json!({
+            "relay_spawned": true,
+            "run_id": run_id,
+            "flow_id": flow_id,
+            "mode": mode,
+            "task": task,
+            "context": context,
+            "from_profession": current,
+            "monitor_url": format!("/forge/relay?run={}", run_id),
+        }).to_string())
+    }
+
+    fn is_read_only(&self) -> bool { true }
+}
+
 /// Dispatches a lightweight research or errand task to a side agent.
 /// The errand agent runs in isolation with a cheap model and returns only a summary.
 struct DispatchTool;
@@ -1336,7 +1453,7 @@ mod tests {
     fn test_tool_registry() {
         let registry = ToolRegistry::new();
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 14);
+        assert_eq!(defs.len(), 15);
         assert!(registry.get("read_file").is_some());
         assert!(registry.get("write_file").is_some());
         assert!(registry.get("edit_file").is_some());
@@ -1401,5 +1518,58 @@ mod tests {
         let dispatch = registry.get("dispatch").unwrap();
         assert!(dispatch.name() == "dispatch");
         assert!(dispatch.is_read_only());
+    }
+
+    #[test]
+    fn test_spawn_relay_tool() {
+        let tool = SpawnRelayTool;
+        assert_eq!(tool.name(), "spawn_relay");
+        assert!(tool.is_read_only());
+
+        // Missing flow_id should fail
+        let result = tool.execute(serde_json::json!({"task": "build auth"}));
+        assert!(result.is_err(), "Should fail without flow_id");
+
+        // Missing task should fail
+        let result = tool.execute(serde_json::json!({"flow_id": "standard"}));
+        assert!(result.is_err(), "Should fail without task");
+
+        // Invalid flow_id should fail
+        set_current_profession("advisor");
+        let result = tool.execute(serde_json::json!({
+            "flow_id": "nonexistent",
+            "task": "build auth"
+        }));
+        assert!(result.is_err(), "Should fail with unknown flow_id");
+
+        // Invalid mode should fail
+        let result = tool.execute(serde_json::json!({
+            "flow_id": "standard",
+            "task": "build auth",
+            "mode": "invalid"
+        }));
+        assert!(result.is_err(), "Should fail with unknown mode");
+
+        // Profession without spawn_relay should fail
+        set_current_profession("coder");
+        let result = tool.execute(serde_json::json!({
+            "flow_id": "standard",
+            "task": "build auth"
+        }));
+        assert!(result.is_err(), "Coder should not be able to spawn relay");
+
+        // Valid spawn_relay should return JSON instruction
+        set_current_profession("advisor");
+        let result = tool.execute(serde_json::json!({
+            "flow_id": "post_discovery",
+            "task": "Build auth system",
+            "mode": "gsd"
+        }));
+        assert!(result.is_ok(), "{:?}", result);
+        let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(json["relay_spawned"], true);
+        assert_eq!(json["flow_id"], "post_discovery");
+        assert_eq!(json["mode"], "gsd");
+        assert_eq!(json["task"], "Build auth system");
     }
 }

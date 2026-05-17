@@ -14,6 +14,7 @@ const _error = ref<string | null>(null)
 const _sessionList = ref<ForgeSessionSummary[]>([])
 const _resuming = ref(false)
 const _errands = ref<Record<string, ErrandState>>({})
+const _relayRuns = ref<Record<string, import('@/types/forge').RelayRunState>>({})
 
 export function useForge() {
   const session = _session
@@ -297,6 +298,31 @@ export function useForge() {
               e.result = data.result || e.content
               e.token_usage = data.token_usage
             }
+          } else if (data.type === 'relay_spawned' && data.run_id) {
+            _relayRuns.value[data.run_id] = {
+              run_id: data.run_id,
+              flow_id: data.flow_id || 'standard',
+              status: 'started',
+              steps: [],
+            }
+          } else if (data.type === 'relay_update' && data.run_id) {
+            const r = _relayRuns.value[data.run_id]
+            if (r) {
+              r.steps.push({ step_id: data.step_id || '', profession_id: data.profession_id || '' })
+              r.status = 'running'
+            }
+          } else if (data.type === 'relay_gate_waiting' && data.run_id) {
+            const r = _relayRuns.value[data.run_id]
+            if (r) {
+              r.status = 'gate_waiting'
+            }
+          } else if (data.type === 'relay_complete' && data.run_id) {
+            const r = _relayRuns.value[data.run_id]
+            if (r) {
+              r.status = data.status === 'failed' ? 'failed' : 'completed'
+              r.summary = data.summary || ''
+              r.tokens_used = data.tokens_used || 0
+            }
           }
         } catch {
           const msg = ensureAssistantMsg()
@@ -424,5 +450,6 @@ export function useForge() {
     renameSession,
     deleteSession,
     errands,
+    relayRuns: _relayRuns,
   }
 }
