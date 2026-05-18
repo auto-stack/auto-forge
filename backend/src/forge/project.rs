@@ -42,6 +42,66 @@ pub struct BrowseEntry {
     pub is_dir: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectTreeNode {
+    pub name: String,
+    pub path: String,
+    #[serde(rename = "type")]
+    pub node_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<ProjectTreeNode>>,
+}
+
+fn should_skip_entry(name: &str) -> bool {
+    if name.starts_with('.') {
+        return true;
+    }
+    const SKIP: &[&str] = &["node_modules", "target", "dist", "build", "__pycache__", "venv", ".venv"];
+    SKIP.contains(&name)
+}
+
+pub fn build_project_tree(root: &std::path::Path) -> Vec<ProjectTreeNode> {
+    let mut entries = Vec::new();
+    let Ok(dir) = std::fs::read_dir(root) else {
+        return entries;
+    };
+    let mut dir_entries: Vec<_> = dir.flatten().collect();
+    dir_entries.sort_by(|a, b| {
+        let a_is_dir = a.path().is_dir();
+        let b_is_dir = b.path().is_dir();
+        b_is_dir.cmp(&a_is_dir)
+            .then(a.file_name().to_string_lossy().cmp(&b.file_name().to_string_lossy()))
+    });
+    for entry in &dir_entries {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if should_skip_entry(&name) {
+            continue;
+        }
+        let full_path = entry.path().to_string_lossy().to_string();
+        if entry.path().is_dir() {
+            let children = build_project_tree(&entry.path());
+            entries.push(ProjectTreeNode {
+                name,
+                path: full_path,
+                node_type: "folder".into(),
+                children: Some(children),
+            });
+        } else {
+            entries.push(ProjectTreeNode {
+                name,
+                path: full_path,
+                node_type: "file".into(),
+                children: None,
+            });
+        }
+    }
+    entries
+}
+
+pub fn read_project_file(path: &str) -> Result<String, String> {
+    std::fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))
+}
+
 fn config_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))

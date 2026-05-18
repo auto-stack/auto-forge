@@ -437,15 +437,21 @@ function professionIcon(id: string): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 1.25rem;
+  padding: 0.75rem 1rem;
+  height: 48px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--af-border);
+  gap: 1rem;
 }
 
 .agents-header h2 {
-  font-size: 1.05rem;
+  font-size: 0.83rem;
   font-weight: 500;
-  color: var(--af-fg);
+  color: var(--af-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 0;
 }
 
 .agents-actions {

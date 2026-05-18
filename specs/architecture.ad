@@ -7,104 +7,816 @@
 
 ---
 
-## A1 Spec-Driven Relay System
-**Status:** approved
+---
+
+## A1 Relay Orchestrator Architecture
+**Status:** draft
+**Depends on:** G2
+**Tags:** stack:backend, module:relay
+
+An LLM-based orchestrator would consume tokens for routing decisions, violating G3's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
 
 ```mermaid
 graph TB
-    U[User Request] --> F[Forge Chat Loop]
-    F --> C[Intent Classifier]
-    C -->|NEW_GOAL| AD[Advisor]
-    C -->|REQ_UPDATE| AD
-    C -->|QUESTION| AD
-    C -->|DIRECT| CR[Coder]
-    
-    AD -->|drafts specs| G[Gate 1: Goal Review]
-    G -->|approved| AR[Architect]
-    AR -->|designs| G2[Gate 2: Arch Review]
-    G2 -->|approved| PL[Planner]
-    PL -->|plans| G3[Gate 3: Plan Review]
-    G3 -->|approved| CR
-    
-    CR -->|implements| TE[Tester]
-    TE -->|verifies| RE[Reviewer]
-    RE -->|findings| DOC[Documenter]
-    
-    subgraph "Specs Storage"
-        SP[specs/.ad files]
+    subgraph "Orchestrator (Rust)"
+        O[PipelineEngine]
+        F[FlowSpec Parser]
+        H[Handoff Manager]
+        C[Checkpoint Manager]
+        B[Budget Tracker]
     end
-    
-    AD --> SP
-    AR --> SP
-    PL --> SP
-    CR --> SP
-    TE --> SP
-    RE --> SP
-    DOC --> SP
-    
-    SP -->|context| F
-    SP -->|traceability| UI[Web UI]
+    subgraph "Agent Turn"
+        A[AgentInstance]
+        T[ToolRegistry Filter]
+        D[Multi-Provider Dispatch]
+    end
+    subgraph "AI Providers"
+        AP[Anthropic]
+        OP[OpenAI]
+        LP[Local/Ollama]
+    end
+    subgraph "Specs (Ledger)"
+        L[Jades / Ledger]
+    end
+    subgraph "Persistence"
+        P[Checkpoint Store]
+        R[Run Store]
+        CS[Config Store]
+    end
+
+    O -->|parse| F
+    O -->|generate| H
+    O -->|save/load| C
+    O -->|track| B
+    O -->|spawn from config| A
+    A -->|filtered| T
+    A -->|chat via| D
+    D -->|route| AP
+    D -->|route| OP
+    D -->|route| LP
+    A -->|read/write| L
+    C -->|serialize| P
+    O -->|persist| R
+    O -->|load configs| CS
 ```
 
 | Approach | Pros | Cons |
 |---|---|---|
-| File-based specs | Git-traceable, human-readable, simple | Requires parsing, no ACID |
-| Database-backed | Fast queries, transactions | Hidden state, requires migration |
+| Deterministic Rust orchestrator | Zero token cost, predictable, fast, type-safe | Cannot adapt to novel flow patterns without code change |
+| LLM-based orchestrator | Flexible, natural language flow definitions | Token cost per routing decision, non-deterministic, harder to test |
+| Hybrid (LLM plans, Rust executes) | Flexibility + determinism | More complex, LLM still needed for plan generation |
 
-- All agent handoffs compress context into spec updates (~5x token savings)
-- Specs become the contract between agents and humans
-- UI renders specs directly from files (no separate DB)
+- Positive: Flow execution is deterministic and unit-testable.
+- Positive: No token spend on coordination.
+- Negative: New flow patterns (e.g., conditional routing based on spec content) require code changes to `PipelineEngine`.
+- Mitigation: FlowSpec supports `branch`, `loop`, and `on_fail` primitives that cover 95% of use cases.
+
 
 ---
 
-## A2 Agent Soul & Profession System
-**Status:** approved
+---
+
+---
+
+---
+
+---
+
+---
+
+## A2 Agent Instance Lifecycle
+**Status:** draft
+**Depends on:** G1, G2
+**Tags:** stack:backend, module:agent-config
+
+Long-lived agent processes would accumulate context and state, defeating the token-efficiency goal. By spawning fresh instances per step, each agent starts with a clean, minimal context window. This also simplifies crash recovery — no need to restore agent memory, only the checkpoint.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Spawning: Orchestrator starts step
+    Spawning --> ConfigResolving: Look up AgentConfig by profession
+    ConfigResolving --> Running: Soul + Specs + Handoff + resolved Model loaded
+    Running --> ToolCall: Agent invokes tool
+    ToolCall --> Running: Tool result appended
+    Running --> HandoffComplete: Agent calls handoff tool
+    Running --> BudgetExceeded: Token limit reached
+    Running --> Error: Panic / API failure
+    Error --> Fallback: Try fallback model from ApiSource
+    Fallback --> Running: Retry with fallback model
+    Fallback --> Failed: All fallbacks exhausted
+    HandoffComplete --> [*]: Instance dropped, checkpoint saved
+    BudgetExceeded --> [*]: Forced handoff, budget note added
+    Failed --> [*]: Run marked Failed, human notified
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Ephemeral per-step instances | Minimal context, easy recovery, cheap | Agent cannot learn across turns within a step |
+| Long-lived instances with context window | Agent remembers earlier turns | Context grows, recovery harder, more tokens |
+| Persistent agent processes with memory | Cross-run learning possible | Complex state management, not needed for relay |
+
+- Positive: Maximum token efficiency.
+- Positive: Crash recovery is trivial — just re-spawn from checkpoint.
+- Negative: If an agent needs 5 turns to complete, each turn re-loads the same Soul + Specs. However, this is cheaper than maintaining a growing context.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A3 Checkpoint & State Persistence
+**Status:** draft
+**Depends on:** G4
+**Tags:** stack:backend, module:relay
+
+JSON provides human-readable, version-controllable checkpoints. Git auto-commits provide a robust file-level rollback mechanism that integrates with existing developer workflows. The Ledger is embedded (not referenced) to ensure self-contained checkpoints.
 
 ```mermaid
 graph LR
-    S[Soul] -->|persona| P[Profession]
-    M[Model] -->|LLM| P
-    P -->|scoped tools| R[Relay]
-    
-    subgraph "8 Professions"
-        AS[Assistant]
-        AD[Advisor]
-        AR[Architect]
-        PL[Planner]
-        CO[Coder]
-        TE[Tester]
-        RV[Reviewer]
-        DC[Documenter]
-    end
+    A[Handoff Triggered] --> B[Capture File Manifest]
+    B --> C[Git Commit or Diff]
+    C --> D[Serialize Ledger]
+    D --> E[Write Handoff Document]
+    E --> F[Write Checkpoint JSON]
+    F --> G[Update Run Store]
 ```
 
-```yaml
-name: Vera
-profession: Architect
-personality: |
-  You are structured, opinionated, and allergic to unnecessary complexity.
-  You draw diagrams before speaking.
-  You value simplicity over cleverness.
-```
+| Approach | Pros | Cons |
+|---|---|---|
+| JSON + git | Human-readable, git-native rollback, simple | Large checkpoints for big projects |
+| SQLite + binary blobs | Compact, queryable | Harder to inspect, git-unfriendly |
+| Content-addressed store (IPFS-style) | Deduplication, immutable | Overkill for local orchestration |
 
-| Profession | Can Read | Can Write | Tools |
-|---|---|---|---|
-| Advisor | goals, architecture, designs | goals | read_specs, write_specs, bring_in |
-| Architect | goals, architecture, designs | architecture, designs | read_specs, write_specs |
-| Planner | all | plans | read_specs, write_specs |
-| Coder | all | — | read_file, bring_in |
-| Tester | all | tests | read_specs, write_specs, read_file |
-| Reviewer | all | reviews | read_specs, write_specs |
-| Documenter | all | reports | read_specs, write_specs |
-
-- Clear separation of concerns (no agent can do everything)
-- Human can audit which agent changed what (profession tags in git history)
-- Token budgets enforced per profession
+- Positive: Checkpoints can be inspected with `cat` or `jq`.
+- Positive: Rollback uses standard git commands.
+- Negative: Large projects may produce multi-MB checkpoint files.
+- Mitigation: File manifest stores hashes, not contents. Only changed files are diffed.
 
 ---
 
-## A3 Goals Hierarchy Architecture
+---
+
+---
+
+---
+
+---
+
+---
+
+## A4 Boss-First Execution Architecture
+**Status:** approved
+**Depends on:** G6
+**Tags:** stack:backend, module:relay
+
+The default workflow for AI assistants requires human approval at every step. This treats the human as a peer reviewer. AutoForge treats the human as a boss who delegates and expects results. GSD mode shifts the default from "ask for permission" to "ask for forgiveness" — the AI executes autonomously and only interrupts the boss when blocked.
+
+```mermaid
+graph LR
+    A[Boss Request] --> B{Assistant classify}
+    B -->|QUESTION| C[Answer & Stop]
+    B -->|DIRECT| D[Coder]
+    B -->|NEW_GOAL| E[Advisor]
+    E -->|GSD| F{GoalGate}
+    F -->|Auto| G[Architect]
+    G --> H[Planner]
+    H --> I[Coder]
+    I --> J{Tests pass?}
+    J -->|No| I
+    J -->|Yes| K[Reviewer]
+    K --> L[Documenter]
+    L --> M[Report to Boss]
+    F -->|Check mode| N[Human Review]
+    N --> G
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| GSD default, Check opt-in | Boss is productive; AI does the work | AI may build wrong thing confidently |
+| Check default, GSD opt-in | Boss reviews every step | Boss is a bottleneck; loses async value |
+| Hybrid (GSD with auto-drifts) | Balance of speed and safety | More complex routing logic |
+
+- Positive: Boss gives one order, receives one report.
+- Positive: Reviewer acts as internal QA, not an external gate.
+- Negative: If Advisor writes bad Goals, everything downstream is wrong.
+- Mitigation: GoalGate is the one required human gate in GSD mode. Advisor uses medium/strong model.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A5 Frontend Composable State Architecture
+**Status:** implemented
+**Depends on:** G8
+**Tags:** stack:frontend, module:ui-system
+
+An LLM-based orchestrator would consume tokens for routing decisions, violating G3's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
+
+```mermaid
+graph TB
+    subgraph "Frontend Composables"
+        F[useForge.ts]
+        R[useRelay.ts]
+        S[useSpecs.ts]
+        G[useGateInbox.ts]
+        I[useItemRelations.ts]
+        AS[useApiSources.ts]
+        AC[useAgentConfigs.ts]
+        P[useProject.ts]
+    end
+    subgraph "Vue Components"
+        C[ChatView]
+        V[SpecsView]
+        L[RelayView]
+        AV[ApiSourcesView]
+        AE[AgentsConfigView]
+    end
+
+    F -->|session gates| G
+    R -->|run gates| G
+    G -->|renders| C
+    R -->|invalidates| S
+    S -->|finds item| I
+    I -->|enriches| V
+    R -->|uses agent configs| AC
+    AC -->|reads api sources| AS
+    F -->|uses api sources| AS
+    AS -->|renders| AV
+    AC -->|renders| AE
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Vue 3 Composables (singleton refs) | Zero boilerplate, matches existing code, tree-shakable, direct cross-import | No time-travel debugging; state is implicit |
+| Pinia global store | DevTools support, mutations traceable | More boilerplate, refactor cost for existing composables |
+| Redux/Vuex | Time-travel, predictable state updates | Massive overhead for a Vue 3 project |
+
+- Positive: `useGateInbox` can import `useRelay` and `useForge` directly to listen for gate events without event bus indirection.
+- Negative: Composable cross-imports create a soft dependency graph that is not explicitly declared.
+- Mitigation: Document cross-cutting concerns in the Architecture ADR; avoid circular imports by keeping `useGateInbox` as the central hub.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A6 Chat Ephemeral Chrome Architecture
+**Status:** implemented
+**Depends on:** G8
+**Tags:** stack:frontend, module:chat
+
+Persisting cross-session gate messages into the current session's `ForgeMessage` array would pollute the chat audit trail with foreign conversation state. The backend `ForgeMessage` schema has no `gate` role and should not be extended for UI chrome.
+
+
+```mermaid
+graph LR
+    A[useGateInbox.active] -->|v-if| B[SecretaryMessage.vue]
+    C[messages: ForgeMessage[]] -->|v-for| D[ChatMessage.vue]
+    B -.->|ephemeral| E[Chat DOM]
+    D -->|persisted| E
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Ephemeral Vue components (chosen) | Clean backend schema, no migration, chat history is accurate | Secretary messages disappear on refresh unless inbox is hydrated |
+| Persisted `system` role messages | Survives refresh, simple rendering | Pollutes session history with external state; backend schema change |
+| Separate "inbox" message stream | Clean separation | Complex UI: two message streams to render and scroll |
+
+- Positive: Backend `ForgeMessage` schema unchanged.
+- Positive: Chat history export contains only this session's conversation.
+- Negative: Page refresh loses the visual secretary message (but not the gate state, which is in `useGateInbox` and can be rehydrated).
+- Mitigation: On mount, `useGateInbox` fetches `/api/forge/gates/pending` and re-renders any active gates.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A7 API Source & Multi-Provider Architecture
+**Status:** proposed
+**Depends on:** G13
+**Tags:** stack:both, module:api-sources
+
+A single hardcoded provider (Claude only) limits agent flexibility and cost optimization. Agents in different roles have different cognitive requirements — a routing Assistant needs a cheap/fast model, while an Architect needs a strong reasoning model. Multi-provider support enables per-agent model selection from any configured API source.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        CF[config.rs] -->|load| AS[ApiSource Store]
+        CF -->|load| AC[AgentConfig Store]
+    end
+    subgraph "Provider Dispatch"
+        DP[dispatch_chat] --> AP[Anthropic Provider]
+        DP --> OP[OpenAI Provider]
+        DP --> LP[Local/Ollama Provider]
+    end
+    subgraph "Pipeline"
+        PE[PipelineEngine] -->|resolve| RC[RelayRegistry]
+        RC -->|spawn from| AC
+        AC -->|uses| AS
+        AS -->|routes via| DP
+    end
+
+    PE -->|step| AG[AgentInstance]
+    AG -->|chat via| DP
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Multi-provider dispatcher with ApiSource configs | Per-agent model selection, cost optimization, provider flexibility | More complex AI dispatch layer, multiple SSE format parsers |
+| Single provider with model tiers only | Simpler implementation | Locked into one provider, no fallback across providers |
+| Runtime model registry (no config UI) | No UI needed | Users cannot manage API keys or discover models |
+
+- Positive: Each agent can use the optimal provider + model for its task.
+- Positive: First-startup auto-detection finds existing keys — zero config for most users.
+- Positive: Test Connection endpoint validates setup before running pipelines.
+- Negative: Three different SSE parsing paths (Anthropic, OpenAI, Local) must be maintained.
+- Mitigation: OpenAI and Local share the same `/v1/chat/completions` format; only Anthropic differs.
+
+### Key Architecture Decisions
+
+
+
+
+
+```mermaid
+graph TB
+    subgraph "New Composables"
+        UA[useApiSources.ts]
+        UAC[useAgentConfigs.ts]
+    end
+    subgraph "Existing Composables"
+        UF[useForge.ts]
+        UR[useRelay.ts]
+        US[useSpecs.ts]
+        UG[useGateInbox.ts]
+    end
+
+    UAC -->|reads| UA
+    UR -->|uses| UAC
+    UF -->|uses| UA
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A8 Unified Provider & Runtime Architecture
+**Status:** done
+**Depends on:** G14, G15
+**Tags:** stack:backend, module:provider
+
+Two separate AI provider implementations (ai.rs for simple chat, forge/ai.rs for tool-enabled chat) created maintenance burden and duplicated SSE parsing logic. The unified provider/ module consolidates both into a single ClaudeProvider with two streaming modes, backed by a robust incremental SSE parser ported from auto-code-rs.
+
+```mermaid
+graph TB
+    subgraph "Entry Points"
+        CLI[CLI REPL] -->|chat_turn| P[ClaudeProvider]
+        WEB[Web API] -->|chat_stream| P
+        RLY[Relay Turn] -->|chat_turn| P
+    end
+    subgraph "Provider Layer"
+        P --> SSE[SseParser]
+        P --> CFG[load_api_config]
+    end
+    subgraph "Runtime"
+        CM[ContextManager]
+        SES[Session Persistence]
+        PM[PermissionPolicy]
+    end
+    subgraph "Tools"
+        TR[ToolRegistry]
+        TE[ToolError]
+    end
+
+    CLI --> CM
+    CLI --> TR
+    CLI --> PM
+    WEB --> TR
+    RLY --> TR
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Unified provider/ module (chosen) | Single source of truth, DRY, easy to add providers | All consumers must migrate imports |
+| Keep ai.rs + forge/ai.rs separate | No migration needed | Duplicate SSE logic, divergent error handling |
+| Trait-based provider abstraction | Pluggable providers | Over-engineered for single-provider use case |
+
+- Positive: Single SSE parser handles both `\r\n\r\n` and `\n\n` frame delimiters.
+- Positive: ToolError enum provides structured error classification instead of raw String.
+- Positive: Runtime infrastructure (ContextManager, Session, PermissionPolicy) available to both CLI and web modes.
+- Negative: OpenAI provider not yet ported (only Claude supported currently).
+- Mitigation: provider/ module is structured to accept additional providers without architectural changes.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A9 Chat-Turn Agent Handoff Architecture
+**Status:** proposed
+**Depends on:** G16, G17
+**Tags:** stack:both, module:chat
+
+The relay pipeline (A1) uses formal `HandoffDocument` generation between steps, but the free-form chat flow has no handoff mechanism. The assistant (Nicole) classifies user intent but cannot act on that classification — she answers everything herself with all tools. The bring-in tool bridges this gap by letting Nicole invoke another agent mid-conversation, passing structured context so the receiving agent doesn't ask the user to repeat.
+
+```mermaid
+graph LR
+    U[User Message] --> N[Nicole: Assistant]
+    N -->|classify| D{Intent?}
+    D -->|QUESTION| AN[Nicole answers]
+    D -->|DIRECT| AN
+    D -->|NEW_GOAL| B[bring_in tool]
+    D -->|REQ_UPDATE| B
+    B -->|handoff note| I[Isaac: Advisor]
+    I -->|continue chat| U
+    B -->|handoff note| ASH[Ash: Coder]
+    ASH -->|continue chat| U
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| bring_in tool with handoff note (chosen) | Seamless, no user action needed, context preserved | LLM must reliably call the tool; adds tool to ReAct loop |
+| Suggest + user @mentions | Simple, no new tool | Nicole can't act autonomously; user must remember to @mention |
+| Automatic backend routing based on classification | No LLM tool call needed | Requires structured classification output; brittle |
+
+- Positive: Nicole acts as a real dispatcher — she connects users to the right specialist.
+- Positive: Handoff note preserves context, so the next agent starts informed.
+- Positive: Frontend shows a visual handoff card, not raw tool output.
+- Negative: LLM must reliably call bring_in with correct target; may need prompt tuning.
+- Mitigation: Nicole's soul already instructs classification; bring_in is the natural action after classification. Validation rejects invalid targets (not in handoff_to).
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A10 Wiki Knowledge Layer Architecture
+**Status:** done
+**Depends on:** G18
+**Tags:** stack:both, module:wiki
+
+Wiki provides a dual-root knowledge storage: `wiki/` for agent-processed markdown pages and `raw/` for original source documents (PDFs, images, text files). Both support multi-level directory hierarchies. Agents (Documenter) process raw resources into structured wiki pages.
+
+```mermaid
+graph TB
+    subgraph "Raw Storage"
+        RD[raw/ directory]
+        UF[File Upload API]
+        DZ[DropZone UI]
+    end
+    subgraph "Wiki Storage"
+        WS[wiki/ directory]
+        MD[Markdown Pages]
+        MF[_manifest.json]
+    end
+    subgraph "Tree API"
+        WT[Wiki Tree]
+        RT[Raw Tree]
+    end
+    subgraph "Agent Tools"
+        QW[query_wiki]
+        CW[create_wiki_page]
+        UW[update_wiki_page]
+    end
+    subgraph "UI"
+        WTab[Wiki Tab]
+        TV[TreeView]
+        WE[MarkdownEditor]
+    end
+
+    RD --> UF
+    UF --> DZ
+    WS --> MD
+    WS --> MF
+    MD --> WT
+    RD --> RT
+    QW -->|search| MD
+    CW -->|write| WS
+    UW -->|write| WS
+    WTab --> TV
+    TV -->|wiki tree| WT
+    TV -->|raw tree| RT
+    WTab -->|edit| WE
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Dual-root (wiki/ + raw/) with tree navigation (chosen) | Clear separation of raw vs processed, supports drag-drop import, hierarchical organization | Two directory trees to manage |
+| Flat slug list (no directories) | Simpler implementation | Poor organization for large knowledge bases |
+| Single root with source_type tagging | Fewer directories | Mixing raw and processed in same tree is confusing |
+| External wiki (Notion, Confluence) | No storage implementation needed | Network dependency, not offline, API latency |
+
+- Positive: Raw/ and wiki/ are clearly separated — agents process raw into wiki.
+- Positive: Tree navigation scales to large knowledge bases with nested folders.
+- Positive: Drag-and-drop upload makes importing resources effortless.
+- Negative: Semantic RAG (vector search) not yet implemented — uses text search for now.
+- Mitigation: RAG can be layered on top of existing wiki pages without restructuring.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A11 AutoDown Editor — Tiptap-Based WYSIWYG Architecture
 **Status:** draft
+**Depends on:** G19
+**Tags:** stack:frontend, module:editor
+
+AutoForge needs a block-based WYSIWYG editor that natively supports Markdown serialization and can be extended with custom Vue components for AutoDown-specific blocks. Tiptap is the only evaluated framework that satisfies all constraints simultaneously: it is headless (no forced UI), has first-class Vue 3 integration via `VueNodeViewRenderer`, provides a native ProseMirror block model, and includes a dedicated `@tiptap/markdown` extension with per-extension `parseMarkdown`/`renderMarkdown` hooks. Novel.sh demonstrates that wrapping Tiptap into a product-grade editor is viable — we adapt its pattern (headless primitives + styled composition) to Vue 3's Composition API without Jotai or React-specific libraries.
+
+
+```mermaid
+graph TD
+    subgraph Frontend
+        A[AutoDownEditor.vue] --> B[Tiptap Editor]
+        B --> C[ProseMirror EditorView]
+        C --> D[Block Nodes]
+        D --> E[Vue NodeViews]
+        E --> F[CalloutBlock.vue]
+        E --> G[MathBlock.vue]
+        E --> H[MermaidBlock.vue]
+        E --> I[SpecRefBlock.vue]
+        B --> J[SlashCommand Extension]
+        B --> K[BubbleMenu Extension]
+        B --> L[DragHandle Extension]
+        B --> M[Markdown Extension]
+        M --> N[marked tokenizer]
+    end
+    subgraph Persistence
+        O[WikiPage.content] -->|parse| A
+        A -->|serialize| O
+    end
+```
+
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **Tiptap + Vue 3** (chosen) | Headless, Vue-native, markdown built-in, large extension ecosystem | Bundle size ~150KB+ for core + extensions |
+| **Native ContentEditable** | Zero dependencies, full control | Must rebuild block model, drag/drop, markdown parser from scratch |
+| **CodeMirror 6** | Excellent for code, modular | Flat document model, not block-oriented; poor WYSIWYG image/table support |
+| **Lexical (Meta)** | Modern, collaborative-ready | React-first; Vue integration is community-maintained and immature |
+
+- Positive: Custom blocks are real Vue components — reactive, interactive, testable.
+- Positive: Markdown round-trip is solved by Tiptap; no custom parser needed for Phase 1.
+- Positive: Extension system means adding a new block type does not touch core editor code.
+- Negative: Bundle size increase requires code-splitting the editor into a lazy-loaded chunk.
+- Negative: ProseMirror has a learning curve for developers implementing custom node views.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A12 Errand Dispatch Architecture
+**Status:** approved
+**Depends on:** G22, A9
+**Tags:** stack:both, module:errand
+
+`bring_in` is for **Relay phase transitions** — the baton changes hands, the active profession switches, and the new agent continues the conversation. `dispatch` is for **fire-and-forget tasks** — the master stays in control, a side-agent does grunt work, and only the result returns. Conflating these two patterns would break both. Keeping them separate preserves the Relay pipeline's determinism while adding lightweight task delegation.
+
+```mermaid
+graph TB
+    subgraph "Master Session (Claude Sonnet)"
+        M[Architect: Vera]
+        M -->|dispatch(task)| DT[Dispatch Tool]
+    end
+    subgraph "Errand Runner"
+        DT -->|spawn| ES[ErrandSession]
+        ES -->|chat via| CM[Cheap Model]
+        CM -->|tools| TR[ToolRegistry subset]
+        TR -->|shell/read_file/search| FS[File System]
+    end
+    subgraph "Result Flow"
+        ES -->|final message| R[Result String]
+        R -->|tool_result| M
+        R -->|persist| EP[Errand Persistence]
+    end
+    subgraph "Frontend"
+        M -->|SSE| FE[Master Chat Stream]
+        ES -->|SSE| FE
+        FE -->|render| MC[Collapsible Errand Thread]
+    end
+```
+
+| | `bring_in` (Relay) | `dispatch` (Errand) |
+|---|---|---|
+| **Purpose** | Phase transition | Task delegation |
+| **Caller state** | Suspended | Continues immediately |
+| **Active profession** | Changes to target | Unchanged |
+| **Chat history** | Merged into main thread | Isolated, nested view |
+| **Context pollution** | Handoff note injected | Only summary returns |
+| **Approval gates** | Yes (configurable) | No |
+| **Model cost** | Same tier as pipeline | Cheapest tier |
+| **Audit trail** | Checkpoint + handoff doc | Full errand chat log |
+| **LLM coordination** | Receives full history | Receives only task + context |
+
+```mermaid
+sequenceDiagram
+    participant M as Master (Vera)
+    participant D as Dispatch Tool
+    participant E as ErrandSession (Gus)
+    participant L as Cheap LLM
+    participant F as Frontend
+
+    M->>D: dispatch(task="find auth impl")
+    D->>E: spawn(gofer, task)
+    E->>L: turn 1: shell grep
+    L->>E: grep results (500 lines)
+    E->>L: turn 2: read_file jwt.rs
+    L->>E: file contents
+    E->>L: turn 3: summarize
+    L->>E: "JWT via jsonwebtoken crate"
+    E->>D: return summary
+    D->>M: tool_result: summary
+    E->>F: SSE errand events
+    M->>F: SSE master events
+    F->>F: render master msg + collapsible errand thread
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **Tool-based dispatch with isolated ErrandSession** (chosen) | Clean separation from Relay, master stays active, context isolated, cheapest model | More backend infrastructure (ErrandSession, nested SSE) |
+| **bring_in to gofer then bring_in back** | Reuses existing handoff code | Pollutes chat history with handoff notes, changes active profession, requires two handoffs |
+| **Sub-agent raw API call (no session)** | Minimal backend code | No audit trail, no frontend visibility, no persistence |
+| **Inline tool expansion (give architect shell/search)** | No new agent needed | Master's context polluted with large tool outputs |
+
+- Positive: Master's context window stays clean — only the dispatch call and result are added.
+- Positive: Errand runs on cheapest model, saving ~80% on research tasks.
+- Positive: Boss can audit every errand by expanding the nested thread.
+- Negative: ErrandSession requires parallel message tracking and separate SSE routing.
+- Mitigation: ErrandSession is a lightweight struct (~50 lines) that reuses existing TurnEngine.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A13 Automatic Relay Mode Architecture
+**Status:** approved
+**Depends on:** G23, A1, A9, A12
+**Tags:** stack:both, module:relay
+
+`spawn_relay` is the third orchestration primitive alongside `bring_in` (phase transition) and `dispatch` (errand). It bridges the **chat layer** (Forge) and the **pipeline layer** (Relay) by allowing a chat agent to launch an autonomous background pipeline that runs without further chat involvement.
+
+```mermaid
+graph TB
+    subgraph "Chat Layer (Forge)"
+        I[Isaac — Advisor]
+        I -->|writes goals| SP[Specs]
+        I -->|spawn_relay| ST[SpawnRelayTool]
+    end
+    
+    subgraph "Bridge"
+        ST -->|returns run_id| FH[Forge Stream Handler]
+        FH -->|creates| RE[RunEntry in RunStore]
+        FH -->|spawns| DR[RelayDriver]
+        FH -->|SSE| FE[Chat Frontend]
+    end
+    
+    subgraph "Pipeline Layer (Relay)"
+        DR -->|advance_run| PE[PipelineEngine]
+        PE -->|ExecuteStep| AT[AgentTurn]
+        AT -->|LLM + tools| PR[Provider]
+        AT -->|submit_handoff| PE
+        PE -->|WaitForHuman| GW[Gate Wait Loop]
+        GW -->|poll| RE
+    end
+    
+    subgraph "Monitoring"
+        RE -->|SSE| RV[RelayView]
+        RV -->|resolve_gate| PE
+    end
+```
+
+### Three Orchestration Primitives
+
+| Primitive | Layer | Scope | Chat Pollution | Human Involvement |
+|-----------|-------|-------|----------------|-------------------|
+| `bring_in` | Forge | Switches chat profession | Handoff note injected | Optional gates |
+| `dispatch` | Forge | Isolated errand, master continues | Collapsible errand thread | None |
+| `spawn_relay` | **Forge → Relay** | **Full background pipeline** | **One relay card only** | **Gate approval in RelayView** |
+
+### Driver Loop
+
+```
+advance_run() → ExecuteStep { step_id, profession_id }
+    ↓
+build_agent(profession_id) → AgentInstance
+build_step_messages(task, previous_handoff, feedback) → Vec<ChatMessage>
+    ↓
+AgentTurn::run(provider, messages) → TurnResult
+    ↓
+to_handoff(turn_result) → HandoffDocument
+    ↓
+submit_handoff(handoff) → AdvanceResult
+    ↓
+├─ ExecuteStep → loop back to top
+├─ WaitForHuman → sleep 2s, poll gate status, loop back
+├─ Completed → emit run_completed event, exit
+└─ Failed → emit run_failed event, exit
+```
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Driver location | `relay/driver.rs` (separate module) | Keeps pipeline engine pure; driver is an execution layer |
+| Gate waiting | Polling loop (not channels) | Simple, no deadlock risk, easy to inspect state |
+| Context construction | Initial task + previous handoff render + gate feedback | Gives each agent enough context without full chat history |
+| Tool registry per turn | Fresh `ToolRegistry::new()` | Tools are stateless; no need to share across steps |
+| Project context | `set_tool_context()` thread-local | Reuses existing specs tool infrastructure |
+| Flow selection | `post_discovery` skips chat-done work | Avoids wasting tokens on redundant intake/discover |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A14 Goals Hierarchy Architecture
+**Status:** draft
+**Tags:** stack:frontend, module:specs
 
 ```mermaid
 graph TB
@@ -231,8 +943,19 @@ pub struct Tag {
 
 ---
 
-## A4 Backend API Extensions
+---
+
+---
+
+---
+
+---
+
+---
+
+## A15 Backend API Extensions
 **Status:** draft
+**Tags:** stack:backend, module:project
 
 ```rust
 // GET /api/forge/specs/{project}/goals/tree
@@ -324,8 +1047,19 @@ interface GoalNode {
 
 ---
 
-## A5 Frontend Tree View Architecture
+---
+
+---
+
+---
+
+---
+
+---
+
+## A16 Frontend Tree View Architecture
 **Status:** draft
+**Tags:** stack:frontend, module:project
 
 ```mermaid
 graph TB
@@ -502,8 +1236,19 @@ export const useGoalsTree = defineStore('goalsTree', {
 
 ---
 
-## A6 Search & Filter Architecture
+---
+
+---
+
+---
+
+---
+
+---
+
+## A17 Search & Filter Architecture
 **Status:** draft
+**Tags:** stack:frontend, module:ui-system
 
 ```typescript
 function filterTree(tree: GoalsTree, query: string): GoalsTree {
@@ -556,664 +1301,132 @@ function filterTree(tree: GoalsTree, query: string): GoalsTree {
 
 ---
 
-## A1 Relay Orchestrator Architecture
-**Status:** draft
-**Depends on:** G2
-
-An LLM-based orchestrator would consume tokens for routing decisions, violating G3's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
-
-```mermaid
-graph TB
-    subgraph "Orchestrator (Rust)"
-        O[PipelineEngine]
-        F[FlowSpec Parser]
-        H[Handoff Manager]
-        C[Checkpoint Manager]
-        B[Budget Tracker]
-    end
-    subgraph "Agent Turn"
-        A[AgentInstance]
-        T[ToolRegistry Filter]
-        D[Multi-Provider Dispatch]
-    end
-    subgraph "AI Providers"
-        AP[Anthropic]
-        OP[OpenAI]
-        LP[Local/Ollama]
-    end
-    subgraph "Specs (Ledger)"
-        L[Jades / Ledger]
-    end
-    subgraph "Persistence"
-        P[Checkpoint Store]
-        R[Run Store]
-        CS[Config Store]
-    end
-
-    O -->|parse| F
-    O -->|generate| H
-    O -->|save/load| C
-    O -->|track| B
-    O -->|spawn from config| A
-    A -->|filtered| T
-    A -->|chat via| D
-    D -->|route| AP
-    D -->|route| OP
-    D -->|route| LP
-    A -->|read/write| L
-    C -->|serialize| P
-    O -->|persist| R
-    O -->|load configs| CS
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| Deterministic Rust orchestrator | Zero token cost, predictable, fast, type-safe | Cannot adapt to novel flow patterns without code change |
-| LLM-based orchestrator | Flexible, natural language flow definitions | Token cost per routing decision, non-deterministic, harder to test |
-| Hybrid (LLM plans, Rust executes) | Flexibility + determinism | More complex, LLM still needed for plan generation |
-
-- Positive: Flow execution is deterministic and unit-testable.
-- Positive: No token spend on coordination.
-- Negative: New flow patterns (e.g., conditional routing based on spec content) require code changes to `PipelineEngine`.
-- Mitigation: FlowSpec supports `branch`, `loop`, and `on_fail` primitives that cover 95% of use cases.
-
+---
 
 ---
 
-## A2 Agent Instance Lifecycle
-**Status:** draft
-**Depends on:** G1, G2
-
-Long-lived agent processes would accumulate context and state, defeating the token-efficiency goal. By spawning fresh instances per step, each agent starts with a clean, minimal context window. This also simplifies crash recovery — no need to restore agent memory, only the checkpoint.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Spawning: Orchestrator starts step
-    Spawning --> ConfigResolving: Look up AgentConfig by profession
-    ConfigResolving --> Running: Soul + Specs + Handoff + resolved Model loaded
-    Running --> ToolCall: Agent invokes tool
-    ToolCall --> Running: Tool result appended
-    Running --> HandoffComplete: Agent calls handoff tool
-    Running --> BudgetExceeded: Token limit reached
-    Running --> Error: Panic / API failure
-    Error --> Fallback: Try fallback model from ApiSource
-    Fallback --> Running: Retry with fallback model
-    Fallback --> Failed: All fallbacks exhausted
-    HandoffComplete --> [*]: Instance dropped, checkpoint saved
-    BudgetExceeded --> [*]: Forced handoff, budget note added
-    Failed --> [*]: Run marked Failed, human notified
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| Ephemeral per-step instances | Minimal context, easy recovery, cheap | Agent cannot learn across turns within a step |
-| Long-lived instances with context window | Agent remembers earlier turns | Context grows, recovery harder, more tokens |
-| Persistent agent processes with memory | Cross-run learning possible | Complex state management, not needed for relay |
-
-- Positive: Maximum token efficiency.
-- Positive: Crash recovery is trivial — just re-spawn from checkpoint.
-- Negative: If an agent needs 5 turns to complete, each turn re-loads the same Soul + Specs. However, this is cheaper than maintaining a growing context.
-
+---
 
 ---
 
-## A3 Checkpoint & State Persistence
-**Status:** draft
-**Depends on:** G4
-
-JSON provides human-readable, version-controllable checkpoints. Git auto-commits provide a robust file-level rollback mechanism that integrates with existing developer workflows. The Ledger is embedded (not referenced) to ensure self-contained checkpoints.
-
-```mermaid
-graph LR
-    A[Handoff Triggered] --> B[Capture File Manifest]
-    B --> C[Git Commit or Diff]
-    C --> D[Serialize Ledger]
-    D --> E[Write Handoff Document]
-    E --> F[Write Checkpoint JSON]
-    F --> G[Update Run Store]
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| JSON + git | Human-readable, git-native rollback, simple | Large checkpoints for big projects |
-| SQLite + binary blobs | Compact, queryable | Harder to inspect, git-unfriendly |
-| Content-addressed store (IPFS-style) | Deduplication, immutable | Overkill for local orchestration |
-
-- Positive: Checkpoints can be inspected with `cat` or `jq`.
-- Positive: Rollback uses standard git commands.
-- Negative: Large projects may produce multi-MB checkpoint files.
-- Mitigation: File manifest stores hashes, not contents. Only changed files are diffed.
-
 ---
 
-## A4 Boss-First Execution Architecture
+## A18 Theme & Accent System Architecture
 **Status:** approved
-**Depends on:** G6
-
-The default workflow for AI assistants requires human approval at every step. This treats the human as a peer reviewer. AutoForge treats the human as a boss who delegates and expects results. GSD mode shifts the default from "ask for permission" to "ask for forgiveness" — the AI executes autonomously and only interrupts the boss when blocked.
+**Tags:** stack:frontend, module:ui-system
 
 ```mermaid
 graph LR
-    A[Boss Request] --> B{Assistant classify}
-    B -->|QUESTION| C[Answer & Stop]
-    B -->|DIRECT| D[Coder]
-    B -->|NEW_GOAL| E[Advisor]
-    E -->|GSD| F{GoalGate}
-    F -->|Auto| G[Architect]
-    G --> H[Planner]
-    H --> I[Coder]
-    I --> J{Tests pass?}
-    J -->|No| I
-    J -->|Yes| K[Reviewer]
-    K --> L[Documenter]
-    L --> M[Report to Boss]
-    F -->|Check mode| N[Human Review]
-    N --> G
+    T[useTheme.ts] -->|localStorage| LS[vitepress-theme-appearance]
+    T -->|toggle| HTML[<html class="dark|light">]
+    A[useAccentColor.ts] -->|CSS vars| ROOT[:root]
+    ROOT -->|tailwind dark:| UI[All Vue components]
 ```
 
-| Approach | Pros | Cons |
-|---|---|---|
-| GSD default, Check opt-in | Boss is productive; AI does the work | AI may build wrong thing confidently |
-| Check default, GSD opt-in | Boss reviews every step | Boss is a bottleneck; loses async value |
-| Hybrid (GSD with auto-drifts) | Balance of speed and safety | More complex routing logic |
+| Concern | Decision |
+|---------|----------|
+| Theme persistence | localStorage key `vitepress-theme-appearance` for compatibility |
+| Accent application | CSS custom properties (`--color-primary-500`, etc.) injected at runtime |
+| System preference | `matchMedia('(prefers-color-scheme: dark)')` with live listener |
 
-- Positive: Boss gives one order, receives one report.
-- Positive: Reviewer acts as internal QA, not an external gate.
-- Negative: If Advisor writes bad Goals, everything downstream is wrong.
-- Mitigation: GoalGate is the one required human gate in GSD mode. Advisor uses medium/strong model.
-
+- No server involvement; purely client-side state
+- Both composables are singletons (module-level refs)
 
 ---
 
-## A5 Frontend Composable State Architecture
-**Status:** implemented
-**Depends on:** G8
-
-An LLM-based orchestrator would consume tokens for routing decisions, violating G3's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
-
-```mermaid
-graph TB
-    subgraph "Frontend Composables"
-        F[useForge.ts]
-        R[useRelay.ts]
-        S[useSpecs.ts]
-        G[useGateInbox.ts]
-        I[useItemRelations.ts]
-        AS[useApiSources.ts]
-        AC[useAgentConfigs.ts]
-        P[useProject.ts]
-    end
-    subgraph "Vue Components"
-        C[ChatView]
-        V[SpecsView]
-        L[RelayView]
-        AV[ApiSourcesView]
-        AE[AgentsConfigView]
-    end
-
-    F -->|session gates| G
-    R -->|run gates| G
-    G -->|renders| C
-    R -->|invalidates| S
-    S -->|finds item| I
-    I -->|enriches| V
-    R -->|uses agent configs| AC
-    AC -->|reads api sources| AS
-    F -->|uses api sources| AS
-    AS -->|renders| AV
-    AC -->|renders| AE
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| Vue 3 Composables (singleton refs) | Zero boilerplate, matches existing code, tree-shakable, direct cross-import | No time-travel debugging; state is implicit |
-| Pinia global store | DevTools support, mutations traceable | More boilerplate, refactor cost for existing composables |
-| Redux/Vuex | Time-travel, predictable state updates | Massive overhead for a Vue 3 project |
-
-- Positive: `useGateInbox` can import `useRelay` and `useForge` directly to listen for gate events without event bus indirection.
-- Negative: Composable cross-imports create a soft dependency graph that is not explicitly declared.
-- Mitigation: Document cross-cutting concerns in the Architecture ADR; avoid circular imports by keeping `useGateInbox` as the central hub.
-
+---
 
 ---
 
-## A6 Chat Ephemeral Chrome Architecture
-**Status:** implemented
-**Depends on:** G8
-
-Persisting cross-session gate messages into the current session's `ForgeMessage` array would pollute the chat audit trail with foreign conversation state. The backend `ForgeMessage` schema has no `gate` role and should not be extended for UI chrome.
-
-
-```mermaid
-graph LR
-    A[useGateInbox.active] -->|v-if| B[SecretaryMessage.vue]
-    C[messages: ForgeMessage[]] -->|v-for| D[ChatMessage.vue]
-    B -.->|ephemeral| E[Chat DOM]
-    D -->|persisted| E
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| Ephemeral Vue components (chosen) | Clean backend schema, no migration, chat history is accurate | Secretary messages disappear on refresh unless inbox is hydrated |
-| Persisted `system` role messages | Survives refresh, simple rendering | Pollutes session history with external state; backend schema change |
-| Separate "inbox" message stream | Clean separation | Complex UI: two message streams to render and scroll |
-
-- Positive: Backend `ForgeMessage` schema unchanged.
-- Positive: Chat history export contains only this session's conversation.
-- Negative: Page refresh loses the visual secretary message (but not the gate state, which is in `useGateInbox` and can be rehydrated).
-- Mitigation: On mount, `useGateInbox` fetches `/api/forge/gates/pending` and re-renders any active gates.
-
+---
 
 ---
 
-## A7 API Source & Multi-Provider Architecture
-**Status:** proposed
-**Depends on:** G13
-
-A single hardcoded provider (Claude only) limits agent flexibility and cost optimization. Agents in different roles have different cognitive requirements — a routing Assistant needs a cheap/fast model, while an Architect needs a strong reasoning model. Multi-provider support enables per-agent model selection from any configured API source.
-
-```mermaid
-graph TB
-    subgraph "Config Layer"
-        CF[config.rs] -->|load| AS[ApiSource Store]
-        CF -->|load| AC[AgentConfig Store]
-    end
-    subgraph "Provider Dispatch"
-        DP[dispatch_chat] --> AP[Anthropic Provider]
-        DP --> OP[OpenAI Provider]
-        DP --> LP[Local/Ollama Provider]
-    end
-    subgraph "Pipeline"
-        PE[PipelineEngine] -->|resolve| RC[RelayRegistry]
-        RC -->|spawn from| AC
-        AC -->|uses| AS
-        AS -->|routes via| DP
-    end
-
-    PE -->|step| AG[AgentInstance]
-    AG -->|chat via| DP
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| Multi-provider dispatcher with ApiSource configs | Per-agent model selection, cost optimization, provider flexibility | More complex AI dispatch layer, multiple SSE format parsers |
-| Single provider with model tiers only | Simpler implementation | Locked into one provider, no fallback across providers |
-| Runtime model registry (no config UI) | No UI needed | Users cannot manage API keys or discover models |
-
-- Positive: Each agent can use the optimal provider + model for its task.
-- Positive: First-startup auto-detection finds existing keys — zero config for most users.
-- Positive: Test Connection endpoint validates setup before running pipelines.
-- Negative: Three different SSE parsing paths (Anthropic, OpenAI, Local) must be maintained.
-- Mitigation: OpenAI and Local share the same `/v1/chat/completions` format; only Anthropic differs.
-
-### Key Architecture Decisions
-
-
-
-
-
-```mermaid
-graph TB
-    subgraph "New Composables"
-        UA[useApiSources.ts]
-        UAC[useAgentConfigs.ts]
-    end
-    subgraph "Existing Composables"
-        UF[useForge.ts]
-        UR[useRelay.ts]
-        US[useSpecs.ts]
-        UG[useGateInbox.ts]
-    end
-
-    UAC -->|reads| UA
-    UR -->|uses| UAC
-    UF -->|uses| UA
-```
-
----
-
-## A8 Unified Provider & Runtime Architecture
-**Status:** done
-**Depends on:** G14, G15
-
-Two separate AI provider implementations (ai.rs for simple chat, forge/ai.rs for tool-enabled chat) created maintenance burden and duplicated SSE parsing logic. The unified provider/ module consolidates both into a single ClaudeProvider with two streaming modes, backed by a robust incremental SSE parser ported from auto-code-rs.
-
-```mermaid
-graph TB
-    subgraph "Entry Points"
-        CLI[CLI REPL] -->|chat_turn| P[ClaudeProvider]
-        WEB[Web API] -->|chat_stream| P
-        RLY[Relay Turn] -->|chat_turn| P
-    end
-    subgraph "Provider Layer"
-        P --> SSE[SseParser]
-        P --> CFG[load_api_config]
-    end
-    subgraph "Runtime"
-        CM[ContextManager]
-        SES[Session Persistence]
-        PM[PermissionPolicy]
-    end
-    subgraph "Tools"
-        TR[ToolRegistry]
-        TE[ToolError]
-    end
-
-    CLI --> CM
-    CLI --> TR
-    CLI --> PM
-    WEB --> TR
-    RLY --> TR
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| Unified provider/ module (chosen) | Single source of truth, DRY, easy to add providers | All consumers must migrate imports |
-| Keep ai.rs + forge/ai.rs separate | No migration needed | Duplicate SSE logic, divergent error handling |
-| Trait-based provider abstraction | Pluggable providers | Over-engineered for single-provider use case |
-
-- Positive: Single SSE parser handles both `\r\n\r\n` and `\n\n` frame delimiters.
-- Positive: ToolError enum provides structured error classification instead of raw String.
-- Positive: Runtime infrastructure (ContextManager, Session, PermissionPolicy) available to both CLI and web modes.
-- Negative: OpenAI provider not yet ported (only Claude supported currently).
-- Mitigation: provider/ module is structured to accept additional providers without architectural changes.
-
----
-
-## A9 Chat-Turn Agent Handoff Architecture
-**Status:** proposed
-**Depends on:** G16, G17
-
-The relay pipeline (A1) uses formal `HandoffDocument` generation between steps, but the free-form chat flow has no handoff mechanism. The assistant (Nicole) classifies user intent but cannot act on that classification — she answers everything herself with all tools. The bring-in tool bridges this gap by letting Nicole invoke another agent mid-conversation, passing structured context so the receiving agent doesn't ask the user to repeat.
-
-```mermaid
-graph LR
-    U[User Message] --> N[Nicole: Assistant]
-    N -->|classify| D{Intent?}
-    D -->|QUESTION| AN[Nicole answers]
-    D -->|DIRECT| AN
-    D -->|NEW_GOAL| B[bring_in tool]
-    D -->|REQ_UPDATE| B
-    B -->|handoff note| I[Isaac: Advisor]
-    I -->|continue chat| U
-    B -->|handoff note| ASH[Ash: Coder]
-    ASH -->|continue chat| U
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| bring_in tool with handoff note (chosen) | Seamless, no user action needed, context preserved | LLM must reliably call the tool; adds tool to ReAct loop |
-| Suggest + user @mentions | Simple, no new tool | Nicole can't act autonomously; user must remember to @mention |
-| Automatic backend routing based on classification | No LLM tool call needed | Requires structured classification output; brittle |
-
-- Positive: Nicole acts as a real dispatcher — she connects users to the right specialist.
-- Positive: Handoff note preserves context, so the next agent starts informed.
-- Positive: Frontend shows a visual handoff card, not raw tool output.
-- Negative: LLM must reliably call bring_in with correct target; may need prompt tuning.
-- Mitigation: Nicole's soul already instructs classification; bring_in is the natural action after classification. Validation rejects invalid targets (not in handoff_to).
-
----
-
-## A10 Wiki Knowledge Layer Architecture
-**Status:** done
-**Depends on:** G18
-
-Wiki provides a dual-root knowledge storage: `wiki/` for agent-processed markdown pages and `raw/` for original source documents (PDFs, images, text files). Both support multi-level directory hierarchies. Agents (Documenter) process raw resources into structured wiki pages.
-
-```mermaid
-graph TB
-    subgraph "Raw Storage"
-        RD[raw/ directory]
-        UF[File Upload API]
-        DZ[DropZone UI]
-    end
-    subgraph "Wiki Storage"
-        WS[wiki/ directory]
-        MD[Markdown Pages]
-        MF[_manifest.json]
-    end
-    subgraph "Tree API"
-        WT[Wiki Tree]
-        RT[Raw Tree]
-    end
-    subgraph "Agent Tools"
-        QW[query_wiki]
-        CW[create_wiki_page]
-        UW[update_wiki_page]
-    end
-    subgraph "UI"
-        WTab[Wiki Tab]
-        TV[TreeView]
-        WE[MarkdownEditor]
-    end
-
-    RD --> UF
-    UF --> DZ
-    WS --> MD
-    WS --> MF
-    MD --> WT
-    RD --> RT
-    QW -->|search| MD
-    CW -->|write| WS
-    UW -->|write| WS
-    WTab --> TV
-    TV -->|wiki tree| WT
-    TV -->|raw tree| RT
-    WTab -->|edit| WE
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| Dual-root (wiki/ + raw/) with tree navigation (chosen) | Clear separation of raw vs processed, supports drag-drop import, hierarchical organization | Two directory trees to manage |
-| Flat slug list (no directories) | Simpler implementation | Poor organization for large knowledge bases |
-| Single root with source_type tagging | Fewer directories | Mixing raw and processed in same tree is confusing |
-| External wiki (Notion, Confluence) | No storage implementation needed | Network dependency, not offline, API latency |
-
-- Positive: Raw/ and wiki/ are clearly separated — agents process raw into wiki.
-- Positive: Tree navigation scales to large knowledge bases with nested folders.
-- Positive: Drag-and-drop upload makes importing resources effortless.
-- Negative: Semantic RAG (vector search) not yet implemented — uses text search for now.
-- Mitigation: RAG can be layered on top of existing wiki pages without restructuring.
-
----
-
-## A11 AutoDown Editor — Tiptap-Based WYSIWYG Architecture
-**Status:** draft
-**Depends on:** G19
-
-AutoForge needs a block-based WYSIWYG editor that natively supports Markdown serialization and can be extended with custom Vue components for AutoDown-specific blocks. Tiptap is the only evaluated framework that satisfies all constraints simultaneously: it is headless (no forced UI), has first-class Vue 3 integration via `VueNodeViewRenderer`, provides a native ProseMirror block model, and includes a dedicated `@tiptap/markdown` extension with per-extension `parseMarkdown`/`renderMarkdown` hooks. Novel.sh demonstrates that wrapping Tiptap into a product-grade editor is viable — we adapt its pattern (headless primitives + styled composition) to Vue 3's Composition API without Jotai or React-specific libraries.
-
-
-```mermaid
-graph TD
-    subgraph Frontend
-        A[AutoDownEditor.vue] --> B[Tiptap Editor]
-        B --> C[ProseMirror EditorView]
-        C --> D[Block Nodes]
-        D --> E[Vue NodeViews]
-        E --> F[CalloutBlock.vue]
-        E --> G[MathBlock.vue]
-        E --> H[MermaidBlock.vue]
-        E --> I[SpecRefBlock.vue]
-        B --> J[SlashCommand Extension]
-        B --> K[BubbleMenu Extension]
-        B --> L[DragHandle Extension]
-        B --> M[Markdown Extension]
-        M --> N[marked tokenizer]
-    end
-    subgraph Persistence
-        O[WikiPage.content] -->|parse| A
-        A -->|serialize| O
-    end
-```
-
-
-| Approach | Pros | Cons |
-|---|---|---|
-| **Tiptap + Vue 3** (chosen) | Headless, Vue-native, markdown built-in, large extension ecosystem | Bundle size ~150KB+ for core + extensions |
-| **Native ContentEditable** | Zero dependencies, full control | Must rebuild block model, drag/drop, markdown parser from scratch |
-| **CodeMirror 6** | Excellent for code, modular | Flat document model, not block-oriented; poor WYSIWYG image/table support |
-| **Lexical (Meta)** | Modern, collaborative-ready | React-first; Vue integration is community-maintained and immature |
-
-- Positive: Custom blocks are real Vue components — reactive, interactive, testable.
-- Positive: Markdown round-trip is solved by Tiptap; no custom parser needed for Phase 1.
-- Positive: Extension system means adding a new block type does not touch core editor code.
-- Negative: Bundle size increase requires code-splitting the editor into a lazy-loaded chunk.
-- Negative: ProseMirror has a learning curve for developers implementing custom node views.
-
----
-
-## A12 Errand Dispatch Architecture
+## A19 Cross-View Event Router Architecture
 **Status:** approved
-**Depends on:** G22, A9
-
-`bring_in` is for **Relay phase transitions** — the baton changes hands, the active profession switches, and the new agent continues the conversation. `dispatch` is for **fire-and-forget tasks** — the master stays in control, a side-agent does grunt work, and only the result returns. Conflating these two patterns would break both. Keeping them separate preserves the Relay pipeline's determinism while adding lightweight task delegation.
+**Tags:** stack:frontend, module:relay
 
 ```mermaid
 graph TB
-    subgraph "Master Session (Claude Sonnet)"
-        M[Architect: Vera]
-        M -->|dispatch(task)| DT[Dispatch Tool]
-    end
-    subgraph "Errand Runner"
-        DT -->|spawn| ES[ErrandSession]
-        ES -->|chat via| CM[Cheap Model]
-        CM -->|tools| TR[ToolRegistry subset]
-        TR -->|shell/read_file/search| FS[File System]
-    end
-    subgraph "Result Flow"
-        ES -->|final message| R[Result String]
-        R -->|tool_result| M
-        R -->|persist| EP[Errand Persistence]
-    end
-    subgraph "Frontend"
-        M -->|SSE| FE[Master Chat Stream]
-        ES -->|SSE| FE
-        FE -->|render| MC[Collapsible Errand Thread]
-    end
+    SSE[Server-Sent Events] -->|raw events| ER[useEventRouter.ts]
+    ER -->|run_started| R[RelayView]
+    ER -->|gate_reached| GI[useGateInbox.ts]
+    ER -->|spec_written| S[SpecsView]
+    ER -->|run_completed| C[ChatsView ReportCard]
+    GI -->|active gate| SM[SecretaryMessage.vue]
+    GI -->|badge count| NR[NavRail]
 ```
 
-| | `bring_in` (Relay) | `dispatch` (Errand) |
-|---|---|---|
-| **Purpose** | Phase transition | Task delegation |
-| **Caller state** | Suspended | Continues immediately |
-| **Active profession** | Changes to target | Unchanged |
-| **Chat history** | Merged into main thread | Isolated, nested view |
-| **Context pollution** | Handoff note injected | Only summary returns |
-| **Approval gates** | Yes (configurable) | No |
-| **Model cost** | Same tier as pipeline | Cheapest tier |
-| **Audit trail** | Checkpoint + handoff doc | Full errand chat log |
-| **LLM coordination** | Receives full history | Receives only task + context |
-
-```mermaid
-sequenceDiagram
-    participant M as Master (Vera)
-    participant D as Dispatch Tool
-    participant E as ErrandSession (Gus)
-    participant L as Cheap LLM
-    participant F as Frontend
-
-    M->>D: dispatch(task="find auth impl")
-    D->>E: spawn(gofer, task)
-    E->>L: turn 1: shell grep
-    L->>E: grep results (500 lines)
-    E->>L: turn 2: read_file jwt.rs
-    L->>E: file contents
-    E->>L: turn 3: summarize
-    L->>E: "JWT via jsonwebtoken crate"
-    E->>D: return summary
-    D->>M: tool_result: summary
-    E->>F: SSE errand events
-    M->>F: SSE master events
-    F->>F: render master msg + collapsible errand thread
-```
-
-| Approach | Pros | Cons |
-|---|---|---|
-| **Tool-based dispatch with isolated ErrandSession** (chosen) | Clean separation from Relay, master stays active, context isolated, cheapest model | More backend infrastructure (ErrandSession, nested SSE) |
-| **bring_in to gofer then bring_in back** | Reuses existing handoff code | Pollutes chat history with handoff notes, changes active profession, requires two handoffs |
-| **Sub-agent raw API call (no session)** | Minimal backend code | No audit trail, no frontend visibility, no persistence |
-| **Inline tool expansion (give architect shell/search)** | No new agent needed | Master's context polluted with large tool outputs |
-
-- Positive: Master's context window stays clean — only the dispatch call and result are added.
-- Positive: Errand runs on cheapest model, saving ~80% on research tasks.
-- Positive: Boss can audit every errand by expanding the nested thread.
-- Negative: ErrandSession requires parallel message tracking and separate SSE routing.
-- Mitigation: ErrandSession is a lightweight struct (~50 lines) that reuses existing TurnEngine.
+- Event router is a singleton that subscribes to `/api/forge/relay/runs/{id}/events`
+- It maps event types to view actions without tight coupling
+- Gate inbox maintains a queue so multiple gates don't overwhelm the user
 
 ---
 
-## A13 Automatic Relay Mode Architecture
-**Status:** approved
-**Depends on:** G23, A1, A9, A12
+---
 
-`spawn_relay` is the third orchestration primitive alongside `bring_in` (phase transition) and `dispatch` (errand). It bridges the **chat layer** (Forge) and the **pipeline layer** (Relay) by allowing a chat agent to launch an autonomous background pipeline that runs without further chat involvement.
+---
+
+---
+
+---
+
+## A20 Streaming Content Renderer Architecture
+**Status:** approved
+**Tags:** stack:frontend, module:chat
+
+| Component | Responsibility |
+|---|---|
+| `useStreamingDocument.ts` | Parses interleaved markdown + JSON blocks from SSE chunks |
+| `StreamingRenderer.vue` | Receives segments array, renders markdown or registered components |
+| `StreamingTable.vue` | Renders JSON table data with sticky headers |
+| `SseParser` (backend) | Handles `\r\n\r\n` and `\n\n` delimiters robustly |
+
+- Parser maintains a sticky props cache so partial JSON tables don't lose column definitions
+- Component registry is extensible: add `{ table: StreamingTable }` to support new block types
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## A21 Explorer Module Architecture
+**Status:** approved
+**Tags:** stack:both, module:project
 
 ```mermaid
 graph TB
-    subgraph "Chat Layer (Forge)"
-        I[Isaac — Advisor]
-        I -->|writes goals| SP[Specs]
-        I -->|spawn_relay| ST[SpawnRelayTool]
-    end
-    
-    subgraph "Bridge"
-        ST -->|returns run_id| FH[Forge Stream Handler]
-        FH -->|creates| RE[RunEntry in RunStore]
-        FH -->|spawns| DR[RelayDriver]
-        FH -->|SSE| FE[Chat Frontend]
-    end
-    
-    subgraph "Pipeline Layer (Relay)"
-        DR -->|advance_run| PE[PipelineEngine]
-        PE -->|ExecuteStep| AT[AgentTurn]
-        AT -->|LLM + tools| PR[Provider]
-        AT -->|submit_handoff| PE
-        PE -->|WaitForHuman| GW[Gate Wait Loop]
-        GW -->|poll| RE
-    end
-    
-    subgraph "Monitoring"
-        RE -->|SSE| RV[RelayView]
-        RV -->|resolve_gate| PE
-    end
+    BE[GET /api/forge/project/tree] -->|TreeNode[]| TV[TreeView.vue]
+    BE2[GET /api/forge/project/file] -->|bytes + MIME| PV[Preview Pane]
+    TV -->|select| PV
+    TV -->|filter| FT[Client-side filter]
+    UC[useProject.ts] -->|projectName| NR[NavRail label]
 ```
 
-### Three Orchestration Primitives
+- Tree API returns recursive `TreeNode` with `node_type: "file" | "folder"`
+- File API validates path stays within project directory (blocks `..` and absolute paths)
+- Preview pane uses `<pre>`, `<img>`, `<iframe>`, or download link based on MIME guess
 
-| Primitive | Layer | Scope | Chat Pollution | Human Involvement |
-|-----------|-------|-------|----------------|-------------------|
-| `bring_in` | Forge | Switches chat profession | Handoff note injected | Optional gates |
-| `dispatch` | Forge | Isolated errand, master continues | Collapsible errand thread | None |
-| `spawn_relay` | **Forge → Relay** | **Full background pipeline** | **One relay card only** | **Gate approval in RelayView** |
+---
 
-### Driver Loop
+---
 
-```
-advance_run() → ExecuteStep { step_id, profession_id }
-    ↓
-build_agent(profession_id) → AgentInstance
-build_step_messages(task, previous_handoff, feedback) → Vec<ChatMessage>
-    ↓
-AgentTurn::run(provider, messages) → TurnResult
-    ↓
-to_handoff(turn_result) → HandoffDocument
-    ↓
-submit_handoff(handoff) → AdvanceResult
-    ↓
-├─ ExecuteStep → loop back to top
-├─ WaitForHuman → sleep 2s, poll gate status, loop back
-├─ Completed → emit run_completed event, exit
-└─ Failed → emit run_failed event, exit
-```
+---
 
-### Key Design Decisions
+---
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Driver location | `relay/driver.rs` (separate module) | Keeps pipeline engine pure; driver is an execution layer |
-| Gate waiting | Polling loop (not channels) | Simple, no deadlock risk, easy to inspect state |
-| Context construction | Initial task + previous handoff render + gate feedback | Gives each agent enough context without full chat history |
-| Tool registry per turn | Fresh `ToolRegistry::new()` | Tools are stateless; no need to share across steps |
-| Project context | `set_tool_context()` thread-local | Reuses existing specs tool infrastructure |
-| Flow selection | `post_discovery` skips chat-done work | Avoids wasting tokens on redundant intake/discover |
+---
+
+## A22 APIs Documentation View Architecture
+**Status:** approved
+**Tags:** stack:frontend, module:api-sources
+
+- Static documentation living in `specs/apis.ad`; rendered as a read-only view in the frontend
+- Grouped by backend module: Forge, Relay, Config, Wiki, Raw
+- Each entry shows HTTP method, route path, handler function, and one-line description
+- Editable through the Specs workspace when `apis.ad` is updated

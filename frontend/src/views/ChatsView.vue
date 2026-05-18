@@ -67,7 +67,6 @@
           <h2>Chat</h2>
         </div>
         <div class="header-center">
-          <div v-if="projectName" class="header-project">{{ projectName }}</div>
           <div class="header-search">
             <Search :size="13" />
             <input
@@ -1288,12 +1287,10 @@ onMounted(async () => {
 
 .header-center {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.75rem;
   flex: 1;
-  max-width: 520px;
-  margin: 0 auto;
+  justify-content: center;
 }
 
 .header-project {

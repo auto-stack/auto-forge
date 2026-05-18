@@ -321,13 +321,20 @@ onMounted(loadSources)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1rem 0.5rem;
+  padding: 0.75rem 1rem;
+  height: 48px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--af-border);
 }
 
 .sidebar-header h2 {
-  font-size: 0.98rem;
-  font-weight: 600;
-  color: var(--af-fg);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--af-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  flex: 1;
 }
 
 .sidebar-empty {
@@ -420,14 +427,21 @@ onMounted(loadSources)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  height: 48px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--af-border);
+  gap: 1rem;
 }
 
 .detail-header h3 {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--af-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 0;
 }
 
 .detail-actions {

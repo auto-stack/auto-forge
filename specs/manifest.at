@@ -1,58 +1,51 @@
 project = "auto-forge"
-version = 21
+version = 23
 
 [[section]]
 id = "goals"
 section_type = "goals"
 title = "Goals"
 status = "in_progress"
-last_modified = 1779032349
+last_modified = 1779086823
 
 [[section]]
 id = "architecture"
 section_type = "architecture"
 title = "Architecture"
 status = "draft"
-last_modified = 1779032349
+last_modified = 1779086823
 
 [[section]]
 id = "designs"
 section_type = "designs"
 title = "Designs"
 status = "in_progress"
-last_modified = 1779032349
+last_modified = 1779086823
 
 [[section]]
 id = "plans"
 section_type = "plans"
 title = "Plans"
 status = "in_progress"
-last_modified = 1778925801
+last_modified = 1779086823
 
 [[section]]
 id = "tests"
 section_type = "tests"
 title = "Tests"
 status = "in_progress"
-last_modified = 1778925801
+last_modified = 1779086823
 
 [[section]]
 id = "reviews"
 section_type = "reviews"
 title = "Reviews"
 status = "empty"
-last_modified = 1778693194
+last_modified = 1779086823
 
 [[section]]
 id = "reports"
 section_type = "reports"
 title = "Reports"
 status = "empty"
-last_modified = 1778693194
-
-[[section]]
-id = "apis"
-section_type = "goals"
-title = "APIs"
-status = "in_progress"
-last_modified = 1778835600
+last_modified = 1779086823

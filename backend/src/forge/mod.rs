@@ -6,8 +6,8 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
-    response::sse::{Event, KeepAlive, Sse},
+    http::{header, StatusCode},
+    response::{IntoResponse, Response, sse::{Event, KeepAlive, Sse}},
     routing::{get, post},
     Json, Router,
 };
@@ -1609,6 +1609,70 @@ mod handlers {
         Ok(Json(result))
     }
 
+    pub async fn project_tree() -> Result<Json<Vec<project::ProjectTreeNode>>, (StatusCode, String)> {
+        let store = specs().lock().unwrap();
+        if !store.is_project_open() {
+            return Err((StatusCode::BAD_REQUEST, "No project open".into()));
+        }
+        let project_path = store.data_dir.parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_default();
+        drop(store);
+        let tree = project::build_project_tree(&project_path);
+        Ok(Json(tree))
+    }
+
+    #[derive(Deserialize)]
+    pub struct FileQuery {
+        pub path: String,
+    }
+
+    pub async fn read_file(
+        axum::extract::Query(query): axum::extract::Query<FileQuery>,
+    ) -> Result<axum::response::Response, (StatusCode, String)> {
+        let store = specs().lock().unwrap();
+        if !store.is_project_open() {
+            return Err((StatusCode::BAD_REQUEST, "No project open".into()));
+        }
+        let project_path = store.data_dir.parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_default();
+        drop(store);
+
+        let path = std::path::Path::new(&query.path);
+        let canonical_project = std::fs::canonicalize(&project_path)
+            .unwrap_or_else(|_| project_path.clone());
+        let canonical_path = std::fs::canonicalize(path)
+            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid path: {}", e)))?;
+
+        if !canonical_path.starts_with(&canonical_project) {
+            return Err((StatusCode::FORBIDDEN, "Path outside project".into()));
+        }
+
+        let data = std::fs::read(&canonical_path)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read file: {}", e)))?;
+
+        let mime = match canonical_path.extension().and_then(|e| e.to_str()) {
+            Some("md") => "text/markdown",
+            Some("txt") => "text/plain",
+            Some("pdf") => "application/pdf",
+            Some("png") => "image/png",
+            Some("jpg") | Some("jpeg") => "image/jpeg",
+            Some("gif") => "image/gif",
+            Some("svg") => "image/svg+xml",
+            Some("json") => "application/json",
+            Some("csv") => "text/csv",
+            Some("html") => "text/html",
+            Some("js") => "application/javascript",
+            Some("css") => "text/css",
+            Some("xml") => "application/xml",
+            Some("zip") => "application/zip",
+            _ => "application/octet-stream",
+        };
+
+        Ok(([(header::CONTENT_TYPE, mime)], data).into_response())
+    }
+
     pub async fn pick_folder() -> Json<Option<String>> {
         let path = tokio::task::spawn_blocking(|| {
             rfd::FileDialog::new()
@@ -2745,6 +2809,8 @@ where
         .route("/api/forge/project/close", post(handlers::close_project))
         .route("/api/forge/project/recent", get(handlers::list_recent_projects))
         .route("/api/forge/project/browse", get(handlers::browse_directory))
+        .route("/api/forge/project/tree", get(handlers::project_tree))
+        .route("/api/forge/project/file", get(handlers::read_file))
         .route("/api/forge/project/pick-folder", get(handlers::pick_folder))
         // Forge
         .route("/api/forge/chats/session", post(handlers::create_forge_session))

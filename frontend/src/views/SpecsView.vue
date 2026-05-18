@@ -39,7 +39,6 @@
             </button>
           </div>
           <div class="header-center">
-            <div v-if="projectName" class="header-project">{{ projectName }}</div>
             <div class="header-search">
               <Search :size="13" />
               <input
@@ -427,13 +426,19 @@ watch(project, (newVal) => {
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
+  height: 48px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--af-border);
 }
 
 .section-nav-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--af-fg);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--af-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  flex: 1;
 }
 
 .section-nav-collapse-btn {
@@ -503,7 +508,9 @@ watch(project, (newVal) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 1rem;
+  padding: 0.75rem 1rem;
+  height: 48px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--af-border);
   gap: 1rem;
 }
@@ -547,12 +554,19 @@ watch(project, (newVal) => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  background: hsl(var(--muted-foreground) / 0.06);
-  border-radius: 8px;
-  padding: 0.35rem 0.6rem;
-  min-width: 200px;
+  width: 100%;
   max-width: 320px;
-  flex: 1;
+  padding: 0.35rem 0.75rem;
+  background: hsl(var(--muted-foreground) / 0.06);
+  border: 1px solid hsl(var(--muted-foreground) / 0.12);
+  border-radius: 6px;
+  color: var(--af-muted);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.header-search:focus-within {
+  border-color: hsl(var(--primary) / 0.35);
+  background: hsl(var(--muted-foreground) / 0.04);
 }
 
 .header-search svg {
@@ -561,16 +575,20 @@ watch(project, (newVal) => {
 }
 
 .search-input {
+  flex: 1;
   background: transparent;
   border: none;
   outline: none;
-  font-size: 0.88rem;
   color: var(--af-fg);
+  font-size: 0.88rem;
+  font-family: inherit;
+  min-width: 0;
   width: 100%;
 }
 
 .search-input::placeholder {
   color: var(--af-muted);
+  font-size: 0.88rem;
 }
 
 .specs-actions {

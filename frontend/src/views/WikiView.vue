@@ -28,7 +28,7 @@
             </div>
             <div v-if="rawExpanded" class="tree-section-body">
               <TreeView
-                v-for="node in rawTree"
+                v-for="node in filteredRawTree"
                 :key="node.path"
                 :node="node"
                 :active-path="activeRawPath"
@@ -47,7 +47,7 @@
             </div>
             <div v-if="wikiExpanded" class="tree-section-body">
               <TreeView
-                v-for="node in wikiTree"
+                v-for="node in filteredWikiTree"
                 :key="node.path"
                 :node="node"
                 :active-path="activeWikiPath"
@@ -84,6 +84,17 @@
             <template v-else-if="viewState === 'new-folder'">
               <h3 class="page-heading">New Folder</h3>
             </template>
+          </div>
+          <div class="header-center">
+            <div class="header-search">
+              <Search :size="13" />
+              <input
+                v-model="wikiSearch"
+                type="text"
+                class="search-input"
+                placeholder="Search pages..."
+              />
+            </div>
           </div>
           <div v-if="viewState === 'viewing' && activePage" class="header-actions">
             <button class="action-btn" @click="viewState = 'editing'" title="Edit page">
@@ -202,7 +213,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   BookOpen, PanelLeft, Plus, Pencil, Trash2, FileText, File,
-  ChevronRight, ChevronDown, FolderInput, FolderPlus, Check,
+  ChevronRight, ChevronDown, FolderInput, FolderPlus, Check, Search,
 } from 'lucide-vue-next'
 import { useWiki } from '@/composables/useWiki'
 import { useProject } from '@/composables/useProject'
@@ -210,6 +221,7 @@ import MarkdownContent from '@/components/MarkdownContent.vue'
 import AutoDownEditor from '@/components/editors/autodown/core/AutoDownEditor.vue'
 import TreeView from '@/components/TreeView.vue'
 import DropZone from '@/components/DropZone.vue'
+import type { TreeNode } from '@/types/wiki'
 
 const {
   pages, activePage, isLoading, wikiTree, rawTree, uploadProgress,
@@ -225,6 +237,7 @@ const viewState = ref<ViewState>('empty')
 const sidebarCollapsed = ref(localStorage.getItem(WIKI_SIDEBAR_KEY) === 'true')
 const rawExpanded = ref(true)
 const wikiExpanded = ref(true)
+const wikiSearch = ref('')
 const activeRawPath = ref('')
 const activeWikiPath = ref('')
 const activeRawFile = ref('')
@@ -249,6 +262,26 @@ watch(sidebarCollapsed, (v) => {
 function formatDate(ts: number): string {
   return new Date(ts * 1000).toLocaleDateString()
 }
+
+function filterTree(nodes: TreeNode[], query: string): TreeNode[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return nodes
+  const result: TreeNode[] = []
+  for (const node of nodes) {
+    const nameMatches = node.name.toLowerCase().includes(q)
+    let filteredChildren: TreeNode[] | undefined
+    if (node.children) {
+      filteredChildren = filterTree(node.children, q)
+    }
+    if (nameMatches || (filteredChildren && filteredChildren.length > 0)) {
+      result.push({ ...node, children: filteredChildren?.length ? filteredChildren : undefined })
+    }
+  }
+  return result
+}
+
+const filteredWikiTree = computed(() => filterTree(wikiTree.value, wikiSearch.value))
+const filteredRawTree = computed(() => filterTree(rawTree.value, wikiSearch.value))
 
 function isImage(path: string): boolean {
   return /\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(path)
@@ -418,14 +451,20 @@ watch(project, (val) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 0.75rem;
+  padding: 0.75rem 1rem;
+  height: 48px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--af-border);
 }
 
 .wiki-nav-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--af-fg);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--af-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  flex: 1;
 }
 
 .wiki-nav-actions {
@@ -534,7 +573,9 @@ watch(project, (val) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 1rem;
+  padding: 0.75rem 1rem;
+  height: 48px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--af-border);
   gap: 1rem;
 }
@@ -546,9 +587,12 @@ watch(project, (val) => {
 }
 
 .page-heading {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--af-fg);
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--af-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
   margin: 0;
 }
 
@@ -556,6 +600,55 @@ watch(project, (val) => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 320px;
+  padding: 0.35rem 0.75rem;
+  background: hsl(var(--muted-foreground) / 0.06);
+  border: 1px solid hsl(var(--muted-foreground) / 0.12);
+  border-radius: 6px;
+  color: var(--af-muted);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.header-search:focus-within {
+  border-color: hsl(var(--primary) / 0.35);
+  background: hsl(var(--muted-foreground) / 0.04);
+}
+
+.header-search svg {
+  color: var(--af-muted);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--af-fg);
+  font-size: 0.88rem;
+  font-family: inherit;
+  min-width: 0;
+  width: 100%;
+}
+
+.search-input::placeholder {
+  color: var(--af-muted);
+  font-size: 0.88rem;
 }
 
 .action-btn {
