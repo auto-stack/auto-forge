@@ -82,7 +82,13 @@ impl AgentTurn {
         registry: ToolRegistry,
         messages: Vec<ChatMessage>,
     ) -> Self {
-        let allowed: Vec<String> = agent.profession.allowed_tools.clone();
+        let mut allowed: Vec<String> = agent.profession.allowed_tools.clone();
+        // Merge skill-granted tools
+        for tool in &agent.skill_tools {
+            if !allowed.contains(tool) {
+                allowed.push(tool.clone());
+            }
+        }
         let tool_definitions: Vec<ToolDefinition> = if allowed.is_empty() {
             // If no tools are explicitly allowed, allow none (assistant/documenter)
             Vec::new()
@@ -171,7 +177,12 @@ impl AgentTurn {
 
                         // Execute the tool
                         let exec_result = if let Some(tool) = self.tool_registry.get(&name) {
-                            let allowed: Vec<String> = self.agent.profession.allowed_tools.clone();
+                            let mut allowed: Vec<String> = self.agent.profession.allowed_tools.clone();
+                            for tool_name in &self.agent.skill_tools {
+                                if !allowed.contains(tool_name) {
+                                    allowed.push(tool_name.clone());
+                                }
+                            }
                             if !allowed.is_empty() && !allowed.contains(&name) {
                                 format!("Tool '{}' is not available for profession '{}'", name, self.agent.profession.id)
                             } else {
@@ -376,6 +387,7 @@ mod tests {
             approval_gates: vec![],
             max_turns: 5,
             token_budget: 10_000,
+            base_skills: Vec::new(),
         };
         let soul = SoulConfig::parse("tester", "# Soul of the Tester\n\n## Core Values\n- Test everything\n").unwrap();
         AgentInstance::spawn(profession, soul, crate::relay::agent::ModelConfig::cheap())

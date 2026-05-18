@@ -111,6 +111,10 @@ pub struct AgentInstance {
     pub context: AgentContext,
     /// Display name from AgentConfig (e.g. "Nicole"), not the profession or soul title.
     pub display_name: String,
+    /// Resolved skill prompt fragments injected into the system prompt.
+    pub skill_prompts: Vec<String>,
+    /// Resolved skill-granted tool names.
+    pub skill_tools: Vec<String>,
 }
 
 impl AgentInstance {
@@ -128,6 +132,8 @@ impl AgentInstance {
             model,
             context: AgentContext::default(),
             display_name,
+            skill_prompts: Vec::new(),
+            skill_tools: Vec::new(),
         }
     }
 
@@ -145,7 +151,29 @@ impl AgentInstance {
             model,
             context: AgentContext::default(),
             display_name,
+            skill_prompts: Vec::new(),
+            skill_tools: Vec::new(),
         }
+    }
+
+    /// Resolve skills from a registry and attach their prompts/tools to this agent.
+    pub fn with_skills(mut self, registry: &crate::relay::skills::SkillRegistry, skill_ids: &[String]) -> Self {
+        for skill_id in skill_ids {
+            if let Some(skill) = registry.get(skill_id) {
+                let fragment = format!(
+                    "## Skill: {}\n\n{}\n",
+                    skill.name,
+                    skill.prompt_fragment
+                );
+                self.skill_prompts.push(fragment);
+                for tool in &skill.granted_tools {
+                    if !self.skill_tools.contains(tool) {
+                        self.skill_tools.push(tool.clone());
+                    }
+                }
+            }
+        }
+        self
     }
 
     /// Render the system prompt from Soul + Profession + constraints.
@@ -193,6 +221,17 @@ impl AgentInstance {
             parts.push(format!(
                 "You may use these tools: {}\n",
                 self.profession.allowed_tools.join(", ")
+            ));
+        }
+
+        // Skill instructions
+        for prompt in &self.skill_prompts {
+            parts.push(prompt.clone());
+        }
+        if !self.skill_tools.is_empty() {
+            parts.push(format!(
+                "Additional tools from your skills: {}\n",
+                self.skill_tools.join(", ")
             ));
         }
 

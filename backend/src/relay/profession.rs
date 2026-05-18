@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::forge::SectionType;
 
@@ -31,6 +32,9 @@ pub struct Profession {
     pub max_turns: u32,
     /// Default token budget for this profession.
     pub token_budget: u64,
+    /// Base skills that all agents of this profession receive.
+    #[serde(default)]
+    pub base_skills: Vec<String>,
 }
 
 /// Lifecycle phase of the spec-driven workflow.
@@ -69,18 +73,55 @@ pub struct ProfessionRegistry {
     professions: HashMap<String, Profession>,
 }
 
-impl ProfessionRegistry {
-    pub fn new() -> Self {
-        let mut registry = Self {
-            professions: HashMap::new(),
-        };
-        registry.register_builtin();
-        registry
-    }
+fn config_dir() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoforge")
+}
 
-    fn register_builtin(&mut self) {
-        // ─── Assistant ─────────────────────────────────────────────────────────
-        self.register(Profession {
+fn professions_path() -> PathBuf {
+    config_dir().join("professions.json")
+}
+
+/// Load professions from disk.
+pub fn load_professions() -> Vec<Profession> {
+    let path = professions_path();
+    if !path.exists() {
+        return Vec::new();
+    }
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Warning: failed to read professions.json: {}", e);
+            return Vec::new();
+        }
+    };
+    match serde_json::from_str(&content) {
+        Ok(professions) => professions,
+        Err(e) => {
+            eprintln!("Warning: failed to parse professions.json: {}", e);
+            Vec::new()
+        }
+    }
+}
+
+/// Save professions to disk.
+pub fn save_professions(professions: &[Profession]) -> Result<(), ProfessionError> {
+    let dir = config_dir();
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| ProfessionError::LoadError(format!("create dir {}: {}", dir.display(), e)))?;
+    let path = professions_path();
+    let content = serde_json::to_string_pretty(professions)
+        .map_err(|e| ProfessionError::ParseError(format!("serialize: {}", e)))?;
+    std::fs::write(&path, content)
+        .map_err(|e| ProfessionError::LoadError(format!("write {}: {}", path.display(), e)))?;
+    Ok(())
+}
+
+/// Generate the 9 default built-in professions.
+pub fn generate_default_professions() -> Vec<Profession> {
+    vec![
+        Profession {
             id: String::from("assistant"),
             name: String::from("Assistant"),
             phase: ForgePhase::Intake,
@@ -102,10 +143,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 3,
             token_budget: 2_000,
-        });
-
-        // ─── Advisor ─────────────────────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("advisor"),
             name: String::from("Advisor"),
             phase: ForgePhase::Discovery,
@@ -130,10 +170,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 8_000,
-        });
-
-        // ─── Architect ───────────────────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("architect"),
             name: String::from("Architect"),
             phase: ForgePhase::Design,
@@ -161,10 +200,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 12_000,
-        });
-
-        // ─── Planner ─────────────────────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("planner"),
             name: String::from("Planner"),
             phase: ForgePhase::Planning,
@@ -190,10 +228,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 8_000,
-        });
-
-        // ─── Tester (SpecDraft) ──────────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("tester"),
             name: String::from("Tester"),
             phase: ForgePhase::Planning,
@@ -218,10 +255,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 8_000,
-        });
-
-        // ─── Coder ───────────────────────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("coder"),
             name: String::from("Coder"),
             phase: ForgePhase::Execution,
@@ -253,10 +289,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 15,
             token_budget: 20_000,
-        });
-
-        // ─── Reviewer ────────────────────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("reviewer"),
             name: String::from("Reviewer"),
             phase: ForgePhase::Verification,
@@ -285,10 +320,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
             token_budget: 15_000,
-        });
-
-        // ─── Documenter ──────────────────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("documenter"),
             name: String::from("Documenter"),
             phase: ForgePhase::Report,
@@ -316,10 +350,9 @@ impl ProfessionRegistry {
             dispatchable_to: vec![],
             max_turns: 5,
             token_budget: 4_000,
-        });
-
-        // ─── Gofer (Errand Runner) ───────────────────────────────────────────
-        self.register(Profession {
+            base_skills: Vec::new(),
+        },
+        Profession {
             id: String::from("gofer"),
             name: String::from("Gofer"),
             phase: ForgePhase::Errand,
@@ -345,7 +378,45 @@ impl ProfessionRegistry {
             dispatchable_to: vec![],
             max_turns: 5,
             token_budget: 4_000,
-        });
+            base_skills: Vec::new(),
+        },
+    ]
+}
+
+/// Load professions, merging missing defaults with existing ones.
+pub fn load_or_generate_professions() -> Vec<Profession> {
+    let existing = load_professions();
+    let defaults = generate_default_professions();
+
+    if existing.is_empty() {
+        let _ = save_professions(&defaults);
+        return defaults;
+    }
+
+    let mut merged = existing;
+    let mut added = false;
+    for default in &defaults {
+        if !merged.iter().any(|p| p.id == default.id) {
+            merged.push(default.clone());
+            added = true;
+        }
+    }
+
+    if added {
+        let _ = save_professions(&merged);
+    }
+    merged
+}
+
+impl ProfessionRegistry {
+    pub fn new() -> Self {
+        let mut registry = Self {
+            professions: HashMap::new(),
+        };
+        for profession in load_or_generate_professions() {
+            registry.register(profession);
+        }
+        registry
     }
 
     pub fn register(&mut self, profession: Profession) {

@@ -337,6 +337,9 @@ pub struct AgentConfig {
     pub reasoning_budget: Option<u32>,
     #[serde(default)]
     pub avatar_url: Option<String>,
+    /// Skills equipped to this agent config.
+    #[serde(default)]
+    pub equipped_skills: Vec<String>,
 }
 
 fn default_temperature() -> f32 {
@@ -418,6 +421,7 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             max_tokens: 4096,
             reasoning_budget: if tier == ModelTier::Heavy { Some(4096) } else { None },
             avatar_url: None,
+            equipped_skills: Vec::new(),
         })
         .to_vec()
 }

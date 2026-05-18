@@ -6,12 +6,13 @@
 use crate::relay::flow::FlowSpec;
 use crate::relay::handoff::HandoffDocument;
 use crate::relay::pipeline::GateDecision;
-use crate::relay::profession::ProfessionRegistry;
+use crate::relay::profession::{self, Profession, ProfessionRegistry};
 use crate::relay::store::{
     advance_run, get_run, list_runs, new_run_store, resolve_gate, start_run, submit_handoff,
     RunState, RunStore, RunSummary,
 };
 use crate::relay::config::{self, AgentConfig, ApiSource, ConnectionTestResult};
+use crate::relay::skills::{self, SkillDefinition};
 use axum::extract::{Multipart, Path};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, Sse};
@@ -103,6 +104,7 @@ pub struct ProfessionDto {
     pub phase: String,
     pub owned_sections: Vec<String>,
     pub allowed_tools: Vec<String>,
+    pub base_skills: Vec<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -121,16 +123,76 @@ pub struct SoulDto {
 // Handlers
 // -------------------------------------------------------------------------
 
+static PROFESSIONS: LazyLock<Mutex<Vec<Profession>>> = LazyLock::new(|| {
+    Mutex::new(profession::load_or_generate_professions())
+});
+
 pub async fn list_professions() -> Json<ProfessionsResponse> {
-    let professions = ProfessionRegistry::new().list().into_iter().map(|p| ProfessionDto {
+    let professions = PROFESSIONS.lock().unwrap();
+    let dtos = professions.iter().map(|p| ProfessionDto {
         id: p.id.clone(),
         name: p.name.clone(),
         phase: p.phase.as_str().to_string(),
         owned_sections: p.owned_sections.iter().map(|s| s.as_str().to_string()).collect(),
         allowed_tools: p.allowed_tools.clone(),
+        base_skills: p.base_skills.clone(),
     }).collect();
+    Json(ProfessionsResponse { professions: dtos })
+}
 
-    Json(ProfessionsResponse { professions })
+pub async fn list_config_professions() -> Json<Vec<Profession>> {
+    let professions = PROFESSIONS.lock().unwrap();
+    Json(professions.clone())
+}
+
+pub async fn create_profession(
+    Json(req): Json<Profession>,
+) -> Result<Json<Profession>, StatusCode> {
+    let mut professions = PROFESSIONS.lock().unwrap();
+    if professions.iter().any(|p| p.id == req.id) {
+        return Err(StatusCode::CONFLICT);
+    }
+    professions.push(req.clone());
+    let _ = profession::save_professions(&professions);
+    Ok(Json(req))
+}
+
+pub async fn get_profession(Path(id): Path<String>) -> Result<Json<Profession>, StatusCode> {
+    let professions = PROFESSIONS.lock().unwrap();
+    professions.iter().find(|p| p.id == id).cloned().map(Json).ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn update_profession(
+    Path(id): Path<String>,
+    Json(req): Json<Profession>,
+) -> Result<Json<Profession>, StatusCode> {
+    if req.id != id {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let mut professions = PROFESSIONS.lock().unwrap();
+    let idx = professions.iter().position(|p| p.id == id).ok_or(StatusCode::NOT_FOUND)?;
+    professions[idx] = req.clone();
+    let _ = profession::save_professions(&professions);
+    Ok(Json(req))
+}
+
+pub async fn delete_profession(Path(id): Path<String>) -> StatusCode {
+    let mut professions = PROFESSIONS.lock().unwrap();
+    let len_before = professions.len();
+    professions.retain(|p| p.id != id);
+    if professions.len() == len_before {
+        return StatusCode::NOT_FOUND;
+    }
+    let _ = profession::save_professions(&professions);
+    StatusCode::NO_CONTENT
+}
+
+pub async fn reset_profession_defaults() -> Json<Vec<Profession>> {
+    let defaults = profession::generate_default_professions();
+    let mut professions = PROFESSIONS.lock().unwrap();
+    *professions = defaults.clone();
+    let _ = profession::save_professions(&professions);
+    Json(defaults)
 }
 
 pub async fn list_souls() -> Json<SoulsResponse> {
@@ -537,6 +599,69 @@ pub async fn delete_agent_config(
     StatusCode::NO_CONTENT
 }
 
+// -------------------------------------------------------------------------
+// Config — Skill Handlers
+// -------------------------------------------------------------------------
+
+static SKILLS: LazyLock<Mutex<Vec<SkillDefinition>>> = LazyLock::new(|| {
+    Mutex::new(skills::load_or_generate_skills())
+});
+
+pub async fn list_skills() -> Json<Vec<SkillDefinition>> {
+    let skills = SKILLS.lock().unwrap();
+    Json(skills.clone())
+}
+
+pub async fn create_skill(
+    Json(req): Json<SkillDefinition>,
+) -> Result<Json<SkillDefinition>, StatusCode> {
+    let mut skills = SKILLS.lock().unwrap();
+    if skills.iter().any(|s| s.id == req.id) {
+        return Err(StatusCode::CONFLICT);
+    }
+    skills.push(req.clone());
+    let _ = skills::save_skills(&skills);
+    Ok(Json(req))
+}
+
+pub async fn get_skill(Path(id): Path<String>) -> Result<Json<SkillDefinition>, StatusCode> {
+    let skills = SKILLS.lock().unwrap();
+    skills.iter().find(|s| s.id == id).cloned().map(Json).ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn update_skill(
+    Path(id): Path<String>,
+    Json(req): Json<SkillDefinition>,
+) -> Result<Json<SkillDefinition>, StatusCode> {
+    if req.id != id {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let mut skills = SKILLS.lock().unwrap();
+    let idx = skills.iter().position(|s| s.id == id).ok_or(StatusCode::NOT_FOUND)?;
+    skills[idx] = req.clone();
+    let _ = skills::save_skills(&skills);
+    Ok(Json(req))
+}
+
+pub async fn delete_skill(Path(id): Path<String>) -> StatusCode {
+    let mut skills = SKILLS.lock().unwrap();
+    let len_before = skills.len();
+    skills.retain(|s| s.id != id);
+    if skills.len() == len_before {
+        return StatusCode::NOT_FOUND;
+    }
+    let _ = skills::save_skills(&skills);
+    StatusCode::NO_CONTENT
+}
+
+pub async fn reset_skill_defaults() -> Json<Vec<SkillDefinition>> {
+    let defaults = skills::generate_default_skills();
+    let mut skills = SKILLS.lock().unwrap();
+    *skills = defaults.clone();
+    let _ = skills::save_skills(&skills);
+    Json(defaults)
+}
+
 pub async fn reset_agent_defaults() -> Json<Vec<AgentConfig>> {
     let source_id = {
         let sources = API_SOURCES.lock().unwrap();
@@ -717,6 +842,14 @@ where
         .route("/api/forge/config/api-sources/import", post(import_api_sources))
         .route("/api/forge/config/api-sources/{id}", put(update_api_source).delete(delete_api_source))
         .route("/api/forge/config/api-sources/{id}/test", post(test_api_connection))
+        // Config — Professions
+        .route("/api/forge/config/professions", get(list_config_professions).post(create_profession))
+        .route("/api/forge/config/professions/{id}", get(get_profession).put(update_profession).delete(delete_profession))
+        .route("/api/forge/config/professions/reset-defaults", post(reset_profession_defaults))
+        // Config — Skills
+        .route("/api/forge/config/skills", get(list_skills).post(create_skill))
+        .route("/api/forge/config/skills/{id}", get(get_skill).put(update_skill).delete(delete_skill))
+        .route("/api/forge/config/skills/reset-defaults", post(reset_skill_defaults))
         // Config — Agent Configs
         .route("/api/forge/config/agents", get(list_agent_configs).post(create_agent_config))
         .route("/api/forge/config/agents/{id}", put(update_agent_config).delete(delete_agent_config))

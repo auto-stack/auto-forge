@@ -20,6 +20,7 @@ pub mod flows;
 pub mod handoff;
 pub mod pipeline;
 pub mod profession;
+pub mod skills;
 pub mod soul;
 pub mod store;
 pub mod turn;
@@ -32,6 +33,7 @@ pub use flow::{ExitRouting, FlowSpec, FlowStep, GateType};
 pub use handoff::{ContextPointers, Decision, HandoffDocument, Question, SpecUpdate, TokenUsage, WorkProduct};
 pub use pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, StepRecord};
 pub use profession::{ForgePhase, Profession, ProfessionError, ProfessionRegistry};
+pub use skills::{SkillDefinition, SkillError, SkillRegistry};
 pub use soul::{SoulConfig, SoulError};
 pub use store::{RunStore, new_run_store, start_run, get_run, list_runs, advance_run, submit_handoff, resolve_gate, RunEntry, RunEvent, RunSummary, RunState, StepState, GateState};
 
@@ -46,6 +48,7 @@ pub struct RelayRegistry {
     pub api_sources: Vec<ApiSource>,
     /// Configured agent bindings (profession + soul + api source + tier).
     pub agent_configs: Vec<AgentConfig>,
+    pub skills: SkillRegistry,
     souls_dir: std::path::PathBuf,
 }
 
@@ -61,6 +64,7 @@ impl RelayRegistry {
             souls: HashMap::new(),
             api_sources: Vec::new(),
             agent_configs: Vec::new(),
+            skills: SkillRegistry::new(),
             souls_dir,
         };
         registry.api_sources = config::load_or_detect_api_sources();
@@ -123,7 +127,9 @@ impl RelayRegistry {
         let model = config::resolve_model(config, &self.api_sources)?;
         let profession = self.professions.get(&config.profession_id)?.clone();
         let soul = self.souls.get(&config.soul_id)?.clone();
-        Some(AgentInstance::spawn_named(profession, soul, model, config.name.clone()))
+        let agent = AgentInstance::spawn_named(profession, soul, model, config.name.clone())
+            .with_skills(&self.skills, &config.equipped_skills);
+        Some(agent)
     }
 
     /// Find the default agent config for a given profession.

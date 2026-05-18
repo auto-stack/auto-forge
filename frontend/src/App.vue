@@ -119,6 +119,8 @@
         <WikiView v-else-if="currentView === 'wiki'" />
         <RelayView v-else-if="currentView === 'agents'" />
         <AgentsConfigView v-else-if="currentView === 'agents-config'" />
+        <ProfessionsView v-else-if="currentView === 'professions'" />
+        <SkillsView v-else-if="currentView === 'skills'" />
         <ApiSourcesView v-else-if="currentView === 'apis'" />
       </template>
     </main>
@@ -133,7 +135,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import {
-  Flame, MessageSquare, Scroll, BookOpen, Orbit, Server, Users,
+  Flame, MessageSquare, Scroll, BookOpen, Orbit, Server, Users, Wrench, Briefcase,
   Sun, Moon, Monitor, Check, Palette,
   FolderOpen, X,
 } from 'lucide-vue-next'
@@ -149,6 +151,8 @@ import RelayView from './views/RelayView.vue'
 import AgentsConfigView from './views/AgentsConfigView.vue'
 import ApiSourcesView from './views/ApiSourcesView.vue'
 import WikiView from './views/WikiView.vue'
+import SkillsView from './views/SkillsView.vue'
+import ProfessionsView from './views/ProfessionsView.vue'
 
 const { mode, setMode } = useTheme()
 const { current: accentCurrent, setAccent, options: accentOptions } = useAccentColor()
@@ -226,16 +230,18 @@ const themeOptions = [
   { value: 'auto' as const, label: 'System', icon: Monitor },
 ]
 
-const tabs: { id: 'chats' | 'specs' | 'wiki' | 'agents' | 'agents-config' | 'apis'; label: string; icon: unknown }[] = [
+const tabs: { id: 'chats' | 'specs' | 'wiki' | 'agents' | 'agents-config' | 'professions' | 'skills' | 'apis'; label: string; icon: unknown }[] = [
   { id: 'chats', label: 'Chat', icon: MessageSquare },
   { id: 'specs', label: 'Specs', icon: Scroll },
   { id: 'wiki', label: 'Wiki', icon: BookOpen },
   { id: 'agents', label: 'Relay', icon: Orbit },
   { id: 'agents-config', label: 'Agents', icon: Users },
+  { id: 'professions', label: 'Professions', icon: Briefcase },
+  { id: 'skills', label: 'Skills', icon: Wrench },
   { id: 'apis', label: 'APIs', icon: Server },
 ]
 
-const currentView = ref<'chats' | 'specs' | 'wiki' | 'agents' | 'agents-config' | 'apis'>('chats')
+const currentView = ref<'chats' | 'specs' | 'wiki' | 'agents' | 'agents-config' | 'professions' | 'skills' | 'apis'>('chats')
 </script>
 
 <style>

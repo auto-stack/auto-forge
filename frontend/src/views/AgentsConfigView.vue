@@ -32,6 +32,9 @@
           <span class="badge tier-badge" :class="agent.model_tier">{{ agent.model_tier }}</span>
           <span v-if="agent.is_default" class="badge default-badge">Default</span>
         </div>
+        <div v-if="agent.equipped_skills?.length" class="card-skills">
+          <span v-for="sid in agent.equipped_skills" :key="sid" class="skill-chip">{{ skillName(sid) }}</span>
+        </div>
         <div class="card-soul-preview">
           {{ getSoulPreview(agent.soul_id) }}
         </div>
@@ -131,6 +134,26 @@
             </div>
           </div>
 
+          <div class="form-group">
+            <label>Equipped Skills</label>
+            <div class="skills-selector">
+              <label
+                v-for="skill in skills"
+                :key="skill.id"
+                class="skill-checkbox"
+                :class="{ checked: editing.equipped_skills?.includes(skill.id) }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="editing.equipped_skills?.includes(skill.id)"
+                  @change="toggleSkill(skill.id)"
+                />
+                <span class="skill-check-name">{{ skill.name }}</span>
+                <span class="skill-check-desc">{{ skill.granted_tools.join(', ') }}</span>
+              </label>
+            </div>
+          </div>
+
           <details class="advanced-section">
             <summary>Advanced Settings</summary>
             <div class="form-row">
@@ -168,6 +191,7 @@ import { useAgentConfigs, type AgentConfigDto } from '@/composables/useAgentConf
 import AgentAvatar from '@/components/AgentAvatar.vue'
 import { useApiSources, type ApiSource } from '@/composables/useApiSources'
 import { useSouls } from '@/composables/useSouls'
+import { useSkills } from '@/composables/useSkills'
 
 const {
   configs, loading, error,
@@ -175,6 +199,7 @@ const {
 } = useAgentConfigs()
 const { sources: apiSources, loadSources } = useApiSources()
 const { souls, soulMap, loadSouls, getSoulMarkdown } = useSouls()
+const { skills, loadSkills: loadSkillsList } = useSkills()
 
 const editing = ref<AgentConfigDto | null>(null)
 const editingId = ref<string | null>(null)
@@ -260,6 +285,7 @@ function startCreate() {
     temperature: 0.3,
     max_tokens: 4096,
     reasoning_budget: null,
+    equipped_skills: [],
   }
   editingId.value = null
   isNew.value = true
@@ -350,7 +376,22 @@ onMounted(() => {
   loadConfigs()
   loadSources()
   loadSouls()
+  loadSkillsList()
 })
+
+function skillName(id: string): string {
+  return skills.value.find(s => s.id === id)?.name || id
+}
+
+function toggleSkill(skillId: string) {
+  if (!editing.value) return
+  const current = editing.value.equipped_skills || []
+  if (current.includes(skillId)) {
+    editing.value.equipped_skills = current.filter(id => id !== skillId)
+  } else {
+    editing.value.equipped_skills = [...current, skillId]
+  }
+}
 </script>
 
 <style scoped>
@@ -463,6 +504,64 @@ onMounted(() => {
   font-size: 0.83rem;
   color: var(--af-muted);
   line-height: 1.4;
+}
+
+.card-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.skill-chip {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: hsl(var(--primary) / 0.08);
+  color: var(--af-primary);
+}
+
+.skills-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  padding: 0.4rem;
+}
+
+.skill-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 0.88rem;
+}
+
+.skill-checkbox:hover {
+  background: hsl(var(--muted-foreground) / 0.04);
+}
+
+.skill-checkbox.checked {
+  background: hsl(var(--primary) / 0.06);
+}
+
+.skill-checkbox input {
+  cursor: pointer;
+}
+
+.skill-check-name {
+  font-weight: 500;
+}
+
+.skill-check-desc {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--af-muted);
 }
 
 .card-actions {
