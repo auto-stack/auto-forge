@@ -37,6 +37,7 @@ async fn main() {
     let app_state = AppState {
         ai_provider: std::sync::Arc::new(ClaudeProvider::new()),
     };
+    let ai_provider_clone = app_state.ai_provider.clone();
 
     let api_routes = Router::new()
         .merge(auto_forge::forge::routes())
@@ -61,6 +62,9 @@ async fn main() {
 
     // Restore last opened project from config
     auto_forge::forge::restore_last_project();
+
+    // Resume any relay runs that were in Running state when we shut down
+    auto_forge::relay::api::resume_running_runs(ai_provider_clone);
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3031));
     tracing::info!("AutoForge server listening on http://{}", addr);

@@ -7,12 +7,10 @@
 
 ---
 
----
-
 ## P1 Agents Relay — Foundation
 **Status:** done
-**Depends on:** G1, G2, G3, D1, D3
 **Tags:** stack:both, module:relay
+**Depends on:** G1, G2, G3, D1, D3
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -40,10 +38,12 @@
 
 ---
 
+---
+
 ## P2 Agents Relay — Flow Engine
 **Status:** done
-**Depends on:** G2, G6, D2, P1
 **Tags:** stack:both, module:relay
+**Depends on:** G2, G6, D2, P1
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -70,10 +70,12 @@
 
 ---
 
+---
+
 ## P3 Agents Relay — Checkpoint & Durability
 **Status:** done
-**Depends on:** G4, D4, P2
 **Tags:** stack:both, module:relay
+**Depends on:** G4, D4, P2
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -101,10 +103,12 @@
 
 ---
 
+---
+
 ## P4 Agents Relay — Token Budgeting & Analytics
 **Status:** done
-**Depends on:** G5, D5, P2
 **Tags:** stack:both, module:relay
+**Depends on:** G5, D5, P2
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -130,10 +134,12 @@
 
 ---
 
+---
+
 ## P5 Agents Relay — Frontend Agents View
 **Status:** done
-**Depends on:** G5, G6, P2, P3, P4
 **Tags:** stack:both, module:relay
+**Depends on:** G5, G6, P2, P3, P4
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -160,10 +166,12 @@
 
 ---
 
+---
+
 ## P6 Agents Relay — Integration & Dogfooding
 **Status:** done
-**Depends on:** G1, G2, G3, G4, G5, G6, P1, P2, P3, P4, P5
 **Tags:** stack:both, module:relay
+**Depends on:** G1, G2, G3, G4, G5, G6, P1, P2, P3, P4, P5
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -185,10 +193,12 @@
 
 ---
 
+---
+
 ## P7 Relay Refactor — New Design v2
 **Status:** done
-**Depends on:** G6, G7, D6, D7
 **Tags:** stack:both, module:relay
+**Depends on:** G6, G7, D6, D7
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -219,10 +229,12 @@
 
 ---
 
+---
+
 ## P8 Chat-First Gates & Smart Secretary
 **Status:** implemented
-**Depends on:** G8
 **Tags:** stack:both, module:chat
+**Depends on:** G8
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -247,10 +259,12 @@
 
 ---
 
+---
+
 ## P9 Live Pipeline Node-Graph
 **Status:** implemented
-**Depends on:** G10
 **Tags:** stack:frontend, module:relay
+**Depends on:** G10
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -275,10 +289,12 @@
 
 ---
 
+---
+
 ## P10 Specs Workspace Depth
 **Status:** implemented
-**Depends on:** G9
 **Tags:** stack:frontend, module:specs
+**Depends on:** G9
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -302,10 +318,12 @@
 
 ---
 
+---
+
 ## P11 Mode Awareness & Integration
 **Status:** implemented
-**Depends on:** G8, G9, G10
 **Tags:** stack:both, module:relay
+**Depends on:** G8, G9, G10
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -328,10 +346,12 @@
 
 ---
 
+---
+
 ## P12 Responsive & Accessibility Polish
 **Status:** implemented
-**Depends on:** G10
 **Tags:** stack:frontend, module:ui-system
+**Depends on:** G10
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -353,10 +373,12 @@
 
 ---
 
+---
+
 ## P13 Project Concept — VS Code–style Workspace
 **Status:** done
-**Depends on:** G12
 **Tags:** stack:both, module:project
+**Depends on:** G12
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -384,10 +406,12 @@
 
 ---
 
+---
+
 ## P14 API Source Configuration
 **Status:** proposed
-**Depends on:** G13
 **Tags:** stack:both, module:api-sources
+**Depends on:** G13
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -414,10 +438,12 @@
 
 ---
 
+---
+
 ## P15 Merge auto-code-rs into auto-forge
 **Status:** done
-**Depends on:** —
 **Tags:** stack:backend, module:provider
+**Depends on:** —
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -440,10 +466,12 @@
 
 ---
 
+---
+
 ## P16 Chat Agent Handoff — bring_in Tool
 **Status:** proposed
-**Depends on:** G17, D24, A9
 **Tags:** stack:both, module:chat
+**Depends on:** G17, D24, A9
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -470,10 +498,12 @@
 
 ---
 
+---
+
 ## P17 Wiki Knowledge Layer — Storage, Multi-Level Directories, Raw Import, and Frontend
 **Status:** done
-**Depends on:** G18, A10, D25
 **Tags:** stack:both, module:wiki
+**Depends on:** G18, A10, D25
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -504,10 +534,12 @@
 
 ---
 
+---
+
 ## P18 AutoDown Editor — WYSIWYG Block-Based Markdown Editor
 **Status:** draft
-**Depends on:** G19, A11, D27
 **Tags:** stack:frontend, module:editor
+**Depends on:** G19, A11, D27
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -539,10 +571,12 @@
 
 ---
 
+---
+
 ## P19 Gofer Errand Profession — Dispatch Tool & Isolated Side-Sessions
 **Status:** done
-**Depends on:** G22, A12, D28
 **Tags:** stack:both, module:errand
+**Depends on:** G22, A12, D28
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
@@ -569,7 +603,7 @@
 | P19.21 | Dogfooding: use dispatch in advisor/architect souls for codebase research tasks | Core | 0.5 day | P19.4 | Done |
 
 - **Risk:** Errand runs on cheap model and returns low-quality results. **Mitigation:** Default to mid-tier model for first release; add `model_tier` parameter to dispatch later.
-- **Risk:** Errand gets stuck in infinite loop. **Mitigation:** Hard `max_turns` cap (5 default, 10 max) with automatic truncation.
+- **Risk:** Errand gets stuck in infinite loop. **Mitigation:** Hard `max_turns` cap (20 default, 50 max) with automatic truncation.
 - **Risk:** Master dispatches too many errands, causing queue backlog. **Mitigation:** Max 3 concurrent errands per session; excess enqueue and return "busy" status.
 - **Risk:** Errand SSE events interfere with master stream parsing. **Mitigation:** Errand events include `errand_id` field; frontend filters by parent message ID.
 
@@ -583,10 +617,12 @@
 
 ---
 
+---
+
 ## P20 Theme & Accent Implementation
 **Status:** done
-**Depends on:** G11.5, D30
 **Tags:** stack:frontend, module:ui-system
+**Depends on:** G11.5, D30
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
@@ -605,10 +641,12 @@
 
 ---
 
+---
+
 ## P21 Event Router & Gate Inbox Integration
 **Status:** done
-**Depends on:** G10.5, D31
 **Tags:** stack:frontend, module:relay
+**Depends on:** G10.5, D31
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
@@ -627,10 +665,12 @@
 
 ---
 
+---
+
 ## P22 Streaming Renderer Integration
 **Status:** done
-**Depends on:** G16.3, D32
 **Tags:** stack:frontend, module:chat
+**Depends on:** G16.3, D32
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
@@ -649,10 +689,12 @@
 
 ---
 
+---
+
 ## P23 Explorer Module Implementation
 **Status:** done
-**Depends on:** G24, D33
 **Tags:** stack:both, module:project
+**Depends on:** G24, D33
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
@@ -672,13 +714,47 @@
 
 ---
 
+---
+
 ## P24 APIs Documentation View
 **Status:** done
-**Depends on:** G25, D34
 **Tags:** stack:frontend, module:api-sources
+**Depends on:** G25, D34
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
 | P24.1 | Structure `specs/apis.ad` with module groupings | Docs | 1 day | Done |
 | P24.2 | Frontend view to render `apis.ad` as endpoint browser | UI | 1 day | Done |
 | P24.3 | Nav rail tab with Plug icon | UI | 0.5 day | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## P25 Goals View Refinement — Tree UX, Modal Editor, and Tag System
+**Status:** done
+**Tags:** stack:frontend, module:specs
+**Depends on:** G21, P10
+
+| Task | Owner | Duration | Status |
+|---|---|---|---|
+| P25.1 | Replace table-based GoalsTable with div-based tree nodes | UI | 1 day | Done |
+| P25.2 | Implement toggle area: fixed 2.5rem, count+chevron combined, removed for leaf goals | UI | 0.5 day | Done |
+| P25.3 | GoalDetailModal: centered modal with header/meta/body/footer, inline edit | UI | 1 day | Done |
+| P25.4 | Tag all 52 goals and 6 other categories with `stack:*` and `module:*` | Docs | 0.5 day | Done |
+| P25.5 | Tag display: shortened values, color-coded badges (stack=blue, module=purple) | UI | 0.5 day | Done |
+| P25.6 | Sidebar filter drawers: Category, Stack, Module with multi-select AND logic | UI | 1 day | Done |
+| P25.7 | Backend flat mode fix: `get_or_default` falls back to flat doc on key miss | Backend | 0.5 day | Done |
+
+- **Outcome**: Goals section now shows a clean hierarchical tree with expandable sub-goals, modal-based detail editing, and sidebar tag filtering.
+- **Risk**: None — incremental UX polish on existing P10 foundation.

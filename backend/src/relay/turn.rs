@@ -5,7 +5,7 @@
 //! relay pipeline: it holds the baton, executes tools, and produces a
 //! result that can be turned into a HandoffDocument.
 
-use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest};
+use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest, ClaudeProviderState};
 use crate::forge::tools::{ToolDefinition, ToolRegistry};
 use crate::relay::agent::AgentInstance;
 use crate::relay::budget::{BudgetAction, BudgetTracker};
@@ -114,7 +114,7 @@ impl AgentTurn {
     /// Events are sent via `tx` so callers can observe progress in real time.
     pub async fn run(
         &mut self,
-        provider: &crate::provider::ClaudeProvider,
+        provider: ClaudeProviderState,
         tx: tokio::sync::mpsc::UnboundedSender<TurnEvent>,
     ) -> TurnResult {
         let mut result = TurnResult {
@@ -155,7 +155,10 @@ impl AgentTurn {
             };
 
             let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();
-            let turn_task = provider.chat_turn(request, turn_tx);
+            let provider_clone = provider.clone();
+            let turn_task = tokio::spawn(async move {
+                provider_clone.chat_turn(request, turn_tx).await
+            });
 
             let mut got_tool_use = false;
             let mut turn_text = String::new();
@@ -235,11 +238,20 @@ impl AgentTurn {
             }
 
             // Check for turn-level errors from the provider
-            if let Some(err) = turn_task.await {
-                let _ = tx.send(TurnEvent::Error { message: err });
-                result.assistant_text = turn_text;
-                result.tool_calls = turn_tools;
-                return result;
+            match turn_task.await {
+                Ok(Some(err)) => {
+                    let _ = tx.send(TurnEvent::Error { message: err });
+                    result.assistant_text = turn_text;
+                    result.tool_calls = turn_tools;
+                    return result;
+                }
+                Err(join_err) => {
+                    let _ = tx.send(TurnEvent::Error { message: format!("Turn task panicked: {}", join_err) });
+                    result.assistant_text = turn_text;
+                    result.tool_calls = turn_tools;
+                    return result;
+                }
+                Ok(None) => {}
             }
 
             // Persist assistant message for next turn

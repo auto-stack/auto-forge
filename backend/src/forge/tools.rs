@@ -1032,9 +1032,9 @@ impl Tool for DispatchTool {
                 },
                 "max_turns": {
                     "type": "integer",
-                    "description": "Maximum turns for the errand. Default: 5",
-                    "default": 5,
-                    "maximum": 10
+                    "description": "Maximum turns for the errand. Default: 20",
+                    "default": 20,
+                    "maximum": 50
                 }
             }
         })
@@ -1056,7 +1056,7 @@ impl Tool for DispatchTool {
         let max_turns = args
             .get("max_turns")
             .and_then(|v| v.as_u64())
-            .unwrap_or(5) as u32;
+            .unwrap_or(20) as u32;
 
         let current = CURRENT_PROFESSION.with(|p| p.borrow().clone());
 

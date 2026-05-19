@@ -8,12 +8,12 @@ use crate::relay::handoff::HandoffDocument;
 use crate::relay::pipeline::GateDecision;
 use crate::relay::profession::{self, Profession, ProfessionRegistry};
 use crate::relay::store::{
-    advance_run, get_run, list_runs, new_run_store, resolve_gate, start_run, submit_handoff,
+    advance_run, delete_run, get_run, list_runs, new_run_store, resolve_gate, start_run, submit_handoff,
     RunState, RunStore, RunSummary,
 };
 use crate::relay::config::{self, AgentConfig, ApiSource, ConnectionTestResult};
 use crate::relay::skills::{self, SkillDefinition};
-use axum::extract::{Multipart, Path};
+use axum::extract::{Multipart, Path, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, Sse};
 use axum::routing::{get, post, put};
@@ -45,10 +45,37 @@ pub fn event_sender() -> broadcast::Sender<RunEventBroadcast> {
     EVENT_TX.clone()
 }
 
+/// On startup, respawn background drivers for any runs that were in Running
+/// state when the backend was last shut down.
+pub fn resume_running_runs(ai_provider: crate::provider::AIProviderState) {
+    let project_path = crate::forge::current_project_path().unwrap_or_default();
+    let mut runs_to_resume: Vec<(String, String)> = Vec::new();
+    {
+        let map = RUN_STORE.lock().unwrap();
+        for (run_id, entry) in map.iter() {
+            if let crate::relay::pipeline::PipelineStatus::Running { ref step_id, ref profession_id, .. } = entry.engine.status {
+                runs_to_resume.push((run_id.clone(), format!("Resuming step {} ({})", step_id, profession_id)));
+            }
+        }
+    }
+    for (run_id, task) in runs_to_resume {
+        tracing::info!("Resuming relay driver for run {}: {}", run_id, task);
+        tokio::spawn(crate::relay::driver::drive_run(
+            run_id.clone(),
+            RUN_STORE.clone(),
+            EVENT_TX.clone(),
+            ai_provider.clone(),
+            task,
+            project_path.clone(),
+        ));
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct RunEventBroadcast {
     pub run_id: String,
     pub event_type: String,
+    pub payload: Option<serde_json::Value>,
 }
 
 // -------------------------------------------------------------------------
@@ -60,6 +87,8 @@ pub struct StartRunRequest {
     pub run_id: Option<String>,
     pub flow_id: String,
     pub steps: Vec<FlowStepDto>,
+    #[serde(default)]
+    pub task: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -239,7 +268,21 @@ pub async fn get_run_handler(Path(run_id): Path<String>) -> Result<Json<RunState
         .ok_or(StatusCode::NOT_FOUND)
 }
 
+pub async fn delete_run_handler(Path(run_id): Path<String>) -> StatusCode {
+    if delete_run(&RUN_STORE, &run_id) {
+        let _ = EVENT_TX.send(RunEventBroadcast {
+            run_id: run_id.clone(),
+            event_type: "run_deleted".into(),
+            payload: None,
+        });
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
 pub async fn start_run_handler(
+    State(ai_provider): State<crate::provider::AIProviderState>,
     Json(req): Json<StartRunRequest>,
 ) -> Result<Json<StartRunResponse>, StatusCode> {
     let mut flow = FlowSpec::new(&req.flow_id);
@@ -261,7 +304,20 @@ pub async fn start_run_handler(
             let _ = EVENT_TX.send(RunEventBroadcast {
                 run_id: run_id.clone(),
                 event_type: "run_started".into(),
+                payload: None,
             });
+
+            // Spawn background driver to execute the pipeline
+            let project_path = crate::forge::current_project_path().unwrap_or_default();
+            tokio::spawn(crate::relay::driver::drive_run(
+                run_id.clone(),
+                RUN_STORE.clone(),
+                EVENT_TX.clone(),
+                ai_provider,
+                String::new(),
+                project_path,
+            ));
+
             Ok(Json(StartRunResponse { run_id, state: run_state }))
         }
         Err(_) => Err(StatusCode::CONFLICT),
@@ -275,6 +331,7 @@ pub async fn advance_run_handler(
     let _ = EVENT_TX.send(RunEventBroadcast {
         run_id: run_id.clone(),
         event_type: "step_advanced".into(),
+        payload: None,
     });
     Ok(Json(serde_json::json!({ "result": format!("{:?}", result) })))
 }
@@ -287,6 +344,7 @@ pub async fn submit_handoff_handler(
     let _ = EVENT_TX.send(RunEventBroadcast {
         run_id: run_id.clone(),
         event_type: "handoff_submitted".into(),
+        payload: None,
     });
     Ok(Json(serde_json::json!({ "result": format!("{:?}", result) })))
 }
@@ -310,6 +368,7 @@ pub async fn resolve_gate_handler(
     let _ = EVENT_TX.send(RunEventBroadcast {
         run_id: run_id.clone(),
         event_type: "gate_resolved".into(),
+        payload: None,
     });
     Ok(Json(serde_json::json!({ "result": format!("{:?}", result) })))
 }
@@ -330,6 +389,7 @@ pub async fn run_events_handler(
                 .data(serde_json::to_string(&serde_json::json!({
                     "run_id": msg.run_id,
                     "event_type": msg.event_type,
+                    "payload": msg.payload,
                 })).unwrap_or_default());
             Some(Ok(event))
         });
@@ -824,6 +884,7 @@ pub async fn generate_agent_avatar(
 pub fn relay_routes<S>() -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
+    crate::provider::AIProviderState: axum::extract::FromRef<S>,
 {
     Router::new()
         // Relay runs
@@ -831,7 +892,7 @@ where
         .route("/api/forge/relay/souls", get(list_souls))
         .route("/api/forge/relay/souls/{id}", get(get_soul))
         .route("/api/forge/relay/runs", get(list_runs_handler).post(start_run_handler))
-        .route("/api/forge/relay/runs/{run_id}", get(get_run_handler))
+        .route("/api/forge/relay/runs/{run_id}", get(get_run_handler).delete(delete_run_handler))
         .route("/api/forge/relay/runs/{run_id}/advance", post(advance_run_handler))
         .route("/api/forge/relay/runs/{run_id}/handoff", post(submit_handoff_handler))
         .route("/api/forge/relay/runs/{run_id}/gate", post(resolve_gate_handler))

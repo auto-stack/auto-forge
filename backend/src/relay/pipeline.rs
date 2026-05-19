@@ -75,7 +75,7 @@ pub struct StepRecord {
 }
 
 /// The pipeline engine state machine.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineEngine {
     pub flow: FlowSpec,
     /// Index into flow.steps of the current (or next) step.
@@ -101,7 +101,8 @@ pub struct PipelineEngine {
 }
 
 /// Current state of the pipeline.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
 pub enum PipelineStatus {
     /// Flow loaded, ready to start.
     Idle,
@@ -130,7 +131,7 @@ pub enum PipelineStatus {
 }
 
 /// Information about a gate that is awaiting human resolution.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingGate {
     pub step_id: String,
     pub gate: GateType,
@@ -140,7 +141,7 @@ pub struct PendingGate {
 impl PipelineEngine {
     /// Create a new pipeline from a flow spec.
     pub fn new(flow: FlowSpec, run_id: impl Into<String>) -> Self {
-        Self::with_budget(flow, run_id, TokenBudget::new(100_000))
+        Self::with_budget(flow, run_id, TokenBudget::new(10_000_000))
     }
 
     /// Create a new pipeline with a custom run budget.

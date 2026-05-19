@@ -13,21 +13,65 @@
             <PanelLeft :size="14" />
           </button>
         </div>
-        <div
-          v-for="section in filteredSections"
-          :key="section.id"
-          class="section-nav-item"
-          :class="{ active: activeSection === section.id }"
-          @click="activeSection = section.id"
-        >
-          <div class="section-top">
-            <span class="section-name">{{ section.title }}</span>
+        <!-- Category Drawer -->
+        <details class="filter-drawer" open>
+          <summary class="filter-drawer-title">Category</summary>
+          <div class="filter-drawer-body">
+            <div
+              v-for="section in filteredSections"
+              :key="section.id"
+              class="section-nav-item"
+              :class="{ active: activeSection === section.id }"
+              @click="activeSection = section.id"
+            >
+              <div class="section-top">
+                <span class="section-name">{{ section.title }}</span>
+              </div>
+              <div class="section-meta">
+                <span class="section-count">{{ section.items?.length || 0 }} items</span>
+                <StatusBadge :status="section.status" size="sm" />
+              </div>
+            </div>
           </div>
-          <div class="section-meta">
-            <span class="section-count">{{ section.items?.length || 0 }} items</span>
-            <StatusBadge :status="section.status" size="sm" />
+        </details>
+
+        <!-- Stack Drawer -->
+        <details class="filter-drawer" open v-if="allStacks.length > 0">
+          <summary class="filter-drawer-title">Stack</summary>
+          <div class="filter-drawer-body pills">
+            <button
+              class="filter-pill"
+              :class="{ active: selectedStacks.length === 0 }"
+              @click="clearStacks"
+            >All</button>
+            <button
+              v-for="stack in allStacks"
+              :key="stack"
+              class="filter-pill"
+              :class="{ active: selectedStacks.includes(stack) }"
+              @click="toggleStack(stack)"
+            >{{ stack }}</button>
           </div>
-        </div>
+        </details>
+
+        <!-- Module Drawer -->
+        <details class="filter-drawer" open v-if="allModules.length > 0">
+          <summary class="filter-drawer-title">Module</summary>
+          <div class="filter-drawer-body pills">
+            <button
+              class="filter-pill"
+              :class="{ active: selectedModules.length === 0 }"
+              @click="clearModules"
+            >All</button>
+            <button
+              v-for="mod in allModules"
+              :key="mod"
+              class="filter-pill"
+              :class="{ active: selectedModules.includes(mod) }"
+              @click="toggleModule(mod)"
+            >{{ mod }}</button>
+          </div>
+        </details>
       </div>
 
       <!-- Content pane -->
@@ -81,7 +125,7 @@
               </div>
             </div>
 
-            <!-- Add item button -->
+            <!-- Toolbar: add item -->
             <div class="section-toolbar">
               <button class="add-btn" @click="addItem">
                 <Plus :size="14" />
@@ -90,9 +134,30 @@
             </div>
 
             <!-- Category-specific renderer -->
+            <template v-if="currentSection?.section_type === 'goals'">
+              <GoalsTable
+                :items="filteredItems"
+                :project="project"
+                @open-detail="openDetailModal"
+              />
+              <GoalDetailModal
+                :item="detailItem"
+                :project="project"
+                section-type="goals"
+                :is-editing="detailEditing"
+                @close="closeDetailModal"
+                @edit="startDetailEdit"
+                @save="handleDetailSave"
+                @cancel-edit="cancelDetailEdit"
+                @status-change="handleStatusChange"
+                @delete="handleDelete"
+                @jump="jumpToItem"
+              />
+            </template>
             <component
+              v-else
               :is="categoryComponent"
-              :items="currentSection.items"
+              :items="filteredItems"
               :project="project"
               :expanded-id="activeItemId"
               :editing-id="editingItemId"
@@ -130,6 +195,7 @@ import { useProject } from '@/composables/useProject'
 import type { SpecsSection, SpecItem, SectionType, Status } from '@/types/specs'
 import StatusBadge from '@/components/StatusBadge.vue'
 import GateBanner from '@/components/GateBanner.vue'
+import GoalDetailModal from '@/components/GoalDetailModal.vue'
 import { ITEM_TEMPLATES, getDefaultStatus, getNextId } from '@/utils/itemTemplates'
 
 // Category components
@@ -150,10 +216,14 @@ const SPECS_SIDEBAR_KEY = 'autoforge-specs-sidebar-collapsed'
 const activeSection = ref<string>('goals')
 const activeItemId = ref<string | null>(null)
 const editingItemId = ref<string | null>(null)
+const detailItem = ref<SpecItem | null>(null)
+const detailEditing = ref(false)
 const project = computed(() => activeProjectName.value ?? 'unknown')
 const specSearch = ref('')
 const sectionNavCollapsed = ref(localStorage.getItem(SPECS_SIDEBAR_KEY) === 'true')
 const flashItemId = ref<string | null>(null)
+const selectedStacks = ref<string[]>([])
+const selectedModules = ref<string[]>([])
 
 watch(sectionNavCollapsed, (v) => {
   localStorage.setItem(SPECS_SIDEBAR_KEY, String(v))
@@ -235,6 +305,82 @@ const sectionTypeLabel = computed(() => {
   return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ')
 })
 
+// ─── Sidebar filter state ──────────────────────────────────────
+
+const allStacks = computed(() => {
+  const set = new Set<string>()
+  for (const section of sections.value) {
+    for (const item of section.items) {
+      item.tags?.forEach(tag => {
+        if (tag.startsWith('stack:')) set.add(tag.replace('stack:', ''))
+      })
+    }
+  }
+  return Array.from(set).sort()
+})
+
+const allModules = computed(() => {
+  const set = new Set<string>()
+  for (const section of sections.value) {
+    for (const item of section.items) {
+      item.tags?.forEach(tag => {
+        if (tag.startsWith('module:')) set.add(tag.replace('module:', ''))
+      })
+    }
+  }
+  return Array.from(set).sort()
+})
+
+const filteredItems = computed(() => {
+  const section = currentSection.value
+  if (!section) return []
+  let items = section.items
+
+  // Stack filter
+  if (selectedStacks.value.length > 0) {
+    items = items.filter(item =>
+      selectedStacks.value.some(s => item.tags?.includes(`stack:${s}`))
+    )
+  }
+
+  // Module filter
+  if (selectedModules.value.length > 0) {
+    items = items.filter(item =>
+      selectedModules.value.some(m => item.tags?.includes(`module:${m}`))
+    )
+  }
+
+  return items
+})
+
+function toggleStack(stack: string) {
+  const idx = selectedStacks.value.indexOf(stack)
+  if (idx >= 0) {
+    selectedStacks.value.splice(idx, 1)
+  } else {
+    selectedStacks.value.push(stack)
+  }
+}
+
+function toggleModule(mod: string) {
+  const idx = selectedModules.value.indexOf(mod)
+  if (idx >= 0) {
+    selectedModules.value.splice(idx, 1)
+  } else {
+    selectedModules.value.push(mod)
+  }
+}
+
+function clearStacks() { selectedStacks.value = [] }
+function clearModules() { selectedModules.value = [] }
+
+watch(activeSection, () => {
+  selectedStacks.value = []
+  selectedModules.value = []
+})
+
+// ─────────────────────────────────────────────────────────
+
 function handleStatusChange(payload: { id: string; status: Status }) {
   const section = currentSection.value
   if (!section) return
@@ -300,6 +446,46 @@ function cancelEdit() {
   editingItemId.value = null
 }
 
+// ─── Goal Detail Modal ───────────────────────────────────────
+
+function openDetailModal(item: SpecItem) {
+  detailItem.value = item
+  detailEditing.value = false
+}
+
+function closeDetailModal() {
+  detailItem.value = null
+  detailEditing.value = false
+}
+
+function startDetailEdit() {
+  detailEditing.value = true
+}
+
+function cancelDetailEdit() {
+  detailEditing.value = false
+}
+
+function handleDetailSave(payload: { title: string; content: string; priority: string; depends_on: string[] }) {
+  if (!detailItem.value) return
+  const item = detailItem.value
+  const section = currentSection.value
+  if (!section) return
+  const idx = section.items.findIndex((i) => i.id === item.id)
+  if (idx >= 0) {
+    section.items[idx] = {
+      ...section.items[idx],
+      title: payload.title,
+      content: payload.content,
+      priority: payload.priority,
+      depends_on: payload.depends_on,
+      modified_at: Date.now(),
+    }
+    saveSection()
+  }
+  detailEditing.value = false
+}
+
 function addItem() {
   if (!currentSection.value) return
   const section = currentSection.value
@@ -345,6 +531,7 @@ function serializeItemsToMarkdown(section: SpecsSection): string {
     if (item.file) lines.push(`**File:** ${item.file}`)
     if (item.milestone) lines.push(`**Milestone:** ${item.milestone}`)
     if (item.module) lines.push(`**Module:** ${item.module}`)
+    if (item.tags?.length) lines.push(`**Tags:** ${item.tags.join(', ')}`)
     if (item.depends_on?.length) lines.push(`**Depends on:** ${item.depends_on.join(', ')}`)
     lines.push('')
     lines.push(item.content)
@@ -493,6 +680,82 @@ watch(project, (newVal) => {
 .section-count {
   font-size: 0.78rem;
   color: var(--af-muted);
+}
+
+/* ─── Filter Drawers ──────────────────────────────────────── */
+
+.filter-drawer {
+  border-bottom: 1px solid var(--af-border);
+}
+
+.filter-drawer:last-child {
+  border-bottom: none;
+}
+
+.filter-drawer summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--af-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.filter-drawer summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-drawer summary::before {
+  content: '▸';
+  font-size: 0.7rem;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.filter-drawer[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.filter-drawer-body {
+  padding-bottom: 0.75rem;
+}
+
+.filter-drawer-body.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  border: 1px solid var(--af-border);
+  background: hsl(var(--muted-foreground) / 0.04);
+  color: var(--af-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: inherit;
+}
+
+.filter-pill:hover {
+  border-color: hsl(var(--primary) / 0.3);
+  color: var(--af-fg);
+}
+
+.filter-pill.active {
+  background: hsl(var(--primary) / 0.1);
+  border-color: hsl(var(--primary) / 0.35);
+  color: hsl(var(--primary));
 }
 
 /* ─── Content Pane ────────────────────────────────────────── */
@@ -658,6 +921,10 @@ watch(project, (newVal) => {
 
 .section-toolbar {
   margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .add-btn {
@@ -677,6 +944,62 @@ watch(project, (newVal) => {
   color: hsl(var(--primary));
   border-color: hsl(var(--primary) / 0.4);
   background: hsl(var(--primary) / 0.04);
+}
+
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.tag-filter-icon {
+  color: var(--af-muted);
+  flex-shrink: 0;
+}
+
+.tag-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  border: 1px solid var(--af-border);
+  background: hsl(var(--muted-foreground) / 0.04);
+  color: var(--af-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.tag-filter-chip:hover {
+  border-color: hsl(var(--primary) / 0.3);
+  color: var(--af-fg);
+}
+
+.tag-filter-chip.active {
+  background: hsl(var(--primary) / 0.1);
+  border-color: hsl(var(--primary) / 0.35);
+  color: hsl(var(--primary));
+}
+
+.tag-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--af-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.tag-filter-clear:hover {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.06);
 }
 
 .editor-empty {

@@ -37,6 +37,9 @@
       <span v-if="item.depends_on?.length" class="meta-chip deps">
         Depends: {{ item.depends_on.join(', ') }}
       </span>
+      <span v-for="tag in item.tags" :key="tag" class="meta-chip tag">
+        🏷️ {{ tag }}
+      </span>
     </div>
 
     <!-- Actions -->
@@ -85,7 +88,8 @@ const hasMeta = computed(() =>
   props.item.test_file ||
   props.item.module ||
   props.item.milestone ||
-  (props.item.depends_on && props.item.depends_on.length > 0)
+  (props.item.depends_on && props.item.depends_on.length > 0) ||
+  (props.item.tags && props.item.tags.length > 0)
 )
 </script>
 
@@ -126,6 +130,12 @@ const hasMeta = computed(() =>
   background: hsl(var(--primary) / 0.08);
   color: hsl(var(--primary));
   border-color: hsl(var(--primary) / 0.2);
+}
+
+.meta-chip.tag {
+  background: hsl(var(--accent) / 0.08);
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.2);
 }
 
 .detail-actions {

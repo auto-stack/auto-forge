@@ -11,6 +11,7 @@ use crate::relay::pipeline::{AdvanceResult, PipelineStatus};
 use crate::relay::store::{RunStore, advance_run, submit_handoff};
 use crate::relay::api::RunEventBroadcast;
 use tokio::sync::broadcast;
+use serde_json::json;
 
 /// Drive a relay run to completion in a background task.
 ///
@@ -42,6 +43,10 @@ pub async fn drive_run(
                 let _ = event_tx.send(RunEventBroadcast {
                     run_id: run_id.clone(),
                     event_type: "step_started".to_string(),
+                    payload: Some(json!({
+                        "step_id": &step_id,
+                        "profession_id": &profession_id,
+                    })),
                 });
 
                 // Build agent instance for this profession
@@ -73,14 +78,186 @@ pub async fn drive_run(
                 );
                 turn.max_turns = turn.agent.profession.max_turns;
 
-                // Drain turn events so the channel doesn't back up
+                // Forward turn events to the broadcast channel for live session log
+                // and persist them to the run store for replay after restart
                 let (turn_tx, mut turn_rx) =
                     tokio::sync::mpsc::unbounded_channel::<crate::relay::turn::TurnEvent>();
+                let event_tx_fwd = event_tx.clone();
+                let run_id_fwd = run_id.clone();
+                let profession_id_fwd = profession_id.clone();
+                let run_store_fwd = run_store.clone();
                 tokio::spawn(async move {
-                    while let Some(_event) = turn_rx.recv().await {}
+                    let mut text_buffer = String::new();
+                    let mut flush_interval = tokio::time::interval(tokio::time::Duration::from_millis(250));
+                    flush_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+                    let flush_text = |buf: &mut String, tx: &broadcast::Sender<RunEventBroadcast>, store: &RunStore| {
+                        if !buf.is_empty() {
+                            let text = buf.clone();
+                            let _ = tx.send(RunEventBroadcast {
+                                run_id: run_id_fwd.clone(),
+                                event_type: "turn_delta".to_string(),
+                                payload: Some(json!({
+                                    "profession_id": profession_id_fwd.clone(),
+                                    "text": &text,
+                                })),
+                            });
+                            if let Ok(mut map) = store.lock() {
+                                if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                    entry.events.push(crate::relay::store::RunEvent::TurnDelta {
+                                        profession_id: profession_id_fwd.clone(),
+                                        text,
+                                    });
+                                    crate::relay::store::save_run(entry);
+                                }
+                            }
+                            buf.clear();
+                        }
+                    };
+
+                    loop {
+                        tokio::select! {
+                            _ = flush_interval.tick() => {
+                                flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                            }
+                            maybe_event = turn_rx.recv() => {
+                                match maybe_event {
+                                    Some(crate::relay::turn::TurnEvent::TextDelta { text }) => {
+                                        text_buffer.push_str(&text);
+                                    }
+                                    Some(crate::relay::turn::TurnEvent::ToolCall { id, name, arguments }) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_tool_call".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                                "tool_id": &id,
+                                                "tool_name": &name,
+                                                "arguments": &arguments,
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnToolCall {
+                                                    profession_id: profession_id_fwd.clone(),
+                                                    tool_id: id,
+                                                    tool_name: name,
+                                                    arguments,
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
+                                    Some(crate::relay::turn::TurnEvent::ToolResult { id, result }) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_tool_result".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                                "tool_id": &id,
+                                                "result": &result,
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnToolResult {
+                                                    profession_id: profession_id_fwd.clone(),
+                                                    tool_id: id,
+                                                    result: result.clone(),
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
+                                    Some(crate::relay::turn::TurnEvent::Complete) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_complete".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnComplete {
+                                                    profession_id: profession_id_fwd.clone(),
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
+                                    Some(crate::relay::turn::TurnEvent::Error { message }) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_error".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                                "message": &message,
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnError {
+                                                    profession_id: profession_id_fwd.clone(),
+                                                    message: message.clone(),
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
+                                    Some(crate::relay::turn::TurnEvent::BudgetWarning { remaining }) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_budget_warning".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                                "remaining": remaining,
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnBudgetWarning {
+                                                    profession_id: profession_id_fwd.clone(),
+                                                    remaining,
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
+                                    Some(crate::relay::turn::TurnEvent::BudgetExceeded) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_budget_exceeded".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnBudgetExceeded {
+                                                    profession_id: profession_id_fwd.clone(),
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 });
 
-                let turn_result = turn.run(&*provider, turn_tx).await;
+                let turn_result = turn.run(provider.clone(), turn_tx).await;
 
                 // Build handoff document from turn result
                 let to_profession = guess_next_profession(&run_store, &run_id)
@@ -88,7 +265,19 @@ pub async fn drive_run(
                 let handoff = turn.to_handoff(&turn_result, &to_profession, &run_id, 0);
 
                 // Submit handoff — pipeline engine advances internally
-                let next_result = submit_handoff(&run_store, &run_id, handoff);
+                let next_result = submit_handoff(&run_store, &run_id, handoff.clone());
+
+                // Broadcast step completion with token usage
+                let _ = event_tx.send(RunEventBroadcast {
+                    run_id: run_id.clone(),
+                    event_type: "step_completed".to_string(),
+                    payload: Some(json!({
+                        "step_id": &step_id,
+                        "profession_id": &profession_id,
+                        "summary": &handoff.summary,
+                        "tokens_used": handoff.token_usage.step_input + handoff.token_usage.step_output,
+                    })),
+                });
 
                 match next_result {
                     Some(AdvanceResult::ExecuteStep { .. }) => {
@@ -103,6 +292,7 @@ pub async fn drive_run(
                         let _ = event_tx.send(RunEventBroadcast {
                             run_id: run_id.clone(),
                             event_type: "run_completed".to_string(),
+                            payload: None,
                         });
                         tracing::info!("Relay driver completed run {}", run_id);
                         break;
@@ -111,6 +301,7 @@ pub async fn drive_run(
                         let _ = event_tx.send(RunEventBroadcast {
                             run_id: run_id.clone(),
                             event_type: format!("run_failed: {}", error),
+                            payload: None,
                         });
                         tracing::error!("Relay driver failed run {}: {}", run_id, error);
                         break;
@@ -126,6 +317,7 @@ pub async fn drive_run(
                 let _ = event_tx.send(RunEventBroadcast {
                     run_id: run_id.clone(),
                     event_type: "run_completed".to_string(),
+                    payload: None,
                 });
                 tracing::info!("Relay driver completed run {}", run_id);
                 break;
@@ -134,6 +326,7 @@ pub async fn drive_run(
                 let _ = event_tx.send(RunEventBroadcast {
                     run_id: run_id.clone(),
                     event_type: format!("run_failed: {}", error),
+                    payload: None,
                 });
                 tracing::error!("Relay driver failed run {}: {}", run_id, error);
                 break;
@@ -244,6 +437,7 @@ async fn wait_for_gate_resolution(
     let _ = event_tx.send(RunEventBroadcast {
         run_id: run_id.to_string(),
         event_type: "gate_waiting".to_string(),
+        payload: None,
     });
 
     loop {

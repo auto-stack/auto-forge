@@ -6,6 +6,7 @@
 
 ## X1 — Forge Specs Relay Frontend Implementation
 **Status:** draft
+**Tags:** stack:frontend, module:relay
 
 Implementation of the redesigned specs relay frontend covering Chat-First Gates (Smart Secretary), Live Node-Graph Pipeline, Specs Workspace with bidirectional traceability, and responsive polish. All P0 gaps closed. Build passes. Dev server and backend API operational.
 
@@ -32,6 +33,7 @@ Implementation of the redesigned specs relay frontend covering Chat-First Gates 
 
 ## X2 — Spec Conversion Gap Audit (Post-Write)
 **Status:** draft
+**Tags:** stack:frontend, module:specs
 
 After converting `docs/design/forge-specs-relay-frontend.md` into formal specs, a gap audit identified missing component designs and an undocumented SSE routing contract.
 
@@ -54,6 +56,7 @@ All P0 gaps are now closed. The 4 new designs (D15–D18) and 3 additional plan 
 
 ## X3 — Frontend Gap Closure Report (Post-Implementation)
 **Status:** draft
+**Tags:** stack:frontend, module:ui-system
 
 All identified gaps from X2 have been implemented and verified. The frontend now supports the complete Smart Secretary pattern, live pipeline visualization, specs workspace depth, mode-aware gate filtering, and mobile-responsive accessibility.
 

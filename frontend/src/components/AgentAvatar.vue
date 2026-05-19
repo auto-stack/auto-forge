@@ -27,7 +27,7 @@ const props = defineProps<{
   name?: string
   agentId?: string
   imageUrl?: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
 }>()
 
 const { getById, getByProfession } = useAgentConfigs()
@@ -104,6 +104,12 @@ const title = computed(() => {
 
 .agent-avatar.image {
   object-fit: cover;
+}
+
+.agent-avatar.xs {
+  width: 18px;
+  height: 18px;
+  font-size: 0.65rem;
 }
 
 .agent-avatar.sm {

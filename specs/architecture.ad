@@ -5,14 +5,127 @@
 
 ## Architecture
 
----
+### Spec ID Visibility System
+
+**Overview**: Display spec IDs (e.g., A11, D5, P3) in title bars across all spec views, improving cross-referencing and traceability.
+
+#### Data Flow
+
+```
+Spec Document → ID Extraction → Component Rendering → Styled Display
+```
+
+#### Component Architecture
+
+**1. ID Extraction Logic**
+```typescript
+// Shared utility: extractSpecId(title: string): string
+// Extracts ID prefix from spec title (e.g., "A11: Title" → "A11")
+// Handles edge cases: no ID, malformed IDs, different formats
+```
+
+**2. SpecIdBadge Component** (New)
+- Reusable badge component for displaying colored spec IDs
+- Props: `id`, `specType`
+- Renders: `<span class="spec-id-badge spec-type-{type}">{id}</span>`
+
+**3. Integration Points**
+- **ArchitectureView**: Add SpecIdBadge to title bar
+- **DesignsView**: Add SpecIdBadge to title bar  
+- **PlansView**: Add SpecIdBadge to title bar
+- **TestsView**: Add SpecIdBadge to title bar
+- **ReviewsView**: Add SpecIdBadge to title bar
+- **ReportsView**: Add SpecIdBadge to title bar
+
+#### Styling System
+
+**Color Mapping** (match existing Goals view):
+```css
+--spec-goal-color: #3b82f6;    /* Blue */
+--spec-arch-color: #8b5cf6;    /* Purple */
+--spec-design-color: #ec4899;  /* Pink */
+--spec-plan-color: #f59e0b;    /* Amber */
+--spec-test-color: #10b981;    /* Green */
+--spec-review-color: #ef4444;  /* Red */
+--spec-report-color: #6b7280;  /* Gray */
+```
+
+**Font Properties** (match Goal IDs):
+```css
+.spec-id-badge {
+  font-family: inherit;        /* Match Goals view */
+  font-weight: 600;            /* Semi-bold */
+  font-size: 0.875rem;         /* 14px */
+  letter-spacing: 0.025em;     /* Slightly expanded */
+  padding: 0.125rem 0.375rem;  /* Compact spacing */
+  border-radius: 0.25rem;      /* Subtle rounding */
+}
+```
+
+#### ID Extraction Rules
+
+**Pattern**: `^[A-Z]\d+[:\s]` (letter + number + colon/space)
+- Extract: First matching pattern from title start
+- Examples:
+  - "A11: My Architecture" → "A11"
+  - "D5.3: Sub-design" → "D5.3"
+  - "P3: Plan Title" → "P3"
+  - "No ID Title" → null (graceful fallback)
+
+**Validation**:
+- Must start with uppercase letter (A-Z)
+- Followed by one or more digits
+- Optional: decimal point for sub-items (e.g., D5.3)
+- Optional: colon or space separator
+
+#### Implementation Phases
+
+**Phase 1: Core Infrastructure**
+1. Create `extractSpecId()` utility function
+2. Build `SpecIdBadge` component with color mapping
+3. Define CSS variables for spec type colors
+
+**Phase 2: View Integration**
+1. Add SpecIdBadge to Architecture view title bar
+2. Add SpecIdBadge to Designs view title bar
+3. Add SpecIdBadge to Plans view title bar
+
+**Phase 3: Complete Coverage**
+1. Add SpecIdBadge to Tests view title bar
+2. Add SpecIdBadge to Reviews view title bar
+3. Add SpecIdBadge to Reports view title bar
+
+**Phase 4: Polish**
+1. Add hover states for better interactivity
+2. Ensure responsive design on mobile
+3. Add accessibility attributes (ARIA labels)
+
+#### Technical Considerations
+
+**Performance**:
+- Extract ID once on component mount, cache in state
+- Minimal re-renders (ID doesn't change during session)
+
+**Accessibility**:
+- Add `aria-label` to badges (e.g., "Architecture A11")
+- Ensure sufficient color contrast for text
+- Support keyboard navigation
+
+**Internationalization**:
+- ID format is universal (no translation needed)
+- Color coding works across all locales
+
+**Error Handling**:
+- Graceful fallback if ID extraction fails
+- Display title only if no ID found
+- Log malformed IDs for debugging
 
 ---
 
 ## A1 Relay Orchestrator Architecture
 **Status:** draft
-**Depends on:** G2
 **Tags:** stack:backend, module:relay
+**Depends on:** G2
 
 An LLM-based orchestrator would consume tokens for routing decisions, violating G3's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
 
@@ -84,10 +197,12 @@ graph TB
 
 ---
 
+---
+
 ## A2 Agent Instance Lifecycle
 **Status:** draft
-**Depends on:** G1, G2
 **Tags:** stack:backend, module:agent-config
+**Depends on:** G1, G2
 
 Long-lived agent processes would accumulate context and state, defeating the token-efficiency goal. By spawning fresh instances per step, each agent starts with a clean, minimal context window. This also simplifies crash recovery — no need to restore agent memory, only the checkpoint.
 
@@ -132,10 +247,12 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## A3 Checkpoint & State Persistence
 **Status:** draft
-**Depends on:** G4
 **Tags:** stack:backend, module:relay
+**Depends on:** G4
 
 JSON provides human-readable, version-controllable checkpoints. Git auto-commits provide a robust file-level rollback mechanism that integrates with existing developer workflows. The Ledger is embedded (not referenced) to ensure self-contained checkpoints.
 
@@ -172,10 +289,12 @@ graph LR
 
 ---
 
+---
+
 ## A4 Boss-First Execution Architecture
 **Status:** approved
-**Depends on:** G6
 **Tags:** stack:backend, module:relay
+**Depends on:** G6
 
 The default workflow for AI assistants requires human approval at every step. This treats the human as a peer reviewer. AutoForge treats the human as a boss who delegates and expects results. GSD mode shifts the default from "ask for permission" to "ask for forgiveness" — the AI executes autonomously and only interrupts the boss when blocked.
 
@@ -222,10 +341,12 @@ graph LR
 
 ---
 
+---
+
 ## A5 Frontend Composable State Architecture
 **Status:** implemented
-**Depends on:** G8
 **Tags:** stack:frontend, module:ui-system
+**Depends on:** G8
 
 An LLM-based orchestrator would consume tokens for routing decisions, violating G3's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
 
@@ -285,10 +406,12 @@ graph TB
 
 ---
 
+---
+
 ## A6 Chat Ephemeral Chrome Architecture
 **Status:** implemented
-**Depends on:** G8
 **Tags:** stack:frontend, module:chat
+**Depends on:** G8
 
 Persisting cross-session gate messages into the current session's `ForgeMessage` array would pollute the chat audit trail with foreign conversation state. The backend `ForgeMessage` schema has no `gate` role and should not be extended for UI chrome.
 
@@ -325,10 +448,12 @@ graph LR
 
 ---
 
+---
+
 ## A7 API Source & Multi-Provider Architecture
 **Status:** proposed
-**Depends on:** G13
 **Tags:** stack:both, module:api-sources
+**Depends on:** G13
 
 A single hardcoded provider (Claude only) limits agent flexibility and cost optimization. Agents in different roles have different cognitive requirements — a routing Assistant needs a cheap/fast model, while an Architect needs a strong reasoning model. Multi-provider support enables per-agent model selection from any configured API source.
 
@@ -402,10 +527,12 @@ graph TB
 
 ---
 
+---
+
 ## A8 Unified Provider & Runtime Architecture
 **Status:** done
-**Depends on:** G14, G15
 **Tags:** stack:backend, module:provider
+**Depends on:** G14, G15
 
 Two separate AI provider implementations (ai.rs for simple chat, forge/ai.rs for tool-enabled chat) created maintenance burden and duplicated SSE parsing logic. The unified provider/ module consolidates both into a single ClaudeProvider with two streaming modes, backed by a robust incremental SSE parser ported from auto-code-rs.
 
@@ -461,10 +588,12 @@ graph TB
 
 ---
 
+---
+
 ## A9 Chat-Turn Agent Handoff Architecture
 **Status:** proposed
-**Depends on:** G16, G17
 **Tags:** stack:both, module:chat
+**Depends on:** G16, G17
 
 The relay pipeline (A1) uses formal `HandoffDocument` generation between steps, but the free-form chat flow has no handoff mechanism. The assistant (Nicole) classifies user intent but cannot act on that classification — she answers everything herself with all tools. The bring-in tool bridges this gap by letting Nicole invoke another agent mid-conversation, passing structured context so the receiving agent doesn't ask the user to repeat.
 
@@ -506,10 +635,12 @@ graph LR
 
 ---
 
+---
+
 ## A10 Wiki Knowledge Layer Architecture
 **Status:** done
-**Depends on:** G18
 **Tags:** stack:both, module:wiki
+**Depends on:** G18
 
 Wiki provides a dual-root knowledge storage: `wiki/` for agent-processed markdown pages and `raw/` for original source documents (PDFs, images, text files). Both support multi-level directory hierarchies. Agents (Documenter) process raw resources into structured wiki pages.
 
@@ -580,10 +711,12 @@ graph TB
 
 ---
 
+---
+
 ## A11 AutoDown Editor — Tiptap-Based WYSIWYG Architecture
 **Status:** draft
-**Depends on:** G19
 **Tags:** stack:frontend, module:editor
+**Depends on:** G19
 
 AutoForge needs a block-based WYSIWYG editor that natively supports Markdown serialization and can be extended with custom Vue components for AutoDown-specific blocks. Tiptap is the only evaluated framework that satisfies all constraints simultaneously: it is headless (no forced UI), has first-class Vue 3 integration via `VueNodeViewRenderer`, provides a native ProseMirror block model, and includes a dedicated `@tiptap/markdown` extension with per-extension `parseMarkdown`/`renderMarkdown` hooks. Novel.sh demonstrates that wrapping Tiptap into a product-grade editor is viable — we adapt its pattern (headless primitives + styled composition) to Vue 3's Composition API without Jotai or React-specific libraries.
 
@@ -637,10 +770,12 @@ graph TD
 
 ---
 
+---
+
 ## A12 Errand Dispatch Architecture
 **Status:** approved
-**Depends on:** G22, A9
 **Tags:** stack:both, module:errand
+**Depends on:** G22, A9
 
 `bring_in` is for **Relay phase transitions** — the baton changes hands, the active profession switches, and the new agent continues the conversation. `dispatch` is for **fire-and-forget tasks** — the master stays in control, a side-agent does grunt work, and only the result returns. Conflating these two patterns would break both. Keeping them separate preserves the Relay pipeline's determinism while adding lightweight task delegation.
 
@@ -728,10 +863,12 @@ sequenceDiagram
 
 ---
 
+---
+
 ## A13 Automatic Relay Mode Architecture
 **Status:** approved
-**Depends on:** G23, A1, A9, A12
 **Tags:** stack:both, module:relay
+**Depends on:** G23, A1, A9, A12
 
 `spawn_relay` is the third orchestration primitive alongside `bring_in` (phase transition) and `dispatch` (errand). It bridges the **chat layer** (Forge) and the **pipeline layer** (Relay) by allowing a chat agent to launch an autonomous background pipeline that runs without further chat involvement.
 
@@ -803,6 +940,8 @@ submit_handoff(handoff) → AdvanceResult
 | Tool registry per turn | Fresh `ToolRegistry::new()` | Tools are stateless; no need to share across steps |
 | Project context | `set_tool_context()` thread-local | Reuses existing specs tool infrastructure |
 | Flow selection | `post_discovery` skips chat-done work | Avoids wasting tokens on redundant intake/discover |
+
+---
 
 ---
 
@@ -953,6 +1092,8 @@ pub struct Tag {
 
 ---
 
+---
+
 ## A15 Backend API Extensions
 **Status:** draft
 **Tags:** stack:backend, module:project
@@ -1044,6 +1185,8 @@ interface GoalNode {
 - Frontend receives pre-built tree structure (no client-side tree building)
 - Validation ensures data integrity (orphans, circular refs, depth)
 - API is idempotent (same data, same tree)
+
+---
 
 ---
 
@@ -1246,6 +1389,8 @@ export const useGoalsTree = defineStore('goalsTree', {
 
 ---
 
+---
+
 ## A17 Search & Filter Architecture
 **Status:** draft
 **Tags:** stack:frontend, module:ui-system
@@ -1311,6 +1456,8 @@ function filterTree(tree: GoalsTree, query: string): GoalsTree {
 
 ---
 
+---
+
 ## A18 Theme & Accent System Architecture
 **Status:** approved
 **Tags:** stack:frontend, module:ui-system
@@ -1331,6 +1478,8 @@ graph LR
 
 - No server involvement; purely client-side state
 - Both composables are singletons (module-level refs)
+
+---
 
 ---
 
@@ -1371,6 +1520,8 @@ graph TB
 
 ---
 
+---
+
 ## A20 Streaming Content Renderer Architecture
 **Status:** approved
 **Tags:** stack:frontend, module:chat
@@ -1384,6 +1535,8 @@ graph TB
 
 - Parser maintains a sticky props cache so partial JSON tables don't lose column definitions
 - Component registry is extensible: add `{ table: StreamingTable }` to support new block types
+
+---
 
 ---
 
@@ -1411,6 +1564,8 @@ graph TB
 - Tree API returns recursive `TreeNode` with `node_type: "file" | "folder"`
 - File API validates path stays within project directory (blocks `..` and absolute paths)
 - Preview pane uses `<pre>`, `<img>`, `<iframe>`, or download link based on MIME guess
+
+---
 
 ---
 

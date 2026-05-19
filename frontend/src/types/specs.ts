@@ -46,6 +46,7 @@ export interface SpecItem {
   file?: string
   milestone?: string
   module?: string
+  tags?: string[]
   created_at: number
   modified_at: number
   completed_at?: number

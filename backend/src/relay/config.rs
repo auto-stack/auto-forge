@@ -461,7 +461,10 @@ pub fn resolve_model(
     config: &AgentConfig,
     api_sources: &[ApiSource],
 ) -> Option<crate::relay::agent::ModelConfig> {
-    let source = api_sources.iter().find(|s| s.id == config.api_source_id)?;
+    // Find the configured source, or fall back to the first available source
+    // if api_source_id is empty or no longer exists.
+    let source = api_sources.iter().find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
     let model_def = source.models.iter().find(|m| m.tier == config.model_tier)
         .or_else(|| source.models.first())?;
 

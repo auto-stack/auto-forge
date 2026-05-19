@@ -7,13 +7,11 @@
 
 ---
 
----
-
 ## D1 AgentInstance & Soul Rendering
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/agent.rs`
-**Depends on:** A2
 **Tags:** stack:backend, module:agent-config
+**Depends on:** A2
 
 ```rust
 pub struct AgentInstance {
@@ -107,11 +105,13 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## D2 PipelineEngine & Flow Execution
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/pipeline.rs`
-**Depends on:** A1, D1
 **Tags:** stack:backend, module:relay
+**Depends on:** A1, D1
 
 ```rust
 pub struct PipelineEngine {
@@ -225,11 +225,13 @@ fn execute_next():
 
 ---
 
+---
+
 ## D3 HandoffDocument Generation
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/handoff.rs`
-**Depends on:** G3, D1
 **Tags:** stack:backend, module:relay
+**Depends on:** G3, D1
 
 ```rust
 pub struct HandoffDocument {
@@ -334,11 +336,13 @@ fn generate(agent, turn_history, specs):
 
 ---
 
+---
+
 ## D4 Checkpoint Serialization
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/checkpoint.rs`
-**Depends on:** A3
 **Tags:** stack:backend, module:relay
+**Depends on:** A3
 
 ```rust
 pub struct Checkpoint {
@@ -408,11 +412,13 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## D5 TokenBudget Enforcement
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/budget.rs`
-**Depends on:** G5
 **Tags:** stack:backend, module:relay
+**Depends on:** G5
 
 ```rust
 pub struct TokenBudget {
@@ -474,11 +480,13 @@ pub enum BudgetAction {
 
 ---
 
+---
+
 ## D6 RelayMode & GSD Flow Control
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/pipeline.rs`
-**Depends on:** G6, D2
 **Tags:** stack:backend, module:relay
+**Depends on:** G6, D2
 
 ```rust
 pub enum RelayMode {
@@ -542,11 +550,13 @@ fn evaluate_gate(step, mode):
 
 ---
 
+---
+
 ## D7 Profession Registry (v2)
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/profession.rs`
-**Depends on:** G1, G7
 **Tags:** stack:backend, module:agent-config
+**Depends on:** G1, G7
 
 ```rust
 pub struct Profession {
@@ -596,11 +606,13 @@ pub struct Profession {
 
 ---
 
+---
+
 ## D8 GateCard & SecretaryMessage Components
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/components/`
-**Depends on:** A5, A6
 **Tags:** stack:frontend, module:chat
+**Depends on:** A5, A6
 
 ```typescript
 // GateCard.vue
@@ -651,11 +663,13 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## D9 useGateInbox State Machine
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/composables/useGateInbox.ts`
-**Depends on:** A5
 **Tags:** stack:frontend, module:relay
+**Depends on:** A5
 
 ```typescript
 interface PendingGate {
@@ -720,11 +734,13 @@ fn snoozeGate(id, minutes):
 
 ---
 
+---
+
 ## D10 Category Renderer Polymorphism
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/views/SpecsView.vue`
-**Depends on:** A5
 **Tags:** stack:frontend, module:specs
+**Depends on:** A5
 
 ```typescript
 const categoryComponents: Record<SectionType, Component> = {
@@ -760,11 +776,13 @@ const categoryComponents: Record<SectionType, Component> = {
 
 ---
 
+---
+
 ## D11 RelationsPanel & AutoLinkContent
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/components/`
-**Depends on:** A5
 **Tags:** stack:frontend, module:specs
+**Depends on:** A5
 
 ```typescript
 // RelationsPanel.vue
@@ -807,11 +825,13 @@ fn render(content):
 
 ---
 
+---
+
 ## D12 Relay PipelinePanel Node-Graph
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/views/RelayView.vue`
-**Depends on:** A5
 **Tags:** stack:frontend, module:relay
+**Depends on:** A5
 
 ```typescript
 interface PipelineNode {
@@ -848,11 +868,13 @@ interface PipelineEdge {
 
 ---
 
+---
+
 ## D13 Expanded Node Card
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/components/NodeCard.vue`
-**Depends on:** D12
 **Tags:** stack:frontend, module:relay
+**Depends on:** D12
 
 ```typescript
 interface NodeCardProps {
@@ -877,11 +899,13 @@ interface NodeCardProps {
 
 ---
 
+---
+
 ## D14 Responsive 3-Zone Layout System
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/App.vue`
-**Depends on:** —
 **Tags:** stack:frontend, module:ui-system
+**Depends on:** —
 
 | Breakpoint | Zone A | Zone B | Zone C |
 |---|---|---|---|
@@ -912,11 +936,13 @@ interface NodeCardProps {
 
 ---
 
+---
+
 ## D15 GateBanner (Specs View)
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/components/GateBanner.vue`
-**Depends on:** A5, D9
 **Tags:** stack:frontend, module:specs
+**Depends on:** A5, D9
 
 ```typescript
 interface GateBannerProps {
@@ -959,11 +985,13 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## D16 GatePanel (Relay View)
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/components/GatePanel.vue`
-**Depends on:** A5, D9
 **Tags:** stack:frontend, module:relay
+**Depends on:** A5, D9
 
 ```typescript
 interface GatePanelProps {
@@ -996,11 +1024,13 @@ emit('reviewInSpecs', sectionId: string)
 
 ---
 
+---
+
 ## D17 ReportCard (Chat Terminal)
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/components/ReportCard.vue`
-**Depends on:** A5
 **Tags:** stack:frontend, module:chat
+**Depends on:** A5
 
 ```typescript
 interface ReportCardProps {
@@ -1036,11 +1066,13 @@ interface ReportCardProps {
 
 ---
 
+---
+
 ## D18 SSE Frontend Event Router
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/composables/useEventRouter.ts`
-**Depends on:** A5, D9
 **Tags:** stack:frontend, module:relay
+**Depends on:** A5, D9
 
 ```typescript
 interface SSEEvent {
@@ -1079,11 +1111,13 @@ function useEventRouter() {
 
 ---
 
+---
+
 ## D19 API Source Configuration
 **Status:** draft
 **Module:** `backend/src/relay/config.rs`
-**Depends on:** G13
 **Tags:** stack:both, module:api-sources
+**Depends on:** G13
 
 ```rust
 pub struct ApiSource {
@@ -1221,11 +1255,13 @@ fn resolve_api_key(source):
 
 ---
 
+---
+
 ## D20 Multi-Provider AI Dispatch
 **Status:** draft
 **Module:** `backend/src/ai.rs`
-**Depends on:** G13, D19
 **Tags:** stack:backend, module:provider
+**Depends on:** G13, D19
 
 ```rust
 /// Dispatch a streaming chat request to the correct provider.
@@ -1319,10 +1355,12 @@ fn parse_sse_delta(provider, data):
 
 ---
 
+---
+
 ## D21 Unified Provider Layer
 **Status:** done
-**Tags:** stack:backend, module:provider
 **Module:** `backend/src/provider/`
+**Tags:** stack:backend, module:provider
 
 ```rust
 // provider/claude.rs
@@ -1380,10 +1418,12 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## D22 CLI REPL Interface
 **Status:** done
-**Tags:** stack:backend, module:cli
 **Module:** `backend/src/cli/`
+**Tags:** stack:backend, module:cli
 
 ```rust
 // cli/repl.rs
@@ -1436,10 +1476,12 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## D23 Runtime Infrastructure
 **Status:** done
-**Tags:** stack:backend, module:runtime
 **Module:** `backend/src/runtime/`
+**Tags:** stack:backend, module:runtime
 
 ```rust
 // runtime/context.rs
@@ -1504,11 +1546,13 @@ stateDiagram-v2
 
 ---
 
+---
+
 ## D24 bring_in Tool & Chat Handoff
 **Status:** proposed
 **Module:** `backend/src/forge/tools.rs`, `backend/src/forge/mod.rs`
-**Depends on:** A9, G17
 **Tags:** stack:both, module:chat
+**Depends on:** A9, G17
 
 ```rust
 // forge/tools.rs — BringInTool
@@ -1648,10 +1692,12 @@ The `tool_call` for `bring_in` renders as a HandoffCard instead of a generic too
 
 ---
 
+---
+
 ## D25 Wiki Knowledge Layer — Storage, Tree API, Raw Resources, and Agent Tools
 **Status:** done
-**Depends on:** G18, A10
 **Tags:** stack:both, module:wiki
+**Depends on:** G18, A10
 
 ### Data Model
 
@@ -1733,10 +1779,12 @@ enum WikiSource { Manual, Guide, ApiRef, Custom }
 
 ---
 
+---
+
 ## D26 Wiki Frontend — Tree Navigation, Raw Import, and Tab Integration
 **Status:** done
-**Depends on:** D25
 **Tags:** stack:frontend, module:wiki
+**Depends on:** D25
 
 ### Types (`frontend/src/types/wiki.ts`)
 
@@ -1858,11 +1906,13 @@ Layout — dual-region sidebar + content panel:
 
 ---
 
+---
+
 ## D27 AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
 **Status:** draft
 **Module:** `frontend/src/components/editors/autodown/`
-**Depends on:** A11, D26
 **Tags:** stack:frontend, module:editor
+**Depends on:** A11, D26
 
 ```typescript
 // AutoDownEditor.vue props/events
@@ -1961,11 +2011,13 @@ fn onKeydown(event):
 
 ---
 
+---
+
 ## D28 Dispatch Tool & Gofer Profession
 **Status:** implemented
 **Module:** `crates/auto-forge/src/forge/dispatch.rs`, `crates/auto-forge/src/relay/profession.rs`
-**Depends on:** A12, D24
 **Tags:** stack:both, module:errand
+**Depends on:** A12, D24
 
 ```rust
 // ── Profession registry entry ──
@@ -1994,7 +2046,7 @@ self.register(Profession {
     dispatchable_to: vec![],  // Gofer cannot dispatch further
     handoff_to: vec![],       // Gofer never hands off
     approval_gates: vec![],
-    max_turns: 5,
+    max_turns: 20,
     token_budget: 4_000,
 });
 ```
@@ -2034,9 +2086,9 @@ impl Tool for DispatchTool {
                 },
                 "max_turns": {
                     "type": "integer",
-                    "description": "Maximum turns for the errand. Default: 5",
-                    "default": 5,
-                    "maximum": 10
+                    "description": "Maximum turns for the errand. Default: 20",
+                    "default": 20,
+                    "maximum": 50
                 }
             }
         })
@@ -2196,11 +2248,13 @@ You are Gus, an AI research assistant. You do not make decisions, give opinions,
 
 ---
 
+---
+
 ## D29 Spawn Relay Tool & Background Driver
 **Status:** implemented
 **Module:** `backend/src/forge/tools.rs`, `backend/src/relay/driver.rs`, `backend/src/forge/mod.rs`
-**Depends on:** G23, A13, D2, D24, D28
 **Tags:** stack:backend, module:relay
+**Depends on:** G23, A13, D2, D24, D28
 
 ### SpawnRelayTool
 
@@ -2397,11 +2451,13 @@ interface ForgeStreamEvent {
 
 ---
 
+---
+
 ## D30 Theme & Accent Component System
 **Status:** implemented
 **Module:** `frontend/src/composables/useTheme.ts`, `useAccentColor.ts`
-**Depends on:** A18
 **Tags:** stack:frontend, module:ui-system
+**Depends on:** A18
 
 - Detect and apply theme preference (dark/light/system) on app mount
 - Persist choice to `localStorage` with VitePress-compatible key
@@ -2422,11 +2478,13 @@ interface ForgeStreamEvent {
 
 ---
 
+---
+
 ## D31 Cross-View Event Router & Gate Inbox Composables
 **Status:** implemented
 **Module:** `frontend/src/composables/useEventRouter.ts`, `useGateInbox.ts`
-**Depends on:** A19
 **Tags:** stack:frontend, module:relay
+**Depends on:** A19
 
 - Subscribe to relay SSE events and route by type to view callbacks
 - Maintain FIFO gate queue with snooze timer and dismiss state
@@ -2446,11 +2504,13 @@ interface ForgeStreamEvent {
 
 ---
 
+---
+
 ## D32 Streaming Content Renderer & Document Parser
 **Status:** implemented
 **Module:** `frontend/src/composables/useStreamingDocument.ts`, `components/StreamingRenderer.vue`
-**Depends on:** A20
 **Tags:** stack:frontend, module:chat
+**Depends on:** A20
 
 - Split raw SSE text into markdown segments and JSON component blocks
 - Cache partial JSON props across chunks to prevent flicker
@@ -2470,11 +2530,13 @@ interface ForgeStreamEvent {
 
 ---
 
+---
+
 ## D33 Explorer View & Tree Component
 **Status:** implemented
 **Module:** `frontend/src/views/ExplorerView.vue`, `components/TreeView.vue`
-**Depends on:** A21
 **Tags:** stack:frontend, module:project
+**Depends on:** A21
 
 - Fetch and display recursive project file tree
 - Handle node expand/collapse with chevron animation
@@ -2494,11 +2556,13 @@ interface ForgeStreamEvent {
 
 ---
 
+---
+
 ## D34 APIs Documentation View
 **Status:** implemented
 **Module:** `frontend/src/views/ApiSourcesView.vue` / `specs/apis.ad`
-**Depends on:** A22
 **Tags:** stack:frontend, module:api-sources
+**Depends on:** A22
 
 - Render `apis.ad` as structured endpoint documentation
 - Group endpoints by backend module with collapsible sections
@@ -2506,3 +2570,302 @@ interface ForgeStreamEvent {
 
 - `useSpecs.ts` for loading `apis.ad` section
 - `MarkdownContent.vue` for rendering markdown tables
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D35 GoalsTable Tree View Component
+**Status:** implemented
+**Module:** `frontend/src/components/category/GoalsTable.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** G21, D10
+
+### Structure
+
+```vue
+<!-- GoalsTable.vue -->
+<div class="goals-tree">
+  <div
+    v-for="row in treeRows"
+    :key="row.item.id"
+    class="goal-node"
+    :class="{ 'is-root': row.level === 0, 'is-sub': row.level > 0 }"
+    @click="onRowClick(row.item)"
+  >
+    <!-- Indent spacer (level × 1.25rem) -->
+    <div class="node-indent" :style="{ width: row.level * 1.25 + 'rem' }"></div>
+
+    <!-- Toggle area: only rendered when row.hasChildren -->
+    <div
+      v-if="row.hasChildren"
+      class="node-toggle-area"
+      :class="{ expanded: treeExpanded.has(row.item.id) }"
+      @click.stop="toggleTree(row.item.id)"
+    >
+      <span v-if="row.childCount > 0" class="node-children-count">
+        {{ row.childCount }}
+      </span>
+      <span class="node-chevron"><ChevronRight :size="14" /></span>
+    </div>
+
+    <!-- Left column: ID -->
+    <div class="node-left"><span class="node-id">{{ row.item.id }}</span></div>
+
+    <!-- Right column: title + meta -->
+    <div class="node-right">
+      <span class="node-title">{{ row.item.title }}</span>
+      <span v-if="row.item.priority" class="node-priority">{{ row.item.priority }}</span>
+      <StatusBadge :status="row.item.status" size="sm" />
+      <span v-if="row.item.tags?.length" class="node-tags">
+        <span
+          v-for="tag in item.tags.slice(0, 2)"
+          :key="tag"
+          class="tag-chip"
+          :class="parseTag(tag).type"
+          :title="parseTag(tag).full"
+        >{{ parseTag(tag).value }}</span>
+      </span>
+    </div>
+  </div>
+</div>
+```
+
+### Key Behaviors
+
+| Behavior | Implementation |
+|---|---|
+| Row click | Opens `GoalDetailModal` via `@open-detail` emit |
+| Toggle click | `stopPropagation` + `toggleTree(id)`; only when `hasChildren` |
+| Leaf goals | No toggle area rendered; entire row is clickable |
+| Sub-goals | Indented via `.node-indent`; no toggle area |
+| Expansion | `treeExpanded: Set<string>` controls visibility; `treeRows` recomputed |
+
+### Styling
+
+- `.goal-node`: `display: flex; align-items: stretch; min-height: 44px`
+- `.node-toggle-area`: `width: 2.5rem; align-self: stretch; cursor: pointer`
+- `.node-left`: fixed left column with `padding-left: 1rem`
+- `.node-right`: `flex: 1` with title ellipsis truncation
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D36 GoalDetailModal Component
+**Status:** implemented
+**Module:** `frontend/src/components/GoalDetailModal.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** G21, D11
+
+### Props & Emits
+
+```typescript
+interface Props {
+  item: SpecItem      // Goal or sub-goal to display
+  project: string     // Project key for API calls
+  isEditing: boolean  // Inline edit mode state
+}
+
+interface Emits {
+  'close': []
+  'edit': []
+  'save': [item: SpecItem]
+  'cancel-edit': []
+  'status-change': [id: string, status: Status]
+  'delete': [id: string]
+  'jump': [id: string]  // Navigate to linked spec ID
+}
+```
+
+### Layout
+
+```
+┌─ modal-overlay (backdrop blur, click to close) ──────────────┐
+│ ┌─ modal-card (click.stop prevents close) ─────────────────┐ │
+│ │ ┌─ modal-header ─────────────────────────────────────────┐ │ │
+│ │ │  [ID badge]  [Title]                          [X]      │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ │ ┌─ modal-meta ───────────────────────────────────────────┐ │ │
+│ │ │  [Priority]  [StatusBadge]  [tag chips...]             │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ │ ┌─ modal-body ───────────────────────────────────────────┐ │ │
+│ │ │  <GoalEditor v-if="isEditing" />                       │ │ │
+│ │ │  <template v-else>                                     │ │ │
+│ │ │    <RelationsPanel :item="item" @jump="$emit('jump')"/>│ │ │
+│ │ │    <div class="detail-content">                        │ │ │
+│ │ │      <div class="block-label">DESCRIPTION</div>        │ │ │
+│ │ │      <GoalDetail :item="item" />                       │ │ │
+│ │ │    </div>                                              │ │ │
+│ │ │  </template>                                           │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ │ ┌─ modal-footer ─────────────────────────────────────────┐ │ │
+│ │ │  <StatusTransition>  [Edit]  [Delete]                  │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ └────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Interaction
+
+- **Open**: `SpecsView` sets `detailItem = item` → `<Teleport to="body">` renders modal
+- **Close**: ESC key (`onKeydown`), click on `.modal-overlay`, or close button
+- **Edit**: "Edit" button emits `edit` → `SpecsView` sets `detailEditing = true` → switches to `<GoalEditor>`
+- **Save**: GoalEditor emits `save` → `handleSave()` persists → `detailEditing = false`
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D37 Spec Tag Display & Sidebar Filtering
+**Status:** implemented
+**Module:** `frontend/src/views/SpecsView.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** G21, D10
+
+### Tag Data Model
+
+Tags are stored as `Vec<String>` on `SpecItem` (backend) / `string[]` (frontend). Format: `kind:value` (e.g., `stack:frontend`, `module:specs`).
+
+```typescript
+function parseTag(tag: string): { type: string; value: string; full: string } {
+  const idx = tag.indexOf(':')
+  if (idx > 0) {
+    return { type: tag.slice(0, idx), value: tag.slice(idx + 1), full: tag }
+  }
+  return { type: 'other', value: tag, full: tag }
+}
+```
+
+### Tag Display in Rows
+
+- **Shortened**: `stack:frontend` renders as `frontend`
+- **Color-coded**: `stack:*` = blue (`hsl(200)`), `module:*` = purple (`hsl(280)`)
+- **Tooltip**: hover shows full tag text
+- **Limit**: max 2 tags shown inline; `+N` overflow indicator
+- Applied to: `GoalsTable`, `SpecItemRow` (Architecture, Designs, Plans, Tests, Reviews, Reports)
+
+### Sidebar Filter Drawers
+
+Three `<details>` elements in `SpecsView` sidebar:
+
+```
+┌─ Sidebar ──────────────────────────────┐
+│ <details open> Category                │
+│   [Goals] [Architecture] [Designs] ... │
+│ </details>                             │
+│ <details open> Stack                   │
+│   [backend] [frontend] [both]          │
+│ </details>                             │
+│ <details open> Module                  │
+│   [specs] [relay] [wiki] ...           │
+│ </details>                             │
+└────────────────────────────────────────┘
+```
+
+### Filter Logic
+
+```typescript
+const filteredItems = computed(() => {
+  return items.value.filter(item => {
+    const stacks = item.tags?.filter(t => t.startsWith('stack:')) || []
+    const modules = item.tags?.filter(t => t.startsWith('module:')) || []
+    const matchStack = selectedStacks.value.size === 0 ||
+      stacks.some(t => selectedStacks.value.has(parseTag(t).value))
+    const matchModule = selectedModules.value.size === 0 ||
+      modules.some(t => selectedModules.value.has(parseTag(t).value))
+    return matchStack && matchModule
+  })
+})
+```
+
+- **AND logic**: item must match at least one selected stack AND at least one selected module
+- **Empty selection**: counts as "match all" for that filter type
+- Tag pills toggle on click; active state styled with primary color
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D38 Backend Flat Mode Project Resolution
+**Status:** implemented
+**Module:** `backend/src/forge/mod.rs`
+**Tags:** stack:backend, module:specs
+**Depends on:** G7
+
+### Problem
+
+Frontend calls `/api/forge/specs/{project}` with project name (e.g., `auto-forge`), but flat mode stores the document under key `"."` in `SpecsStore.projects`.
+
+### Solution
+
+`SpecsStore.get_or_default()` falls back to flat mode document when project key not found:
+
+```rust
+pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
+    if !self.projects.contains_key(project) {
+        if let Some(ref flat) = self.flat_mode_project {
+            if let Some(doc) = self.projects.get(flat).cloned() {
+                return self.projects.entry(project.to_string()).insert(doc);
+            }
+        }
+        let doc = self.default_specs(project);
+        self.save_ad_format(&doc, project);
+        self.projects.insert(project.to_string(), doc);
+    }
+    // ...existing section merge logic...
+}
+```
+
+### Requirements
+
+- `manifest.at` `project` field MUST be `"."` to match API path semantics
+- Any mismatch causes backend to serve default empty docs and overwrite `.ad` files

@@ -6,15 +6,17 @@
 use crate::relay::flow::FlowSpec;
 use crate::relay::handoff::HandoffDocument;
 use crate::relay::pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, StepRecord};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 /// Shared in-memory store for all relay runs.
 pub type RunStore = Arc<Mutex<HashMap<String, RunEntry>>>;
 
 /// An entry in the run store.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunEntry {
     pub run_id: String,
     pub engine: PipelineEngine,
@@ -25,7 +27,7 @@ pub struct RunEntry {
 }
 
 /// A run event for SSE streaming and history.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RunEvent {
     StepStarted { step_id: String, profession_id: String },
@@ -35,6 +37,14 @@ pub enum RunEvent {
     RunCompleted,
     RunFailed { error: String },
     TokenSpend { cumulative: u64, step_tokens: u64 },
+    // ─── Turn events (for session log persistence) ───
+    TurnDelta { profession_id: String, text: String },
+    TurnToolCall { profession_id: String, tool_id: String, tool_name: String, arguments: serde_json::Value },
+    TurnToolResult { profession_id: String, tool_id: String, result: String },
+    TurnComplete { profession_id: String },
+    TurnError { profession_id: String, message: String },
+    TurnBudgetWarning { profession_id: String, remaining: u64 },
+    TurnBudgetExceeded { profession_id: String },
 }
 
 /// Summary of a run for listing.
@@ -66,6 +76,7 @@ pub struct RunState {
     pub parallel_estimate: u64,
     pub savings: u64,
     pub savings_ratio: f64,
+    pub events: Vec<RunEvent>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,9 +94,51 @@ pub struct GateState {
     pub since: u64,
 }
 
-/// Create a new shared run store.
+/// Directory where runs are persisted.
+fn persistence_dir() -> PathBuf {
+    let dir = dirs::data_dir()
+        .unwrap_or_else(|| std::env::temp_dir())
+        .join("autoforge")
+        .join("runs");
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+/// Save a run entry to disk.
+pub fn save_run(entry: &RunEntry) {
+    let dir = persistence_dir().join(&entry.run_id);
+    let _ = fs::create_dir_all(&dir);
+    let path = dir.join("run.json");
+    if let Ok(json) = serde_json::to_string_pretty(entry) {
+        let _ = fs::write(&path, json);
+    }
+}
+
+/// Load all persisted runs from disk.
+pub fn load_all_runs() -> RunStore {
+    let store = Arc::new(Mutex::new(HashMap::new()));
+    let dir = persistence_dir();
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return store;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path().join("run.json");
+        if path.exists() {
+            if let Ok(data) = fs::read_to_string(&path) {
+                if let Ok(run_entry) = serde_json::from_str::<RunEntry>(&data) {
+                    let mut map = store.lock().unwrap();
+                    map.insert(run_entry.run_id.clone(), run_entry);
+                }
+            }
+        }
+    }
+    store
+}
+
+/// Create a new shared run store, loading persisted runs.
 pub fn new_run_store() -> RunStore {
-    Arc::new(Mutex::new(HashMap::new()))
+    load_all_runs()
 }
 
 /// Start a new run with the given flow spec.
@@ -107,6 +160,7 @@ pub fn start_run(store: &RunStore, flow: FlowSpec, run_id: impl Into<String>) ->
     };
 
     let state = build_run_state(&entry);
+    save_run(&entry);
     map.insert(run_id, entry);
     Ok(state)
 }
@@ -160,6 +214,7 @@ pub fn advance_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
         }
     }
 
+    save_run(entry);
     Some(result.clone())
 }
 
@@ -192,7 +247,20 @@ pub fn submit_handoff(store: &RunStore, run_id: &str, handoff: HandoffDocument) 
         _ => {}
     }
 
+    save_run(entry);
     Some(result.clone())
+}
+
+/// Delete a run from the store and remove its persisted file.
+pub fn delete_run(store: &RunStore, run_id: &str) -> bool {
+    let mut map = store.lock().unwrap();
+    let removed = map.remove(run_id).is_some();
+    if removed {
+        let path = persistence_dir().join(run_id).join("run.json");
+        let _ = fs::remove_file(&path);
+        let _ = fs::remove_dir(path.parent().unwrap_or(&path));
+    }
+    removed
 }
 
 /// Resolve a human gate for a run.
@@ -215,6 +283,7 @@ pub fn resolve_gate(store: &RunStore, run_id: &str, decision: GateDecision) -> O
         });
     }
 
+    save_run(entry);
     Some(result.clone())
 }
 
@@ -272,6 +341,7 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         parallel_estimate: engine.budget_tracker.estimate_parallel_cost(engine.flow.steps.len() as u32, 5000, 3),
         savings,
         savings_ratio,
+        events: entry.events.clone(),
     }
 }
 
@@ -358,12 +428,12 @@ mod tests {
         advance_run(&store, "run-budget");
 
         let mut h = HandoffDocument::new("planner", "done", "run-budget", 0);
-        h.token_usage = TokenUsage { step_input: 1000, step_output: 500, cumulative: 1500, budget_remaining: 98500 };
+        h.token_usage = TokenUsage { step_input: 1000, step_output: 500, cumulative: 1500, budget_remaining: 9_998_500 };
         submit_handoff(&store, "run-budget", h);
 
         let state = get_run(&store, "run-budget").unwrap();
         assert_eq!(state.cumulative_tokens, 1500);
-        assert_eq!(state.budget_limit, 100_000);
-        assert_eq!(state.budget_remaining, 100_000 - 1500);
+        assert_eq!(state.budget_limit, 10_000_000);
+        assert_eq!(state.budget_remaining, 10_000_000 - 1500);
     }
 }

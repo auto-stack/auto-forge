@@ -29,7 +29,16 @@
         >
           <div class="run-card-header">
             <span class="run-id">{{ run.run_id }}</span>
-            <StatusBadge :status="run.status" />
+            <div class="run-card-actions">
+              <StatusBadge :status="run.status" />
+              <button
+                class="btn-icon btn-delete"
+                title="Delete run"
+                @click.stop="onDeleteRun(run.run_id)"
+              >
+                <Trash2 :size="12" />
+              </button>
+            </div>
           </div>
           <div class="run-card-meta">
             <span>{{ run.current_profession ?? '—' }}</span>
@@ -138,15 +147,107 @@
             </template>
           </div>
 
-          <!-- Live Log -->
-          <div class="live-log-panel">
-            <div class="panel-title">Live Log</div>
-            <div v-if="liveLog.length === 0" class="empty-state">No handoffs yet</div>
-            <div v-else class="log-list">
-              <div v-for="(entry, i) in liveLog" :key="i" class="log-row">
-                <span class="log-time">{{ entry.time }}</span>
-                <span class="log-profession">{{ entry.profession }}</span>
-                <span class="log-action">{{ entry.action }}</span>
+          <!-- Session Log -->
+          <div class="session-log-panel">
+            <div class="panel-title">Session Log</div>
+            <div v-if="sessionLog.length === 0" class="empty-state">
+              Start a run to see agent activity
+            </div>
+            <div v-else ref="sessionLogRef" class="session-log-list">
+              <div
+                v-for="entry in sessionLog"
+                :key="entry.id"
+                class="session-entry"
+                :class="`type-${entry.type}`"
+              >
+                <div class="session-entry-header">
+                  <AgentAvatar :profession-id="entry.profession_id" size="xs" />
+                  <span class="session-profession">{{ entry.profession_id }}</span>
+                  <span class="session-time">{{ entry.time }}</span>
+                </div>
+
+                <!-- Text content -->
+                <div v-if="entry.type === 'text'" class="session-text">
+                  <pre>{{ entry.content }}</pre>
+                </div>
+
+                <!-- Tool call -->
+                <div v-else-if="entry.type === 'tool_call'" class="session-tool">
+                  <div class="tool-header">
+                    <Wrench :size="12" />
+                    <span>{{ entry.tool_name }}</span>
+                  </div>
+                  <details class="tool-details">
+                    <summary>Arguments</summary>
+                    <pre>{{ JSON.stringify(entry.arguments, null, 2) }}</pre>
+                  </details>
+                </div>
+
+                <!-- Tool result -->
+                <div v-else-if="entry.type === 'tool_result'" class="session-tool result">
+                  <div class="tool-header">
+                    <CheckCircle :size="12" />
+                    <span>Result</span>
+                  </div>
+                  <details class="tool-details">
+                    <summary>Output</summary>
+                    <pre>{{ entry.content }}</pre>
+                  </details>
+                </div>
+
+                <!-- Complete -->
+                <div v-else-if="entry.type === 'complete'" class="session-complete">
+                  <CheckCircle :size="12" />
+                  <span>Turn completed</span>
+                </div>
+
+                <!-- Error -->
+                <div v-else-if="entry.type === 'error'" class="session-error">
+                  <AlertCircle :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
+
+                <!-- Budget warning -->
+                <div v-else-if="entry.type === 'budget_warning'" class="session-warning">
+                  <AlertTriangle :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
+
+                <!-- Budget exceeded -->
+                <div v-else-if="entry.type === 'budget_exceeded'" class="session-error">
+                  <AlertCircle :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
+
+                <!-- Step started -->
+                <div v-else-if="entry.type === 'step_started'" class="session-step">
+                  <Play :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
+
+                <!-- Step completed -->
+                <div v-else-if="entry.type === 'step_completed'" class="session-step completed">
+                  <CheckCircle :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
+
+                <!-- Gate waiting -->
+                <div v-else-if="entry.type === 'gate_waiting'" class="session-warning">
+                  <AlertTriangle :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
+
+                <!-- Run completed -->
+                <div v-else-if="entry.type === 'run_completed'" class="session-step completed">
+                  <CheckCircle :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
+
+                <!-- Run failed -->
+                <div v-else-if="entry.type === 'run_failed'" class="session-error">
+                  <AlertCircle :size="12" />
+                  <span>{{ entry.content }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -241,6 +342,10 @@
           <input v-model="newFlowId" placeholder="e.g. feature-auth" />
         </div>
         <div class="form-group">
+          <label>Task / Initial Prompt</label>
+          <textarea v-model="newTask" placeholder="Describe what the relay should build or investigate..." rows="3" />
+        </div>
+        <div class="form-group">
           <label>Steps</label>
           <div class="steps-builder">
             <div v-for="(step, i) in newSteps" :key="i" class="step-row">
@@ -278,7 +383,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   Play, RefreshCw, Coins, Zap, ChevronRight,
-  Trash2, Plus,
+  Trash2, Plus, Wrench, CheckCircle, AlertCircle, AlertTriangle,
 } from 'lucide-vue-next'
 import { useRelay } from '@/composables/useRelay'
 import { useGateInbox } from '@/composables/useGateInbox'
@@ -289,9 +394,9 @@ import AgentAvatar from '@/components/AgentAvatar.vue'
 
 const {
   runs, currentRun, professions, souls, loading, error,
-  hasActiveGate, budgetUsedPercent, liveLog, professionTokens,
+  hasActiveGate, budgetUsedPercent, liveLog, professionTokens, sessionLog,
   loadProfessions, loadSouls, loadRuns, loadRun, startRun,
-  resolveGate, subscribeToRun,
+  resolveGate, subscribeToRun, deleteRun,
 } = useRelay()
 
 const gateInbox = useGateInbox()
@@ -299,6 +404,16 @@ const { shouldPauseGate } = useForgeMode()
 
 const showStartModal = ref(false)
 const expandedStepId = ref<string | null>(null)
+const sessionLogRef = ref<HTMLElement | null>(null)
+
+// Auto-scroll session log to bottom when new entries arrive
+import { watch, nextTick } from 'vue'
+watch(() => sessionLog.value.length, async () => {
+  await nextTick()
+  if (sessionLogRef.value) {
+    sessionLogRef.value.scrollTop = sessionLogRef.value.scrollHeight
+  }
+})
 
 function toggleStep(stepId: string) {
   expandedStepId.value = expandedStepId.value === stepId ? null : stepId
@@ -334,6 +449,7 @@ const currentGate = computed(() => {
   }
 })
 const newFlowId = ref('demo-flow')
+const newTask = ref('')
 const newSteps = ref<{ id: string; profession_id: string; gate: string }[]>([
   { id: 'intake', profession_id: 'assistant', gate: 'auto' },
   { id: 'discover', profession_id: 'advisor', gate: 'human' },
@@ -360,6 +476,7 @@ onUnmounted(() => {
 
 function selectRun(runId: string) {
   if (unsubscribe) unsubscribe()
+  sessionLog.value = []
   loadRun(runId)
   unsubscribe = subscribeToRun(runId)
 }
@@ -383,10 +500,18 @@ async function onStartRun() {
   const runId = await startRun({
     flow_id: newFlowId.value,
     steps: newSteps.value,
+    task: newTask.value,
   })
   if (runId) {
     showStartModal.value = false
+    newTask.value = ''
     selectRun(runId)
+  }
+}
+
+async function onDeleteRun(runId: string) {
+  if (confirm('Delete this run?')) {
+    await deleteRun(runId)
   }
 }
 
@@ -558,6 +683,22 @@ function professionIcon(id: string): string {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.3rem;
+}
+
+.run-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-delete {
+  color: hsl(0 70% 50%);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.run-card:hover .btn-delete {
+  opacity: 1;
 }
 
 .run-id {
@@ -831,48 +972,161 @@ function professionIcon(id: string): string {
   border-radius: 3px;
 }
 
-/* Live Log */
-.live-log-panel {
+/* Session Log */
+.session-log-panel {
   border: 1px solid var(--af-border);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
-}
-
-.log-list {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  max-height: 160px;
+  max-height: 380px;
+}
+
+.session-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.session-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  background: hsl(var(--muted-foreground) / 0.03);
+}
+
+.session-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.session-profession {
+  font-weight: 600;
+  color: var(--af-fg);
+  text-transform: capitalize;
+}
+
+.session-time {
+  color: var(--af-muted);
+  font-family: monospace;
+  font-size: 0.72rem;
+  margin-left: auto;
+}
+
+.session-text pre {
+  margin: 0;
+  padding: 0.3rem 0.4rem;
+  background: hsl(var(--muted-foreground) / 0.04);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--af-fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
   overflow-y: auto;
 }
 
-.log-row {
+.session-tool {
+  border: 1px solid hsl(var(--primary) / 0.2);
+  border-radius: 4px;
+  background: hsl(var(--primary) / 0.04);
+}
+
+.session-tool.result {
+  border-color: hsl(150 60% 45% / 0.3);
+  background: hsl(150 60% 45% / 0.06);
+}
+
+.tool-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.83rem;
-  padding: 0.2rem 0;
-}
-
-.log-time {
-  color: var(--af-muted);
-  font-family: monospace;
+  gap: 0.3rem;
+  padding: 0.3rem 0.5rem;
   font-size: 0.78rem;
-  flex-shrink: 0;
+  font-weight: 600;
+  color: hsl(var(--primary));
 }
 
-.log-profession {
-  font-weight: 500;
-  color: var(--af-fg);
-  flex-shrink: 0;
+.session-tool.result .tool-header {
+  color: hsl(150 60% 35%);
 }
 
-.log-action {
+.tool-details {
+  padding: 0 0.5rem 0.4rem;
+}
+
+.tool-details summary {
+  font-size: 0.72rem;
   color: var(--af-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tool-details pre {
+  margin: 0.25rem 0 0;
+  padding: 0.3rem 0.4rem;
+  background: hsl(var(--muted-foreground) / 0.05);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.session-complete {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: hsl(150 60% 35%);
+}
+
+.session-error {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: hsl(0 72% 51%);
+  background: hsl(0 72% 51% / 0.06);
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+}
+
+.session-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: hsl(38 92% 50%);
+  background: hsl(38 92% 50% / 0.08);
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+}
+
+.session-step {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: hsl(var(--af-agents));
+  background: hsl(var(--af-agents) / 0.08);
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+}
+
+.session-step.completed {
+  color: hsl(150 60% 35%);
+  background: hsl(150 60% 35% / 0.08);
 }
 
 /* Cost Breakdown */
@@ -1018,7 +1272,7 @@ function professionIcon(id: string): string {
   margin-bottom: 0.3rem;
 }
 
-.form-group input, .form-group select {
+.form-group input, .form-group select, .form-group textarea {
   width: 100%;
   padding: 0.4rem 0.5rem;
   border: 1px solid var(--af-border);
@@ -1026,6 +1280,11 @@ function professionIcon(id: string): string {
   background: var(--af-bg);
   color: var(--af-fg);
   font-size: 0.88rem;
+  font-family: inherit;
+}
+
+.form-group textarea {
+  resize: vertical;
 }
 
 .steps-builder {

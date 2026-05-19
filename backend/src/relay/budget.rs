@@ -16,7 +16,7 @@ pub struct TokenBudget {
 
 impl Default for TokenBudget {
     fn default() -> Self {
-        Self::new(100_000)
+        Self::new(10_000_000)
     }
 }
 

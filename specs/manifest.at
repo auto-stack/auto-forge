@@ -1,4 +1,4 @@
-project = "auto-forge"
+project = "."
 version = 23
 
 [[section]]
@@ -6,14 +6,14 @@ id = "goals"
 section_type = "goals"
 title = "Goals"
 status = "in_progress"
-last_modified = 1779086823
+last_modified = 1779186968
 
 [[section]]
 id = "architecture"
 section_type = "architecture"
 title = "Architecture"
 status = "draft"
-last_modified = 1779086823
+last_modified = 1779187433
 
 [[section]]
 id = "designs"

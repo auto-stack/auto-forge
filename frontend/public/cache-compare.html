@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepSeek vs Claude 缓存特性对比</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f8f9fa;
+      color: #1a1a2e;
+      padding: 2rem 1rem;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      color: #1a1a2e;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      font-size: 0.9rem;
+    }
+    thead th {
+      background: #1a1a2e;
+      color: #fff;
+      font-weight: 600;
+      text-align: left;
+      padding: 0.85rem 1rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      width: 15%;
+    }
+    thead th:nth-child(2),
+    thead th:nth-child(3) {
+      width: 42.5%;
+    }
+    tbody td {
+      padding: 1rem;
+      border-bottom: 1px solid #eef0f2;
+      vertical-align: top;
+    }
+    tbody td:first-child {
+      font-weight: 600;
+      color: #374151;
+      white-space: nowrap;
+      background: #f8f9fa;
+      width: 15%;
+    }
+    tbody tr:hover td {
+      background: #f4f5f7;
+    }
+    tbody tr:hover td:first-child {
+      background: #eef0f2;
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .highlight-ds {
+      color: #0d9f63;
+      font-weight: 600;
+    }
+    .highlight-claude {
+      color: #d97757;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>DeepSeek vs Claude 缓存特性对比</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>特性</th>
+          <th>DeepSeek</th>
+          <th>Claude</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>断点设置方式</td>
+          <td><span class="highlight-ds">自动</span>：由系统自动检测并落盘缓存单元</td>
+          <td><span class="highlight-claude">手动</span>：用户通过在提示词中插入 <code>cache_control</code> 标记来定义</td>
+        </tr>
+        <tr>
+          <td>多断点支持</td>
+          <td><span class="highlight-ds">逻辑支持</span>：系统会自动提取多个前缀为独立缓存单元，实现类似"多断点"的效果</td>
+          <td><span class="highlight-claude">原生支持</span>：可在提示词的不同位置插入多个 <code>cache_control: ephemeral</code> 标记</td>
+        </tr>
+        <tr>
+          <td>命中规则</td>
+          <td><span class="highlight-ds">完整前缀匹配</span>：整个请求必须与一个缓存单元的开头完全一致才能命中</td>
+          <td><span class="highlight-claude">多点前缀匹配</span>：从请求开头到第一个断点匹配，则命中第一段缓存；后续内容则从下一个断点重新开始匹配</td>
+        </tr>
+        <tr>
+          <td>费用</td>
+          <td>命中缓存: <span class="highlight-ds">0.1元/百万tokens</span>；未命中: 1元/百万tokens（缓存存储免费）</td>
+          <td>缓存写入和读取有独立费用，具体定价参考官方文档</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

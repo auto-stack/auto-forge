@@ -202,6 +202,8 @@ pub struct SpecItem {
     pub milestone: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     pub created_at: u64,
     pub modified_at: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -802,8 +804,25 @@ impl SpecsStore {
         // Flat mode: manifest.at lives directly in data_dir
         if let Some(ref flat_project) = self.flat_mode_project {
             if let Some(doc) = self.load_ad_format(&self.data_dir, flat_project) {
+                let mut debug = format!("load_all flat_mode: project={}, sections={}\n", flat_project, doc.sections.len());
+                for sec in &doc.sections {
+                    debug.push_str(&format!("  {}: {} items\n", sec.id, sec.items.len()));
+                }
+                let _ = std::fs::write("D:/autostack/auto-forge/specs/debug_load_all.txt", &debug);
                 self.projects.insert(flat_project.clone(), doc);
+                let mut debug2 = format!("load_all after insert: keys={:?}\n", self.projects.keys().collect::<Vec<_>>());
+                for (k, v) in &self.projects {
+                    debug2.push_str(&format!("  {}: {} sections\n", k, v.sections.len()));
+                    for sec in &v.sections {
+                        debug2.push_str(&format!("    {}: {} items\n", sec.id, sec.items.len()));
+                    }
+                }
+                let _ = std::fs::write("D:/autostack/auto-forge/specs/debug_load_all.txt", &debug2);
+            } else {
+                let _ = std::fs::write("D:/autostack/auto-forge/specs/debug_load_all.txt", "load_all: load_ad_format returned None\n");
             }
+        } else {
+            let _ = std::fs::write("D:/autostack/auto-forge/specs/debug_load_all.txt", "load_all: flat_mode_project is None\n");
         }
 
         // Nested mode: scan subdirectories for additional projects
@@ -904,14 +923,18 @@ impl SpecsStore {
 
     fn load_ad_format(&self, project_dir: &std::path::Path, project_name: &str) -> Option<SpecsDocument> {
         let manifest_path = project_dir.join("manifest.at");
+        tracing::info!("load_ad_format: manifest_path={}", manifest_path.display());
         let manifest_content = std::fs::read_to_string(&manifest_path).ok()?;
         let manifest: ManifestAt = toml::from_str(&manifest_content).ok()?;
+        tracing::info!("load_ad_format: parsed manifest with {} sections", manifest.sections.len());
 
         let mut sections = Vec::new();
         for msec in &manifest.sections {
             let ad_path = project_dir.join(format!("{}.ad", msec.id));
+            tracing::info!("load_ad_format: loading {} from {}", msec.id, ad_path.display());
             if let Ok(ad_content) = std::fs::read_to_string(&ad_path) {
                 if let Some(section) = Self::parse_ad_file(&msec.id, &msec.section_type, &msec.title, &ad_content) {
+                    tracing::info!("load_ad_format: {} parsed {} items", msec.id, section.items.len());
                     sections.push(SpecsSection {
                         id: msec.id.clone(),
                         section_type: Self::parse_section_type(&msec.section_type),
@@ -923,9 +946,14 @@ impl SpecsStore {
                         last_modified: msec.last_modified,
                         last_verified: msec.last_verified,
                     });
+                } else {
+                    tracing::warn!("load_ad_format: {} parse_ad_file returned None", msec.id);
                 }
+            } else {
+                tracing::warn!("load_ad_format: {} failed to read ad file", msec.id);
             }
         }
+        tracing::info!("load_ad_format: loaded {} sections total", sections.len());
         Some(SpecsDocument {
             project: manifest.project,
             version: manifest.version as u64,
@@ -1068,6 +1096,7 @@ impl SpecsStore {
                     file: None,
                     milestone: None,
                     module: None,
+                    tags: Vec::new(),
                     created_at: now_secs(),
                     modified_at: now_secs(),
                     completed_at: None,
@@ -1088,6 +1117,9 @@ impl SpecsStore {
                         "file" => item.file = Some(value.to_string()),
                         "milestone" => item.milestone = Some(value.to_string()),
                         "module" => item.module = Some(value.to_string()),
+                        "tags" => {
+                            item.tags = value.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                        }
                         "depends on" => {
                             item.depends_on = value.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
                         }
@@ -1150,6 +1182,7 @@ impl SpecsStore {
                 if let Some(ref f) = item.file { lines.push(format!("**File:** {}", f)); }
                 if let Some(ref m) = item.milestone { lines.push(format!("**Milestone:** {}", m)); }
                 if let Some(ref m) = item.module { lines.push(format!("**Module:** {}", m)); }
+                if !item.tags.is_empty() { lines.push(format!("**Tags:** {}", item.tags.join(", "))); }
                 if !item.depends_on.is_empty() { lines.push(format!("**Depends on:** {}", item.depends_on.join(", "))); }
                 if !item.content.trim().is_empty() {
                     lines.push(String::new());
@@ -1206,11 +1239,19 @@ impl SpecsStore {
     }
 
     fn get(&self, project: &str) -> Option<&SpecsDocument> {
-        self.projects.get(project)
+        self.projects.get(project).or_else(|| {
+            self.flat_mode_project.as_ref().and_then(|fp| self.projects.get(fp))
+        })
     }
 
     pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
         if !self.projects.contains_key(project) {
+            // Flat mode fallback: if flat_mode_project exists and has a loaded doc, use it
+            if let Some(ref fp) = self.flat_mode_project {
+                if self.projects.contains_key(fp) {
+                    return self.projects.get_mut(fp).unwrap();
+                }
+            }
             let doc = self.default_specs(project);
             self.save_ad_format(&doc, project);
             self.projects.insert(project.to_string(), doc);
@@ -1497,6 +1538,16 @@ fn sanitize_filename(name: &str) -> String {
 fn specs() -> &'static Mutex<SpecsStore> {
     static STORE: OnceLock<Mutex<SpecsStore>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(SpecsStore::new_default()))
+}
+
+/// Return the path of the currently open project, if any.
+pub fn current_project_path() -> Option<String> {
+    let store = specs().lock().ok()?;
+    if !store.is_project_open() {
+        return None;
+    }
+    store.data_dir.parent()
+        .map(|p| p.to_string_lossy().to_string())
 }
 
 /// Restore the last opened project from persisted config.
@@ -2026,7 +2077,7 @@ mod handlers {
                                             let agent = dispatch_data["agent"].as_str().unwrap_or("gofer");
                                             let task = dispatch_data["task"].as_str().unwrap_or("");
                                             let context = dispatch_data["context"].as_str();
-                                            let max_turns = dispatch_data.get("max_turns").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
+                                            let max_turns = dispatch_data.get("max_turns").and_then(|v| v.as_u64()).unwrap_or(20) as u32;
 
                                             let mut errand = crate::forge::errand::ErrandSession::new(
                                                 sid.clone(),
@@ -2416,7 +2467,19 @@ mod handlers {
 
     pub async fn get_specs(Path(project): Path<String>) -> Json<SpecsDocument> {
         let mut store = specs().lock().unwrap();
+        let keys: Vec<String> = store.projects.keys().cloned().collect();
+        let debug_info = format!(
+            "get_specs: project='{}', keys={:?}\n",
+            project, keys
+        );
+        let _ = std::fs::write("D:/autostack/auto-forge/specs/debug_get_specs.txt", &debug_info);
         let doc = store.get_or_default(&project).clone();
+        let mut debug = debug_info;
+        debug.push_str(&format!("doc sections: {}\n", doc.sections.len()));
+        for sec in &doc.sections {
+            debug.push_str(&format!("  {}: {} items, content_len={}\n", sec.id, sec.items.len(), sec.content.len()));
+        }
+        let _ = std::fs::write("D:/autostack/auto-forge/specs/debug_get_specs.txt", &debug);
         Json(doc)
     }
 

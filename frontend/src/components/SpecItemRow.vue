@@ -16,6 +16,16 @@
 
       <!-- Right side -->
       <div class="row-meta">
+        <span v-if="item.tags?.length" class="row-tags">
+          <span
+            v-for="tag in item.tags.slice(0, 2)"
+            :key="tag"
+            class="tag-chip"
+            :class="parseTag(tag).type"
+            :title="parseTag(tag).full"
+          >{{ parseTag(tag).value }}</span>
+          <span v-if="item.tags.length > 2" class="tag-more">+{{ item.tags.length - 2 }}</span>
+        </span>
         <StatusBadge :status="item.status" size="sm" />
         <component
           :is="isExpanded ? ChevronUp : ChevronDown"
@@ -63,6 +73,14 @@ defineEmits<{
   'status-change': [payload: { id: string; status: string }]
   delete: [id: string]
 }>()
+
+function parseTag(tag: string): { type: string; value: string; full: string } {
+  const idx = tag.indexOf(':')
+  if (idx > 0) {
+    return { type: tag.slice(0, idx), value: tag.slice(idx + 1), full: tag }
+  }
+  return { type: 'other', value: tag, full: tag }
+}
 </script>
 
 <style scoped>
@@ -142,6 +160,40 @@ defineEmits<{
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+}
+
+.row-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.68rem;
+  border-radius: 4px;
+  border: 1px solid var(--af-border);
+  background: hsl(var(--muted-foreground) / 0.06);
+  color: var(--af-muted);
+  white-space: nowrap;
+  cursor: help;
+}
+.tag-chip.stack {
+  background: hsl(200 80% 50% / 0.1);
+  color: hsl(200 70% 45%);
+  border-color: hsl(200 70% 50% / 0.25);
+}
+.tag-chip.module {
+  background: hsl(280 60% 55% / 0.1);
+  color: hsl(280 50% 50%);
+  border-color: hsl(280 50% 50% / 0.25);
+}
+
+.tag-more {
+  font-size: 0.68rem;
+  color: var(--af-muted);
 }
 
 .expand-icon {

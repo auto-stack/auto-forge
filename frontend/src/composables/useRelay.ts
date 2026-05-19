@@ -12,6 +12,19 @@ const _loading = ref(false)
 const _error = ref<string | null>(null)
 const _liveLog = ref<Array<{ time: string; profession: string; action: string }>>([])
 const _professionTokens = ref<Record<string, number>>({})
+const _sessionLog = ref<SessionLogEntry[]>([])
+
+export interface SessionLogEntry {
+  id: string
+  time: string
+  profession_id: string
+  type: 'text' | 'tool_call' | 'tool_result' | 'complete' | 'error' | 'budget_warning' | 'budget_exceeded' | 'step_started' | 'step_completed' | 'gate_waiting' | 'run_completed' | 'run_failed'
+  content: string
+  tool_name?: string
+  tool_id?: string
+  arguments?: any
+  remaining?: number
+}
 
 // ─── Types (mirroring Rust structs) ─────────────────────────────────────────
 
@@ -24,6 +37,25 @@ export interface RunSummary {
   cumulative_tokens: number
   created_at: number
   updated_at: number
+}
+
+export interface RunEventDto {
+  type: string
+  step_id?: string
+  profession_id?: string
+  handoff_summary?: string
+  gate?: string
+  decision?: string
+  error?: string
+  cumulative?: number
+  step_tokens?: number
+  text?: string
+  tool_id?: string
+  tool_name?: string
+  arguments?: any
+  result?: string
+  message?: string
+  remaining?: number
 }
 
 export interface RunState {
@@ -40,6 +72,7 @@ export interface RunState {
   parallel_estimate: number
   savings: number
   savings_ratio: number
+  events: RunEventDto[]
 }
 
 export interface StepState {
@@ -104,6 +137,7 @@ export function useRelay() {
   })
   const liveLog = _liveLog
   const professionTokens = _professionTokens
+  const sessionLog = _sessionLog
 
   async function loadProfessions() {
     try {
@@ -133,17 +167,68 @@ export function useRelay() {
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       const data = await resp.json()
       runs.value = data
+      // Clear stale currentRun if it's no longer in the list
+      if (currentRun.value && !data.find((r: RunSummary) => r.run_id === currentRun.value!.run_id)) {
+        currentRun.value = null
+        _sessionLog.value = []
+      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
     }
   }
 
+  function eventsToSessionLog(runId: string, events: RunEventDto[]): SessionLogEntry[] {
+    const result: SessionLogEntry[] = []
+    for (const ev of events) {
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      const prof = ev.profession_id || 'unknown'
+      switch (ev.type) {
+        case 'turn_delta':
+          if (result.length > 0 && result[result.length - 1].type === 'text' && result[result.length - 1].profession_id === prof) {
+            result[result.length - 1].content += ev.text || ''
+          } else {
+            result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'text', content: ev.text || '' })
+          }
+          break
+        case 'turn_tool_call':
+          result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'tool_call', content: '', tool_name: ev.tool_name, tool_id: ev.tool_id, arguments: ev.arguments })
+          break
+        case 'turn_tool_result':
+          result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'tool_result', content: ev.result || '', tool_id: ev.tool_id })
+          break
+        case 'turn_complete':
+          result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'complete', content: 'Turn completed' })
+          break
+        case 'turn_error':
+          result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'error', content: ev.message || 'Unknown error' })
+          break
+        case 'turn_budget_warning':
+          result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'budget_warning', content: `Budget warning: ${ev.remaining} tokens remaining`, remaining: ev.remaining })
+          break
+        case 'turn_budget_exceeded':
+          result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'budget_exceeded', content: 'Budget exceeded — turn stopped' })
+          break
+      }
+    }
+    return result
+  }
+
   async function loadRun(runId: string) {
     try {
       const resp = await fetch(`${API_BASE}/runs/${runId}`)
-      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          currentRun.value = null
+          _sessionLog.value = []
+        }
+        throw new Error(`Failed: ${resp.status}`)
+      }
       const data = await resp.json()
       currentRun.value = data
+      // Populate session log from persisted events
+      if (data.events && data.events.length > 0) {
+        _sessionLog.value = eventsToSessionLog(runId, data.events)
+      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
     }
@@ -211,6 +296,20 @@ export function useRelay() {
     }
   }
 
+  async function deleteRun(runId: string) {
+    try {
+      const resp = await fetch(`${API_BASE}/runs/${runId}`, { method: 'DELETE' })
+      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
+      if (currentRun.value?.run_id === runId) {
+        currentRun.value = null
+        _sessionLog.value = []
+      }
+      await loadRuns()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+    }
+  }
+
   // SSE for live updates
   function subscribeToRun(runId: string, onEvent?: (event: any) => void) {
     const eventRouter = useEventRouter()
@@ -241,13 +340,135 @@ export function useRelay() {
             action: `Step advanced: ${data.step_id || ''}`,
           })
         }
+        // Session log: turn events
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        const prof = data.payload?.profession_id || 'unknown'
+        if (data.event_type === 'turn_delta') {
+          const last = _sessionLog.value[_sessionLog.value.length - 1]
+          if (last && last.type === 'text' && last.profession_id === prof) {
+            last.content += data.payload.text || ''
+          } else {
+            _sessionLog.value.push({
+              id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              time,
+              profession_id: prof,
+              type: 'text',
+              content: data.payload.text || '',
+            })
+          }
+        }
+        if (data.event_type === 'turn_tool_call') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: prof,
+            type: 'tool_call',
+            content: '',
+            tool_name: data.payload.tool_name,
+            tool_id: data.payload.tool_id,
+            arguments: data.payload.arguments,
+          })
+        }
+        if (data.event_type === 'turn_tool_result') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: prof,
+            type: 'tool_result',
+            content: data.payload.result || '',
+            tool_id: data.payload.tool_id,
+          })
+        }
+        if (data.event_type === 'turn_complete') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: prof,
+            type: 'complete',
+            content: 'Turn completed',
+          })
+        }
+        if (data.event_type === 'turn_error') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: prof,
+            type: 'error',
+            content: data.payload.message || 'Unknown error',
+          })
+        }
+        if (data.event_type === 'turn_budget_warning') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: prof,
+            type: 'budget_warning',
+            content: `Budget warning: ${data.payload.remaining} tokens remaining`,
+            remaining: data.payload.remaining,
+          })
+        }
+        if (data.event_type === 'turn_budget_exceeded') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: prof,
+            type: 'budget_exceeded',
+            content: 'Budget exceeded — turn stopped',
+          })
+        }
+        // Step lifecycle events
+        if (data.event_type === 'step_started') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: data.payload?.profession_id || 'system',
+            type: 'step_started',
+            content: `Step "${data.payload?.step_id || ''}" started`,
+          })
+        }
+        if (data.event_type === 'step_completed') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: data.payload?.profession_id || 'system',
+            type: 'step_completed',
+            content: `Step "${data.payload?.step_id || ''}" completed`,
+          })
+        }
+        if (data.event_type === 'gate_waiting') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: data.payload?.profession_id || 'system',
+            type: 'gate_waiting',
+            content: `Waiting for human gate approval`,
+          })
+        }
+        if (data.event_type === 'run_completed') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: 'system',
+            type: 'run_completed',
+            content: 'Run completed successfully',
+          })
+        }
+        if (data.event_type === 'run_failed') {
+          _sessionLog.value.push({
+            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            time,
+            profession_id: 'system',
+            type: 'run_failed',
+            content: data.payload?.error || 'Run failed',
+          })
+        }
         // Track per-profession tokens (best-effort from event data)
         if (data.tokens_used && data.profession_id) {
           const prev = _professionTokens.value[data.profession_id] || 0
           _professionTokens.value[data.profession_id] = prev + (data.tokens_used as number)
         }
         // Auto-refresh run state on relevant events
-        if (['run_started', 'step_advanced', 'handoff_submitted', 'gate_resolved'].includes(data.event_type)) {
+        if (['run_started', 'step_started', 'step_advanced', 'handoff_submitted', 'gate_resolved'].includes(data.event_type)) {
           loadRun(runId)
         }
       } catch {
@@ -281,5 +502,7 @@ export function useRelay() {
     resolveGate,
     submitHandoff,
     subscribeToRun,
+    deleteRun,
+    sessionLog,
   }
 }
