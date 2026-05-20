@@ -285,18 +285,31 @@ pub async fn start_run_handler(
     State(ai_provider): State<crate::provider::AIProviderState>,
     Json(req): Json<StartRunRequest>,
 ) -> Result<Json<StartRunResponse>, StatusCode> {
-    let mut flow = FlowSpec::new(&req.flow_id);
-    for step in req.steps {
-        let gate = match step.gate.as_str() {
-            "human" => crate::relay::flow::GateType::Human,
-            _ => crate::relay::flow::GateType::Auto,
-        };
-        flow.add_step(
-            crate::relay::flow::FlowStep::new(step.id, step.profession_id)
-                .with_gate(gate)
-                .with_agent_config(step.agent_config_id),
-        );
-    }
+    // If steps are provided inline, build a custom flow.
+    // Otherwise, look up the flow_id in the registry (built-in or YAML).
+    let flow = if req.steps.is_empty() {
+        match crate::relay::flows::get_flow(&req.flow_id) {
+            Some(f) => f,
+            None => {
+                tracing::warn!("Flow '{}' not found in registry", req.flow_id);
+                return Err(StatusCode::NOT_FOUND);
+            }
+        }
+    } else {
+        let mut flow = FlowSpec::new(&req.flow_id);
+        for step in req.steps {
+            let gate = match step.gate.as_str() {
+                "human" => crate::relay::flow::GateType::Human,
+                _ => crate::relay::flow::GateType::Auto,
+            };
+            flow.add_step(
+                crate::relay::flow::FlowStep::new(step.id, step.profession_id)
+                    .with_gate(gate)
+                    .with_agent_config(step.agent_config_id),
+            );
+        }
+        flow
+    };
 
     let run_id = req.run_id.unwrap_or_else(|| format!("run-{}", uuid::Uuid::new_v4()));
     match start_run(&RUN_STORE, flow, &run_id) {

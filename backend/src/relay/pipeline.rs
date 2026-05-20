@@ -456,10 +456,19 @@ impl PipelineEngine {
                 }
             }
             ExitRouting::Branch { on, arms, default } => {
-                let key = if on == "intent" {
-                    handoff.to.clone()
-                } else {
-                    handoff.to.clone()
+                let key = match on.as_str() {
+                    "intent" | "to" => handoff.to.clone(),
+                    "from" => handoff.from.clone(),
+                    "classification" => {
+                        // Use first decision status as classification, or summary hash
+                        handoff.decisions.first()
+                            .map(|d| d.status.clone())
+                            .unwrap_or_else(|| "default".to_string())
+                    }
+                    _ => {
+                        // Try to extract from handoff context or fall back to summary
+                        extract_branch_key(handoff, on)
+                    }
                 };
                 let target_id = arms.get(&key).unwrap_or(default);
                 match self.flow.get_step_index(target_id) {
@@ -506,16 +515,26 @@ impl PipelineEngine {
 
     /// Auto-validate a step's handoff. Returns `Some(reason)` if validation fails.
     fn validate_step(&self, step_id: &str, handoff: &HandoffDocument) -> Option<String> {
+        // Prefer step-specific validators from flow configuration
+        if let Some(step) = self.flow.get_step(step_id) {
+            if !step.validators.is_empty() {
+                for validator in &step.validators {
+                    if let Some(reason) = validator.check(handoff) {
+                        return Some(reason);
+                    }
+                }
+                return None;
+            }
+        }
+
+        // Fallback to hardcoded validators for backward compatibility
         match step_id {
             "discover" => {
-                // Advisor must produce goals (spec_updates) or have work_product
                 if handoff.work_product.is_empty() && handoff.spec_updates.is_empty() {
                     return Some("Advisor produced no work_product. Use write_specs to create or update goals.".into());
                 }
             }
             "design" => {
-                // Architect must produce architecture/designs specs
-                // Heuristic: handoff should mention spec updates or have non-README work products
                 let has_meaningful_work = handoff.work_product.iter().any(|wp| {
                     !wp.path.ends_with("README.md") && !wp.path.is_empty()
                 });
@@ -524,7 +543,6 @@ impl PipelineEngine {
                 }
             }
             "plan" => {
-                // Planner must produce plans
                 let has_plan_work = handoff.work_product.iter().any(|wp| {
                     wp.path.contains("plan") || wp.path.ends_with(".ad")
                 });
@@ -533,7 +551,6 @@ impl PipelineEngine {
                 }
             }
             "code" => {
-                // Coder must modify code files (not just read)
                 let has_code_changes = handoff.work_product.iter().any(|wp| {
                     wp.path.ends_with(".rs") || wp.path.ends_with(".vue") || wp.path.ends_with(".ts")
                 });
@@ -542,13 +559,11 @@ impl PipelineEngine {
                 }
             }
             "review" => {
-                // Reviewer must produce review output
                 if handoff.work_product.is_empty() && handoff.decisions.is_empty() {
                     return Some("Reviewer produced no review output. Use write_specs to update reviews section.".into());
                 }
             }
             "report" => {
-                // Documenter must update spec statuses
                 if handoff.work_product.is_empty() {
                     return Some("Documenter produced no report. Use write_specs to update reports and finalize spec statuses.".into());
                 }
@@ -572,6 +587,24 @@ fn now_secs() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+/// Extract a branch routing key from a handoff document based on a field name.
+fn extract_branch_key(handoff: &HandoffDocument, field: &str) -> String {
+    match field {
+        "summary" => handoff.summary.clone(),
+        "run_id" => handoff.run_id.clone(),
+        _ => {
+            // Heuristic: check if any decision title contains the field name
+            for d in &handoff.decisions {
+                if d.title.to_lowercase().contains(&field.to_lowercase()) {
+                    return d.status.clone();
+                }
+            }
+            // Default fallback
+            "default".to_string()
+        }
+    }
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

@@ -52,6 +52,12 @@ pub struct FlowStep {
     pub max_turns: Option<u32>,
     /// How to route after this step completes.
     pub exit: ExitRouting,
+    /// Validators that check the step's handoff before proceeding.
+    #[serde(default)]
+    pub validators: Vec<StepValidator>,
+    /// Tool guard enforcing step-level tool call sequencing.
+    #[serde(default)]
+    pub tool_guard: Option<ToolGuard>,
 }
 
 impl FlowStep {
@@ -63,6 +69,8 @@ impl FlowStep {
             gate: GateType::Auto,
             max_turns: None,
             exit: ExitRouting::Next,
+            validators: Vec::new(),
+            tool_guard: None,
         }
     }
 
@@ -78,6 +86,16 @@ impl FlowStep {
 
     pub fn with_agent_config(mut self, config_id: Option<String>) -> Self {
         self.agent_config_id = config_id;
+        self
+    }
+
+    pub fn with_validators(mut self, validators: Vec<StepValidator>) -> Self {
+        self.validators = validators;
+        self
+    }
+
+    pub fn with_tool_guard(mut self, guard: ToolGuard) -> Self {
+        self.tool_guard = Some(guard);
         self
     }
 }
@@ -114,6 +132,181 @@ pub enum ExitRouting {
         /// Max iterations before breaking to next.
         max_iterations: u32,
     },
+}
+
+// ─── Step Validators ─────────────────────────────────────────────────────────
+
+/// Content-aware validators for step handoffs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum StepValidator {
+    /// Must have non-empty spec_updates containing at least one of these sections.
+    SpecUpdatesNonEmpty { sections: Vec<String> },
+    /// Must have non-empty work_product with at least one file matching these extensions.
+    WorkProductHasExtensions { exts: Vec<String> },
+    /// Must have non-empty decisions.
+    DecisionsNonEmpty,
+    /// Must have non-empty open_questions.
+    OpenQuestionsNonEmpty,
+    /// Custom check: spec_updates contain items with IDs following a sequential pattern.
+    SequentialIds { section: String, prefix: String },
+    /// Composite: all of the above must pass.
+    All(Vec<StepValidator>),
+    /// Composite: any of the above must pass.
+    Any(Vec<StepValidator>),
+}
+
+impl StepValidator {
+    /// Check this validator against a handoff. Returns `Some(reason)` on failure.
+    pub fn check(&self, handoff: &crate::relay::handoff::HandoffDocument) -> Option<String> {
+        use crate::relay::handoff::HandoffDocument;
+        match self {
+            StepValidator::SpecUpdatesNonEmpty { sections } => {
+                let has = handoff.spec_updates.iter().any(|u| sections.contains(&u.section_id));
+                if !has {
+                    return Some(format!(
+                        "Step must produce spec updates for at least one of: {}. Use write_specs to create or update specs.",
+                        sections.join(", ")
+                    ));
+                }
+                None
+            }
+            StepValidator::WorkProductHasExtensions { exts } => {
+                let has = handoff.work_product.iter().any(|wp| {
+                    exts.iter().any(|ext| wp.path.ends_with(ext))
+                });
+                if !has {
+                    return Some(format!(
+                        "Step must produce work products with one of these extensions: {}. Use write_file or edit_file to modify source files.",
+                        exts.join(", ")
+                    ));
+                }
+                None
+            }
+            StepValidator::DecisionsNonEmpty => {
+                if handoff.decisions.is_empty() {
+                    return Some("Step must produce at least one decision. Document your design choices in the handoff.".into());
+                }
+                None
+            }
+            StepValidator::OpenQuestionsNonEmpty => {
+                if handoff.open_questions.is_empty() {
+                    return Some("Step must list at least one open question for the next agent.".into());
+                }
+                None
+            }
+            StepValidator::SequentialIds { section, prefix } => {
+                let updates: Vec<_> = handoff.spec_updates.iter()
+                    .filter(|u| &u.section_id == section)
+                    .collect();
+                if updates.is_empty() {
+                    return None; // no updates for this section, let SpecUpdatesNonEmpty catch it
+                }
+                // TODO: implement sequential ID check when we have access to SpecsStore
+                None
+            }
+            StepValidator::All(validators) => {
+                for v in validators {
+                    if let Some(reason) = v.check(handoff) {
+                        return Some(reason);
+                    }
+                }
+                None
+            }
+            StepValidator::Any(validators) => {
+                let mut reasons = Vec::new();
+                for v in validators {
+                    match v.check(handoff) {
+                        None => return None,
+                        Some(r) => reasons.push(r),
+                    }
+                }
+                Some(format!("None of the alternative checks passed: {}", reasons.join("; ")))
+            }
+        }
+    }
+}
+
+// ─── Tool Guard ──────────────────────────────────────────────────────────────
+
+/// Enforces step-level tool call sequencing rules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolGuard {
+    /// Tools that MUST be called before any other tool (except themselves).
+    #[serde(default)]
+    pub required_first: Vec<String>,
+    /// After calling key tool, these tools become available.
+    #[serde(default)]
+    pub unlocks: HashMap<String, Vec<String>>,
+    /// Tools always allowed (bypass required_first after satisfied).
+    #[serde(default)]
+    pub always_allowed: Vec<String>,
+    /// Tools that are NEVER allowed.
+    #[serde(default)]
+    pub forbidden: Vec<String>,
+}
+
+impl ToolGuard {
+    pub fn new() -> Self {
+        Self {
+            required_first: Vec::new(),
+            unlocks: HashMap::new(),
+            always_allowed: Vec::new(),
+            forbidden: Vec::new(),
+        }
+    }
+
+    /// Check if a tool call is permitted given previously called tools.
+    pub fn check(&self, tool_name: &str, tools_called: &[String]) -> Result<(), String> {
+        // Check forbidden
+        if self.forbidden.contains(&tool_name.to_string()) {
+            return Err(format!("Tool '{}' is forbidden in this step.", tool_name));
+        }
+
+        // Check required_first
+        if !self.required_first.is_empty() {
+            let has_called_required = tools_called.iter().any(|t| self.required_first.contains(t));
+            let is_required = self.required_first.contains(&tool_name.to_string());
+            let is_always = self.always_allowed.contains(&tool_name.to_string());
+
+            if !has_called_required && !is_required && !is_always {
+                return Err(format!(
+                    "This step requires calling one of [{}] before using '{}'.",
+                    self.required_first.join(", "),
+                    tool_name
+                ));
+            }
+        }
+
+        // Check unlocks
+        if let Some(required_predecessors) = self.unlocks.get(tool_name) {
+            let has_unlocked = required_predecessors.iter().any(|t| tools_called.contains(t));
+            if !has_unlocked {
+                return Err(format!(
+                    "Tool '{}' is locked. Call one of [{}] first.",
+                    tool_name,
+                    required_predecessors.join(", ")
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for ToolGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Action type for a tool call, used to distinguish read vs write operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolAction {
+    Read,
+    Write,
+    Edit,
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

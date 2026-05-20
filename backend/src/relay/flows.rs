@@ -1,8 +1,228 @@
 //! Built-in Flow Specifications
 //!
 //! Pre-defined flow specs for common development workflows.
+//! Also supports loading custom flows from `.autoforge/flows/*.yml`.
 
-use crate::relay::flow::{FlowSpec, FlowStep, GateType};
+use crate::relay::flow::{FlowSpec, FlowStep, GateType, StepValidator, ToolGuard};
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+// ─── Flow Registry ───────────────────────────────────────────────────────────
+
+/// Global registry of all available flows (built-in + YAML-loaded).
+pub struct FlowRegistry {
+    flows: HashMap<String, FlowSpec>,
+}
+
+impl FlowRegistry {
+    /// Create a new registry and load all flows.
+    pub fn new(data_dir: &std::path::Path) -> Self {
+        let mut registry = Self {
+            flows: HashMap::new(),
+        };
+        registry.load_builtin();
+        registry.load_from_yaml(data_dir);
+        registry
+    }
+
+    /// Get a flow by ID. Returns built-in if YAML override not found.
+    pub fn get(&self, flow_id: &str) -> Option<FlowSpec> {
+        self.flows.get(flow_id).cloned()
+    }
+
+    /// List all available flow IDs.
+    pub fn list(&self) -> Vec<String> {
+        self.flows.keys().cloned().collect()
+    }
+
+    fn load_builtin(&mut self) {
+        let builtins = vec![
+            standard_spec_flow(),
+            fast_track_flow(),
+            auto_discovery_flow(),
+            post_discovery_flow(),
+            bug_fix_flow(),
+            goal_discovery_flow(),
+        ];
+        for flow in builtins {
+            self.flows.insert(flow.id.clone(), flow);
+        }
+    }
+
+    fn load_from_yaml(&mut self, data_dir: &std::path::Path) {
+        let flows_dir = data_dir.join(".autoforge").join("flows");
+        if !flows_dir.is_dir() {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(&flows_dir) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if ext != "yml" && ext != "yaml" {
+                continue;
+            }
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    match serde_yaml::from_str::<FlowSpec>(&content) {
+                        Ok(flow) => {
+                            tracing::info!("Loaded flow '{}' from {:?}", flow.id, path);
+                            self.flows.insert(flow.id.clone(), flow);
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to parse flow YAML {:?}: {}", path, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to read flow YAML {:?}: {}", path, e);
+                }
+            }
+        }
+    }
+}
+
+/// Lazy-initialized global flow registry.
+static FLOW_REGISTRY: Mutex<Option<FlowRegistry>> = Mutex::new(None);
+
+/// Initialize the global flow registry from the current project path.
+/// Call once at startup or after opening a project.
+pub fn init_flow_registry() {
+    if let Some(project_path) = crate::forge::current_project_path() {
+        let path = std::path::PathBuf::from(project_path);
+        let mut guard = FLOW_REGISTRY.lock().unwrap();
+        *guard = Some(FlowRegistry::new(&path));
+    }
+}
+
+/// Get a flow from the global registry.
+/// Auto-initializes on first call if a project is open.
+pub fn get_flow(flow_id: &str) -> Option<FlowSpec> {
+    {
+        let guard = FLOW_REGISTRY.lock().unwrap();
+        if let Some(ref registry) = *guard {
+            return registry.get(flow_id);
+        }
+    }
+    // Auto-initialize if not yet loaded
+    init_flow_registry();
+    let guard = FLOW_REGISTRY.lock().unwrap();
+    guard.as_ref()?.get(flow_id)
+}
+
+/// Default validators for the discover (advisor) step.
+fn discover_validators() -> Vec<StepValidator> {
+    vec![
+        StepValidator::Any(vec![
+            StepValidator::SpecUpdatesNonEmpty {
+                sections: vec!["goals".to_string()],
+            },
+            StepValidator::WorkProductHasExtensions {
+                exts: vec![".ad".to_string()],
+            },
+        ]),
+    ]
+}
+
+/// Default tool guard for the discover (advisor) step.
+/// Advisor must call write_specs before reading files or dispatching.
+fn discover_tool_guard() -> ToolGuard {
+    ToolGuard {
+        required_first: vec!["write_specs".to_string()],
+        unlocks: HashMap::new(),
+        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string()],
+        forbidden: vec![],
+    }
+}
+
+/// Default validators for the design (architect) step.
+fn design_validators() -> Vec<StepValidator> {
+    vec![
+        StepValidator::Any(vec![
+            StepValidator::SpecUpdatesNonEmpty {
+                sections: vec!["architecture".to_string(), "designs".to_string()],
+            },
+            StepValidator::DecisionsNonEmpty,
+        ]),
+    ]
+}
+
+/// Default tool guard for the design (architect) step.
+fn design_tool_guard() -> ToolGuard {
+    ToolGuard {
+        required_first: vec!["write_specs".to_string()],
+        unlocks: HashMap::new(),
+        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string(), "read_file".to_string()],
+        forbidden: vec![],
+    }
+}
+
+/// Default validators for the plan (planner) step.
+fn plan_validators() -> Vec<StepValidator> {
+    vec![
+        StepValidator::SpecUpdatesNonEmpty {
+            sections: vec!["plans".to_string()],
+        },
+    ]
+}
+
+/// Default tool guard for the plan (planner) step.
+fn plan_tool_guard() -> ToolGuard {
+    ToolGuard {
+        required_first: vec!["write_specs".to_string()],
+        unlocks: HashMap::new(),
+        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string(), "read_file".to_string()],
+        forbidden: vec![],
+    }
+}
+
+/// Default validators for the code (coder) step.
+fn code_validators() -> Vec<StepValidator> {
+    vec![
+        StepValidator::WorkProductHasExtensions {
+            exts: vec![".rs".to_string(), ".vue".to_string(), ".ts".to_string(), ".js".to_string()],
+        },
+    ]
+}
+
+/// Default validators for the test (tester) step.
+fn test_validators() -> Vec<StepValidator> {
+    vec![
+        StepValidator::Any(vec![
+            StepValidator::SpecUpdatesNonEmpty {
+                sections: vec!["tests".to_string()],
+            },
+            StepValidator::WorkProductHasExtensions {
+                exts: vec![".rs".to_string(), ".ts".to_string(), ".vue".to_string()],
+            },
+        ]),
+    ]
+}
+
+/// Default validators for the review (reviewer) step.
+fn review_validators() -> Vec<StepValidator> {
+    vec![
+        StepValidator::Any(vec![
+            StepValidator::DecisionsNonEmpty,
+            StepValidator::SpecUpdatesNonEmpty {
+                sections: vec!["reviews".to_string()],
+            },
+        ]),
+    ]
+}
+
+/// Default validators for the report (documenter) step.
+fn report_validators() -> Vec<StepValidator> {
+    vec![
+        StepValidator::Any(vec![
+            StepValidator::SpecUpdatesNonEmpty {
+                sections: vec!["reports".to_string()],
+            },
+            StepValidator::WorkProductHasExtensions {
+                exts: vec![".md".to_string(), ".ad".to_string()],
+            },
+        ]),
+    ]
+}
 
 /// The standard spec-driven development flow (v2).
 ///
@@ -15,21 +235,41 @@ pub fn standard_spec_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("intake", "assistant"));
     flow.add_step(
         FlowStep::new("discover", "advisor")
-            .with_gate(GateType::Human),
+            .with_gate(GateType::Human)
+            .with_validators(discover_validators())
+            .with_tool_guard(discover_tool_guard()),
     );
-    flow.add_step(FlowStep::new("design", "architect"));
-    flow.add_step(FlowStep::new("plan", "planner"));
+    flow.add_step(
+        FlowStep::new("design", "architect")
+            .with_validators(design_validators())
+            .with_tool_guard(design_tool_guard()),
+    );
+    flow.add_step(
+        FlowStep::new("plan", "planner")
+            .with_validators(plan_validators())
+            .with_tool_guard(plan_tool_guard()),
+    );
     flow.add_step(FlowStep::new("draft-tests", "tester"));
-    flow.add_step(FlowStep::new("code", "coder"));
+    flow.add_step(
+        FlowStep::new("code", "coder")
+            .with_validators(code_validators()),
+    );
     flow.add_step(
         FlowStep::new("run-tests", "tester")
+            .with_validators(test_validators())
             .with_exit(crate::relay::flow::ExitRouting::Loop {
                 target_step_id: "code".into(),
                 max_iterations: 3,
             }),
     );
-    flow.add_step(FlowStep::new("review", "reviewer"));
-    flow.add_step(FlowStep::new("report", "documenter"));
+    flow.add_step(
+        FlowStep::new("review", "reviewer")
+            .with_validators(review_validators()),
+    );
+    flow.add_step(
+        FlowStep::new("report", "documenter")
+            .with_validators(report_validators()),
+    );
     flow
 }
 
@@ -42,7 +282,10 @@ pub fn fast_track_flow() -> FlowSpec {
     flow.add_step(
         FlowStep::new("intake", "assistant"),
     );
-    flow.add_step(FlowStep::new("code", "coder"));
+    flow.add_step(
+        FlowStep::new("code", "coder")
+            .with_validators(code_validators()),
+    );
     flow
 }
 
@@ -52,20 +295,42 @@ pub fn fast_track_flow() -> FlowSpec {
 /// Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter
 pub fn auto_discovery_flow() -> FlowSpec {
     let mut flow = FlowSpec::new("auto-discovery");
-    flow.add_step(FlowStep::new("discover", "advisor"));
-    flow.add_step(FlowStep::new("design", "architect"));
-    flow.add_step(FlowStep::new("plan", "planner"));
+    flow.add_step(
+        FlowStep::new("discover", "advisor")
+            .with_validators(discover_validators())
+            .with_tool_guard(discover_tool_guard()),
+    );
+    flow.add_step(
+        FlowStep::new("design", "architect")
+            .with_validators(design_validators())
+            .with_tool_guard(design_tool_guard()),
+    );
+    flow.add_step(
+        FlowStep::new("plan", "planner")
+            .with_validators(plan_validators())
+            .with_tool_guard(plan_tool_guard()),
+    );
     flow.add_step(FlowStep::new("draft-tests", "tester"));
-    flow.add_step(FlowStep::new("code", "coder"));
+    flow.add_step(
+        FlowStep::new("code", "coder")
+            .with_validators(code_validators()),
+    );
     flow.add_step(
         FlowStep::new("run-tests", "tester")
+            .with_validators(test_validators())
             .with_exit(crate::relay::flow::ExitRouting::Loop {
                 target_step_id: "code".into(),
                 max_iterations: 3,
             }),
     );
-    flow.add_step(FlowStep::new("review", "reviewer"));
-    flow.add_step(FlowStep::new("report", "documenter"));
+    flow.add_step(
+        FlowStep::new("review", "reviewer")
+            .with_validators(review_validators()),
+    );
+    flow.add_step(
+        FlowStep::new("report", "documenter")
+            .with_validators(report_validators()),
+    );
     flow
 }
 
@@ -74,19 +339,37 @@ pub fn auto_discovery_flow() -> FlowSpec {
 /// Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter
 pub fn post_discovery_flow() -> FlowSpec {
     let mut flow = FlowSpec::new("post-discovery");
-    flow.add_step(FlowStep::new("design", "architect"));
-    flow.add_step(FlowStep::new("plan", "planner"));
+    flow.add_step(
+        FlowStep::new("design", "architect")
+            .with_validators(design_validators())
+            .with_tool_guard(design_tool_guard()),
+    );
+    flow.add_step(
+        FlowStep::new("plan", "planner")
+            .with_validators(plan_validators())
+            .with_tool_guard(plan_tool_guard()),
+    );
     flow.add_step(FlowStep::new("draft-tests", "tester"));
-    flow.add_step(FlowStep::new("code", "coder"));
+    flow.add_step(
+        FlowStep::new("code", "coder")
+            .with_validators(code_validators()),
+    );
     flow.add_step(
         FlowStep::new("run-tests", "tester")
+            .with_validators(test_validators())
             .with_exit(crate::relay::flow::ExitRouting::Loop {
                 target_step_id: "code".into(),
                 max_iterations: 3,
             }),
     );
-    flow.add_step(FlowStep::new("review", "reviewer"));
-    flow.add_step(FlowStep::new("report", "documenter"));
+    flow.add_step(
+        FlowStep::new("review", "reviewer")
+            .with_validators(review_validators()),
+    );
+    flow.add_step(
+        FlowStep::new("report", "documenter")
+            .with_validators(report_validators()),
+    );
     flow
 }
 
@@ -96,15 +379,22 @@ pub fn post_discovery_flow() -> FlowSpec {
 pub fn bug_fix_flow() -> FlowSpec {
     let mut flow = FlowSpec::new("bug-fix");
     flow.add_step(FlowStep::new("intake", "assistant"));
-    flow.add_step(FlowStep::new("code", "coder"));
+    flow.add_step(
+        FlowStep::new("code", "coder")
+            .with_validators(code_validators()),
+    );
     flow.add_step(
         FlowStep::new("test", "tester")
+            .with_validators(test_validators())
             .with_exit(crate::relay::flow::ExitRouting::Loop {
                 target_step_id: "code".into(),
                 max_iterations: 3,
             }),
     );
-    flow.add_step(FlowStep::new("review", "reviewer"));
+    flow.add_step(
+        FlowStep::new("review", "reviewer")
+            .with_validators(review_validators()),
+    );
     flow
 }
 
@@ -114,7 +404,11 @@ pub fn bug_fix_flow() -> FlowSpec {
 /// analyze a task and write new goals before committing to a full pipeline.
 pub fn goal_discovery_flow() -> FlowSpec {
     let mut flow = FlowSpec::new("goal-discovery");
-    flow.add_step(FlowStep::new("discover", "advisor"));
+    flow.add_step(
+        FlowStep::new("discover", "advisor")
+            .with_validators(discover_validators())
+            .with_tool_guard(discover_tool_guard()),
+    );
     flow
 }
 
@@ -147,6 +441,16 @@ mod tests {
         assert_eq!(flow.steps[2].gate, GateType::Auto);  // architect → planner
         assert_eq!(flow.steps[3].gate, GateType::Auto);  // planner → tester
         assert_eq!(flow.steps[4].gate, GateType::Auto);  // tester → coder
+    }
+
+    #[test]
+    fn test_advisor_step_has_tool_guard() {
+        let flow = standard_spec_flow();
+        let advisor_step = flow.get_step("discover").unwrap();
+        assert!(advisor_step.tool_guard.is_some());
+        let guard = advisor_step.tool_guard.as_ref().unwrap();
+        assert_eq!(guard.required_first, vec!["write_specs"]);
+        assert!(guard.always_allowed.contains(&"list_specs".to_string()));
     }
 
     #[test]

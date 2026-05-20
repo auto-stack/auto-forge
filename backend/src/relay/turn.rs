@@ -9,6 +9,7 @@ use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest,
 use crate::forge::tools::{set_current_profession, ToolDefinition, ToolRegistry};
 use crate::relay::agent::AgentInstance;
 use crate::relay::budget::{BudgetAction, BudgetTracker};
+use crate::relay::flow::{ToolAction, ToolGuard};
 use crate::relay::handoff::{HandoffDocument, SpecUpdate};
 use serde_json::Value;
 
@@ -48,8 +49,8 @@ pub struct TurnResult {
     pub decisions: Vec<String>,
     /// Open questions extracted from the turn text.
     pub open_questions: Vec<String>,
-    /// Files touched during this turn.
-    pub files_touched: Vec<String>,
+    /// Files touched during this turn, with action type (read/write/edit).
+    pub files_touched: Vec<(String, ToolAction)>,
     /// Spec sections updated during this turn.
     pub spec_updates: Vec<SpecUpdate>,
 }
@@ -76,6 +77,8 @@ pub struct AgentTurn {
     pub max_turns: u32,
     /// Budget tracker for this run.
     pub budget_tracker: Option<BudgetTracker>,
+    /// Optional tool guard enforcing step-level sequencing rules.
+    pub tool_guard: Option<ToolGuard>,
 }
 
 impl AgentTurn {
@@ -111,6 +114,7 @@ impl AgentTurn {
             messages,
             max_turns: 10,
             budget_tracker: None,
+            tool_guard: None,
         }
     }
 
@@ -187,24 +191,42 @@ impl AgentTurn {
                             arguments: input.clone(),
                         });
 
-                        // Execute the tool
-                        let exec_result = if let Some(tool) = self.tool_registry.get(&name) {
-                            let mut allowed: Vec<String> = self.agent.profession.allowed_tools.clone();
-                            for tool_name in &self.agent.skill_tools {
-                                if !allowed.contains(tool_name) {
-                                    allowed.push(tool_name.clone());
-                                }
-                            }
-                            if !allowed.is_empty() && !allowed.contains(&name) {
-                                format!("Tool '{}' is not available for profession '{}'", name, self.agent.profession.id)
-                            } else {
-                                match tool.execute(input.clone()) {
-                                    Ok(r) => r,
-                                    Err(e) => format!("Error: {}", e),
-                                }
-                            }
+                        // Collect names of tools already called this turn for guard checks
+                        let tools_called: Vec<String> = result.tool_calls.iter()
+                            .chain(turn_tools.iter())
+                            .map(|t| t.name.clone())
+                            .collect();
+
+                        // Apply tool guard if configured
+                        let guard_result = if let Some(ref guard) = self.tool_guard {
+                            guard.check(&name, &tools_called)
                         } else {
-                            format!("Tool '{}' not found or not allowed for profession '{}'", name, self.agent.profession.id)
+                            Ok(())
+                        };
+
+                        // Execute the tool (or return guard error)
+                        let exec_result = match guard_result {
+                            Err(guard_err) => guard_err,
+                            Ok(_) => {
+                                if let Some(tool) = self.tool_registry.get(&name) {
+                                    let mut allowed: Vec<String> = self.agent.profession.allowed_tools.clone();
+                                    for tool_name in &self.agent.skill_tools {
+                                        if !allowed.contains(tool_name) {
+                                            allowed.push(tool_name.clone());
+                                        }
+                                    }
+                                    if !allowed.is_empty() && !allowed.contains(&name) {
+                                        format!("Tool '{}' is not available for profession '{}'", name, self.agent.profession.id)
+                                    } else {
+                                        match tool.execute(input.clone()) {
+                                            Ok(r) => r,
+                                            Err(e) => format!("Error: {}", e),
+                                        }
+                                    }
+                                } else {
+                                    format!("Tool '{}' not found or not allowed for profession '{}'", name, self.agent.profession.id)
+                                }
+                            }
                         };
 
                         let _ = tx.send(TurnEvent::ToolResult {
@@ -217,10 +239,16 @@ impl AgentTurn {
                         if name == "handoff" {
                             result.handoff_requested = true;
                         }
-                        if name == "read_file" || name == "write_file" || name == "edit_file" {
+                        let action = match name.as_str() {
+                            "read_file" => Some(ToolAction::Read),
+                            "write_file" => Some(ToolAction::Write),
+                            "edit_file" => Some(ToolAction::Edit),
+                            _ => None,
+                        };
+                        if let Some(action) = action {
                             if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
-                                if !result.files_touched.contains(&path.to_string()) {
-                                    result.files_touched.push(path.to_string());
+                                if !result.files_touched.iter().any(|(p, _)| p == path) {
+                                    result.files_touched.push((path.to_string(), action));
                                 }
                             }
                         }
@@ -362,10 +390,14 @@ impl AgentTurn {
         for u in &result.spec_updates {
             handoff.spec_updates.push(u.clone());
         }
-        for f in &result.files_touched {
+        for (path, action) in &result.files_touched {
             handoff.work_product.push(crate::relay::handoff::WorkProduct {
-                path: f.clone(),
-                description: String::new(),
+                path: path.clone(),
+                description: match action {
+                    ToolAction::Read => "(read)".to_string(),
+                    ToolAction::Write => "(written)".to_string(),
+                    ToolAction::Edit => "(edited)".to_string(),
+                },
                 lines: None,
             });
         }
@@ -415,6 +447,7 @@ mod tests {
     use crate::relay::agent::AgentInstance;
     use crate::relay::profession::{ForgePhase, Profession};
     use crate::relay::soul::SoulConfig;
+    use std::collections::HashMap;
 
     fn make_test_agent() -> AgentInstance {
         let profession = Profession {
@@ -463,5 +496,44 @@ mod tests {
         let questions = extract_section(text, "Open Questions");
         assert_eq!(questions.len(), 1);
         assert!(questions[0].contains("OAuth1"));
+    }
+
+    #[test]
+    fn test_tool_guard_blocks_before_required() {
+        let guard = ToolGuard {
+            required_first: vec!["write_specs".to_string()],
+            unlocks: HashMap::new(),
+            always_allowed: vec![],
+            forbidden: vec![],
+        };
+        assert!(guard.check("read_file", &[]).is_err());
+        assert!(guard.check("write_specs", &[]).is_ok());
+        assert!(guard.check("read_file", &["write_specs".to_string()]).is_ok());
+    }
+
+    #[test]
+    fn test_tool_guard_forbidden() {
+        let guard = ToolGuard {
+            required_first: vec![],
+            unlocks: HashMap::new(),
+            always_allowed: vec![],
+            forbidden: vec!["dispatch".to_string()],
+        };
+        assert!(guard.check("dispatch", &[]).is_err());
+        assert!(guard.check("read_file", &[]).is_ok());
+    }
+
+    #[test]
+    fn test_tool_guard_unlocks() {
+        let mut unlocks = HashMap::new();
+        unlocks.insert("edit_file".to_string(), vec!["read_file".to_string()]);
+        let guard = ToolGuard {
+            required_first: vec![],
+            unlocks,
+            always_allowed: vec![],
+            forbidden: vec![],
+        };
+        assert!(guard.check("edit_file", &[]).is_err());
+        assert!(guard.check("edit_file", &["read_file".to_string()]).is_ok());
     }
 }

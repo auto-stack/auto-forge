@@ -70,6 +70,16 @@ pub async fn drive_run(
                     &initial_task,
                 );
 
+                // Fetch the current flow step to get tool_guard and validators
+                let flow_step = {
+                    let map = run_store.lock().unwrap();
+                    map.get(&run_id)
+                        .and_then(|entry| {
+                            let idx = entry.engine.current_step;
+                            entry.engine.flow.steps.get(idx).cloned()
+                        })
+                };
+
                 // Run the agent turn
                 let mut turn = crate::relay::turn::AgentTurn::new(
                     agent,
@@ -77,6 +87,9 @@ pub async fn drive_run(
                     messages,
                 );
                 turn.max_turns = turn.agent.profession.max_turns;
+                if let Some(step) = flow_step {
+                    turn.tool_guard = step.tool_guard.clone();
+                }
 
                 // Forward turn events to the broadcast channel for live session log
                 // and persist them to the run store for replay after restart
