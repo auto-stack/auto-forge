@@ -357,6 +357,7 @@ import { useForge } from '@/composables/useForge'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useProject } from '@/composables/useProject'
 import { useAgentConfigs } from '@/composables/useAgentConfigs'
+import { useRelay } from '@/composables/useRelay'
 import { setEventCallbacks } from '@/composables/useEventRouter'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
 import MentionDropdown from '@/components/MentionDropdown.vue'
@@ -398,6 +399,7 @@ const {
 const { projectPath } = useProject()
 const { currentSecretary, badgeCount: gateBadgeCount, resolveGate: resolveGateInbox, snoozeGate } = useGateInbox()
 const { configs: agentConfigs, loadConfigs: loadAgentConfigs } = useAgentConfigs()
+const { startRun } = useRelay()
 const reportData = ref<ReportData | null>(null)
 
 // @mention state
@@ -917,6 +919,60 @@ async function sendMessage() {
   if (!text) return
   inputText.value = ''
   mentionVisible.value = false
+
+  // ─── Quick Relay shortcut: /relay <goal> ──────────────────────────────
+  if (text.startsWith('/relay ')) {
+    const goal = text.slice('/relay '.length).trim()
+    if (!goal) return
+    const runId = await startRun({
+      flow_id: 'auto-discovery',
+      task: goal,
+      steps: [
+        { id: 'discover', profession_id: 'advisor' },
+        { id: 'design', profession_id: 'architect' },
+        { id: 'plan', profession_id: 'planner' },
+        { id: 'draft-tests', profession_id: 'tester' },
+        { id: 'code', profession_id: 'coder' },
+        { id: 'run-tests', profession_id: 'tester' },
+        { id: 'review', profession_id: 'reviewer' },
+        { id: 'report', profession_id: 'documenter' },
+      ],
+    })
+    if (runId) {
+      messages.value.push({
+        id: `relay-${runId}`,
+        role: 'assistant',
+        content: `🚀 **Relay Run 已开始自动执行**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: auto-discovery\n\nAdvisor 正在自动分析 Goals 和 Subgoals，随后将无缝传递给 Architect → Planner → Coder → Tester → Reviewer → Documenter。你可以在 [Relay 视图](/forge/relay?run=${encodeURIComponent(runId)}) 中实时查看进度。`,
+        timestamp: Date.now(),
+        profession_id: 'assistant',
+      })
+    }
+    return
+  }
+
+  // ─── Quick Spec1 shortcut: /spec1 <goal> ──────────────────────────────
+  // Runs only the Advisor step to test goal-discovery before full pipeline.
+  if (text.startsWith('/spec1 ')) {
+    const goal = text.slice('/spec1 '.length).trim()
+    if (!goal) return
+    const runId = await startRun({
+      flow_id: 'goal-discovery',
+      task: goal,
+      steps: [
+        { id: 'discover', profession_id: 'advisor' },
+      ],
+    })
+    if (runId) {
+      messages.value.push({
+        id: `spec1-${runId}`,
+        role: 'assistant',
+        content: `🎯 **Goal Discovery Run 已开始**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: goal-discovery\n\nAdvisor 正在自动分析并尝试写出 Goals。此 Run 只执行 Advisor 一步，成功写出 Goal 即结束。你可以在 [Relay 视图](/forge/relay?run=${encodeURIComponent(runId)}) 中实时查看进度。`,
+        timestamp: Date.now(),
+        profession_id: 'assistant',
+      })
+    }
+    return
+  }
 
   // Extract profession_id from the first @mention in text for routing,
   // but keep the full text (including @mention) as the message content

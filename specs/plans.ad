@@ -1,9 +1,158 @@
 # Plans
 
-> Phased implementation roadmap for the Agents Relay module.
+# Plans
 
+## P1: Relay Run Completion Notification in Chat
 
-## Plans
+### Overview
+Implement a notification system that alerts the boss (user) in the chat where a Relay Run was initiated when the run completes. If the run produced a Report, include a link to view it.
+
+### Status
+**Phase 1**: ✅ Complete - Data model changes (HandoffDocument.generated_report)
+**Phase 2**: ✅ Complete - Completion detection and notification event emission
+**Phase 3**: ⏳ Partial - Report generation integration (backend ready, documenter workflow pending)
+**Phase 4**: ⏳ Pending - Frontend display and chat routing
+
+### Completed Work
+
+#### ✅ Phase 1.1: Data Model Changes
+**File**: `backend/src/relay/handoff.rs`
+
+Added `generated_report` field to `HandoffDocument`:
+```rust
+#[serde(skip_serializing_if = "Option::is_none")]
+pub generated_report: Option<ReportReference>,
+```
+
+Added `ReportReference` struct:
+```rust
+pub struct ReportReference {
+    pub report_id: String,
+    pub report_title: String,
+    pub wiki_slug: Option<String>,
+}
+```
+
+#### ✅ Phase 2.1: Completion Notification Builder
+**File**: `backend/src/relay/driver.rs`
+
+Implemented `build_completion_notification()` function:
+- Extracts run metadata (title, status, summary)
+- Checks for generated reports in last handoff
+- Builds `RelayCompleteNotification` event
+- Uses `relay::title::generate_title()` for consistent formatting
+
+#### ✅ Phase 2.2: Event Emission
+Modified `drive_run()` to:
+1. Build completion notification on run completion
+2. Persist notification to `RunEntry.events`
+3. Broadcast via SSE with event type `relay_complete_notification`
+4. Maintain backward compatibility with legacy `run_completed` event
+
+### Pending Work
+
+#### ⏳ Phase 3.2: Report Generation Integration
+**Status**: Backend infrastructure ready, documenter workflow pending
+
+Required: Documenter agent must populate `generated_report` field when creating reports:
+```rust
+handoff.generated_report = Some(ReportReference {
+    report_id: "R1".to_string(),
+    report_title: "Implementation Report".to_string(),
+    wiki_slug: Some("impl-report".to_string()),
+});
+```
+
+#### ⏳ Phase 4: Frontend Display
+**File**: `frontend/src/components/Chat/MessageBubble.vue` (to be created)
+
+Required components:
+1. Handle `relay_complete` SSE event
+2. Render notification bubble with distinct styling
+3. Display run status (✅ success, ❌ failure)
+4. Show "View Report" button when `report_link` present
+5. Navigate to `/wiki/{slug}` or `/specs/reports?report_id={id}`
+
+#### ⏳ Phase 1.2: Chat-Relay Association (Future Enhancement)
+**Required**: Add `originating_chat_session` to `RunMetadata`
+
+```rust
+pub struct RunMetadata {
+    pub originating_chat_session: Option<String>,
+    pub title: Option<String>,
+}
+```
+
+This enables routing notifications to the correct chat session instead of broadcasting to all clients.
+
+### Success Criteria
+
+1. ✅ When a Relay Run completes, a notification event is emitted
+2. ✅ The notification includes the run ID, status, and task summary
+3. ✅ If a report was generated, report link metadata is included
+4. ⏳ The notification is visually distinct from regular messages (frontend pending)
+5. ✅ Multiple relay runs are tracked separately
+6. ⏳ The chat session persists relay run references (requires RunMetadata enhancement)
+
+### Testing Plan
+
+**T1: Basic Completion Notification** - ✅ Verified
+- Spawn a relay run from chat
+- Wait for completion
+- Verify notification event emitted with run ID and status
+
+**T2: Report Link** - ⏳ Manual verification pending
+- Use a flow with documenter step
+- Spawn relay run
+- Verify completion notification includes report link
+- Click link and verify report page opens
+
+**T3: Multiple Runs** - ✅ Verified
+- Spawn multiple relay runs from same chat
+- Verify each gets its own notification
+- Verify notifications don't duplicate
+
+**T4: Session Persistence** - ⏳ Requires RunMetadata enhancement
+- Spawn relay run
+- Refresh page
+- After run completes, verify notification still appears
+
+**T5: Cross-Session Isolation** - ⏳ Requires chat routing
+- Spawn relay run from Chat A
+- Verify Chat B doesn't receive notification
+
+### Risk Mitigation
+
+**R1: Race Conditions** - ✅ Mitigated
+- Risk: Notification arrives before session is updated
+- Mitigation: Events persisted in `RunEntry.events` for replay
+
+**R2: Memory Leaks** - ⏳ Future work
+- Risk: Old relay references accumulate in sessions
+- Mitigation: Add cleanup job to remove completed runs older than 24h
+
+**R3: Missing Report** - ✅ Mitigated
+- Risk: Report generation fails but run completes
+- Mitigation: Gracefully handle missing report_slug, show notification without link
+
+### Implementation Order
+
+1. ✅ **Sprint 1**: Phase 1 (Data model + report tracking)
+2. ✅ **Sprint 2**: Phase 2 (Completion detection + notification emission)
+3. ⏳ **Sprint 3**: Phase 3 (Report generation integration)
+4. ⏳ **Sprint 4**: Phase 4 (Frontend polish + testing)
+
+### Related Specs
+
+- **G23**: Automatic Relay Mode (enables background relay spawning)
+- **G18**: Wiki module (provides report storage)
+- **D5**: Relay Run Titles (provides run identification)
+- **A8**: Chat-First Gate Approval (chat UI patterns)
+
+**Status**: In Progress (Backend complete, frontend pending)
+**Priority**: P1
+**Assigned**: Documenter (complete), Frontend Team (pending)
+**Target Completion**: Sprint 4
 
 ---
 

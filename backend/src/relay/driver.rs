@@ -289,6 +289,28 @@ pub async fn drive_run(
                         continue;
                     }
                     Some(AdvanceResult::Completed) => {
+                        // Build completion notification
+                        let completion_event = build_completion_notification(&run_store, &run_id).await;
+                        
+                        // Persist to run events for replay
+                        if let Some(ref notification) = completion_event {
+                            let mut map = run_store.lock().unwrap();
+                            if let Some(entry) = map.get_mut(&run_id) {
+                                entry.events.push(notification.clone());
+                                crate::relay::store::save_run(entry);
+                            }
+                        }
+                        
+                        // Broadcast the completion notification
+                        if let Some(notification) = completion_event {
+                            let _ = event_tx.send(RunEventBroadcast {
+                                run_id: run_id.clone(),
+                                event_type: "relay_complete_notification".to_string(),
+                                payload: Some(serde_json::to_value(notification).unwrap_or_default()),
+                            });
+                        }
+                        
+                        // Also send the legacy run_completed event
                         let _ = event_tx.send(RunEventBroadcast {
                             run_id: run_id.clone(),
                             event_type: "run_completed".to_string(),
@@ -404,6 +426,35 @@ fn build_step_messages(
         context.push_str("\n");
     }
 
+    // Add profession-specific critical reminders
+    if profession_id == "advisor" {
+        // Determine the highest existing goal ID so the advisor can use the next number
+        let next_goal_hint = {
+            let store = crate::forge::specs().lock().unwrap();
+            let project_name = std::path::Path::new(&std::env::current_dir().unwrap_or_default())
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "auto-forge".to_string());
+            store.get(&project_name)
+                .and_then(|doc| doc.sections.iter().find(|s| s.id == "goals"))
+                .map(|sec| {
+                    let max_num: u32 = sec.items.iter()
+                        .filter_map(|item| {
+                            item.id.strip_prefix('G')
+                                .and_then(|s| s.parse::<u32>().ok())
+                        })
+                        .max()
+                        .unwrap_or(0);
+                    format!(" The highest existing Goal ID is G{}. Your NEW goals MUST start from G{}.", max_num, max_num + 1)
+                })
+                .unwrap_or_else(|| " There are no existing goals yet. Start from G1.".to_string())
+        };
+        context.push_str(&format!("CRITICAL REMINDER: As the Advisor, your ONLY deliverable is GOALS. \
+         You MUST call `write_specs(section_id='goals')` BEFORE doing anything else. \
+         Do NOT read code files. Do NOT dispatch gofer to search implementation details. \
+         Write concise, high-level goals with G{{N}} IDs, then stop.{} ", next_goal_hint));
+    }
+
     context.push_str(&format!(
         "You are step '{}' ({}) in a relay pipeline. Do your work using available tools. \
          When you are finished, stop making tool calls and the pipeline will advance automatically.",
@@ -458,4 +509,67 @@ async fn wait_for_gate_resolution(
             break;
         }
     }
+}
+
+/// Build a relay completion notification event.
+async fn build_completion_notification(
+    run_store: &RunStore,
+    run_id: &str,
+) -> Option<crate::relay::store::RunEvent> {
+    let (title, summary, status, report_link) = {
+        let map = run_store.lock().unwrap();
+        let entry = map.get(run_id)?;
+        
+        // Get title from metadata or generate from task
+        let title = entry.metadata.title.clone()
+            .or_else(|| {
+                // Try to get task from initial context
+                entry.engine.step_history.first()
+                    .and_then(|h| h.handoff.as_ref())
+                    .map(|h| {
+                        // Extract task from summary (first line usually contains task)
+                        h.summary.lines().next().unwrap_or("").to_string()
+                    })
+            })
+            .unwrap_or_else(|| {
+                // Generate title from run_id
+                format!("Relay Run {}", &run_id[..run_id.len().min(8)])
+            });
+        
+        // Build summary
+        let status = format!("{:?}", entry.engine.status);
+        let summary = if status == "Completed" {
+            format!("Relay run '{}' completed successfully.", &run_id[..run_id.len().min(8)])
+        } else {
+            format!("Relay run '{}' failed.", &run_id[..run_id.len().min(8)])
+        };
+        
+        // Check for generated report in the last handoff
+        let report_link = entry.engine.step_history.last()
+            .and_then(|record| record.handoff.as_ref())
+            .and_then(|handoff| handoff.generated_report.as_ref())
+            .map(|report| crate::relay::store::ReportLink {
+                url: if let Some(ref slug) = report.wiki_slug {
+                    format!("/wiki/{}", slug)
+                } else {
+                    format!("/specs/reports?report_id={}", report.report_id)
+                },
+                report_id: report.report_id.clone(),
+                report_title: report.report_title.clone(),
+            });
+        
+        (title, summary, status, report_link)
+    };
+    
+    Some(crate::relay::store::RunEvent::RelayCompleteNotification {
+        run_id: run_id.to_string(),
+        status,
+        title,
+        summary,
+        report_link,
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    })
 }

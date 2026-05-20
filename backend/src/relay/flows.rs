@@ -46,6 +46,29 @@ pub fn fast_track_flow() -> FlowSpec {
     flow
 }
 
+/// Auto-discovery flow: user gives a raw goal, advisor auto-analyzes it,
+/// then proceeds through the full pipeline without human gates.
+///
+/// Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter
+pub fn auto_discovery_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("auto-discovery");
+    flow.add_step(FlowStep::new("discover", "advisor"));
+    flow.add_step(FlowStep::new("design", "architect"));
+    flow.add_step(FlowStep::new("plan", "planner"));
+    flow.add_step(FlowStep::new("draft-tests", "tester"));
+    flow.add_step(FlowStep::new("code", "coder"));
+    flow.add_step(
+        FlowStep::new("run-tests", "tester")
+            .with_exit(crate::relay::flow::ExitRouting::Loop {
+                target_step_id: "code".into(),
+                max_iterations: 3,
+            }),
+    );
+    flow.add_step(FlowStep::new("review", "reviewer"));
+    flow.add_step(FlowStep::new("report", "documenter"));
+    flow
+}
+
 /// Post-discovery flow: skips intake and advisor since chat already did discovery.
 ///
 /// Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter
@@ -82,6 +105,16 @@ pub fn bug_fix_flow() -> FlowSpec {
             }),
     );
     flow.add_step(FlowStep::new("review", "reviewer"));
+    flow
+}
+
+/// Goal-discovery flow: runs only the Advisor step to produce goals.
+///
+/// Useful for quickly testing whether the Advisor can successfully
+/// analyze a task and write new goals before committing to a full pipeline.
+pub fn goal_discovery_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("goal-discovery");
+    flow.add_step(FlowStep::new("discover", "advisor"));
     flow
 }
 

@@ -115,6 +115,9 @@ pub struct AgentInstance {
     pub skill_prompts: Vec<String>,
     /// Resolved skill-granted tool names.
     pub skill_tools: Vec<String>,
+    /// When true, this agent is running inside a relay pipeline (not chat).
+    /// Affects system prompt and available tools.
+    pub relay_mode: bool,
 }
 
 impl AgentInstance {
@@ -134,6 +137,7 @@ impl AgentInstance {
             display_name,
             skill_prompts: Vec::new(),
             skill_tools: Vec::new(),
+            relay_mode: false,
         }
     }
 
@@ -153,6 +157,7 @@ impl AgentInstance {
             display_name,
             skill_prompts: Vec::new(),
             skill_tools: Vec::new(),
+            relay_mode: false,
         }
     }
 
@@ -234,6 +239,52 @@ impl AgentInstance {
                 self.skill_tools.join(", ")
             ));
         }
+
+        // Role-specific execution mandates
+        match self.profession.id.as_str() {
+            "coder" => {
+                parts.push("\n## Execution Mandate\n".to_string());
+                parts.push("You MUST write or edit files using `write_file` or `edit_file` tools. ".to_string());
+                parts.push("Reading and analyzing code is NOT enough — you must produce ACTUAL file changes. ".to_string());
+                parts.push("Before handing off, verify that your changes exist on disk by reading them back.\n".to_string());
+            }
+            "documenter" => {
+                parts.push("\n## Execution Mandate\n".to_string());
+                parts.push("When documenting a completed relay run, you MUST update the status of all related spec sections ".to_string());
+                parts.push("(plans, tests, designs, etc.) from `in_progress`/`draft` to `done` or the appropriate final status ".to_string());
+                parts.push("using `write_specs`. Do NOT leave specs in an intermediate state.\n".to_string());
+            }
+            "advisor" | "architect" | "planner" => {
+                parts.push("\n## Accuracy Mandate\n".to_string());
+                parts.push("When referencing files in your handoff work_product, ONLY list files that ACTUALLY exist. ".to_string());
+                parts.push("You do NOT have `shell` or `search` directly. To verify file paths, use `dispatch` with `agent=\"gofer\"` ".to_string());
+                parts.push("to run `shell`/`search` errands (e.g., list files, grep for patterns). ".to_string());
+                parts.push("As a fallback, you can use `read_file` to test a single path. ".to_string());
+                parts.push("Do NOT hallucinate file paths (e.g., `.tsx` when the project uses `.vue`, or `README.md` that does not exist).\n".to_string());
+            }
+            "reviewer" => {
+                parts.push("\n## Verification Mandate\n".to_string());
+                parts.push("You MUST run `shell cargo check` (or equivalent) to verify code compiles before approving. ".to_string());
+                parts.push("You MUST run `shell cargo test` (or equivalent) to verify tests pass before approving. ".to_string());
+                parts.push("If compilation or tests fail, REJECT the handoff and list the errors. ".to_string());
+                parts.push("A review without compile/test verification is INVALID.\n".to_string());
+            }
+            _ => {}
+        }
+
+        // Relay mode instruction — prevents chat-only tools from being called in pipeline
+        if self.relay_mode {
+            parts.push("\n## Relay Mode\n".to_string());
+            parts.push("You are running inside an autonomous relay pipeline. ".to_string());
+            parts.push("Do NOT call `bring_in` or `spawn_relay` — those are chat-mode tools. ".to_string());
+            parts.push("When your work is complete, simply stop making tool calls and the pipeline will advance automatically.\n".to_string());
+        }
+
+        // Tool usage tips — prevents empty-arg tool calls
+        parts.push("\n## Tool Usage Tips\n".to_string());
+        parts.push("When calling `write_specs`, you MUST provide both arguments: `section_id` and `content`. Example:\n".to_string());
+        parts.push("  {\"section_id\": \"tests\", \"content\": \"# Tests\\n\\n...\"}\n".to_string());
+        parts.push("When calling `read_file`, `write_file`, or `edit_file`, always provide the full `path`.\n".to_string());
 
         // Constraints
         parts.push(format!(

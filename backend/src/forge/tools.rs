@@ -4,27 +4,26 @@
 //! the codebase: read_file, write_file, edit_file, shell, and search.
 
 use serde_json::Value;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::LazyLock;
+use std::sync::Mutex;
 
 // ─── Tool Context (injected by forge_stream handler) ─────────────────────────
 
-thread_local! {
-    static CURRENT_PROJECT: RefCell<String> = RefCell::new(String::new());
-    static CURRENT_SESSION_ID: RefCell<String> = RefCell::new(String::new());
-    static CURRENT_PROFESSION: RefCell<String> = RefCell::new(String::new());
-}
+static CURRENT_PROJECT: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+static CURRENT_SESSION_ID: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+static CURRENT_PROFESSION: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 
 /// Set the project and session context for specs tools.
 pub fn set_tool_context(project: &str, session_id: &str) {
-    CURRENT_PROJECT.with(|p| *p.borrow_mut() = project.to_string());
-    CURRENT_SESSION_ID.with(|s| *s.borrow_mut() = session_id.to_string());
+    *CURRENT_PROJECT.lock().unwrap() = project.to_string();
+    *CURRENT_SESSION_ID.lock().unwrap() = session_id.to_string();
 }
 
 /// Set the current profession for bring_in validation.
 pub fn set_current_profession(profession: &str) {
-    CURRENT_PROFESSION.with(|p| *p.borrow_mut() = profession.to_string());
+    *CURRENT_PROFESSION.lock().unwrap() = profession.to_string();
 }
 
 // ─── Tool Definition ─────────────────────────────────────────────────────────
@@ -159,11 +158,7 @@ impl Tool for ReadFileTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
-        let full_path = CURRENT_PROJECT.with(|p| {
-            let project = p.borrow();
-            if project.is_empty() { path.to_path_buf() }
-            else { Path::new(&*project).join(path) }
-        });
+        let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { path.to_path_buf()  } else { Path::new(&*project).join(path) } };
 
         std::fs::read_to_string(&full_path)
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))
@@ -218,11 +213,7 @@ impl Tool for WriteFileTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
-        let full_path = CURRENT_PROJECT.with(|p| {
-            let project = p.borrow();
-            if project.is_empty() { path.to_path_buf() }
-            else { Path::new(&*project).join(path) }
-        });
+        let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { path.to_path_buf()  } else { Path::new(&*project).join(path) } };
 
         // Create parent directories if needed
         if let Some(parent) = full_path.parent() {
@@ -290,11 +281,7 @@ impl Tool for EditFileTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
-        let full_path = CURRENT_PROJECT.with(|p| {
-            let project = p.borrow();
-            if project.is_empty() { path.to_path_buf() }
-            else { Path::new(&*project).join(path) }
-        });
+        let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { path.to_path_buf()  } else { Path::new(&*project).join(path) } };
 
         let content = std::fs::read_to_string(&full_path)
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))?;
@@ -355,7 +342,7 @@ impl Tool for ShellTool {
             }
         }
 
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
         let mut command = std::process::Command::new("bash");
         if !project.is_empty() {
             command.current_dir(&project);
@@ -440,11 +427,7 @@ impl Tool for SearchTool {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
-        let full_path = CURRENT_PROJECT.with(|p| {
-            let project = p.borrow();
-            if project.is_empty() { search_path.to_path_buf() }
-            else { Path::new(&*project).join(search_path) }
-        });
+        let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { search_path.to_path_buf()  } else { Path::new(&*project).join(search_path) } };
 
         let mut results = Vec::new();
         walk_dir(&full_path, pattern, &mut results)
@@ -553,8 +536,8 @@ impl Tool for ReadSpecsTool {
     }
 
     fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
-        let sid = CURRENT_SESSION_ID.with(|s| s.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
+        let sid = CURRENT_SESSION_ID.lock().unwrap().clone();
         let section_id = args
             .get("section_id")
             .and_then(|v| v.as_str())
@@ -592,7 +575,10 @@ impl Tool for ReadSpecsTool {
             match store.get(&project_name)
                 .and_then(|doc| doc.sections.iter().find(|s| s.id == section_id))
             {
-                Some(sec) => (sec.content.clone(), sec.status.as_str().to_string()),
+                Some(sec) => {
+                    let full = super::SpecsStore::serialize_section_to_ad(sec);
+                    (full, sec.status.as_str().to_string())
+                }
                 None => return Err(ToolError::ExecutionFailed(format!("Section '{}' not found in project '{}'", section_id, project_name))),
             }
         };
@@ -627,12 +613,12 @@ impl Tool for ListSpecsTool {
     }
 
     fn execute(&self, _args: Value) -> Result<String, ToolError> {
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
         if project.is_empty() {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
 
-        let sid = CURRENT_SESSION_ID.with(|s| s.borrow().clone());
+        let sid = CURRENT_SESSION_ID.lock().unwrap().clone();
         let pending: HashMap<String, (String, String)> = if !sid.is_empty() {
             super::forge_sessions()
                 .lock()
@@ -687,7 +673,8 @@ impl Tool for WriteSpecsTool {
     }
 
     fn description(&self) -> &'static str {
-        "Draft an update to a Specs section. \
+        "Write or update a Specs section. You MUST provide both 'section_id' and 'content'. \
+         Example: {\"section_id\": \"tests\", \"content\": \"# Tests\\n\\n## TC-1...\"}. \
          The change is queued in pending_spec_changes and applied to the Specs only after human approval. \
          Use this during SpecDraft phase to propose updates to goals, architecture, designs, plans, or tests."
     }
@@ -715,8 +702,8 @@ impl Tool for WriteSpecsTool {
     }
 
     fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
-        let sid = CURRENT_SESSION_ID.with(|s| s.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
+        let sid = CURRENT_SESSION_ID.lock().unwrap().clone();
 
         if project.is_empty() || sid.is_empty() {
             return Err(ToolError::ExecutionFailed("No project or session context set".into()));
@@ -727,14 +714,19 @@ impl Tool for WriteSpecsTool {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or(project.clone());
 
+        tracing::info!("write_specs called with args: {:?}", args);
         let section_id = args
             .get("section_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidInput("Missing 'section_id' argument".into()))?;
+            .or_else(|| args.get("section").and_then(|v| v.as_str()))
+            .or_else(|| args.get("id").and_then(|v| v.as_str()))
+            .ok_or_else(|| ToolError::InvalidInput(
+                format!("Missing 'section_id' argument. Received args: {:?}. You MUST provide 'section_id' (e.g., 'tests', 'goals', 'plans') and 'content'.", args).into()))?;
         let content = args
             .get("content")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidInput("Missing 'content' argument".into()))?;
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing 'content' argument. You MUST provide the full section content as a string.".into()))?;
         let status_str = args
             .get("status")
             .and_then(|v| v.as_str())
@@ -753,8 +745,32 @@ impl Tool for WriteSpecsTool {
                     section.content = content.to_string();
                     section.status = super::Status::from_str_lossy(status_str);
                     section.last_modified = now;
+                    // Parse the new content into structured items and normalize storage.
+                    // This prevents duplicate rendering of content + items.
+                    let full_content = format!("# {}\n{}", section.title, content);
+                    tracing::info!("write_specs: section={}, content_len={}, full_content_len={}, content_preview={}", section_id, content.len(), full_content.len(), content.chars().take(200).collect::<String>());
+                    if let Some(parsed) = super::SpecsStore::parse_ad_file(
+                        section_id,
+                        &format!("{:?}", section.section_type),
+                        &section.title,
+                        &full_content,
+                    ) {
+                        tracing::info!("write_specs: parsed {} items from content, merging with {} existing items", parsed.items.len(), section.items.len());
+                        // Merge: update existing items by ID, append new ones
+                        for new_item in parsed.items {
+                            if let Some(existing) = section.items.iter_mut().find(|i| i.id == new_item.id) {
+                                *existing = new_item;
+                            } else {
+                                section.items.push(new_item);
+                            }
+                        }
+                        section.content = String::new();
+                    } else {
+                        tracing::warn!("write_specs: parse_ad_file returned None, clearing items");
+                        section.items.clear();
+                    }
                 } else {
-                    doc.sections.push(super::SpecsSection {
+                    let mut new_section = super::SpecsSection {
                         id: section_id.to_string(),
                         section_type: super::SectionType::from_id(section_id),
                         title: section_id.to_string(),
@@ -764,7 +780,20 @@ impl Tool for WriteSpecsTool {
                         depends_on: vec![],
                         last_modified: now,
                         last_verified: None,
-                    });
+                    };
+                    // Parse content into items for consistent storage
+                    let full_content = format!("# {}\n{}", new_section.title, content);
+                    if let Some(parsed) = super::SpecsStore::parse_ad_file(
+                        section_id,
+                        &format!("{:?}", new_section.section_type),
+                        &new_section.title,
+                        &full_content,
+                    ) {
+                        tracing::info!("write_specs (new section): parsed {} items from content", parsed.items.len());
+                        new_section.items = parsed.items;
+                        new_section.content = String::new();
+                    }
+                    doc.sections.push(new_section);
                 }
             }
             let doc = store.get(&project_name).unwrap();
@@ -832,7 +861,7 @@ impl Tool for BringInTool {
             .and_then(|v| v.as_str())
             .unwrap_or("DIRECT");
 
-        let current = CURRENT_PROFESSION.with(|p| p.borrow().clone());
+        let current = CURRENT_PROFESSION.lock().unwrap().clone();
 
         // Validate: can't hand off to yourself
         if target == current {
@@ -944,7 +973,7 @@ impl Tool for SpawnRelayTool {
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        let current = CURRENT_PROFESSION.with(|p| p.borrow().clone());
+        let current = CURRENT_PROFESSION.lock().unwrap().clone();
 
         // Validate: current profession must have spawn_relay in allowed_tools
         let registry = crate::relay::ProfessionRegistry::new();
@@ -1058,7 +1087,7 @@ impl Tool for DispatchTool {
             .and_then(|v| v.as_u64())
             .unwrap_or(20) as u32;
 
-        let current = CURRENT_PROFESSION.with(|p| p.borrow().clone());
+        let current = CURRENT_PROFESSION.lock().unwrap().clone();
 
         // Validate: target profession must exist
         let registry = crate::relay::ProfessionRegistry::new();
@@ -1126,7 +1155,7 @@ impl Tool for QueryWikiTool {
     }
 
     fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
         if project.is_empty() {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
@@ -1184,7 +1213,7 @@ impl Tool for ListWikiTool {
     }
 
     fn execute(&self, _args: Value) -> Result<String, ToolError> {
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
         if project.is_empty() {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
@@ -1256,7 +1285,7 @@ impl Tool for CreateWikiPageTool {
     }
 
     fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
         if project.is_empty() {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
@@ -1343,7 +1372,7 @@ impl Tool for UpdateWikiPageTool {
     }
 
     fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let project = CURRENT_PROJECT.with(|p| p.borrow().clone());
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
         if project.is_empty() {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
         }

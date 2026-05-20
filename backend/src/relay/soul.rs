@@ -111,25 +111,10 @@ impl SoulConfig {
 
     /// Render the Soul into a system-prompt style text block.
     pub fn render(&self) -> String {
-        let mut out = format!("# {}\n\n", self.name);
-        if !self.personality.is_empty() {
-            out.push_str("## Personality\n");
-            out.push_str(&self.personality);
-            out.push_str("\n\n");
-        }
-        if !self.values.is_empty() {
-            out.push_str("## Core Values\n");
-            for v in &self.values {
-                out.push_str(&format!("- {}\n", v));
-            }
-            out.push('\n');
-        }
-        if !self.handoff_ritual.is_empty() {
-            out.push_str("## Handoff Ritual\n");
-            out.push_str(&self.handoff_ritual);
-            out.push('\n');
-        }
-        out
+        // Use the full original markdown so that all sections
+        // (Absolute Rules, Working Style, Execution Mandate, etc.)
+        // are preserved in the system prompt.
+        self.markdown.clone()
     }
 }
 

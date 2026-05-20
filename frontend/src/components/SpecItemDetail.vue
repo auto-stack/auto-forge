@@ -1,5 +1,11 @@
 <template>
   <div class="spec-item-detail">
+    <!-- Title bar with spec ID -->
+    <div class="detail-title-bar">
+      <span class="spec-id">{{ item.id }}</span>
+      <span class="spec-title">{{ item.title }}</span>
+    </div>
+
     <!-- Relations -->
     <RelationsPanel
       :item="item"
@@ -96,6 +102,39 @@ const hasMeta = computed(() =>
 <style scoped>
 .spec-item-detail {
   padding-top: 0.75rem;
+}
+
+.detail-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--af-border);
+}
+
+.spec-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.25);
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+
+.spec-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--af-fg);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-content {

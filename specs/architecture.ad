@@ -5,6 +5,137 @@
 
 ## Architecture
 
+### Auto-Generated Relay Run Titles
+
+**Overview**: Extract meaningful short titles from relay run tasks to improve UI readability, replacing or supplementing raw UUID display.
+
+#### Data Flow
+
+```
+spawn_relay(task, flow_id, ...)
+         ↓
+    Title Extractor
+    (task → short title)
+         ↓
+    RelayRun Metadata
+    { run_id, title, task, ... }
+         ↓
+    Frontend Display
+    (title + run_id subtitle)
+```
+
+#### Backend Architecture
+
+**Title Extraction Module** (`backend/src/relay/title.rs` - NEW)
+```rust
+/// Generate a concise title from relay task description
+pub fn generate_title(task: &str) -> String {
+    // 1. Strip leading action verbs
+    // 2. Extract first meaningful phrase (3-6 words)
+    // 3. Truncate to 40 chars max
+    // 4. Capitalize words
+}
+```
+
+**RelayRun Structure Update** (`backend/src/relay/mod.rs`)
+```rust
+pub struct RelayRun {
+    pub run_id: String,
+    pub title: Option<String>,  // NEW: Auto-generated at spawn
+    pub task: String,
+    pub flow_id: String,
+    pub mode: String,
+    pub created_at: DateTime<Utc>,
+    // ... existing fields
+}
+```
+
+**Spawn Integration** (`backend/src/relay/mod.rs::spawn_relay()`)
+```rust
+pub fn spawn_relay(task: String, flow_id: String, mode: String) -> RelayRun {
+    let title = Some(generate_title(&task));
+    
+    RelayRun {
+        run_id: Uuid::new_v4().to_string(),
+        title,
+        task,
+        flow_id,
+        mode,
+        created_at: Utc::now(),
+        // ...
+    }
+}
+```
+
+#### Frontend Architecture
+
+**Component Hierarchy**
+```
+RelayView (list)
+  └─ RelayRunCard
+       ├─ Title (prominent)
+       └─ Run ID (subtitle, monospace)
+
+RelayDetailView (single run)
+  └─ Header
+       ├─ Title (large)
+       └─ Run ID (smaller, full)
+```
+
+**Display Logic** (`RelayRunCard.vue`)
+```vue
+<template>
+  <div class="relay-run-card">
+    <h3 class="run-title">
+      {{ displayTitle }}
+    </h3>
+    <span class="run-id">{{ shortRunId }}</span>
+  </div>
+</template>
+
+<script setup lang="ts">
+const props = defineProps<{
+  run: RelayRun
+}>()
+
+const displayTitle = computed(() => 
+  props.run.title || props.run.run_id
+)
+
+const shortRunId = computed(() => 
+  props.run.run_id.slice(0, 8)
+)
+</script>
+```
+
+#### Storage Schema
+
+**File-based persistence** (`~/.local/share/autoforge/relay/{run_id}.json`)
+```json
+{
+  "run_id": "run-abc123...",
+  "title": "Simple Cache Module",
+  "task": "Build a simple cache module with get/set/delete operations",
+  "flow_id": "post_discovery",
+  "mode": "gsd",
+  "created_at": "2025-01-15T10:30:00Z",
+  "steps": [...]
+}
+```
+
+**Backward Compatibility**: Legacy runs without `title` field default to `null`, frontend falls back to `run_id`.
+
+#### API Endpoints
+
+**GET /api/relay/runs**
+- Response includes `title` field for each run
+- Frontend filters: `runs.filter(r => r.title)` for runs with titles
+
+**POST /api/relay/spawn**
+- Request: `{ task, flow_id, mode }`
+- Response: `{ run_id, title, ... }`
+- Title generated server-side before response
+
 ### Spec ID Visibility System
 
 **Overview**: Display spec IDs (e.g., A11, D5, P3) in title bars across all spec views, improving cross-referencing and traceability.

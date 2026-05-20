@@ -279,6 +279,7 @@ impl ClaudeProvider {
                                 let _ = tx.send(ToolChatEvent::TextDelta { text });
                             }
                             ContentBlockDelta::InputJsonDelta { partial_json } => {
+                                tracing::info!("Claude InputJsonDelta: {}", partial_json);
                                 partial_json_acc.push_str(&partial_json);
                             }
                             ContentBlockDelta::ThinkingDelta { .. } => {}
@@ -289,8 +290,13 @@ impl ClaudeProvider {
                             let input = if partial_json_acc.is_empty() {
                                 serde_json::Value::Object(Default::default())
                             } else {
-                                serde_json::from_str(&partial_json_acc)
-                                    .unwrap_or_else(|_| serde_json::Value::Object(Default::default()))
+                                match serde_json::from_str(&partial_json_acc) {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        tracing::warn!("Failed to parse tool input JSON: {}. Raw: {}", e, partial_json_acc);
+                                        serde_json::Value::Object(Default::default())
+                                    }
+                                }
                             };
                             partial_json_acc.clear();
                             let _ = tx.send(ToolChatEvent::ToolUse { id, name, input });

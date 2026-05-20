@@ -309,12 +309,13 @@ pub async fn start_run_handler(
 
             // Spawn background driver to execute the pipeline
             let project_path = crate::forge::current_project_path().unwrap_or_default();
+            let task = req.task.unwrap_or_default();
             tokio::spawn(crate::relay::driver::drive_run(
                 run_id.clone(),
                 RUN_STORE.clone(),
                 EVENT_TX.clone(),
                 ai_provider,
-                String::new(),
+                task,
                 project_path,
             ));
 

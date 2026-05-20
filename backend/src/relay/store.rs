@@ -4,7 +4,7 @@
 //! Provides the bridge between the deterministic PipelineEngine and HTTP APIs.
 
 use crate::relay::flow::FlowSpec;
-use crate::relay::handoff::HandoffDocument;
+use crate::relay::handoff::{HandoffDocument, ReportReference};
 use crate::relay::pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, StepRecord};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -24,6 +24,20 @@ pub struct RunEntry {
     pub updated_at: u64,
     /// Serialized events for SSE replay.
     pub events: Vec<RunEvent>,
+    /// Optional metadata for tracking run origin and notifications
+    #[serde(default)]
+    pub metadata: RunMetadata,
+}
+
+/// Metadata about a relay run.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RunMetadata {
+    /// The chat session that spawned this run (for notifications)
+    #[serde(default)]
+    pub originating_chat_session: Option<String>,
+    /// Auto-generated title for display
+    #[serde(default)]
+    pub title: Option<String>,
 }
 
 /// A run event for SSE streaming and history.
@@ -37,6 +51,14 @@ pub enum RunEvent {
     RunCompleted,
     RunFailed { error: String },
     TokenSpend { cumulative: u64, step_tokens: u64 },
+    RelayCompleteNotification {
+        run_id: String,
+        status: String,
+        title: String,
+        summary: String,
+        report_link: Option<ReportLink>,
+        timestamp: u64,
+    },
     // ─── Turn events (for session log persistence) ───
     TurnDelta { profession_id: String, text: String },
     TurnToolCall { profession_id: String, tool_id: String, tool_name: String, arguments: serde_json::Value },
@@ -94,6 +116,14 @@ pub struct GateState {
     pub since: u64,
 }
 
+/// Report link for relay completion notifications.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReportLink {
+    pub url: String,
+    pub report_id: String,
+    pub report_title: String,
+}
+
 /// Directory where runs are persisted.
 fn persistence_dir() -> PathBuf {
     let dir = dirs::data_dir()
@@ -149,7 +179,17 @@ pub fn start_run(store: &RunStore, flow: FlowSpec, run_id: impl Into<String>) ->
         return Err(format!("Run {} already exists", run_id));
     }
 
-    let engine = PipelineEngine::new(flow.clone(), &run_id);
+    let mut engine = PipelineEngine::new(flow.clone(), &run_id);
+
+    // Set per-step token budgets from profession configurations
+    let registry = crate::relay::ProfessionRegistry::new();
+    for step in &flow.steps {
+        if let Some(profession) = registry.get(&step.profession_id) {
+            let budget = crate::relay::budget::TokenBudget::new(profession.token_budget);
+            engine.budget_tracker.set_step_budget(&step.profession_id, budget);
+        }
+    }
+
     let now = now_secs();
     let entry = RunEntry {
         run_id: run_id.clone(),
@@ -157,6 +197,7 @@ pub fn start_run(store: &RunStore, flow: FlowSpec, run_id: impl Into<String>) ->
         created_at: now,
         updated_at: now,
         events: Vec::new(),
+        metadata: RunMetadata::default(),
     };
 
     let state = build_run_state(&entry);

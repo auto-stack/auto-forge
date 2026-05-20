@@ -680,7 +680,7 @@ struct ManifestSection {
 
 // ─── Persistent Specs Store ─────────────────────────────────────────────────
 
-struct SpecsStore {
+pub struct SpecsStore {
     projects: std::collections::HashMap<String, SpecsDocument>,
     data_dir: PathBuf,
     templates_dir: PathBuf,
@@ -861,7 +861,7 @@ impl SpecsStore {
             if changed {
                 tracing::info!("Derived statuses changed for '{}' on startup, persisting", name);
                 let doc = self.projects.get(name).unwrap();
-                self.save(doc);
+                self.save_ad_format(doc, name);
             }
         }
         tracing::info!("Loaded {} persistent specs documents", self.projects.len());
@@ -913,7 +913,7 @@ impl SpecsStore {
                             "Specs for '{}' changed on disk (or derived statuses drifted), reloading and persisting",
                             name
                         );
-                        self.save(&new_doc);
+                        self.save_ad_format(&new_doc, name);
                         self.projects.insert(name.clone(), new_doc);
                     }
                 }
@@ -1043,7 +1043,7 @@ impl SpecsStore {
         }.to_string()
     }
 
-    fn parse_ad_file(section_id: &str, _section_type: &str, title: &str, content: &str) -> Option<SpecsSection> {
+    pub(crate) fn parse_ad_file(section_id: &str, _section_type: &str, title: &str, content: &str) -> Option<SpecsSection> {
         use regex::Regex;
         let lines: Vec<&str> = content.lines().collect();
         if lines.is_empty() { return None; }
@@ -1238,7 +1238,7 @@ impl SpecsStore {
         }
     }
 
-    fn get(&self, project: &str) -> Option<&SpecsDocument> {
+    pub(crate) fn get(&self, project: &str) -> Option<&SpecsDocument> {
         self.projects.get(project).or_else(|| {
             self.flat_mode_project.as_ref().and_then(|fp| self.projects.get(fp))
         })
@@ -1535,7 +1535,7 @@ fn sanitize_filename(name: &str) -> String {
     name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
 }
 
-fn specs() -> &'static Mutex<SpecsStore> {
+pub(crate) fn specs() -> &'static Mutex<SpecsStore> {
     static STORE: OnceLock<Mutex<SpecsStore>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(SpecsStore::new_default()))
 }
@@ -2125,6 +2125,7 @@ mod handlers {
                                                 "post_discovery" => crate::relay::flows::post_discovery_flow(),
                                                 "fast_track" => crate::relay::flows::fast_track_flow(),
                                                 "bug_fix" => crate::relay::flows::bug_fix_flow(),
+                                                "goal_discovery" => crate::relay::flows::goal_discovery_flow(),
                                                 _ => crate::relay::flows::standard_spec_flow(),
                                             };
 

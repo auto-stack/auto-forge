@@ -303,6 +303,72 @@ impl PipelineEngine {
             _ => {} // Warning and None are non-fatal at this point
         }
 
+        // ─── Auto-validation: check step produced valid output ─────────────────
+        if let Some(fail_reason) = self.validate_step(&step_id, &handoff) {
+            // Coder gets 2 self-retries (3 total attempts), then escalation to design
+            // Other professions get 3 self-retries (4 total attempts), then hard stop
+            let max_retries = if step_id == "code" { 2 } else { 3 };
+
+            let retry_count = {
+                let count = self.loop_counters.entry(step_id.clone()).or_insert(0);
+                *count += 1;
+                *count
+            };
+
+            if step_id == "code" && retry_count == max_retries {
+                // Coder escalation: route back to design for re-architecture
+                self.gate_feedback
+                    .entry("design".to_string())
+                    .or_default()
+                    .push(format!(
+                        "[ESCALATION FROM CODER] Code failed to compile after 3 attempts: {}\n\n\
+                         The implementation cannot be built. Please revisit the design/architecture \
+                         to ensure it is feasible.",
+                        fail_reason
+                    ));
+                tracing::warn!(
+                    "Coder failed auto-validation after 3 attempts. Escalating to design: {}",
+                    fail_reason
+                );
+                // Reset code retry counter so future coder steps can retry again
+                self.loop_counters.remove("code");
+                // Route to design step
+                if let Some(design_idx) = self.flow.step_for_profession("architect") {
+                    self.current_step = design_idx;
+                    return self.advance();
+                }
+            }
+
+            if retry_count <= max_retries {
+                // Auto-retry: feed error back as gate feedback and re-run same step
+                self.gate_feedback
+                    .entry(step_id.clone())
+                    .or_default()
+                    .push(format!(
+                        "[AUTO-VALIDATION FAILED] {}\n\nPlease fix this issue before proceeding. This is attempt {}/{}.",
+                        fail_reason, retry_count, max_retries
+                    ));
+                tracing::warn!(
+                    "Step '{}' failed auto-validation (attempt {}/{}). Retrying with feedback: {}",
+                    step_id, retry_count, max_retries, fail_reason
+                );
+                return AdvanceResult::ExecuteStep {
+                    step_id: step_id.clone(),
+                    profession_id: profession_id.clone(),
+                    agent_config_id: None,
+                };
+            } else {
+                // Max retries exceeded — hard stop
+                let error = format!(
+                    "Step '{}' failed auto-validation after {} retries: {}",
+                    step_id, max_retries, fail_reason
+                );
+                tracing::error!("{}", error);
+                self.status = PipelineStatus::Failed { error: error.clone() };
+                return AdvanceResult::Failed { error };
+            }
+        }
+
         // Determine next step based on exit routing
         let step_id = self.flow.steps[self.current_step].id.clone();
         let exit = self.flow.steps[self.current_step].exit.clone();
@@ -436,6 +502,60 @@ impl PipelineEngine {
     /// Convenience: current step ID.
     pub fn current_step_id(&self) -> Option<&str> {
         self.flow.steps.get(self.current_step).map(|s| s.id.as_str())
+    }
+
+    /// Auto-validate a step's handoff. Returns `Some(reason)` if validation fails.
+    fn validate_step(&self, step_id: &str, handoff: &HandoffDocument) -> Option<String> {
+        match step_id {
+            "discover" => {
+                // Advisor must produce goals (spec_updates) or have work_product
+                if handoff.work_product.is_empty() && handoff.spec_updates.is_empty() {
+                    return Some("Advisor produced no work_product. Use write_specs to create or update goals.".into());
+                }
+            }
+            "design" => {
+                // Architect must produce architecture/designs specs
+                // Heuristic: handoff should mention spec updates or have non-README work products
+                let has_meaningful_work = handoff.work_product.iter().any(|wp| {
+                    !wp.path.ends_with("README.md") && !wp.path.is_empty()
+                });
+                if !has_meaningful_work {
+                    return Some("Architect produced no meaningful spec work. Use write_specs to update architecture and designs.".into());
+                }
+            }
+            "plan" => {
+                // Planner must produce plans
+                let has_plan_work = handoff.work_product.iter().any(|wp| {
+                    wp.path.contains("plan") || wp.path.ends_with(".ad")
+                });
+                if !has_plan_work && handoff.work_product.len() < 2 {
+                    return Some("Planner produced no plans. Use write_specs to create or update plans.".into());
+                }
+            }
+            "code" => {
+                // Coder must modify code files (not just read)
+                let has_code_changes = handoff.work_product.iter().any(|wp| {
+                    wp.path.ends_with(".rs") || wp.path.ends_with(".vue") || wp.path.ends_with(".ts")
+                });
+                if !has_code_changes {
+                    return Some("Coder produced no code changes. Use write_file or edit_file to modify source files.".into());
+                }
+            }
+            "review" => {
+                // Reviewer must produce review output
+                if handoff.work_product.is_empty() && handoff.decisions.is_empty() {
+                    return Some("Reviewer produced no review output. Use write_specs to update reviews section.".into());
+                }
+            }
+            "report" => {
+                // Documenter must update spec statuses
+                if handoff.work_product.is_empty() {
+                    return Some("Documenter produced no report. Use write_specs to update reports and finalize spec statuses.".into());
+                }
+            }
+            _ => {}
+        }
+        None
     }
 }
 

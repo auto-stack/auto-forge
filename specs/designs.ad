@@ -1,9 +1,590 @@
 # Designs
 
-> Module-level interfaces, state machines, and data models for the Agents Relay module.
+> Detailed designs for Agents Relay Orchestration features.
 
 
 ## Designs
+
+### Auto-Generated Relay Run Titles
+
+#### Title Extraction Algorithm
+
+**Input**: Raw task string (e.g., "Build a simple cache module with get/set/delete operations")  
+**Output**: Concise title (e.g., "Simple Cache Module")
+
+**Step-by-Step Process**:
+
+1. **Trim & Normalize**
+   ```rust
+   let task = task.trim();
+   ```
+
+2. **Remove Leading Action Verbs**
+   ```rust
+   // Common action verbs to strip
+   let action_verbs = [
+       "build", "create", "implement", "add", "fix", "update",
+       "write", "generate", "design", "develop", "refactor"
+   ];
+   
+   let task = task.lowercase();
+   for verb in action_verbs {
+       if task.starts_with(verb) {
+           task = task[verb.len()..].trim();
+           break;
+       }
+   }
+   ```
+
+3. **Remove Filler Words**
+   ```rust
+   let fillers = ["a", "an", "the", "with", "for", "from"];
+   // Remove first word if it's a filler
+   ```
+
+4. **Extract First Phrase**
+   ```rust
+   // Split into words, take 3-6 words
+   let words: Vec<&str> = task.split_whitespace().collect();
+   let phrase_words = words.iter().take(6).cloned().collect::<Vec<_>>();
+   
+   // Minimum 3 words if possible, fewer if task is short
+   let phrase = if phrase_words.len() >= 3 {
+       phrase_words[..=2].join(" ")  // First 3 words
+   } else {
+       phrase_words.join(" ")
+   };
+   ```
+
+5. **Truncate to Max Length**
+   ```rust
+   const MAX_TITLE_LEN: usize = 40;
+   let title = if phrase.len() > MAX_TITLE_LEN {
+       format!("{}...", &phrase[..MAX_TITLE_LEN.saturating_sub(3)])
+   } else {
+       phrase
+   };
+   ```
+
+6. **Capitalize Words**
+   ```rust
+   let title = title.split_whitespace()
+       .map(|word| {
+           let mut chars = word.chars();
+           match chars.next() {
+               None => String::new(),
+               Some(first) => first.to_uppercase().collect::<String>() 
+                   + chars.as_str(),
+           }
+       })
+       .collect::<Vec<_>>()
+       .join(" ");
+   ```
+
+**Examples**:
+
+| Input Task | Output Title |
+|------------|--------------|
+| "Build a simple cache module" | "Simple Cache Module" |
+| "Fix authentication bug in login flow" | "Authentication Bug In" |
+| "Add unit tests for cache module" | "Unit Tests For" |
+| "Create user authentication system with OAuth2" | "User Authentication System" |
+| "Refactor database connection pool" | "Database Connection Pool" |
+| "Implement caching layer for API responses" | "Caching Layer For" |
+| "Write documentation for relay spawn tool" | "Documentation For Relay" |
+| "Design responsive dashboard UI components" | "Responsive Dashboard UI" |
+
+**Edge Cases**:
+
+| Input | Handling | Output |
+|-------|----------|--------|
+| Empty string | Return default | "Untitled Relay" |
+| Single word | Return as-is | "Cache" |
+| All action verbs | Take first 3 words | "Build System" |
+| Non-English text | Basic word split still works | "Módulo De Caché" |
+| Special characters | Preserve but limit | "Cache: Module" |
+
+#### Rust Implementation
+
+**New File**: `backend/src/relay/title.rs`
+
+```rust
+use std::collections::HashSet;
+
+const MAX_TITLE_LEN: usize = 40;
+const DEFAULT_TITLE: &str = "Untitled Relay";
+
+/// Generate a concise title from relay task description
+pub fn generate_title(task: &str) -> String {
+    let task = task.trim();
+    
+    if task.is_empty() {
+        return DEFAULT_TITLE.to_string();
+    }
+    
+    // Step 1: Remove leading action verbs
+    let task = strip_action_verbs(task);
+    
+    // Step 2: Remove leading filler words
+    let task = strip_filler_words(task);
+    
+    // Step 3: Extract first phrase (3-6 words)
+    let words: Vec<&str> = task.split_whitespace().collect();
+    let phrase = if words.len() >= 3 {
+        words[..=2].join(" ")
+    } else {
+        words.join(" ")
+    };
+    
+    // Step 4: Truncate if too long
+    let phrase = if phrase.len() > MAX_TITLE_LEN {
+        format!("{}...", &phrase[..MAX_TITLE_LEN.saturating_sub(3)])
+    } else {
+        phrase
+    };
+    
+    // Step 5: Capitalize each word
+    capitalize_words(&phrase)
+}
+
+fn strip_action_verbs(task: &str) -> &str {
+    let action_verbs = [
+        "build", "create", "implement", "add", "fix", "update",
+        "write", "generate", "design", "develop", "refactor",
+        "make", "set", "get", "delete", "remove"
+    ];
+    
+    let lower = task.to_lowercase();
+    for verb in &action_verbs {
+        if lower.starts_with(verb) {
+            let rest = &task[verb.len()..];
+            return rest.trim_start_matches(|c| c == ' ' || c == ':' || c == '-');
+        }
+    }
+    
+    task
+}
+
+fn strip_filler_words(task: &str) -> &str {
+    let fillers = ["a", "an", "the", "with", "for", "from"];
+    
+    let lower = task.to_lowercase();
+    for filler in &fillers {
+        if lower.starts_with(filler) {
+            let rest = &task[filler.len()..];
+            return rest.trim_start_matches(|c| c == ' ');
+        }
+    }
+    
+    task
+}
+
+fn capitalize_words(phrase: &str) -> String {
+    phrase.split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => {
+                    first.to_uppercase().collect::<String>() + chars.as_str()
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_basic_extraction() {
+        assert_eq!(generate_title("Build a simple cache module"), "Simple Cache Module");
+    }
+    
+    #[test]
+    fn test_truncation() {
+        let long = "Create a very long task description that goes on and on";
+        let result = generate_title(long);
+        assert!(result.len() <= MAX_TITLE_LEN + 3); // +3 for "..."
+    }
+    
+    #[test]
+    fn test_empty_task() {
+        assert_eq!(generate_title(""), DEFAULT_TITLE);
+    }
+    
+    #[test]
+    fn test_single_word() {
+        assert_eq!(generate_title("Cache"), "Cache");
+    }
+}
+```
+
+#### Frontend Component Design
+
+**RelayRunCard.vue** (Updated)
+
+```vue
+<template>
+  <div class="relay-run-card" :class="{ active: isActive }">
+    <div class="run-header">
+      <h3 class="run-title" :title="run.task">
+        {{ displayTitle }}
+      </h3>
+      <span class="run-id" :title="run.run_id">
+        {{ shortRunId }}
+      </span>
+    </div>
+    
+    <div class="run-meta">
+      <span class="flow-badge">{{ flowLabel }}</span>
+      <span class="status-badge" :class="run.status">
+        {{ run.status }}
+      </span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+
+interface RelayRun {
+  run_id: string
+  title?: string
+  task: string
+  flow_id: string
+  status: string
+  created_at: string
+}
+
+const props = defineProps<{
+  run: RelayRun
+  isActive?: boolean
+}>()
+
+const displayTitle = computed(() => {
+  // Prefer auto-generated title, fall back to run_id
+  return props.run.title || props.run.run_id
+})
+
+const shortRunId = computed(() => {
+  // First 8 characters for compact display
+  return props.run.run_id.slice(0, 8)
+})
+
+const flowLabel = computed(() => {
+  // Convert snake_case to Title Case
+  return props.run.flow_id
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+})
+</script>
+
+<style scoped>
+.relay-run-card {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.relay-run-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.relay-run-card.active {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-bg);
+}
+
+.run-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.run-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-id {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  flex-shrink: 0;
+}
+
+.run-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.flow-badge,
+.status-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
+.flow-badge {
+  background: var(--color-arch-bg);
+  color: var(--color-arch);
+}
+
+.status-badge {
+  background: var(--color-status-bg);
+  color: var(--color-status);
+}
+
+.status-badge.completed {
+  background: var(--color-test-bg);
+  color: var(--color-test);
+}
+
+.status-badge.failed {
+  background: var(--color-review-bg);
+  color: var(--color-review);
+}
+</style>
+```
+
+**RelayDetailView.vue** (Updated Header)
+
+```vue
+<template>
+  <div class="relay-detail-view">
+    <header class="detail-header">
+      <div class="header-main">
+        <h1 class="detail-title">
+          {{ displayTitle }}
+        </h1>
+        <button class="edit-title-btn" @click="showEditDialog = true">
+          Edit
+        </button>
+      </div>
+      <div class="header-meta">
+        <span class="run-id-full">{{ run.run_id }}</span>
+        <span class="created-at">{{ formattedDate }}</span>
+      </div>
+    </header>
+    
+    <!-- Rest of detail view -->
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+
+const displayTitle = computed(() => {
+  return props.run.title || props.run.run_id
+})
+
+const formattedDate = computed(() => {
+  return new Date(props.run.created_at).toLocaleString()
+})
+</script>
+
+<style scoped>
+.detail-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header-main {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.detail-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.edit-title-btn {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.header-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.run-id-full {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+}
+</style>
+```
+
+#### UI Display Hierarchy
+
+**List View** (`RelayView.vue` grid):
+```
+┌─────────────────────────────────────┐
+│ Simple Cache Module    [run-abc123] │
+│ Post Discovery        ● Completed   │
+└─────────────────────────────────────┘
+```
+
+- **Title**: Prominent, left-aligned, truncated with ellipsis
+- **Run ID**: Small monospace badge, right-aligned
+- **Flow + Status**: Secondary badges below
+
+**Detail View** (`RelayDetailView.vue`):
+```
+┌─────────────────────────────────────┐
+│ Simple Cache Module          [Edit] │
+│ run-abc123-def4-5678-90ab         │
+│ Created: Jan 15, 2025, 10:30 AM   │
+└─────────────────────────────────────┘
+```
+
+- **Title**: Large, bold, editable
+- **Run ID**: Full monospace, smaller
+- **Metadata**: Date, flow, status in secondary row
+
+#### Fallback Strategy
+
+**Scenario**: Legacy runs without `title` field
+
+```typescript
+// Frontend fallback logic
+const displayTitle = computed(() => {
+  if (props.run.title) {
+    return props.run.title
+  }
+  
+  // Legacy run: generate title client-side
+  return generateTitleClientSide(props.run.task) || props.run.run_id
+})
+
+// Client-side generation (simpler version)
+function generateTitleClientSide(task: string): string | null {
+  const words = task.trim().split(/\s+/).slice(0, 4)
+  if (words.length >= 2) {
+    return words.map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+      .slice(0, 40)
+  }
+  return null
+}
+```
+
+**Benefits**:
+- Seamless upgrade path — old runs look better immediately
+- Server-side generation for new runs (consistent, cached)
+- Client-side fallback for legacy runs (best-effort)
+
+#### Character Encoding & Edge Cases
+
+**Unicode Support**:
+- Rust strings are UTF-8 by default
+- Title extraction works on Unicode boundaries
+- Truncation respects character boundaries (not byte offsets)
+
+```rust
+// Safe Unicode truncation
+if phrase.len() > MAX_TITLE_LEN {
+    let truncated = &phrase[..MAX_TITLE_LEN.saturating_sub(3)];
+    // Ensure we don't cut in middle of multi-byte char
+    let safe_truncated = truncated.char_indices()
+        .take_while(|(i, _)| *i <= MAX_TITLE_LEN - 3)
+        .map(|(_, c)| c)
+        .collect::<String>();
+    title = format!("{}...", safe_truncated);
+}
+```
+
+**Special Characters**:
+- Preserve punctuation in title (e.g., "Cache: Module")
+- Remove excessive punctuation (e.g., "Build... cache... module" → "Cache Module")
+- Handle emojis gracefully (count as single character)
+
+#### Testing Strategy
+
+**Unit Tests** (`backend/src/relay/title.rs`):
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    // Basic extraction
+    #[test]
+    fn test_simple_task() {
+        assert_eq!(generate_title("Build cache module"), "Cache Module");
+    }
+    
+    // Truncation
+    #[test]
+    fn test_long_task() {
+        let long = "Create comprehensive user authentication system with OAuth2 support";
+        let result = generate_title(long);
+        assert!(result.len() <= 43); // 40 + "..."
+        assert!(result.ends_with("..."));
+    }
+    
+    // Edge cases
+    #[test]
+    fn test_empty() {
+        assert_eq!(generate_title(""), "Untitled Relay");
+    }
+    
+    #[test]
+    fn test_single_word() {
+        assert_eq!(generate_title("Cache"), "Cache");
+    }
+    
+    #[test]
+    fn test_non_english() {
+        assert_eq!(generate_title("Créer module de cache"), "Module De Cache");
+    }
+    
+    // Action verb stripping
+    #[test]
+    fn test_action_verbs() {
+        assert_eq!(generate_title("Implement caching"), "Caching");
+        assert_eq!(generate_title("Add user auth"), "User Auth");
+        assert_eq!(generate_title("Fix login bug"), "Login Bug");
+    }
+}
+```
+
+**Integration Tests**:
+- Spawn relay run → verify title in response
+- List relay runs → verify all have titles
+- Legacy run migration → verify fallback works
+
+**E2E Tests** (Frontend):
+- Open Relay view → verify titles display
+- Click run → verify detail view shows title
+- Edit title → verify persistence
 
 ---
 

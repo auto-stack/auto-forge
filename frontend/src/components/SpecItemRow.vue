@@ -122,13 +122,15 @@ function parseTag(tag: string): { type: string; value: string; full: string } {
 
 .id-badge {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  padding: 0.2rem 0.5rem;
+  padding: 0.25rem 0.6rem;
   border-radius: 6px;
   background: hsl(var(--muted-foreground) / 0.08);
   color: var(--af-muted);
   flex-shrink: 0;
+  min-width: 3rem;
+  text-align: center;
 }
 
 .row-body {

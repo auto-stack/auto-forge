@@ -142,7 +142,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 3,
-            token_budget: 2_000,
+            token_budget: 2_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -169,7 +169,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![String::from("architect")],
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
-            token_budget: 8_000,
+            token_budget: 8_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -199,7 +199,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
-            token_budget: 12_000,
+            token_budget: 12_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -227,7 +227,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
-            token_budget: 8_000,
+            token_budget: 8_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -254,7 +254,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
-            token_budget: 8_000,
+            token_budget: 8_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -288,7 +288,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 15,
-            token_budget: 20_000,
+            token_budget: 20_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -319,7 +319,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
             max_turns: 10,
-            token_budget: 15_000,
+            token_budget: 15_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -339,6 +339,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             allowed_tools: vec![
                 String::from("read_file"),
                 String::from("read_specs"),
+                String::from("write_specs"),
                 String::from("list_specs"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
@@ -349,7 +350,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![],
             max_turns: 5,
-            token_budget: 4_000,
+            token_budget: 4_000_000,
             base_skills: Vec::new(),
         },
         Profession {
@@ -377,7 +378,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             approval_gates: vec![],
             dispatchable_to: vec![],
             max_turns: 5,
-            token_budget: 4_000,
+            token_budget: 4_000_000,
             base_skills: Vec::new(),
         },
     ]
@@ -394,15 +395,23 @@ pub fn load_or_generate_professions() -> Vec<Profession> {
     }
 
     let mut merged = existing;
-    let mut added = false;
+    let mut changed = false;
+
     for default in &defaults {
-        if !merged.iter().any(|p| p.id == default.id) {
+        if let Some(idx) = merged.iter().position(|p| p.id == default.id) {
+            // Update token_budget if default has changed (allows scaling budgets via code updates)
+            if merged[idx].token_budget != default.token_budget {
+                merged[idx].token_budget = default.token_budget;
+                changed = true;
+            }
+        } else {
+            // Add missing default profession
             merged.push(default.clone());
-            added = true;
+            changed = true;
         }
     }
 
-    if added {
+    if changed {
         let _ = save_professions(&merged);
     }
     merged

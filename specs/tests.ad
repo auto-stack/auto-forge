@@ -1,9 +1,389 @@
 # Tests
 
-> Executable verification criteria for the Agents Relay module.
+# Tests
+
+## TC-RELAY-001: Relay Run Completion Notification in Chat
+
+**Priority**: P0  
+**Status**: Draft  
+**Stakeholder**: UI Team, Core Team  
+**Related Goals**: G23 (Automatic Relay Mode), G8 (Chat-First Gate Approval)
+
+### Test Case
+
+When a Relay Run completes, the Assistant posts a notification message in the originating chat session where the relay was spawned, informing the user that the run has finished. If the relay produced a Report, the notification includes a clickable link to view that report.
+
+### Preconditions
+
+1. User has an active chat session with an agent (e.g., Planner)
+2. The agent has spawned a Relay Run using the `spawn_relay` tool
+3. The Relay Run ID is `run-abc123-def4-5678-90ab-cdef` and flow is `standard`
+4. The originating chat session ID is `forge-session-456`
+5. Chat SSE connection is active
+
+### Test Steps
+
+#### Scenario 1: Successful Completion without Report
+
+**Steps:**
+1. Relay Run spawns from chat via `spawn_relay` tool
+2. Run progresses through all steps (advisor → architect → planner → coder → tester)
+3. Pipeline status changes from `Running` to `Completed`
+4. Backend emits `RunEvent::RunCompleted` event
+5. Chat SSE stream receives `relay_complete` event
+6. Frontend renders system message bubble
+
+**Expected Result:**
+```json
+{
+  "type": "relay_complete",
+  "run_id": "run-abc123",
+  "status": "completed",
+  "title": "Cache Module Implementation",
+  "message": "✅ Relay run 'Cache Module Implementation' (run-abc123) completed successfully.",
+  "report_link": null,
+  "timestamp": 1736899200
+}
+```
+
+**Verification:**
+- [ ] Chat UI displays a system message bubble with distinct styling (gray background, info icon)
+- [ ] Message includes run title (auto-generated) and truncated run ID
+- [ ] No "View Report" button is shown
+- [ ] Message appears immediately after completion (no polling delay)
+- [ ] Run title matches auto-generated title from `relay::title::generate_title()`
 
 
-## Tests
+#### Scenario 2: Successful Completion with Report
+
+**Steps:**
+1. Relay Run includes `documenter` as final step
+2. Documenter agent writes report via `write_specs` tool
+3. Report saved to `specs/reports.ad` section with ID `R1`
+4. Pipeline completes successfully
+5. Notification includes report link
+
+**Expected Result:**
+```json
+{
+  "type": "relay_complete",
+  "run_id": "run-abc123",
+  "status": "completed",
+  "title": "Cache Module Implementation",
+  "message": "✅ Relay run 'Cache Module Implementation' (run-abc123) completed successfully.",
+  "report_link": {
+    "url": "/specs/reports?report_id=R1",
+    "report_id": "R1",
+    "report_title": "Cache Module Implementation Report"
+  },
+  "timestamp": 1736899200
+}
+```
+
+**Verification:**
+- [ ] "View Report" button appears in notification
+- [ ] Button is clickable and styled as primary action
+- [ ] Clicking link navigates to Specs view at Reports section
+- [ ] Report R1 is highlighted/scroll into view
+- [ ] URL query parameter `?report_id=R1` is present
+- [ ] Report title matches the one written by documenter
+
+
+#### Scenario 3: Failed Relay Run
+
+**Steps:**
+1. Relay Run encounters error (e.g., budget exceeded)
+2. Pipeline status changes to `Failed`
+3. Error details captured in `RunEvent::RunFailed`
+
+**Expected Result:**
+```json
+{
+  "type": "relay_complete",
+  "run_id": "run-abc123",
+  "status": "failed",
+  "title": "Cache Module Implementation",
+  "message": "❌ Relay run 'Cache Module Implementation' (run-abc123) failed: Budget exceeded: 5000 tokens spent vs 1000 limit.",
+  "report_link": null,
+  "error_details": {
+    "error": "Budget exceeded",
+    "tokens_spent": 5000,
+    "token_limit": 1000
+  },
+  "timestamp": 1736899200
+}
+```
+
+**Verification:**
+- [ ] Chat UI displays error notification with red/warning styling
+- [ ] Error message is user-friendly (no raw stack traces)
+- [ ] No report link is shown (failed runs don't produce reports)
+- [ ] User can click to view relay run details for debugging
+
+
+#### Scenario 4: Multiple Concurrent Runs
+
+**Steps:**
+1. User spawns Run A from chat
+2. User spawns Run B from same chat
+3. Run A completes, then Run B completes
+
+**Expected Result:**
+- [ ] Each run sends its own `relay_complete` event
+- [ ] Two separate notification messages appear in chat
+- [ ] Messages appear in completion order (A then B)
+- [ ] Run IDs are distinct and correctly associated
+
+
+#### Scenario 5: SSE Reconnection After Completion
+
+**Steps:**
+1. Relay Run is executing
+2. SSE connection temporarily disconnects
+3. Run completes while disconnected
+4. Client reconnects to SSE stream
+
+**Expected Result:**
+- [ ] `relay_complete` event is replayed from `RunEntry.events` log
+- [ ] Notification appears upon reconnection
+- [ ] No events are lost
+- [ ] Client-side deduplication prevents duplicate messages
+
+
+### Acceptance Criteria
+
+#### Backend Requirements
+- [ ] `relay::driver` emits `relay_complete` event when pipeline status is `Completed` or `Failed`
+- [ ] Event includes: `run_id`, `status`, `title`, `message`, `report_link` (optional), `timestamp`
+- [ ] `run_id` is truncated to first 8 characters for display
+- [ ] `title` uses auto-generated title from `relay::title::generate_title()`
+- [ ] If Report was generated, `report_link` includes `url`, `report_id`, and `report_title`
+- [ ] Error messages are sanitized and user-friendly
+- [ ] Event is persisted in `RunEntry.events` for SSE replay
+
+#### Frontend Requirements
+- [ ] Chat SSE listener handles `relay_complete` event type
+- [ ] System message bubble has distinct styling (gray background, info icon)
+- [ ] Success messages show ✅ emoji, failures show ❌
+- [ ] "View Report" button only appears when `report_link` is present
+- [ ] Button is styled as primary action (blue/primary color)
+- [ ] Clicking report link navigates to `/specs/reports?report_id={id}`
+- [ ] Specs view highlights the report and scrolls it into view
+- [ ] Multiple notifications create separate message bubbles
+- [ ] Notifications are not editable (system messages)
+
+#### Integration Requirements
+- [ ] `relay::driver` communicates with chat module via event broadcast
+- [ ] Event includes `chat_session_id` to route to correct chat
+- [ ] Report detection checks `HandoffDocument` for `generated_report` field OR queries specs store
+- [ ] Run metadata stores originating `chat_session_id` for routing
+
+
+### Test Data
+
+**Successful Run Event:**
+```rust
+RunEvent::RunCompleted
+```
+
+**Failed Run Event:**
+```rust
+RunEvent::RunFailed { 
+    error: "Budget exceeded: 5000 tokens spent vs 1000 limit".to_string() 
+}
+```
+
+**Report-Generating Handoff:**
+```rust
+HandoffDocument {
+    from: "documenter",
+    to: "done",
+    summary: "Generated implementation report",
+    generated_report: Some("R1".to_string()), // NEW FIELD
+    // ... other fields
+}
+```
+
+**Run Metadata (NEW):**
+```rust
+pub struct RunMetadata {
+    pub originating_chat_session: Option<String>, // Chat that spawned this run
+    pub title: Option<String>, // Auto-generated title
+}
+```
+
+
+### Integration Points
+
+| Module | Responsibility | Changes Needed |
+|--------|---------------|----------------|
+| `relay::driver` | Detect completion, emit notification | ✅ Add `relay_complete` event emission |
+| `relay::store` | Persist run events, metadata | ✅ Add `RunMetadata` to `RunEntry` |
+| `relay::handoff` | Report generation metadata | ✅ Add `generated_report` field |
+| `relay::title` | Auto-generate run titles | ✅ Already implemented |
+| `forge::mod` | Chat SSE event routing | ✅ Add `relay_complete` to `ForgeStreamEvent` |
+| Frontend Chat | Render notification UI | ✅ Handle `relay_complete` event |
+| Frontend Specs | Navigate to report | ✅ Parse `?report_id=` query param |
+
+
+### Edge Cases and Error Handling
+
+| Scenario | Expected Behavior |
+|----------|------------------|
+| Run completed before chat reconnection | Notification replayed from `RunEntry.events` |
+| Report generation failed | Run completes but `report_link` is `null` |
+| Chat session closed during run | Notification queued; appears on next open |
+| Run spawned from different chat | Notification goes to originating chat only |
+| Multiple runs from same chat | Each run sends separate notification |
+| Run title generation fails | Fallback to truncated `run_id` as title |
+| Report link points to non-existent report | Link still shown; Specs shows "Report not found" |
+| SSE event delivery fails | Event logged; frontend may poll as fallback |
+
+
+### Unit Tests
+
+**Test: `relay::driver::tests::test_emits_completion_event_on_success`**
+```rust
+#[test]
+fn test_emits_completion_event_on_success() {
+    // Setup: Run with 2 steps, spawn driver
+    // Execute: Advance through all steps
+    // Assert: `relay_complete` event emitted with status="completed"
+    // Assert: Event includes run_id, title, message
+    // Assert: report_link is None (no documenter)
+}
+```
+
+**Test: `relay::driver::tests::test_emits_completion_event_on_failure`**
+```rust
+#[test]
+fn test_emits_completion_event_on_failure() {
+    // Setup: Run with tight budget
+    // Execute: Exceed budget
+    // Assert: `relay_complete` event emitted with status="failed"
+    // Assert: Error message is user-friendly
+}
+```
+
+**Test: `relay::driver::tests::test_includes_report_link_when_generated`**
+```rust
+#[test]
+fn test_includes_report_link_when_generated() {
+    // Setup: Run with documenter step
+    // Execute: Documenter writes report
+    // Assert: report_link includes report_id and URL
+}
+```
+
+**Test: `forge::mod::tests::test_relay_complete_event_routing`**
+```rust
+#[test]
+fn test_relay_complete_event_routing() {
+    // Setup: Chat session with ID, active SSE
+    // Execute: Emit `relay_complete` event
+    // Assert: Event routed to correct chat session
+    // Assert: SSE stream includes event
+}
+```
+
+
+### Integration Tests
+
+**Test: `e2e_relay_completion_with_report`**
+```rust
+#[tokio::test]
+async fn e2e_relay_completion_with_report() {
+    // 1. Create chat session
+    // 2. Spawn relay with documenter step
+    // 3. Wait for completion
+    // 4. Verify SSE event received
+    // 5. Verify report link present and valid
+    // 6. Click link, verify navigation
+}
+```
+
+**Test: `e2e_relay_failure_notification`**
+```rust
+#[tokio::test]
+async fn e2e_relay_failure_notification() {
+    // 1. Create chat session
+    // 2. Spawn relay that will fail (budget exceeded)
+    // 3. Wait for failure event
+    // 4. Verify error notification rendered
+}
+```
+
+
+### Manual Testing Checklist
+
+- [ ] Open chat, spawn relay, observe completion notification
+- [ ] Verify run title is auto-generated (e.g., "Cache Module" from "Build a cache module")
+- [ ] Click report link, verify navigation to Specs
+- [ ] Test failed run scenario (exceed budget)
+- [ ] Test with multiple concurrent runs from same chat
+- [ ] Test SSE reconnection after completion
+- [ ] Verify notification persists across chat session close/reopen
+- [ ] Verify notification appears in originating chat only
+- [ ] Test with different flows (standard, post_discovery, fast_track)
+- [ ] Verify emoji indicators (✅ success, ❌ failure)
+
+
+### Open Questions
+
+1. **Report Metadata Storage**: Should `SpecItem` for reports include `run_id` field?
+   - **Recommendation**: Yes, add `run_id` to `SpecItem` for traceability
+
+2. **Notification Persistence**: Should notifications persist as system messages in `ForgeSession.messages`?
+   - **Recommendation**: Yes, store as system messages for chat history
+
+3. **Run Metadata**: Where to store originating `chat_session_id`?
+   - **Recommendation**: Add `RunMetadata` struct to `RunEntry` with `originating_chat_session` field
+
+4. **Legacy Runs**: How to handle runs completed before notification feature?
+   - **Recommendation**: Feature flag; only emit for runs created after deployment
+
+5. **Notification Preferences**: Should users be able to disable notifications?
+   - **Recommendation**: Add user preference flag (future enhancement, not P0)
+
+
+### Implementation Plan
+
+#### Phase 1: Backend Event Emission
+1. Add `RelayCompleteNotification` event struct
+2. Modify `relay::driver` to emit on completion/failure
+3. Add `RunMetadata` to `RunEntry` (store chat_session_id, title)
+4. Add `generated_report` field to `HandoffDocument`
+5. Persist notification in `RunEntry.events`
+
+#### Phase 2: Chat Integration
+1. Add `RelayComplete` variant to `ForgeStreamEvent`
+2. Route events to originating chat session
+3. Emit via SSE to connected clients
+4. Handle SSE replay on reconnection
+
+#### Phase 3: Frontend UI
+1. Add `relay_complete` event handler in chat component
+2. Render system message bubble with styling
+3. Add "View Report" button when `report_link` present
+4. Implement navigation to Specs with report highlight
+
+#### Phase 4: Report Link
+1. Add `run_id` field to `SpecItem` for reports
+2. Implement report detection logic
+3. Generate link with `?report_id=` query param
+4. Handle navigation in Specs view
+
+
+### References
+
+- **Relay Module**: `backend/src/relay/mod.rs`
+- **Relay Driver**: `backend/src/relay/driver.rs`
+- **Relay Store**: `backend/src/relay/store.rs` - `RunEntry`, `RunEvent`
+- **Pipeline**: `backend/src/relay/pipeline.rs` - `PipelineStatus`
+- **Handoff**: `backend/src/relay/handoff.rs` - `HandoffDocument`
+- **Chat Module**: `backend/src/forge/mod.rs` - `ForgeStreamEvent`, `ForgeSession`
+- **Title Generation**: `backend/src/relay/title.rs` - `generate_title()`
+- **Relay API**: `backend/src/relay/api.rs` - SSE event broadcasting
 
 ---
 

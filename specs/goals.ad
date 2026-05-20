@@ -1,42 +1,5 @@
 # Goals
 
-> AutoForge Agents module enables spec-driven serial cooperation of profession-bearing AI agents, maximizing quality and token efficiency through relay orchestration.
-
-
-## Goals
-
-| ID | Goal | Priority | Status | Stakeholder |
-|---|---|---|---|---|
-| G1 | Agent Identity System supports Soul, Profession, and Model configuration per agent | P0 | Done | Tooling Team |
-| G2 | Relay Orchestrator executes serial agent flows with baton passing and gate enforcement | P0 | Implemented | Tooling Team |
-| G3 | Handoff Protocol compresses context between agents, achieving ~5× token savings vs parallel multi-agent | P0 | Implemented | Tooling Team |
-| G4 | Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss | P0 | Implemented | Tooling Team |
-| G5 | Token Budgeting tracks and enforces per-step spend with cost analytics visible in Agents view | P1 | Implemented | Tooling Team |
-| G6 | Boss-first execution: GSD mode runs autonomously with optional Check mode for gate review | P0 | Done | Tooling Team |
-| G7 | Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category | P0 | Done | Tooling Team |
-| G8 | Chat-First Gate Approval with Smart Secretary | P0 | Implemented | UI Team |
-| G9 | Specs Workspace with Bidirectional Traceability | P0 | Implemented | UI Team |
-| G10 | Live Relay Pipeline Visualization | P0 | Implemented | UI Team |
-| G10.5 | Cross-View Event Router & Gate Inbox routes SSE events and manages cross-session gate queue | P0 | Implemented | Core Team |
-| G11 | Responsive and Accessible Frontend | P1 | Implemented | UI Team |
-| G11.5 | Theme & Accent Color System provides dark/light/theme switching and curated accent palettes | P1 | Implemented | UI Team |
-| G12 | Project Concept enables VS Code–style folder opening with persistent workspace | P0 | Done | Core Team |
-| G13 | API Source Configuration supports multi-provider LLM management with auto-detection and model tiers | P0 | Proposed | Core Team |
-| G14 | Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming | P0 | Done | Core Team |
-| G15 | CLI Mode provides interactive REPL chat as forge chat subcommand | P1 | Removed | Core Team |
-| G16 | @Mention Agent Targeting directs chat messages to named agents with sticky profession routing | P0 | Implemented | UI Team |
-| G16.3 | Streaming Content Renderer parses mixed markdown/JSON blocks in real-time chat streams | P0 | Implemented | UI Team |
-| G17 | Bring-In Tool enables agents to hand off mid-conversation with structured context transfer | P0 | Proposed | Core Team |
-| G18 | Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing | P0 | Done | Docs Team |
-| G19 | AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content | P1 | Proposed | Docs Team |
-| G20 | Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search with hierarchical tags and tag cloud navigation | P1 | Proposed | Docs Team |
-| G21 | Hierarchical Goals View enables one-level tree display with parent-child relationships and typed tag-based classification | P0 | Implemented | UI Team |
-| G22 | Errand Agent Dispatch enables any profession to offload research tasks without context pollution | P0 | Implemented | Core Team |
-| G23 | Automatic Relay Mode lets chat agents spawn background relay pipelines without chat pollution | P0 | Implemented | Core Team |
-| G24 | Explorer Module provides VS Code–style file tree and content preview for opened projects | P0 | Implemented | Core Team |
-| G25 | APIs Documentation View renders backend endpoint documentation from specs/apis.ad | P1 | Implemented | Docs Team |
-| G26 | **Spec ID Visibility displays spec IDs (e.g., A11, D5, P3) in the title bar of all spec views beyond Goals** | P1 | Proposed | UI Team |
-
 ---
 
 ## G1 Agent Identity System supports Soul, Profession, and Model configuration per agent
@@ -52,12 +15,6 @@
 
 The Agent Identity separates *who the agent is* (Soul), *what it can do* (Profession), and *what cognitive substrate it uses* (Model). This enables fine-grained control over agent behavior and cost optimization through model tiering.
 
----
-
----
-
----
-
 ## G2 Relay Orchestrator executes serial agent flows with baton passing and gate enforcement
 **Status:** implemented
 **Tags:** stack:backend, module:relay
@@ -70,12 +27,6 @@ The Agent Identity separates *who the agent is* (Soul), *what it can do* (Profes
 - [x] Loop bounds and error routing prevent infinite cycles
 
 The Orchestrator is pure deterministic code (Rust), not an LLM. It reads Flow specs, manages the Pipeline state machine, and routes batons. This eliminates token spend on coordination and makes routing predictable.
-
----
-
----
-
----
 
 ## G3 Handoff Protocol compresses context between agents, achieving ~5× token savings vs parallel multi-agent
 **Status:** implemented
@@ -90,12 +41,6 @@ The Orchestrator is pure deterministic code (Rust), not an LLM. It reads Flow sp
 
 The Handoff Protocol is the core token-efficiency mechanism. By discarding chat history and summarizing work product, agents start each turn with minimal context. Parallel multi-agent systems suffer O(N×K) token overhead; relay reduces this to O(sum of scoped contexts).
 
----
-
----
-
----
-
 ## G4 Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss
 **Status:** implemented
 **Tags:** stack:backend, module:runtime
@@ -109,12 +54,6 @@ The Handoff Protocol is the core token-efficiency mechanism. By discarding chat 
 
 Since agents "work longer rather than quicker," flows may run for hours or days. Checkpointing makes this safe. On resume, the next agent starts fresh from the Handoff Document — token cost is identical to continuous execution.
 
----
-
----
-
----
-
 ## G5 Token Budgeting tracks and enforces per-step spend with cost analytics visible in Agents view
 **Status:** implemented
 **Tags:** stack:backend, module:runtime
@@ -127,12 +66,6 @@ Since agents "work longer rather than quicker," flows may run for hours or days.
 - [x] Cost analytics persist across checkpoints
 
 Token budgeting makes cost a first-class constraint. The Agents view compares actual relay cost against estimated parallel-swarm cost to demonstrate savings.
-
----
-
----
-
----
 
 ## G6 Boss-first execution: GSD mode runs autonomously with optional Check mode for gate review
 **Status:** implemented
@@ -148,12 +81,6 @@ Token budgeting makes cost a first-class constraint. The Agents view compares ac
 
 The human is the boss, not a coworker. The default behavior is autonomous execution. The boss gives one order and receives a Report. Human gates are opt-in, not mandatory.
 
----
-
----
-
----
-
 ## G7 Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category
 **Status:** implemented
 **Tags:** stack:both, module:specs
@@ -167,22 +94,12 @@ The human is the boss, not a coworker. The default behavior is autonomous execut
 
 Specs are internal decision records (how to build). Products are shipped artifacts (code + public docs). Interface contracts are design specs; public API docs are generated products.
 
----
-
----
-
 ## G8 Chat-First Gate Approval with Smart Secretary
 **Status:** implemented
 **Tags:** stack:frontend, module:chat
 **Depends on:** G6, G7
 
 The chat is the boss's office. All gates, regardless of origin, are delivered here. The secretary only enters when a signature is needed or the job is done.
-
----
-
----
-
----
 
 ## G8.1 Inline GateCard renders diff view with Approve/Reject/Edit
 **Status:** implemented
@@ -194,13 +111,6 @@ The chat is the boss's office. All gates, regardless of origin, are delivered he
 - [x] Approve button advances pipeline; Reject button prompts for reason and routes back to Advisor
 - [x] Edit escape hatch opens Specs drawer without losing gate state
 
-
----
-
----
-
----
-
 ## G8.2 SecretaryMessage delivers cross-session gates without blocking input
 **Status:** implemented
 **Tags:** stack:frontend, module:chat
@@ -210,13 +120,6 @@ The chat is the boss's office. All gates, regardless of origin, are delivered he
 - [x] Input bar remains usable; secretary waits without interrupting
 - [x] Message shows profession, session ID, and summary of proposed items
 - [x] Resolved messages collapse to compact audit line after 3 seconds
-
-
----
-
----
-
----
 
 ## G8.3 Gate queue enforces one-at-a-time delivery with snooze and dismiss
 **Status:** implemented
@@ -228,13 +131,6 @@ The chat is the boss's office. All gates, regardless of origin, are delivered he
 - [x] Snooze moves gate to back of queue with configurable timer
 - [x] Dismiss removes gate from active view but does not resolve it
 
-
----
-
----
-
----
-
 ## G8.4 Ambient progress indicators keep chat history free of status spam
 **Status:** implemented
 **Tags:** stack:frontend, module:chat
@@ -245,25 +141,12 @@ The chat is the boss's office. All gates, regardless of origin, are delivered he
 - [x] Errors are the only exception: single secretary message on unrecoverable failure
 - [x] ReportCard renders terminal completion with metrics, cost, and deliverables
 
-
----
-
----
-
----
-
 ## G9 Specs Workspace with Bidirectional Traceability
 **Status:** implemented
 **Tags:** stack:frontend, module:specs
 **Depends on:** G7, G8
 
 Specs are not flat documents — they form a live decision pyramid. Every Plan traces back to a Goal, every Test verifies a Design. The frontend makes this traceability the primary navigation model.
-
----
-
----
-
----
 
 ## G9.1 Seven spec categories render with structured per-category editors
 **Status:** implemented
@@ -278,13 +161,6 @@ Specs are not flat documents — they form a live decision pyramid. Every Plan t
 - [x] Reviews cards with criterion counts
 - [x] Reports dashboard with metric bars
 
-
----
-
----
-
----
-
 ## G9.2 RelationsPanel shows upstream parents and downstream children
 **Status:** implemented
 **Tags:** stack:frontend, module:specs
@@ -294,13 +170,6 @@ Specs are not flat documents — they form a live decision pyramid. Every Plan t
 - [x] Each relation entry shows ID, title, section type, and status badge
 - [x] Clicking a relation jumps to target section, expands item, and flashes highlight
 - [x] Backend auto-rebuilds related field on every document save
-
-
----
-
----
-
----
 
 ## G9.3 AutoLinkContent parses typed IDs into clickable hyperlinks
 **Status:** implemented
@@ -312,13 +181,6 @@ Specs are not flat documents — they form a live decision pyramid. Every Plan t
 - [x] Clicking a link triggers jumpToItem with section switch + scroll + flash
 - [x] Non-ID text renders as normal markdown
 
-
----
-
----
-
----
-
 ## G9.4 Drift Check button compares code against specs on demand
 **Status:** implemented
 **Tags:** stack:both, module:specs
@@ -329,25 +191,12 @@ Specs are not flat documents — they form a live decision pyramid. Every Plan t
 - [x] Flags mismatches with drift status on affected goals
 - [x] Results render in a summary panel with severity indicators
 
-
----
-
----
-
----
-
 ## G10 Live Relay Pipeline Visualization
 **Status:** implemented
 **Tags:** stack:frontend, module:relay
 **Depends on:** G6, G8
 
 The Relay view is the factory floor CCTV. The boss glances at the session sidebar to know work is happening; engineers open Relay to diagnose handoffs, token burn, and tool call history.
-
----
-
----
-
----
 
 ## G10.1 Node-graph renders connected dots with animated handoff lines
 **Status:** implemented
@@ -359,13 +208,6 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] Connectors animate with traveling dot during handoff
 - [x] Mobile collapses to vertical timeline with CSS border-left connectors
 
-
----
-
----
-
----
-
 ## G10.2 Expanded node cards show real-time token burn and current action
 **Status:** implemented
 **Tags:** stack:frontend, module:relay
@@ -375,13 +217,6 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] Overview tab shows tokens consumed, elapsed time, status, profession icon
 - [x] Actions tab shows chronological tool call history
 - [x] Output tab lists specs touched with click-to-jump links
-
-
----
-
----
-
----
 
 ## G10.3 Tester→Coder retry loop visualizes as backward edge with counter
 **Status:** implemented
@@ -393,13 +228,6 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] Coder node shows "Retry N/3" badge during loop
 - [x] After max iterations, error routes to Reviewer instead
 
-
----
-
----
-
----
-
 ## G10.4 Live Log and Cost Breakdown panels stream relay diagnostics
 **Status:** implemented
 **Tags:** stack:frontend, module:relay
@@ -409,13 +237,6 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] Specs Touched panel shows mutated sections with click-to-jump
 - [x] Cost Breakdown shows per-profession token bars and cumulative spend
 - [x] All panels update via SSE without page refresh
-
-
----
-
----
-
----
 
 ## G10.5 Cross-View Event Router & Gate Inbox
 **Status:** implemented
@@ -427,22 +248,12 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] Secretary promotion logic: gates from other sessions surface in active chat without blocking input
 - [x] Badge counts on nav rail tabs reflect pending gates/errands per view
 
----
-
----
-
 ## G11 Responsive and Accessible Frontend
 **Status:** implemented
 **Tags:** stack:frontend, module:ui-system
 **Depends on:** G8, G9, G10
 
 The frontend must work for the boss on a laptop, the engineer on a tablet, and the contributor with a keyboard or screen reader.
-
----
-
----
-
----
 
 ## G11.1 Layout adapts to desktop, tablet, and mobile breakpoints
 **Status:** implemented
@@ -453,13 +264,6 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] Tablet (1024–1279px): Zone C collapses to toggle drawer
 - [x] Mobile (<1024px): single column with tab nav and bottom sheets
 - [x] No horizontal scroll on any breakpoint
-
-
----
-
----
-
----
 
 ## G11.2 Keyboard shortcuts navigate between views without mouse
 **Status:** implemented
@@ -472,13 +276,6 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] Ctrl+K opens jump-to-ID dialog
 - [x] Shortcuts work from any focused element
 
-
----
-
----
-
----
-
 ## G11.3 Focus management guides users through gate approval flows
 **Status:** implemented
 **Tags:** stack:frontend, module:ui-system
@@ -488,13 +285,6 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] Secretary message receives focus on arrival; Escape dismisses
 - [x] Tab order is logical within diff views and expanded cards
 - [x] Focus traps do not prevent reaching browser chrome
-
-
----
-
----
-
----
 
 ## G11.4 Screen reader annotations describe node graph and relations
 **Status:** implemented
@@ -506,10 +296,6 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] Live Log announces new entries with polite live region
 - [x] All interactive elements have accessible names
 
----
-
----
-
 ## G11.5 Theme & Accent Color System
 **Status:** implemented
 **Tags:** stack:frontend, module:ui-system
@@ -519,10 +305,6 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] Five curated accent palettes (indigo, coral, ocean, sage, amber) applied via CSS custom properties
 - [x] Theme class syncs to `<html>` element for Tailwind dark mode compatibility
 - [x] Accent color picker accessible from app header/settings area
-
----
-
----
 
 ## G12 Project Concept enables VS Code–style folder opening with persistent workspace
 **Status:** done
@@ -543,12 +325,6 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 
 AutoForge operates on a user-chosen project directory, just like VS Code. On first launch the workspace is empty; the user opens a folder and specs are loaded from its specs/ subdirectory. The last project is remembered across restarts.
 
----
-
----
-
----
-
 ## G13 API Source Configuration supports multi-provider LLM management with auto-detection and model tiers
 **Status:** proposed
 **Tags:** stack:backend, module:api-sources
@@ -567,12 +343,6 @@ AutoForge operates on a user-chosen project directory, just like VS Code. On fir
 
 Currently AutoForge only supports Anthropic Claude with a hardcoded API key path. G13 introduces a configurable multi-provider system so agents can use different LLM backends. The APIs view sits as a top-level navigation tab alongside Chat, Specs, and Relay, because Tools and Skills views will follow the same pattern in the future.
 
----
-
----
-
----
-
 ## G14 Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming
 **Status:** done
 **Tags:** stack:backend, module:provider
@@ -588,24 +358,12 @@ Currently AutoForge only supports Anthropic Claude with a hardcoded API key path
 
 The provider/ module is the unified AI communication layer, ported from auto-code-rs and merged with auto-forge's existing Claude integration. It replaces both the old ai.rs and forge/ai.rs modules, providing a single entry point for all LLM interactions with structured types and robust SSE parsing.
 
----
-
----
-
----
-
 ## G15 CLI Mode provides interactive REPL chat as forge chat subcommand
 **Status:** draft
 **Tags:** stack:backend, module:cli
 **Depends on:** G14
 
 CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-driven system — a CLI REPL is not part of its core workflow. The provider, runtime, and tool modules remain; only the CLI entry point and REPL loop were removed.
-
----
-
----
-
----
 
 ## G16 @Mention Agent Targeting directs chat messages to named agents with sticky profession routing
 **Status:** implemented
@@ -623,10 +381,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [x] Tool names renamed from jade to specs (list_jade→list_specs, etc.)
 - [x] All tools resolve file paths via project directory instead of backend CWD
 
----
-
----
-
 ## G16.1 Display name resolution and identity
 **Status:** implemented
 **Tags:** stack:frontend, module:chat
@@ -636,10 +390,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [x] `resolveMention()` maps both display names and profession_ids to canonical profession_id
 - [x] `AgentInstance.display_name` propagated through `spawn_agent_from_config()`
 - [x] System prompt leads with "You are {display_name}" instead of "AutoForge"
-
----
-
----
 
 ## G16.2 @Mention autocomplete with backdrop overlay
 **Status:** implemented
@@ -651,12 +401,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [x] Backdrop overlay technique renders styled @mention chips behind transparent textarea
 - [x] Selection replaces `@filter` with `@DisplayName ` at cursor position
 
----
-
----
-
----
-
 ## G16.3 Streaming Content Renderer with Mixed Markdown/JSON
 **Status:** implemented
 **Tags:** stack:frontend, module:chat
@@ -666,10 +410,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [x] `StreamingRenderer` dispatches to component registry (table → `StreamingTable`, etc.)
 - [x] Sticky props cache handles incomplete/partial JSON without flicker
 - [x] Integrates with `markstream-vue` for incremental markdown rendering
-
----
-
----
 
 ## G17 Bring-In Tool enables agents to hand off mid-conversation with structured context transfer
 **Status:** proposed
@@ -684,10 +424,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [ ] Profession `allowed_tools` enforcement — only professions that have `bring_in` in their tool list can invoke it
 - [ ] Handoff restricted to professions listed in `handoff_to` (Nicole can hand off to advisor/coder, not arbitrary targets)
 
----
-
----
-
 ## G17.1 bring_in tool definition and backend handler
 **Status:** proposed
 **Tags:** stack:backend, module:relay
@@ -700,10 +436,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [ ] Validation: target must be in caller's `handoff_to` list
 - [ ] Session saved after handoff so state survives reconnects
 
----
-
----
-
 ## G17.2 Handoff note injection into conversation
 **Status:** proposed
 **Tags:** stack:backend, module:relay
@@ -714,10 +446,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [ ] New agent sees full conversation history + handoff note (does not ask user to repeat)
 - [ ] Handoff system messages excluded from frontend display (shown as handoff card instead)
 
----
-
----
-
 ## G17.3 Frontend handoff visualization
 **Status:** proposed
 **Tags:** stack:frontend, module:relay
@@ -726,13 +454,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [ ] Handoff card in chat stream showing "Nicole → Isaac" with reason and classification badge
 - [ ] Active profession badge updates when handoff occurs (phase_change or dedicated SSE event)
 - [ ] Handoff tool_call and tool_result rendered as a compact card, not raw tool output
-
-
----
-
----
-
----
 
 ## G18 Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
 **Status:** done
@@ -755,12 +476,6 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 
 Wiki is AutoForge's **knowledge index & compression layer**. It stores objective, reusable reference material (chip manuals, technical specs, best practices) — separate from Specs which store project-specific engineering constraints. The `raw/` directory holds original documents; agents (Documenter) process raw content into structured wiki pages.
 
----
-
----
-
----
-
 ## G19 AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
 **Status:** proposed
 **Tags:** stack:frontend, module:editor
@@ -775,12 +490,6 @@ Wiki is AutoForge's **knowledge index & compression layer**. It stores objective
 
 AutoDown Editor is a Tiptap-based rich text editor that presents Markdown content as editable blocks. Each paragraph, heading, list, code block, and custom element is a distinct block with interactive Vue rendering. The editor serializes to clean Markdown for backend persistence and extends to AutoDown syntax for project-specific block types.
 
----
-
----
-
----
-
 ## G19.1 Phase 1 — Markdown WYSIWYG Editor
 **Status:** proposed
 **Tags:** stack:frontend, module:editor
@@ -794,12 +503,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - [ ] Replaces `MarkdownEditor.vue` in Wiki and Spec views
 - [ ] Markdown round-trip: load from string, save to string, no data loss
 
----
-
----
-
----
-
 ## G19.2 Phase 2 — AutoDown Extensions
 **Status:** proposed
 **Tags:** stack:frontend, module:editor
@@ -812,12 +515,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - [ ] Custom `marked` tokenizers for each AutoDown syntax extension
 - [ ] Each extension is a self-contained pair: Tiptap Node + Vue component
 
----
-
----
-
----
-
 ## G19.3 Phase 3 — Advanced Editing Features
 **Status:** proposed
 **Tags:** stack:frontend, module:editor
@@ -827,13 +524,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - [ ] Real-time collaborative cursors (Yjs integration)
 - [ ] AI-assisted inline completion
 - [ ] Version diff view between two document states
-
-
----
-
----
-
----
 
 ## G20 Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search
 **Status:** proposed
@@ -845,10 +535,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - [ ] Tag cloud navigation for browsing by topic
 - [ ] Search indexing for raw file content (PDF text extraction)
 - [ ] Context-aware search scoped to current project
-
----
-
----
 
 ## G21 Hierarchical Goals View
 **Status:** implemented
@@ -899,7 +585,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
    - Filtered items use AND logic: item must match at least one selected stack AND at least one selected module
    - Default expanded state for all drawers
 
-
 | Decision | Choice |
 |----------|--------|
 | Hierarchy Depth | One level (parent → subgoals only) |
@@ -917,12 +602,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - Sidebar filtering works across all categories with Stack/Module drawers
 - All branches collapsed on initial load
 
----
-
----
-
----
-
 ## G22 Errand Agent Dispatch enables any profession to offload research tasks without context pollution
 **Status:** implemented
 **Tags:** stack:backend, module:errand
@@ -935,7 +614,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - [x] Full errand chat log persisted and visible in same session view for boss audit
 - [x] Errand agents do NOT participate in relay pipeline — no `handoff_to`, no approval gates
 - [x] Gofer uses cheapest configured model tier (e.g., Claude Haiku or GPT-4o-mini)
-
 
 1. **Dispatch Tool Interface**
    - Any profession calls `dispatch` with: `agent` (profession_id, default "gofer"), `task` (string), `context` (optional caller context)
@@ -966,7 +644,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
    - Boss can expand to see all tool calls, reasoning, and intermediate outputs
    - Errand thread shows token cost separately from master session cost
 
-
 | Decision | Choice |
 |----------|--------|
 | Dispatch mechanism | Tool-based (`dispatch` tool) not `bring_in` |
@@ -982,10 +659,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - Errand thread visible and expandable in frontend
 - Gofer runs on cheapest model, saving ~80% on errand token cost vs master model
 - Errand completes within 20 turns or returns truncated result
-
----
-
----
 
 ## G23 Automatic Relay Mode
 **Status:** implemented
@@ -1027,7 +700,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
    - `AgentTurn::to_handoff()` uses real token counts instead of estimates
    - Tool guard added to `AgentTurn::run()` to block tools not in profession's `allowed_tools`
 
-
 | Decision | Choice |
 |----------|--------|
 | Trigger mechanism | Tool-based (`spawn_relay`) not system watcher |
@@ -1040,10 +712,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - `post_discovery` flow added to built-in flows alongside `standard`, `fast_track`, `bug_fix`
 - Relay API exposes `run_store()` and `event_sender()` for forge module access
 
----
-
----
-
 ## G24 Explorer Module for VS Code–style File Tree and Content Preview
 **Status:** implemented
 **Tags:** stack:frontend, module:ui-system
@@ -1054,10 +722,6 @@ AutoDown Editor is a Tiptap-based rich text editor that presents Markdown conten
 - [x] Client-side search filters tree nodes by filename
 - [x] Close-project button in sidebar toolbar; project indicator in nav rail
 - [x] Keyboard shortcut `Ctrl+0` opens Explorer view
-
----
-
----
 
 ## G25 APIs Documentation View
 **Status:** implemented

@@ -6,10 +6,10 @@
 //! result that can be turned into a HandoffDocument.
 
 use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest, ClaudeProviderState};
-use crate::forge::tools::{ToolDefinition, ToolRegistry};
+use crate::forge::tools::{set_current_profession, ToolDefinition, ToolRegistry};
 use crate::relay::agent::AgentInstance;
 use crate::relay::budget::{BudgetAction, BudgetTracker};
-use crate::relay::handoff::HandoffDocument;
+use crate::relay::handoff::{HandoffDocument, SpecUpdate};
 use serde_json::Value;
 
 /// Events emitted during an agent turn.
@@ -38,8 +38,10 @@ pub struct TurnResult {
     pub assistant_text: String,
     /// Tool calls made during the turn.
     pub tool_calls: Vec<ToolCallRecord>,
-    /// Total tokens consumed this turn.
-    pub tokens_used: u64,
+    /// Input tokens consumed this turn.
+    pub input_tokens: u64,
+    /// Output tokens consumed this turn.
+    pub output_tokens: u64,
     /// Whether the agent explicitly called the `handoff` tool.
     pub handoff_requested: bool,
     /// Decisions extracted from the turn text.
@@ -48,6 +50,8 @@ pub struct TurnResult {
     pub open_questions: Vec<String>,
     /// Files touched during this turn.
     pub files_touched: Vec<String>,
+    /// Spec sections updated during this turn.
+    pub spec_updates: Vec<SpecUpdate>,
 }
 
 /// Record of a single tool invocation.
@@ -117,14 +121,19 @@ impl AgentTurn {
         provider: ClaudeProviderState,
         tx: tokio::sync::mpsc::UnboundedSender<TurnEvent>,
     ) -> TurnResult {
+        // Set current profession for tools that need it (e.g., dispatch validation)
+        set_current_profession(&self.agent.profession.id);
+
         let mut result = TurnResult {
             assistant_text: String::new(),
             tool_calls: Vec::new(),
-            tokens_used: 0,
+            input_tokens: 0,
+            output_tokens: 0,
             handoff_requested: false,
             decisions: Vec::new(),
             open_questions: Vec::new(),
             files_touched: Vec::new(),
+            spec_updates: Vec::new(),
         };
 
         let system_prompt = self.agent.render_system_prompt();
@@ -203,6 +212,7 @@ impl AgentTurn {
                             result: exec_result.clone(),
                         });
 
+                        tracing::info!("AgentTurn tool call: name={}, profession={}, result={}", name, self.agent.profession.id, exec_result.chars().take(100).collect::<String>());
                         // Track special tools
                         if name == "handoff" {
                             result.handoff_requested = true;
@@ -212,6 +222,18 @@ impl AgentTurn {
                                 if !result.files_touched.contains(&path.to_string()) {
                                     result.files_touched.push(path.to_string());
                                 }
+                            }
+                        }
+                        if name == "write_specs" {
+                            if let Some(section_id) = input.get("section_id").and_then(|v| v.as_str()) {
+                                let item_id = input.get("item_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+                                let description = format!("Updated section '{}' via write_specs", section_id);
+                                result.spec_updates.push(SpecUpdate {
+                                    section_id: section_id.to_string(),
+                                    item_id,
+                                    change_type: "modified".to_string(),
+                                    description,
+                                });
                             }
                         }
 
@@ -225,7 +247,8 @@ impl AgentTurn {
                         self.messages.push(ChatMessage::tool_result(&id, &exec_result));
                     }
                     ToolChatEvent::Usage { input_tokens, output_tokens } => {
-                        result.tokens_used += (input_tokens + output_tokens) as u64;
+                        result.input_tokens += input_tokens as u64;
+                        result.output_tokens += output_tokens as u64;
                     }
                     ToolChatEvent::Done => break,
                     ToolChatEvent::Error { message } => {
@@ -293,6 +316,10 @@ impl AgentTurn {
         result.open_questions = extract_section(&result.assistant_text, "Open Questions");
 
         let _ = tx.send(TurnEvent::Complete);
+
+        // Clear profession context to prevent leakage between steps
+        set_current_profession("");
+
         result
     }
 
@@ -332,6 +359,9 @@ impl AgentTurn {
                 assigned_to: None,
             });
         }
+        for u in &result.spec_updates {
+            handoff.spec_updates.push(u.clone());
+        }
         for f in &result.files_touched {
             handoff.work_product.push(crate::relay::handoff::WorkProduct {
                 path: f.clone(),
@@ -340,14 +370,14 @@ impl AgentTurn {
             });
         }
         handoff.token_usage = crate::relay::handoff::TokenUsage {
-            step_input: result.tokens_used,
-            step_output: 0, // provider gives cumulative; we track total
-            cumulative: result.tokens_used,
+            step_input: result.input_tokens,
+            step_output: result.output_tokens,
+            cumulative: result.input_tokens + result.output_tokens,
             budget_remaining: self
                 .agent
                 .profession
                 .token_budget
-                .saturating_sub(result.tokens_used),
+                .saturating_sub(result.input_tokens + result.output_tokens),
         };
         handoff
     }
