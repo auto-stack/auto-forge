@@ -26,6 +26,11 @@ pub fn set_current_profession(profession: &str) {
     *CURRENT_PROFESSION.lock().unwrap() = profession.to_string();
 }
 
+/// Get the current project path.
+pub fn current_project() -> String {
+    CURRENT_PROJECT.lock().unwrap().clone()
+}
+
 // ─── Tool Definition ─────────────────────────────────────────────────────────
 
 /// Structured error type for tool execution.
@@ -81,6 +86,7 @@ impl ToolRegistry {
         registry.register(Box::new(ReadSpecsTool));
         registry.register(Box::new(WriteSpecsTool));
         registry.register(Box::new(ListSpecsTool));
+        registry.register(Box::new(WriteGoalsTool));
         registry.register(Box::new(BringInTool));
         registry.register(Box::new(DispatchTool));
         registry.register(Box::new(SpawnRelayTool));
@@ -807,6 +813,66 @@ impl Tool for WriteSpecsTool {
     }
 }
 
+/// Write goals directly using free-form text content.
+/// This is a simplified alternative to write_specs with a single `content` parameter,
+/// designed to bypass Claude's tendency to generate empty JSON for structured tools.
+struct WriteGoalsTool;
+
+impl Tool for WriteGoalsTool {
+    fn name(&self) -> &'static str {
+        "write_goals"
+    }
+
+    fn description(&self) -> &'static str {
+        "Write or update project goals. Provide the goals as plain text. \
+         Each goal should start with '## G' followed by a number and title, e.g.:\n\
+         ## G26: Add user authentication\n\
+         - Description of the goal\n\
+         The goals will be parsed and saved to the specs system automatically. \
+         This is the preferred way to write goals — simpler and more reliable than write_specs."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "The goals content as plain text. Each goal starts with '## G{N}: Title' followed by bullet points describing the goal."
+                }
+            },
+            "required": ["content"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing 'content' argument. Provide goals as plain text.".into()))?;
+
+        // Normalize content: ensure each goal heading starts with ##
+        let normalized = content
+            .lines()
+            .map(|line| {
+                let trimmed = line.trim();
+                // If line looks like a goal heading without ##, add it
+                if trimmed.starts_with("G") && trimmed.len() > 2 && trimmed.chars().nth(1).map_or(false, |c| c.is_ascii_digit()) && !trimmed.starts_with("## ") {
+                    format!("## {}", trimmed)
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let result = crate::relay::turn::write_goals_to_specs(&normalized)
+            .map_err(|e| ToolError::ExecutionFailed(e))?;
+        Ok(format!("Goals saved to section '{}'. Changes written to disk.", result))
+    }
+}
+
 // ─── Bring-In Tool ────────────────────────────────────────────────────────────
 
 /// Bring in another agent to handle the conversation.
@@ -1482,7 +1548,7 @@ mod tests {
     fn test_tool_registry() {
         let registry = ToolRegistry::new();
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 15);
+        assert_eq!(defs.len(), 16);
         assert!(registry.get("read_file").is_some());
         assert!(registry.get("write_file").is_some());
         assert!(registry.get("edit_file").is_some());
@@ -1490,6 +1556,7 @@ mod tests {
         assert!(registry.get("search").is_some());
         assert!(registry.get("read_specs").is_some());
         assert!(registry.get("write_specs").is_some());
+        assert!(registry.get("write_goals").is_some());
         assert!(registry.get("list_specs").is_some());
     }
 

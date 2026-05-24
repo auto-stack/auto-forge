@@ -112,7 +112,8 @@ export interface SoulDto {
 export interface StartRunRequest {
   run_id?: string
   flow_id: string
-  steps: { id: string; profession_id: string; gate?: string }[]
+  steps?: { id: string; profession_id: string; gate?: string }[]
+  task?: string
 }
 
 // ─── Composable ─────────────────────────────────────────────────────────────

@@ -86,6 +86,7 @@ pub struct RunEventBroadcast {
 pub struct StartRunRequest {
     pub run_id: Option<String>,
     pub flow_id: String,
+    #[serde(default)]
     pub steps: Vec<FlowStepDto>,
     #[serde(default)]
     pub task: Option<String>,

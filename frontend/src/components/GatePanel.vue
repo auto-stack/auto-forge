@@ -1,5 +1,5 @@
 <template>
-  <div class="gate-panel">
+  <div class="gate-panel" data-testid="gate-panel">
     <div class="gate-panel-header">
       <AgentAvatar v-if="professionId" :profession-id="professionId" size="md" />
       <div class="gate-panel-icon" v-else>🔒</div>
@@ -12,7 +12,7 @@
       </div>
     </div>
     <div class="gate-panel-actions">
-      <button class="panel-btn approve" @click="$emit('approve', runId)">
+      <button class="panel-btn approve" data-testid="gate-approve" @click="$emit('approve', runId)">
         <Check :size="14" />
         Approve
       </button>

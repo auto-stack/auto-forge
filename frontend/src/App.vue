@@ -6,12 +6,13 @@
         <span class="brand-text">AutoForge</span>
         <span class="version">v0.1.0</span>
       </div>
-      <div class="rail-tabs">
+      <div class="rail-tabs" data-testid="nav-rail">
         <button
           v-for="tab in tabs"
           :key="tab.id"
           class="rail-tab"
           :class="{ active: currentView === tab.id }"
+          :data-testid="`nav-tab-${tab.id}`"
           @click="currentView = tab.id"
         >
           <component :is="tab.icon" :size="16" class="tab-icon" />

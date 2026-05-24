@@ -264,6 +264,14 @@ impl AgentTurn {
                                 });
                             }
                         }
+                        if name == "write_goals" {
+                            result.spec_updates.push(SpecUpdate {
+                                section_id: "goals".to_string(),
+                                item_id: None,
+                                change_type: "modified".to_string(),
+                                description: "Updated goals section via write_goals".to_string(),
+                            });
+                        }
 
                         turn_tools.push(ToolCallRecord {
                             id: id.clone(),
@@ -327,6 +335,25 @@ impl AgentTurn {
 
             result.assistant_text.push_str(&turn_text);
             result.tool_calls.extend(turn_tools);
+
+            // Auto-extract goals from advisor text and write to specs
+            if self.agent.profession.id == "advisor" {
+                if let Some(goals_content) = extract_goals_from_text(&turn_text) {
+                    match write_goals_to_specs(&goals_content) {
+                        Ok(section_id) => {
+                            result.spec_updates.push(SpecUpdate {
+                                section_id,
+                                item_id: None,
+                                change_type: "modified".to_string(),
+                                description: "Goals extracted from advisor text and auto-written to specs".to_string(),
+                            });
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to auto-write goals from advisor text: {}", e);
+                        }
+                    }
+                }
+            }
 
             // If no tool_use was requested, we're done
             if !got_tool_use {
@@ -411,6 +438,9 @@ impl AgentTurn {
                 .token_budget
                 .saturating_sub(result.input_tokens + result.output_tokens),
         };
+
+        // Note: report generation tracking can be added here if needed
+
         handoff
     }
 }
@@ -437,6 +467,93 @@ fn extract_section(text: &str, heading: &str) -> Vec<String> {
         }
     }
     results
+}
+
+/// Extract goals written in plain text from advisor output.
+/// Looks for lines starting with `## G{N}` and collects everything until
+/// the next `## ` heading or the end of text.
+fn extract_goals_from_text(text: &str) -> Option<String> {
+    let mut goals_lines: Vec<&str> = Vec::new();
+    let mut in_goals = false;
+    let goal_heading_re = regex::Regex::new(r"^##\s+G\d+\b").unwrap();
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if goal_heading_re.is_match(trimmed) {
+            in_goals = true;
+            goals_lines.push(line);
+            continue;
+        }
+        if in_goals {
+            // Stop at next major heading (## or # not part of goal content)
+            if trimmed.starts_with("## ") && !trimmed.starts_with("## G") {
+                break;
+            }
+            goals_lines.push(line);
+        }
+    }
+
+    if goals_lines.is_empty() {
+        None
+    } else {
+        Some(goals_lines.join("\n"))
+    }
+}
+
+/// Write extracted goals content directly to the specs store.
+pub fn write_goals_to_specs(content: &str) -> Result<String, String> {
+    let project = crate::forge::tools::current_project();
+    if project.is_empty() {
+        return Err("No project context set".to_string());
+    }
+    let project_name = std::path::Path::new(&project)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or(project.clone());
+
+    let mut store = crate::forge::specs().lock().map_err(|e| e.to_string())?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let doc = store.get_or_default(&project_name);
+    if let Some(section) = doc.sections.iter_mut().find(|s| s.id == "goals") {
+        section.content = content.to_string();
+        section.status = crate::forge::Status::InProgress;
+        section.last_modified = now;
+        if let Some(parsed) = crate::forge::SpecsStore::parse_ad_file(
+            "goals",
+            "goals",
+            "Goals",
+            &format!("# Goals\n{}", content),
+        ) {
+            for new_item in parsed.items {
+                if let Some(existing) = section.items.iter_mut().find(|i| i.id == new_item.id) {
+                    *existing = new_item;
+                } else {
+                    section.items.push(new_item);
+                }
+            }
+            section.content = String::new();
+        }
+    } else {
+        doc.sections.push(crate::forge::SpecsSection {
+            id: "goals".to_string(),
+            section_type: crate::forge::SectionType::Goals,
+            title: "Goals".to_string(),
+            items: vec![],
+            content: content.to_string(),
+            status: crate::forge::Status::InProgress,
+            depends_on: vec![],
+            last_modified: now,
+            last_verified: None,
+        });
+    }
+
+    let doc = store.get(&project_name).ok_or("Project not found")?;
+    store.save_ad_format(doc, &project_name);
+    Ok("goals".to_string())
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

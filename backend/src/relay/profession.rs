@@ -157,6 +157,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             allowed_tools: vec![
                 String::from("read_specs"),
                 String::from("write_specs"),
+                String::from("write_goals"),
                 String::from("list_specs"),
                 String::from("read_file"),
                 String::from("query_wiki"),

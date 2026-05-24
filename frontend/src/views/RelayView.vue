@@ -1,5 +1,5 @@
 <template>
-  <div class="agents-view">
+  <div class="agents-view" data-testid="relay-view">
     <div class="agents-header">
       <h2>Agents Relay</h2>
       <div class="agents-actions">
@@ -17,7 +17,7 @@
 
     <div class="agents-body">
       <!-- Left: Runs list -->
-      <div class="runs-sidebar">
+      <div class="runs-sidebar" data-testid="relay-run-list">
         <div class="panel-title">Runs</div>
         <div v-if="runs.length === 0" class="empty-state">No runs yet</div>
         <div
@@ -25,6 +25,7 @@
           :key="run.run_id"
           class="run-card"
           :class="{ active: currentRun?.run_id === run.run_id }"
+          :data-testid="`run-card-${run.run_id}`"
           @click="selectRun(run.run_id)"
         >
           <div class="run-card-header">
@@ -54,7 +55,7 @@
       </div>
 
       <!-- Center: Pipeline visualization -->
-      <div class="pipeline-panel">
+      <div class="pipeline-panel" data-testid="pipeline-panel">
         <div v-if="!currentRun" class="empty-state">
           Select a run or start a new one
         </div>
@@ -91,12 +92,13 @@
           </div>
 
           <!-- Pipeline steps -->
-          <div class="pipeline-flow">
+          <div class="pipeline-flow" data-testid="pipeline-flow">
             <template v-for="(step, idx) in currentRun.steps" :key="step.id">
               <div
                 class="pipeline-step"
                 :class="[step.status, { expanded: expandedStepId === step.id }]"
                 :title="`${step.profession_id} (${step.gate})`"
+                data-testid="pipeline-step"
                 :aria-label="`${step.profession_id} step, status ${step.status}${step.gate === 'human' ? ', human gate required' : ''}`"
                 role="button"
                 tabindex="0"

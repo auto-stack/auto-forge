@@ -26,7 +26,8 @@ export function useForgeMode() {
   function shouldPauseGate(gateType: string): boolean {
     if (_mode.value === 'check') return true
     // GSD mode: only goal-level gates pause
-    return gateType === 'human' || gateType === 'goal'
+    // 'advisor' is the profession for the discover step which has a human gate
+    return gateType === 'human' || gateType === 'goal' || gateType === 'advisor'
   }
 
   return {

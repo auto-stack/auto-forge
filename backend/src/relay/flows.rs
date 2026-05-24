@@ -127,9 +127,9 @@ fn discover_validators() -> Vec<StepValidator> {
 /// Advisor must call write_specs before reading files or dispatching.
 fn discover_tool_guard() -> ToolGuard {
     ToolGuard {
-        required_first: vec!["write_specs".to_string()],
+        required_first: vec!["write_goals".to_string()],
         unlocks: HashMap::new(),
-        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string()],
+        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string(), "write_specs".to_string()],
         forbidden: vec![],
     }
 }
@@ -449,7 +449,7 @@ mod tests {
         let advisor_step = flow.get_step("discover").unwrap();
         assert!(advisor_step.tool_guard.is_some());
         let guard = advisor_step.tool_guard.as_ref().unwrap();
-        assert_eq!(guard.required_first, vec!["write_specs"]);
+        assert_eq!(guard.required_first, vec!["write_goals"]);
         assert!(guard.always_allowed.contains(&"list_specs".to_string()));
     }
 

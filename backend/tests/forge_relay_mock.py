@@ -81,16 +81,56 @@ def advance(run_id):
 
 
 def submit_handoff(run_id, profession_id, summary):
+    """Submit a handoff with validation-aware data for each profession.
+
+    Supports BOTH flow-config validators AND fallback hardcoded validators.
+    """
+    spec_updates = []
+    work_product = []
+    decisions = []
+
+    # Add data to pass step validators (both new StepValidator and fallback)
+    if profession_id == "advisor":
+        # Fallback: needs spec_updates OR work_product
+        # StepValidator: needs spec_updates for "goals" OR work_product with .ad
+        spec_updates.append({"section_id": "goals", "item_id": None, "change_type": "modified", "description": "Updated goals"})
+        work_product.append({"path": "specs/goals.ad", "description": "Goals updated", "lines": None})
+    elif profession_id == "architect":
+        # Fallback: needs meaningful work_product (not README.md)
+        # StepValidator: needs spec_updates for "architecture"/"designs" OR decisions
+        spec_updates.append({"section_id": "architecture", "item_id": None, "change_type": "modified", "description": "Updated architecture"})
+        work_product.append({"path": "specs/architecture.ad", "description": "Architecture doc", "lines": None})
+    elif profession_id == "planner":
+        # Fallback: needs plan-related work_product OR >=2 work products
+        # StepValidator: needs spec_updates for "plans"
+        spec_updates.append({"section_id": "plans", "item_id": None, "change_type": "modified", "description": "Updated plans"})
+        work_product.append({"path": "specs/plans.ad", "description": "Plan doc", "lines": None})
+    elif profession_id == "tester":
+        # Fallback + StepValidator: needs .rs/.ts/.vue work_product OR tests spec_updates
+        work_product.append({"path": "src/lib.rs", "description": "Tests", "lines": None})
+    elif profession_id == "coder":
+        # Fallback + StepValidator: needs .rs/.vue/.ts/.js work_product
+        work_product.append({"path": "src/main.rs", "description": "Code", "lines": None})
+    elif profession_id == "reviewer":
+        # Fallback + StepValidator: needs decisions OR reviews spec_updates
+        decisions.append({"id": "D1", "title": "Approved", "status": "made", "rationale": ""})
+        work_product.append({"path": "specs/reviews.ad", "description": "Review", "lines": None})
+    elif profession_id == "documenter":
+        # Fallback + StepValidator: needs .md/.ad work_product OR reports spec_updates
+        work_product.append({"path": "docs/report.md", "description": "Report", "lines": None})
+    elif profession_id == "assistant":
+        work_product.append({"path": "notes.txt", "description": "Notes", "lines": None})
+
     handoff = {
         "from": profession_id,
         "to": "next",
         "run_id": run_id,
         "checkpoint_id": 0,
         "summary": summary,
-        "decisions": [],
+        "decisions": decisions,
         "open_questions": [],
-        "spec_updates": [],
-        "work_product": [],
+        "spec_updates": spec_updates,
+        "work_product": work_product,
         "context_for_next": {"files_to_read": [], "specs_to_follow": [], "warnings": []},
         "token_usage": {
             "step_input": 1000,
@@ -277,6 +317,73 @@ def test_reject_and_retry():
     return True
 
 
+def test_goal_discovery_flow():
+    """Test the goal-discovery flow where advisor writes goals."""
+    print("\n" + "=" * 55)
+    print("Test 4: Goal-Discovery Flow (advisor writes goals)")
+    print("=" * 55)
+
+    run_id = create_run("goal-discovery")
+    print(f"Created run: {run_id}")
+
+    # Drive the single discover step
+    ok = drive_run(run_id, {
+        "discover": "Goals written: G1 - Add caching layer, G2 - Implement TTL support.",
+    })
+
+    state = get_run(run_id)
+    print(f"\nFinal state:\n{json.dumps(state, indent=2)}")
+    return ok
+
+
+def test_professions_have_write_goals():
+    """Verify advisor profession has write_goals in allowed_tools."""
+    print("\n" + "=" * 55)
+    print("Test 5: Professions config")
+    print("=" * 55)
+
+    result = api_call("GET", "/api/forge/relay/professions")
+    if not result:
+        print("❌ Failed to fetch professions")
+        return False
+
+    advisor = next((p for p in result.get("professions", []) if p["id"] == "advisor"), None)
+    if not advisor:
+        print("❌ Advisor profession not found")
+        return False
+
+    if "write_goals" in advisor.get("allowed_tools", []):
+        print("✅ Advisor has write_goals tool")
+        return True
+    else:
+        print(f"❌ Advisor missing write_goals. Tools: {advisor.get('allowed_tools')}")
+        return False
+
+
+def test_flow_registry_has_goal_discovery():
+    """Verify goal-discovery flow is available."""
+    print("\n" + "=" * 55)
+    print("Test 6: Flow Registry")
+    print("=" * 55)
+
+    # Create a run with flow_id only (no steps) — requires registry lookup
+    result = api_call("POST", "/api/forge/relay/runs", {
+        "flow_id": "goal-discovery",
+        "task": "Test goal discovery flow",
+    })
+    if not result:
+        print("❌ Failed to create run from registry")
+        return False
+
+    run_id = result["run_id"]
+    state = result["state"]
+    print(f"✅ Created run {run_id} with {state['total_steps']} step(s)")
+
+    # Cleanup
+    api_call("DELETE", f"/api/forge/relay/runs/{run_id}")
+    return True
+
+
 def main():
     # Health check
     try:
@@ -292,6 +399,9 @@ def main():
     results.append(("Post-Discovery Flow", test_post_discovery_flow()))
     results.append(("Standard Flow + Gate", test_standard_flow_with_gate()))
     results.append(("Reject + Retry", test_reject_and_retry()))
+    results.append(("Goal-Discovery Flow", test_goal_discovery_flow()))
+    results.append(("Professions Config", test_professions_have_write_goals()))
+    results.append(("Flow Registry", test_flow_registry_has_goal_discovery()))
 
     print("\n" + "=" * 55)
     print("SUMMARY")
