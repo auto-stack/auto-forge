@@ -2126,6 +2126,8 @@ mod handlers {
                                                 "fast_track" => crate::relay::flows::fast_track_flow(),
                                                 "bug_fix" => crate::relay::flows::bug_fix_flow(),
                                                 "goal_discovery" => crate::relay::flows::goal_discovery_flow(),
+                                                "doc_patch" => crate::relay::flows::doc_patch_flow(),
+                                                "spec_tweak" => crate::relay::flows::spec_tweak_flow(),
                                                 _ => crate::relay::flows::standard_spec_flow(),
                                             };
 

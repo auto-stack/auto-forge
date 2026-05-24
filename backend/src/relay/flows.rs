@@ -43,6 +43,8 @@ impl FlowRegistry {
             post_discovery_flow(),
             bug_fix_flow(),
             goal_discovery_flow(),
+            doc_patch_flow(),
+            spec_tweak_flow(),
         ];
         for flow in builtins {
             self.flows.insert(flow.id.clone(), flow);
@@ -412,6 +414,64 @@ pub fn goal_discovery_flow() -> FlowSpec {
     flow
 }
 
+/// Doc-patch flow: for quick documentation or wiki updates without code changes.
+///
+/// Assistant → Documenter. The documenter updates reports, wiki pages,
+/// or other documentation artifacts. No code is written or modified.
+pub fn doc_patch_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("doc-patch");
+    flow.add_step(FlowStep::new("intake", "assistant"));
+    flow.add_step(
+        FlowStep::new("doc-update", "documenter")
+            .with_validators(vec![StepValidator::Any(vec![
+                StepValidator::SpecUpdatesNonEmpty {
+                    sections: vec!["reports".to_string()],
+                },
+                StepValidator::WorkProductHasExtensions {
+                    exts: vec![".md".to_string(), ".ad".to_string()],
+                },
+            ])]),
+    );
+    flow
+}
+
+/// Spec-tweak flow: for updating specs (goals, architecture, designs, plans, tests)
+/// without executing any code.
+///
+/// Assistant → Advisor. The advisor reads existing specs and produces targeted
+/// updates to any spec section. No compilation, testing, or code changes occur.
+pub fn spec_tweak_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("spec-tweak");
+    flow.add_step(FlowStep::new("intake", "assistant"));
+    flow.add_step(
+        FlowStep::new("tweak", "advisor")
+            .with_validators(vec![StepValidator::SpecUpdatesNonEmpty {
+                sections: vec![
+                    "goals".to_string(),
+                    "architecture".to_string(),
+                    "designs".to_string(),
+                    "plans".to_string(),
+                    "tests".to_string(),
+                ],
+            }])
+            .with_tool_guard(ToolGuard {
+                required_first: vec!["read_specs".to_string()],
+                unlocks: HashMap::new(),
+                always_allowed: vec![
+                    "list_specs".to_string(),
+                    "read_specs".to_string(),
+                    "write_specs".to_string(),
+                    "write_goals".to_string(),
+                    "read_file".to_string(),
+                    "query_wiki".to_string(),
+                    "list_wiki".to_string(),
+                ],
+                forbidden: vec![],
+            }),
+    );
+    flow
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -485,5 +545,31 @@ mod tests {
             }
             _ => panic!("Expected Loop exit on tester step"),
         }
+    }
+
+    #[test]
+    fn test_doc_patch_flow_has_two_steps() {
+        let flow = doc_patch_flow();
+        assert_eq!(flow.steps.len(), 2);
+        assert_eq!(flow.steps[0].profession_id, "assistant");
+        assert_eq!(flow.steps[1].profession_id, "documenter");
+    }
+
+    #[test]
+    fn test_spec_tweak_flow_has_two_steps() {
+        let flow = spec_tweak_flow();
+        assert_eq!(flow.steps.len(), 2);
+        assert_eq!(flow.steps[0].profession_id, "assistant");
+        assert_eq!(flow.steps[1].profession_id, "advisor");
+    }
+
+    #[test]
+    fn test_spec_tweak_requires_read_specs_first() {
+        let flow = spec_tweak_flow();
+        let tweak_step = flow.get_step("tweak").unwrap();
+        assert!(tweak_step.tool_guard.is_some());
+        let guard = tweak_step.tool_guard.as_ref().unwrap();
+        assert_eq!(guard.required_first, vec!["read_specs"]);
+        assert!(guard.always_allowed.contains(&"write_specs".to_string()));
     }
 }

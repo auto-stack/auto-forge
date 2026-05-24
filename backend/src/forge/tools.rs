@@ -1000,8 +1000,8 @@ impl Tool for SpawnRelayTool {
             "properties": {
                 "flow_id": {
                     "type": "string",
-                    "description": "Flow template to use. 'standard' = full pipeline; 'post_discovery' = skips intake/advisor (use after chat discovery); 'fast_track' = coder only; 'bug_fix' = coder → tester → reviewer",
-                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix"]
+                    "description": "Flow template to use. 'standard' = full pipeline; 'post_discovery' = skips intake/advisor (use after chat discovery); 'fast_track' = coder only; 'bug_fix' = coder → tester → reviewer; 'goal_discovery' = advisor only (goals); 'doc_patch' = documenter only (docs/wiki); 'spec_tweak' = advisor only (spec updates)",
+                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix", "goal_discovery", "doc_patch", "spec_tweak"]
                 },
                 "task": {
                     "type": "string",
@@ -1054,7 +1054,7 @@ impl Tool for SpawnRelayTool {
         }
 
         // Validate flow_id
-        let valid_flows = ["standard", "post_discovery", "fast_track", "bug_fix"];
+        let valid_flows = ["standard", "post_discovery", "fast_track", "bug_fix", "goal_discovery", "doc_patch", "spec_tweak"];
         if !valid_flows.contains(&flow_id) {
             return Err(ToolError::InvalidInput(format!(
                 "Unknown flow_id '{}'. Valid options: {}",
