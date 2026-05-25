@@ -31,16 +31,7 @@
         >
           <div class="run-card-header">
             <span class="run-id" :title="run.run_id">{{ run.title || run.run_id }}</span>
-            <div class="run-card-actions">
-              <StatusBadge :status="run.status" />
-              <button
-                class="btn-icon btn-delete"
-                title="Delete run"
-                @click.stop="onDeleteRun(run.run_id)"
-              >
-                <Trash2 :size="12" />
-              </button>
-            </div>
+            <StatusBadge :status="run.status" />
           </div>
           <div class="run-card-meta">
             <span>{{ run.current_profession ?? '—' }}</span>
@@ -52,6 +43,13 @@
               :style="{ width: runProgressPercent(run) + '%' }"
             />
           </div>
+          <button
+            class="btn-icon btn-delete"
+            title="Delete run"
+            @click.stop="onDeleteRun(run.run_id)"
+          >
+            <Trash2 :size="12" />
+          </button>
         </div>
       </div>
 
@@ -651,7 +649,9 @@ function professionIcon(id: string): string {
 
 /* Run cards */
 .run-card {
+  position: relative;
   padding: 0.6rem;
+  padding-bottom: 1.6rem;
   border-radius: 6px;
   border: 1px solid var(--af-border);
   margin-bottom: 0.5rem;
@@ -672,17 +672,14 @@ function professionIcon(id: string): string {
   margin-bottom: 0.3rem;
 }
 
-.run-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
-}
-
 .btn-delete {
+  position: absolute;
+  bottom: 0.4rem;
+  right: 0.5rem;
   color: hsl(0 70% 50%);
   opacity: 0;
   transition: opacity 0.15s;
+  z-index: 2;
 }
 
 .run-card:hover .btn-delete {
