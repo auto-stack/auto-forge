@@ -20,3 +20,17 @@ Desktop.ini
 
 # AutoForge runtime
 backend/docs/
+
+# Logs
+*.log
+backend/server.log
+backend.log
+
+# Build artifacts / generated data
+backend/auto-forge/
+frontend/test-results/
+specs/auto-forge/
+specs/debug_*.txt
+
+# One-off scripts
+backend/fix_vue_symbols.py
