@@ -26,6 +26,7 @@
           class="run-card"
           :class="{ active: currentRun?.run_id === run.run_id }"
           :data-testid="`run-card-${run.run_id}`"
+          :title="run.task ? run.task.slice(0, 50) : ''"
           @click="selectRun(run.run_id)"
         >
           <div class="run-card-header">
@@ -63,7 +64,7 @@
         <template v-else>
           <!-- Run header -->
           <div class="run-header">
-            <div class="run-title">{{ currentRun.run_id }}</div>
+            <div class="run-title">{{ currentRun.title || currentRun.run_id }}</div>
             <div class="run-stats">
               <span class="stat-badge">
                 <Coins :size="12" />
@@ -316,23 +317,6 @@
         </template>
       </div>
 
-      <!-- Right: Professions & Souls -->
-      <div class="config-sidebar">
-        <div class="panel-title">Professions</div>
-        <div class="profession-list">
-          <div v-for="p in professions" :key="p.id" class="profession-item">
-            <div class="profession-name">{{ p.name }}</div>
-            <div class="profession-phase">{{ p.phase }}</div>
-          </div>
-        </div>
-
-        <div class="panel-title" style="margin-top: 1rem;">Souls</div>
-        <div class="soul-list">
-          <div v-for="s in souls" :key="s.id" class="soul-item">
-            {{ s.name }}
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Start Run Modal -->
@@ -643,7 +627,7 @@ function professionIcon(id: string): string {
   overflow: hidden;
 }
 
-.runs-sidebar, .pipeline-panel, .config-sidebar {
+.runs-sidebar, .pipeline-panel {
   background: var(--af-bg);
   overflow-y: auto;
   padding: 0.75rem;
@@ -1185,23 +1169,6 @@ function professionIcon(id: string): string {
   flex-shrink: 0;
 }
 
-/* Config sidebar */
-.profession-list, .soul-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.profession-item, .soul-item {
-  padding: 0.4rem 0.5rem;
-  border-radius: 5px;
-  font-size: 0.83rem;
-  background: hsl(var(--muted-foreground) / 0.04);
-}
-
-.profession-name { font-weight: 500; color: var(--af-fg); }
-.profession-phase { font-size: 0.73rem; color: var(--af-muted); text-transform: capitalize; }
-
 /* ─── Mobile Responsive ───────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -1214,11 +1181,6 @@ function professionIcon(id: string): string {
   .runs-sidebar {
     max-height: 180px;
     border-bottom: 1px solid var(--af-border);
-  }
-
-  .config-sidebar {
-    max-height: 180px;
-    border-top: 1px solid var(--af-border);
   }
 
   .pipeline-flow {

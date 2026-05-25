@@ -1,12 +1,15 @@
 <template>
   <div ref="containerRef" class="markdown-content">
-    <MarkdownRender :content="content" :final="true" />
+    <MarkdownRender :content="content" :final="true" :mermaid-props="{ isStrict: false }" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { MarkdownRender } from 'markstream-vue'
+import mermaid from 'mermaid'
+
+mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' })
 
 const props = defineProps<{
   content: string
@@ -72,8 +75,54 @@ function processLinks() {
   }
 }
 
+async function renderMermaid() {
+  const container = containerRef.value
+  if (!container) return
+
+  // Case 1: markstream-vue rendered mermaid as plain <pre><code>
+  const codeBlocks = Array.from(container.querySelectorAll('pre code.language-mermaid'))
+  for (const code of codeBlocks) {
+    const pre = code.parentElement as HTMLPreElement
+    if (pre.dataset.mermaidRendered === 'true') continue
+
+    const graphDefinition = code.textContent || ''
+    try {
+      const id = 'mermaid-' + Math.random().toString(36).slice(2)
+      const { svg } = await mermaid.render(id, graphDefinition)
+      const wrapper = document.createElement('div')
+      wrapper.className = 'mermaid-diagram'
+      wrapper.innerHTML = svg
+      pre.replaceWith(wrapper)
+    } catch (e) {
+      // Leave as plain code block if parsing fails
+    }
+  }
+
+  // Case 2: markstream-vue MermaidBlockNode rendered a shell but failed to produce SVG
+  const mermaidBlocks = Array.from(container.querySelectorAll('.mermaid-block'))
+  for (const block of mermaidBlocks) {
+    if (block.querySelector('svg')) continue // already rendered
+
+    const codeEl = block.querySelector('code')
+    const graphDefinition = codeEl?.textContent || block.textContent || ''
+    try {
+      const id = 'mermaid-' + Math.random().toString(36).slice(2)
+      const { svg } = await mermaid.render(id, graphDefinition)
+      const wrapper = document.createElement('div')
+      wrapper.className = 'mermaid-diagram'
+      wrapper.innerHTML = svg
+      block.replaceWith(wrapper)
+    } catch (e) {
+      // Leave as-is if parsing fails
+    }
+  }
+}
+
 watch(() => props.content, () => {
-  nextTick(processLinks)
+  nextTick(() => {
+    processLinks()
+    renderMermaid()
+  })
 }, { immediate: true })
 </script>
 

@@ -95,12 +95,7 @@
             <span class="errand-toggle-label">{{ allErrandsExpanded ? 'Collapse' : 'Expand' }}</span>
             <span class="errand-toggle-badge">{{ Object.keys(errands).length }}</span>
           </button>
-          <span class="session-badge phase" :class="sessionPhase">
-            {{ sessionPhase }}
-          </span>
-          <span class="session-badge" :class="sessionStatus">
-            {{ sessionStatus }}
-          </span>
+          <!-- Phase and status badges removed per user request -->
         </div>
       </div>
       <div class="chat-canvas" ref="chatRef">
@@ -378,8 +373,6 @@ const {
   error,
   sessionList,
   sessionId,
-  sessionStatus,
-  sessionPhase,
   needsApproval,
   pendingSpecChanges,
   resume,
@@ -1396,18 +1389,6 @@ onMounted(async () => {
   gap: 0.5rem;
 }
 
-.session-badge {
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--af-muted);
-}
-
-.session-badge.idle { color: hsl(var(--af-success)); }
-.session-badge.thinking { color: hsl(var(--af-warning)); }
-.session-badge.tool_call { color: hsl(var(--af-info)); }
-.session-badge.waiting_approval { color: var(--af-primary); }
-.session-badge.error { color: hsl(var(--af-error)); }
-
 .chat-canvas {
   flex: 1;
   overflow-y: auto;
@@ -2237,18 +2218,7 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-/* ─── Phase Badge ─────────────────────────────────────────────────────────── */
 
-.session-badge.phase {
-  text-transform: capitalize;
-  font-weight: 500;
-}
-
-.session-badge.phase.intake { color: hsl(var(--af-info)); }
-.session-badge.phase.spec_draft { color: hsl(var(--af-warning)); }
-.session-badge.phase.spec_review { color: hsl(var(--af-chats)); }
-.session-badge.phase.execution { color: hsl(var(--af-success)); }
-.session-badge.phase.verification { color: hsl(var(--af-accent)); }
 
 /* ─── Approval Gate ───────────────────────────────────────────────────────── */
 

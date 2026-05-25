@@ -37,6 +37,8 @@ export interface RunSummary {
   cumulative_tokens: number
   created_at: number
   updated_at: number
+  title?: string
+  task?: string
 }
 
 export interface RunEventDto {
@@ -73,6 +75,7 @@ export interface RunState {
   savings: number
   savings_ratio: number
   events: RunEventDto[]
+  title?: string
 }
 
 export interface StepState {
