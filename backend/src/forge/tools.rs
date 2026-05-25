@@ -79,12 +79,14 @@ impl ToolRegistry {
             tools: HashMap::new(),
         };
         registry.register(Box::new(ReadFileTool));
+        registry.register(Box::new(ListSymbolsTool));
         registry.register(Box::new(WriteFileTool));
         registry.register(Box::new(EditFileTool));
         registry.register(Box::new(ShellTool));
         registry.register(Box::new(SearchTool));
         registry.register(Box::new(ReadSpecsTool));
         registry.register(Box::new(WriteSpecsTool));
+        registry.register(Box::new(UpdateSpecTool));
         registry.register(Box::new(ListSpecsTool));
         registry.register(Box::new(WriteGoalsTool));
         registry.register(Box::new(BringInTool));
@@ -125,6 +127,8 @@ impl Default for ToolRegistry {
 
 // ─── Individual Tools ────────────────────────────────────────────────────────
 
+const READ_FILE_MAX_BYTES: usize = 8192;
+
 /// Read the contents of a file.
 struct ReadFileTool;
 
@@ -134,9 +138,10 @@ impl Tool for ReadFileTool {
     }
 
     fn description(&self) -> &'static str {
-        "Read the full contents of a file at the given path. \
-         Returns the file contents as a string. \
-         Use this to examine source code, configuration files, or documentation."
+        "Read the contents of a file at the given path. \
+         For large files (>8KB), content is truncated unless offset/limit are provided. \
+         RECOMMENDED: Use list_symbols first to understand file structure, then read_file \
+         with offset/limit to read only the relevant region."
     }
 
     fn input_schema(&self) -> Value {
@@ -146,6 +151,14 @@ impl Tool for ReadFileTool {
                 "path": {
                     "type": "string",
                     "description": "The relative path to the file to read"
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Line number to start reading from (0-based, default: 0)"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of lines to read (default: unlimited)"
                 }
             },
             "required": ["path"]
@@ -158,6 +171,9 @@ impl Tool for ReadFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidInput("Missing 'path' argument".into()))?;
 
+        let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let limit = args.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize);
+
         // Security: restrict to project directory
         let path = Path::new(path);
         if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
@@ -166,11 +182,421 @@ impl Tool for ReadFileTool {
 
         let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { path.to_path_buf()  } else { Path::new(&*project).join(path) } };
 
-        std::fs::read_to_string(&full_path)
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))
+        let content = std::fs::read_to_string(&full_path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))?;
+
+        let total_lines = content.lines().count();
+        let total_bytes = content.len();
+
+        // If offset/limit specified, read that region
+        if offset > 0 || limit.is_some() {
+            let lines: Vec<&str> = content.lines().collect();
+            let start = offset.min(lines.len());
+            let end = limit.map(|l| (start + l).min(lines.len())).unwrap_or(lines.len());
+            let slice = &lines[start..end];
+            let result = slice.join("\n");
+            let header = format!("// Lines {}-{} of {} ({} bytes total)\n", start, end, total_lines, total_bytes);
+            return Ok(header + &result);
+        }
+
+        // No offset/limit: check size and truncate if needed
+        if total_bytes > READ_FILE_MAX_BYTES {
+            let mut bytes_read = 0;
+            let mut truncated_lines = 0;
+            for line in content.lines() {
+                bytes_read += line.len() + 1; // +1 for newline
+                if bytes_read > READ_FILE_MAX_BYTES {
+                    break;
+                }
+                truncated_lines += 1;
+            }
+            let truncated: String = content.lines().take(truncated_lines).collect::<Vec<_>>().join("\n");
+            let notice = format!(
+                "\n\n// --- TRUNCATED ---\n// File is {} bytes ({} lines).\n// Only first {} lines shown (~{}KB).\n// Use offset={} with read_file to continue, or use list_symbols to browse structure.\n",
+                total_bytes, total_lines, truncated_lines, READ_FILE_MAX_BYTES / 1024, truncated_lines
+            );
+            return Ok(truncated + &notice);
+        }
+
+        Ok(content)
     }
 
     fn is_read_only(&self) -> bool { true }
+}
+
+/// List symbols (functions, classes, components, etc.) in a source file.
+/// Uses language-specific parsers: rust-analyzer for Rust, regex for Vue/TS/JS and others.
+struct ListSymbolsTool;
+
+#[derive(Debug, serde::Serialize)]
+struct SymbolInfo {
+    name: String,
+    kind: String,
+    line_start: usize,
+    line_end: usize,
+    detail: Option<String>,
+}
+
+impl Tool for ListSymbolsTool {
+    fn name(&self) -> &'static str {
+        "list_symbols"
+    }
+
+    fn description(&self) -> &'static str {
+        "List the symbols (functions, classes, components, variables) defined in a source file. \
+         For large files, use this BEFORE read_file to understand structure and locate targets. \
+         Returns a JSON array of symbols with name, kind, and line ranges."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The relative path to the source file"
+                }
+            },
+            "required": ["path"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let path = args
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'path' argument".into()))?;
+
+        let path_obj = Path::new(path);
+        if path_obj.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+            return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
+        }
+
+        let full_path = {
+            let project = CURRENT_PROJECT.lock().unwrap();
+            if project.is_empty() {
+                path_obj.to_path_buf()
+            } else {
+                Path::new(&*project).join(path_obj)
+            }
+        };
+
+        let ext = path_obj.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+        let symbols = match ext {
+            "rs" => Self::extract_rust_symbols(&full_path)?,
+            "vue" => Self::extract_vue_symbols(&full_path)?,
+            "ts" | "js" | "tsx" | "jsx" | "mjs" => Self::extract_js_symbols(&full_path)?,
+            _ => Self::extract_generic_symbols(&full_path)?,
+        };
+
+        if symbols.is_empty() {
+            Ok(format!("No symbols found in {}. File may be empty or use an unsupported language.", full_path.display()))
+        } else {
+            Ok(serde_json::to_string_pretty(&symbols)
+                .unwrap_or_else(|_| "[]".to_string()))
+        }
+    }
+
+    fn is_read_only(&self) -> bool { true }
+}
+
+impl ListSymbolsTool {
+    fn extract_rust_symbols(path: &Path) -> Result<Vec<SymbolInfo>, ToolError> {
+        let mut output = std::process::Command::new("rust-analyzer")
+            .arg("symbols")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to spawn rust-analyzer: {}", e)))?;
+
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file: {}", e)))?;
+
+        if let Some(mut stdin) = output.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(content.as_bytes());
+        }
+
+        let result = output
+            .wait_with_output()
+            .map_err(|e| ToolError::ExecutionFailed(format!("rust-analyzer failed: {}", e)))?;
+
+        if !result.status.success() {
+            let err = String::from_utf8_lossy(&result.stderr);
+            return Err(ToolError::ExecutionFailed(format!("rust-analyzer error: {}", err)));
+        }
+
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        let mut symbols = Vec::new();
+
+        // Parse rust-analyzer output:
+        // StructureNode { parent: None, label: "name", navigation_range: 10..20, node_range: 5..25, kind: SymbolKind(Function), detail: Some("fn()"), deprecated: false }
+        for line in stdout.lines() {
+            let line = line.trim();
+            if !line.starts_with("StructureNode {") {
+                continue;
+            }
+
+            let label = Self::extract_field(line, "label: \"").unwrap_or_default();
+            let kind_str = Self::extract_field(line, "kind: SymbolKind(").unwrap_or("Unknown").to_string();
+            let detail = Self::extract_field(line, "detail: Some(\"");
+            let nav_range = Self::extract_field(line, "navigation_range: ");
+
+            let (start, end) = if let Some(range) = nav_range {
+                let parts: Vec<&str> = range.split("..").collect();
+                if parts.len() == 2 {
+                    let s = parts[0].parse::<usize>().unwrap_or(0);
+                    let e = parts[1].parse::<usize>().unwrap_or(s);
+                    (s, e)
+                } else {
+                    (0, 0)
+                }
+            } else {
+                (0, 0)
+            };
+
+            // Skip local variables (too noisy)
+            if kind_str == "Local" {
+                continue;
+            }
+
+            symbols.push(SymbolInfo {
+                name: label.to_string(),
+                kind: kind_str,
+                line_start: start,
+                line_end: end,
+                detail: detail.map(|s| s.to_string()),
+            });
+        }
+
+        Ok(symbols)
+    }
+
+    fn extract_field<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {
+        let start = line.find(prefix)? + prefix.len();
+        let end = if prefix.ends_with("\"") {
+            line[start..].find('"').map(|i| start + i)
+        } else if prefix.ends_with("(") {
+            line[start..].find(')').map(|i| start + i)
+        } else {
+            line[start..].find(',').map(|i| start + i)
+        };
+        end.map(|e| &line[start..e])
+    }
+
+    fn extract_vue_symbols(path: &Path) -> Result<Vec<SymbolInfo>, ToolError> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file: {}", e)))?;
+
+        let mut symbols = Vec::new();
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Only extract symbols from <script> or <script setup> region
+        let mut in_script = false;
+        let component_re = regex::Regex::new(r#"<([A-Z]\w+)"#).unwrap();
+        let fn_re = regex::Regex::new(r#"\b(function|const|let|var)\s+(\w+)\s*[(=]"#).unwrap();
+        let lifecycle_re = regex::Regex::new(r#"\b(onMounted|onUnmounted|onUpdated|onBeforeMount|onBeforeUpdate|onBeforeUnmount|created|mounted|updated|beforeDestroy|destroyed)\s*\("#).unwrap();
+        let import_re = regex::Regex::new(r#"import\s+(\{[^}]+\}|[\w*]+)\s+from"#).unwrap();
+        let define_props_re = regex::Regex::new(r#"defineProps\s*\("#).unwrap();
+        let define_emits_re = regex::Regex::new(r#"defineEmits\s*\("#).unwrap();
+
+        for (line_num, line) in lines.iter().enumerate() {
+            let ln = line_num + 1;
+            let trimmed = line.trim();
+
+            // Track script region
+            if trimmed.starts_with("<script") {
+                in_script = true;
+                continue;
+            }
+            if trimmed == "</script>" {
+                in_script = false;
+                continue;
+            }
+
+            // Template: detect PascalCase component usage (structural, not stylistic)
+            if !in_script {
+                for cap in component_re.captures_iter(line) {
+                    symbols.push(SymbolInfo {
+                        name: cap[1].to_string(),
+                        kind: "Component".to_string(),
+                        line_start: ln,
+                        line_end: ln,
+                        detail: None,
+                    });
+                }
+                continue;
+            }
+
+            // Inside script: imports, declarations, lifecycle hooks
+            if define_props_re.is_match(line) {
+                symbols.push(SymbolInfo {
+                    name: "defineProps".to_string(),
+                    kind: "Props".to_string(),
+                    line_start: ln,
+                    line_end: ln,
+                    detail: None,
+                });
+            }
+            if define_emits_re.is_match(line) {
+                symbols.push(SymbolInfo {
+                    name: "defineEmits".to_string(),
+                    kind: "Emits".to_string(),
+                    line_start: ln,
+                    line_end: ln,
+                    detail: None,
+                });
+            }
+
+            for cap in fn_re.captures_iter(line) {
+                let name = &cap[2];
+                let kind = if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                    "Component/Constant"
+                } else {
+                    "Function/Variable"
+                };
+                symbols.push(SymbolInfo {
+                    name: name.to_string(),
+                    kind: kind.to_string(),
+                    line_start: ln,
+                    line_end: ln,
+                    detail: None,
+                });
+            }
+
+            for cap in lifecycle_re.captures_iter(line) {
+                symbols.push(SymbolInfo {
+                    name: cap[1].to_string(),
+                    kind: "LifecycleHook".to_string(),
+                    line_start: ln,
+                    line_end: ln,
+                    detail: None,
+                });
+            }
+
+            for cap in import_re.captures_iter(line) {
+                let imp = cap[1].trim();
+                if !imp.is_empty() {
+                    symbols.push(SymbolInfo {
+                        name: imp.to_string(),
+                        kind: "Import".to_string(),
+                        line_start: ln,
+                        line_end: ln,
+                        detail: None,
+                    });
+                }
+            }
+        }
+
+        // Deduplicate by name + kind + line
+        symbols.sort_by(|a, b| a.line_start.cmp(&b.line_start));
+        symbols.dedup_by(|a, b| a.name == b.name && a.kind == b.kind && a.line_start == b.line_start);
+
+        Ok(symbols)
+    }
+
+    fn extract_js_symbols(path: &Path) -> Result<Vec<SymbolInfo>, ToolError> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file: {}", e)))?;
+
+        let mut symbols = Vec::new();
+        let lines: Vec<&str> = content.lines().collect();
+
+        let patterns: Vec<(regex::Regex, &str)> = vec![
+            (regex::Regex::new(r#"\bexport\s+(default\s+)?(async\s+)?function\s+(\w+)"#).unwrap(), "Function"),
+            (regex::Regex::new(r#"\b(async\s+)?function\s+(\w+)\s*\("#).unwrap(), "Function"),
+            (regex::Regex::new(r#"\bclass\s+(\w+)"#).unwrap(), "Class"),
+            (regex::Regex::new(r#"\binterface\s+(\w+)"#).unwrap(), "Interface"),
+            (regex::Regex::new(r#"\btype\s+(\w+)\s*="#).unwrap(), "TypeAlias"),
+            (regex::Regex::new(r#"\benum\s+(\w+)"#).unwrap(), "Enum"),
+            (regex::Regex::new(r#"\bconst\s+(\w+)\s*="#).unwrap(), "Constant"),
+            (regex::Regex::new(r#"\blet\s+(\w+)\s*="#).unwrap(), "Variable"),
+            (regex::Regex::new(r#"\bexport\s+\{\s*([^}]+)\s*\}"#).unwrap(), "Export"),
+            (regex::Regex::new(r#"\bimport\s+\{([^}]+)\}\s+from"#).unwrap(), "Import"),
+        ];
+
+        for (line_num, line) in lines.iter().enumerate() {
+            let ln = line_num + 1;
+
+            for (re, kind) in &patterns {
+                for cap in re.captures_iter(line) {
+                    // Try to get the last capture group (usually the name)
+                    if let Some(m) = cap.iter().last().flatten() {
+                        let name = m.as_str().trim();
+                        // For import/export groups, split by comma
+                        if *kind == "Import" || *kind == "Export" {
+                            for part in name.split(',') {
+                                let part = part.trim();
+                                if !part.is_empty() && !part.starts_with("type ") {
+                                    symbols.push(SymbolInfo {
+                                        name: part.to_string(),
+                                        kind: (*kind).to_string(),
+                                        line_start: ln,
+                                        line_end: ln,
+                                        detail: None,
+                                    });
+                                }
+                            }
+                        } else {
+                            symbols.push(SymbolInfo {
+                                name: name.to_string(),
+                                kind: (*kind).to_string(),
+                                line_start: ln,
+                                line_end: ln,
+                                detail: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        symbols.sort_by(|a, b| a.line_start.cmp(&b.line_start));
+        symbols.dedup_by(|a, b| a.name == b.name && a.line_start == b.line_start);
+        Ok(symbols)
+    }
+
+    fn extract_generic_symbols(path: &Path) -> Result<Vec<SymbolInfo>, ToolError> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file: {}", e)))?;
+
+        let mut symbols = Vec::new();
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Generic patterns that work across many languages
+        let patterns: Vec<(regex::Regex, &str)> = vec![
+            (regex::Regex::new(r#"\bfn\s+(\w+)"#).unwrap(), "Function"),          // Rust, Go
+            (regex::Regex::new(r#"\bfunc\s+(\w+)"#).unwrap(), "Function"),       // Go
+            (regex::Regex::new(r#"\bdef\s+(\w+)"#).unwrap(), "Function"),        // Python
+            (regex::Regex::new(r#"\bclass\s+(\w+)"#).unwrap(), "Class"),         // Python, TS, etc.
+            (regex::Regex::new(r#"\bstruct\s+(\w+)"#).unwrap(), "Struct"),       // Rust, C, Go
+            (regex::Regex::new(r#"\bimpl\s+(?:\w+\s+for\s+)?(\w+)"#).unwrap(), "Impl"), // Rust
+            (regex::Regex::new(r#"\bmodule\s+(\w+)"#).unwrap(), "Module"),       // Ruby, Python
+        ];
+
+        for (line_num, line) in lines.iter().enumerate() {
+            let ln = line_num + 1;
+            for (re, kind) in &patterns {
+                for cap in re.captures_iter(line) {
+                    if let Some(m) = cap.get(1) {
+                        symbols.push(SymbolInfo {
+                            name: m.as_str().to_string(),
+                            kind: (*kind).to_string(),
+                            line_start: ln,
+                            line_end: ln,
+                            detail: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        symbols.sort_by(|a, b| a.line_start.cmp(&b.line_start));
+        symbols.dedup_by(|a, b| a.name == b.name && a.line_start == b.line_start);
+        Ok(symbols)
+    }
 }
 
 /// Write content to a file (creates or overwrites).
@@ -435,8 +861,11 @@ impl Tool for SearchTool {
 
         let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { search_path.to_path_buf()  } else { Path::new(&*project).join(search_path) } };
 
+        // Try to compile as regex; fall back to literal string match if invalid
+        let regex = regex::Regex::new(pattern).ok();
+
         let mut results = Vec::new();
-        walk_dir(&full_path, pattern, &mut results)
+        walk_dir(&full_path, pattern, regex.as_ref(), &mut results)
             .map_err(|e| ToolError::ExecutionFailed(format!("Search error: {}", e)))?;
 
         if results.is_empty() {
@@ -452,10 +881,11 @@ impl Tool for SearchTool {
 fn walk_dir(
     dir: &Path,
     pattern: &str,
+    regex: Option<&regex::Regex>,
     results: &mut Vec<String>,
 ) -> Result<(), std::io::Error> {
     if !dir.is_dir() {
-        search_file(dir, pattern, results)?;
+        search_file(dir, pattern, regex, results)?;
         return Ok(());
     }
 
@@ -475,28 +905,33 @@ fn walk_dir(
             {
                 continue;
             }
-            walk_dir(&path, pattern, results)?;
+            walk_dir(&path, pattern, regex, results)?;
         } else if path.is_file() {
             // Skip binary files
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
             if matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "ico" | "woff" | "woff2" | "ttf" | "eot" | "wasm") {
                 continue;
             }
-            search_file(&path, pattern, results)?;
+            search_file(&path, pattern, regex, results)?;
         }
     }
 
     Ok(())
 }
 
-fn search_file(path: &Path, pattern: &str, results: &mut Vec<String>) -> Result<(), std::io::Error> {
+fn search_file(path: &Path, pattern: &str, regex: Option<&regex::Regex>, results: &mut Vec<String>) -> Result<(), std::io::Error> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return Ok(()), // Skip unreadable files (binary, etc.)
     };
 
     for (line_num, line) in content.lines().enumerate() {
-        if line.contains(pattern) {
+        let matched = if let Some(re) = regex {
+            re.is_match(line)
+        } else {
+            line.contains(pattern)
+        };
+        if matched {
             results.push(format!(
                 "{}:{}: {}",
                 path.display(),
@@ -810,6 +1245,259 @@ impl Tool for WriteSpecsTool {
             "Updated section '{}' ({}). Changes saved to disk.",
             section_id, status_str
         ))
+    }
+}
+
+/// Update a single spec item (create, update, or delete) without rewriting the entire section.
+///
+/// This is the preferred way to add or modify individual goals, designs, plans, etc.
+/// It avoids the JSON truncation problem that occurs with write_specs on large sections.
+struct UpdateSpecTool;
+
+impl Tool for UpdateSpecTool {
+    fn name(&self) -> &'static str {
+        "update_spec"
+    }
+
+    fn description(&self) -> &'static str {
+        "Update, create, or delete a single spec item by ID. \
+         This is more efficient than write_specs for incremental changes. \
+         Example: {\"section_id\": \"goals\", \"item_id\": \"G32\", \"action\": \"upsert\", \"title\": \"...\", \"content\": \"...\"}. \
+         Use 'upsert' to create or update, 'delete' to remove, 'patch' to only change content."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "section_id": {
+                    "type": "string",
+                    "description": "The section ID (e.g., 'goals', 'architecture', 'designs', 'plans', 'tests')"
+                },
+                "item_id": {
+                    "type": "string",
+                    "description": "The item ID to update (e.g., 'G32', 'D1', 'P1.2')"
+                },
+                "action": {
+                    "type": "string",
+                    "description": "Action to perform",
+                    "enum": ["upsert", "delete", "patch"],
+                    "default": "upsert"
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Item title (required for new items)"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Item body content (markdown)"
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Item status",
+                    "enum": ["empty", "proposed", "draft", "under_review", "approved", "in_progress", "in_implementation", "implemented", "verified", "done", "archived", "rejected", "backlog", "ready", "in_review", "blocked", "superseded", "outdated", "stable", "deprecated"]
+                },
+                "priority": {
+                    "type": "string",
+                    "description": "Priority (e.g., 'P0', 'P1', 'P2')"
+                },
+                "depends_on": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "List of item IDs this item depends on"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Tags (e.g., ['stack:backend', 'module:relay'])"
+                },
+                "assignee": {
+                    "type": "string",
+                    "description": "Assigned person or team"
+                },
+                "test_file": {
+                    "type": "string",
+                    "description": "Path to associated test file"
+                },
+                "file": {
+                    "type": "string",
+                    "description": "Path to associated implementation file"
+                },
+                "milestone": {
+                    "type": "string",
+                    "description": "Associated milestone"
+                },
+                "module": {
+                    "type": "string",
+                    "description": "Module or component name"
+                }
+            },
+            "required": ["section_id", "item_id"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
+        if project.is_empty() {
+            return Err(ToolError::ExecutionFailed("No project context set".into()));
+        }
+        let project_name = std::path::Path::new(&project)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or(project.clone());
+
+        let section_id = args
+            .get("section_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'section_id' argument".into()))?;
+        let item_id = args
+            .get("item_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'item_id' argument".into()))?;
+        let action = args
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("upsert");
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let mut store = super::specs().lock().unwrap();
+
+        let result_msg = {
+            let doc = store.get_or_default(&project_name);
+
+            // Find or create the target section
+            let section_idx = doc.sections.iter().position(|s| s.id == section_id);
+            let section = if let Some(idx) = section_idx {
+                &mut doc.sections[idx]
+            } else {
+                let new_section = super::SpecsSection {
+                    id: section_id.to_string(),
+                    section_type: super::SectionType::from_id(section_id),
+                    title: section_id.to_string(),
+                    items: vec![],
+                    content: String::new(),
+                    status: super::Status::Empty,
+                    depends_on: vec![],
+                    last_modified: now,
+                    last_verified: None,
+                };
+                doc.sections.push(new_section);
+                doc.sections.last_mut().unwrap()
+            };
+
+            match action {
+                "delete" => {
+                    let old_len = section.items.len();
+                    section.items.retain(|i| i.id != item_id);
+                    if section.items.len() == old_len {
+                        return Ok(format!("Item '{}' not found in section '{}'. No changes made.", item_id, section_id));
+                    }
+                    section.last_modified = now;
+                    "deleted".to_string()
+                }
+                "patch" => {
+                    let content = args
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| ToolError::InvalidInput("'patch' action requires 'content' argument".into()))?;
+                    if let Some(item) = section.items.iter_mut().find(|i| i.id == item_id) {
+                        item.content = content.to_string();
+                        item.modified_at = now;
+                        section.last_modified = now;
+                        "patched".to_string()
+                    } else {
+                        return Err(ToolError::ExecutionFailed(format!("Item '{}' not found in section '{}'. Use 'upsert' to create it.", item_id, section_id)));
+                    }
+                }
+                _ => {
+                    // upsert (default)
+                    let title = args
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(item_id);
+                    let content = args
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let status_str = args
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("draft");
+                    let priority = args.get("priority").and_then(|v| v.as_str());
+                    let assignee = args.get("assignee").and_then(|v| v.as_str());
+                    let test_file = args.get("test_file").and_then(|v| v.as_str());
+                    let file = args.get("file").and_then(|v| v.as_str());
+                    let milestone = args.get("milestone").and_then(|v| v.as_str());
+                    let module = args.get("module").and_then(|v| v.as_str());
+                    let depends_on: Vec<String> = args
+                        .get("depends_on")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                        .unwrap_or_default();
+                    let tags: Vec<String> = args
+                        .get("tags")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                        .unwrap_or_default();
+
+                    let is_new = if let Some(item) = section.items.iter_mut().find(|i| i.id == item_id) {
+                        // Update existing item — only change provided fields
+                        if args.get("title").is_some() { item.title = title.to_string(); }
+                        if args.get("content").is_some() { item.content = content.to_string(); }
+                        if args.get("status").is_some() { item.status = super::Status::from_str_lossy(status_str); }
+                        if args.get("priority").is_some() { item.priority = priority.map(String::from); }
+                        if args.get("assignee").is_some() { item.assignee = assignee.map(String::from); }
+                        if args.get("test_file").is_some() { item.test_file = test_file.map(String::from); }
+                        if args.get("file").is_some() { item.file = file.map(String::from); }
+                        if args.get("milestone").is_some() { item.milestone = milestone.map(String::from); }
+                        if args.get("module").is_some() { item.module = module.map(String::from); }
+                        if args.get("depends_on").is_some() { item.depends_on = depends_on; }
+                        if args.get("tags").is_some() { item.tags = tags; }
+                        item.modified_at = now;
+                        false
+                    } else {
+                        // Create new item
+                        let new_item = super::SpecItem {
+                            id: item_id.to_string(),
+                            title: title.to_string(),
+                            content: content.to_string(),
+                            status: super::Status::from_str_lossy(status_str),
+                            depends_on,
+                            related: vec![],
+                            priority: priority.map(String::from),
+                            assignee: assignee.map(String::from),
+                            test_file: test_file.map(String::from),
+                            file: file.map(String::from),
+                            milestone: milestone.map(String::from),
+                            module: module.map(String::from),
+                            tags,
+                            created_at: now,
+                            modified_at: now,
+                            completed_at: None,
+                        };
+                        section.items.push(new_item);
+                        true
+                    };
+
+                    section.last_modified = now;
+                    if is_new { "created".to_string() } else { "updated".to_string() }
+                }
+            }
+        };
+
+        let doc = store.get(&project_name).unwrap();
+        store.save_ad_format(doc, &project_name);
+
+        match result_msg.as_str() {
+            "deleted" => Ok(format!("Deleted item '{}' from section '{}'. Changes saved.", item_id, section_id)),
+            "patched" => Ok(format!("Patched content of item '{}' in section '{}'. Changes saved.", item_id, section_id)),
+            "created" => Ok(format!("Created item '{}' in section '{}'. Changes saved.", item_id, section_id)),
+            _ => Ok(format!("Updated item '{}' in section '{}'. Changes saved.", item_id, section_id)),
+        }
     }
 }
 
@@ -1127,9 +1815,9 @@ impl Tool for DispatchTool {
                 },
                 "max_turns": {
                     "type": "integer",
-                    "description": "Maximum turns for the errand. Default: 20",
-                    "default": 20,
-                    "maximum": 50
+                    "description": "Maximum turns for the errand. Default: 40",
+                    "default": 40,
+                    "maximum": 100
                 }
             }
         })
@@ -1151,7 +1839,7 @@ impl Tool for DispatchTool {
         let max_turns = args
             .get("max_turns")
             .and_then(|v| v.as_u64())
-            .unwrap_or(20) as u32;
+            .unwrap_or(40) as u32;
 
         let current = CURRENT_PROFESSION.lock().unwrap().clone();
 
@@ -1480,8 +2168,9 @@ mod tests {
     #[test]
     fn test_read_file_tool() {
         let tool = ReadFileTool;
-        // Try to read Cargo.toml (should exist in project root)
-        let result = tool.execute(serde_json::json!({"path": "Cargo.toml"}));
+        set_tool_context("d:/autostack/auto-forge", "test-session");
+        // Try to read backend/Cargo.toml (should exist in project root)
+        let result = tool.execute(serde_json::json!({"path": "backend/Cargo.toml"}));
         assert!(result.is_ok(), "Failed to read Cargo.toml: {:?}", result.err());
         assert!(result.unwrap().contains("[package]"));
     }
@@ -1548,7 +2237,7 @@ mod tests {
     fn test_tool_registry() {
         let registry = ToolRegistry::new();
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 16);
+        assert_eq!(defs.len(), 18);
         assert!(registry.get("read_file").is_some());
         assert!(registry.get("write_file").is_some());
         assert!(registry.get("edit_file").is_some());
@@ -1556,6 +2245,7 @@ mod tests {
         assert!(registry.get("search").is_some());
         assert!(registry.get("read_specs").is_some());
         assert!(registry.get("write_specs").is_some());
+        assert!(registry.get("update_spec").is_some());
         assert!(registry.get("write_goals").is_some());
         assert!(registry.get("list_specs").is_some());
     }
@@ -1617,6 +2307,46 @@ mod tests {
     }
 
     #[test]
+    fn test_list_symbols_tool_rust() {
+        let tool = ListSymbolsTool;
+        assert_eq!(tool.name(), "list_symbols");
+        assert!(tool.is_read_only());
+
+        // Test on a known Rust file (title.rs)
+        set_tool_context("d:/autostack/auto-forge", "test-session");
+        let result = tool.execute(serde_json::json!({"path": "backend/src/relay/title.rs"}));
+        assert!(result.is_ok(), "{:?}", result);
+        let output = result.unwrap();
+        assert!(output.contains("generate_title"), "Should find generate_title function");
+        assert!(output.contains("strip_action_verbs"), "Should find strip_action_verbs function");
+    }
+
+    #[test]
+    fn test_read_file_offset_limit() {
+        let tool = ReadFileTool;
+        set_tool_context("d:/autostack/auto-forge", "test-session");
+
+        // Test offset/limit
+        let result = tool.execute(serde_json::json!({
+            "path": "backend/src/relay/title.rs",
+            "offset": 0,
+            "limit": 5
+        }));
+        assert!(result.is_ok(), "{:?}", result);
+        let output = result.unwrap();
+        assert!(output.contains("Lines 0-5"), "Should show line range header");
+
+        // Test truncation on large file
+        let result = tool.execute(serde_json::json!({
+            "path": "frontend/src/views/RelayView.vue"
+        }));
+        assert!(result.is_ok(), "{:?}", result);
+        let output = result.unwrap();
+        assert!(output.contains("TRUNCATED"), "Large file should be truncated");
+        assert!(output.contains("Use offset="), "Should suggest offset parameter");
+    }
+
+    #[test]
     fn test_spawn_relay_tool() {
         let tool = SpawnRelayTool;
         assert_eq!(tool.name(), "spawn_relay");
@@ -1669,3 +2399,5 @@ mod tests {
         assert_eq!(json["task"], "Build auth system");
     }
 }
+
+
