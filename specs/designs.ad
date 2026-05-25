@@ -3450,3 +3450,119 @@ pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
 
 - `manifest.at` `project` field MUST be `"."` to match API path semantics
 - Any mismatch causes backend to serve default empty docs and overwrite `.ad` files
+
+## D39 Unified LSP Client for Symbol Intelligence
+**Status:** draft
+**Module:** `backend/src/forge/lsp.rs` (future)
+**Tags:** stack:backend, module:tools, priority:medium
+**Depends on:** D25
+
+### Problem
+
+The current `list_symbols` tool uses a hybrid fallback strategy:
+- **Rust**: Spawns `rust-analyzer symbols < file.rs` (works well, but limited to symbols only)
+- **Vue/TS/JS**: Regex-based heuristics (brittle, misses nested structures, no type info)
+
+This creates an inconsistency: Rust files get rich LSP-grade symbol data (kind, range, detail), while frontend files get best-effort regex extraction. As the project grows, the regex approach will produce false positives/negatives and cannot support future features like "go to definition" or "find references".
+
+### Solution
+
+Build a **Unified LSP Client** that manages language server processes over JSON-RPC and exposes a single `LspClient` interface for all symbol-related operations.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│           Forge Tool Layer              │
+│  ┌─────────────┐    ┌─────────────┐    │
+│  │ list_symbols│    │ goto_def    │    │
+│  └──────┬──────┘    └──────┬──────┘    │
+│         └─────────────────┬┘            │
+├───────────────────────────┼─────────────┤
+│      Unified LSP Client   │             │
+│  ┌────────────────────────┴──────────┐  │
+│  │   LspManager (Arc<Mutex<...>>)    │  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────┐  │  │
+│  │  │ rust-an │ │ tsserver│ │ vue │  │  │
+│  │  │ lyzer   │ │         │ │ ls  │  │  │
+│  │  └────┬────┘ └────┬────┘ └──┬──┘  │  │
+│  │       └───────────┴─────────┘      │  │
+│  │            JSON-RPC over stdio      │  │
+│  └────────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+#### Key Components
+
+1. **LspServerHandle**
+   - Wraps a child process (`stdin/stdout` pipes)
+   - Manages JSON-RPC request/response routing (id correlation)
+   - Auto-restart on crash, health ping every 30s
+
+2. **LspManager**
+   - Maps file extensions to language server binaries
+   - Lazy-starts servers on first request for a language
+   - Idle timeout (5 min) to shut down unused servers
+   - Configuration from `backend/.lspconfig.toml` (optional)
+
+3. **LspClient API**
+   ```rust
+   pub trait LspClient: Send + Sync {
+       async fn document_symbols(&self, path: &Path) -> Result<Vec<SymbolInfo>, LspError>;
+       async fn goto_definition(&self, path: &Path, line: u32, col: u32) -> Result<Vec<Location>, LspError>;
+       async fn hover(&self, path: &Path, line: u32, col: u32) -> Result<Option<String>, LspError>;
+   }
+   ```
+
+4. **SymbolInfo Unification**
+   - Reuse existing `SymbolInfo` struct (name, kind, line_start, line_end, detail)
+   - Add `children: Vec<SymbolInfo>` for nested scopes (classes containing methods)
+
+#### Supported Languages
+
+| Language | Server Binary | Install Method |
+|----------|--------------|----------------|
+| Rust | `rust-analyzer` | Already required |
+| TypeScript | `typescript-language-server` | `npm i -g typescript-language-server` |
+| Vue | `@vue/language-server` | `npm i -g @vue/language-server` |
+| Python | `pylsp` or `pyright` | Future |
+
+#### Lifecycle
+
+1. **Discovery**: On `list_symbols` call, manager checks if server for file extension is running
+2. **Startup**: If not, spawn binary with `workspace/root` initialized to `CURRENT_PROJECT`
+3. **DidOpen**: Send `textDocument/didOpen` with file contents (required for tsserver/vue)
+4. **Query**: Send `textDocument/documentSymbol` request
+5. **Mapping**: Convert LSP `DocumentSymbol[]` to internal `SymbolInfo[]`
+6. **Idle Shutdown**: After 5 min inactivity, send `shutdown` + `exit`
+
+#### Migration Path
+
+1. **Phase 1** (current): Keep hybrid approach; LSP client lives behind feature flag
+2. **Phase 2**: Enable LSP client for TS/Vue when `typescript-language-server` / `@vue/language-server` detected on PATH; fallback to regex if absent
+3. **Phase 3**: Move Rust symbols to LSP client too (single code path); remove `rust-analyzer symbols` CLI spawn
+4. **Phase 4**: Add `goto_definition`, `hover` as new tools for agent self-navigation
+
+### Requirements
+
+- [ ] `LspManager` module with lazy server startup
+- [ ] JSON-RPC 2.0 client over stdio
+- [ ] `textDocument/documentSymbol` → `SymbolInfo` mapping
+- [ ] Graceful fallback to regex when LSP binary not found
+- [ ] Idle timeout to prevent zombie processes
+- [ ] Unit tests with mocked LSP server (stdin/stdout pipes)
+
+### Token Efficiency Impact
+
+Once implemented, the full `list_symbols` + targeted `read_file(offset, limit)` workflow will provide **LSP-grade accuracy** for all supported languages, reducing agent token waste from:
+- False-positive regex matches (agent reads wrong region)
+- Missing nested symbols (agent doesn't see inner functions)
+- Re-reading large files because structure was unclear
+
+Estimated savings: ~30% reduction in file-reading tokens for TS/Vue tasks.
+
+### Related
+
+- Layer 1: `read_file` offset/limit + 8KB truncation (implemented)
+- Layer 2: `list_symbols` hybrid tool (implemented)
+- Coder soul rule: `FILE READING STRATEGY` (updated)
