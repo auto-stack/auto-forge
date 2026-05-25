@@ -32,7 +32,7 @@
           <div class="run-card-header">
             <div class="run-card-title-col">
               <span class="run-id" :title="run.run_id">{{ run.title || run.run_id }}</span>
-              <span v-if="run.title" class="run-id-sub">{{ run.run_id }}</span>
+              <span class="run-id-sub">{{ run.run_id }}</span>
             </div>
             <StatusBadge :status="run.status" />
           </div>
@@ -65,7 +65,10 @@
         <template v-else>
           <!-- Run header -->
           <div class="run-header">
-            <div class="run-title">{{ currentRun.title || currentRun.run_id }}</div>
+            <div class="run-title">
+              {{ currentRun.title || currentRun.run_id }}
+              <span v-if="currentRun.title" class="run-title-id">{{ currentRun.run_id }}</span>
+            </div>
             <div class="run-stats">
               <span class="stat-badge">
                 <Coins :size="12" />
@@ -752,6 +755,15 @@ function professionIcon(id: string): string {
   font-weight: 600;
   color: var(--af-fg);
   font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.run-title-id {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--af-muted);
 }
 
 .run-stats {
