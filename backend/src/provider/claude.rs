@@ -238,9 +238,10 @@ impl ClaudeProvider {
             .unwrap_or_else(build_forge_system_prompt);
 
         let model = self.resolve_model(request.thinking_budget);
+        let max_tokens = request.max_tokens.unwrap_or(4096);
         let mut body = serde_json::json!({
             "model": model,
-            "max_tokens": 4096,
+            "max_tokens": max_tokens,
             "system": system,
             "messages": request.messages,
             "tools": request.tools,

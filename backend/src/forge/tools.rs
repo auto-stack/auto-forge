@@ -733,6 +733,21 @@ impl Tool for EditFileTool {
     }
 }
 
+/// Truncate a string to at most `max_lines` lines, appending a notice.
+fn truncate_lines(text: &str, max_lines: usize) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.len() <= max_lines {
+        text.to_string()
+    } else {
+        let mut result = lines[..max_lines].join("\n");
+        result.push_str(&format!(
+            "\n... [{} more lines truncated] ...",
+            lines.len() - max_lines
+        ));
+        result
+    }
+}
+
 /// Execute a shell command.
 struct ShellTool;
 
@@ -775,12 +790,20 @@ impl Tool for ShellTool {
         }
 
         let project = CURRENT_PROJECT.lock().unwrap().clone();
-        let mut command = std::process::Command::new("bash");
+
+        // Platform-aware shell selection
+        let (shell, shell_arg) = if cfg!(target_os = "windows") {
+            ("cmd.exe", "/C")
+        } else {
+            ("bash", "-c")
+        };
+
+        let mut command = std::process::Command::new(shell);
         if !project.is_empty() {
             command.current_dir(&project);
         }
         let output = command
-            .arg("-c")
+            .arg(shell_arg)
             .arg(cmd)
             .output()
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to execute command: {}", e)))?;
@@ -788,16 +811,18 @@ impl Tool for ShellTool {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
-        if !output.status.success() {
-            return Err(ToolError::ExecutionFailed(format!(
-                "Command exited with code {}\nSTDOUT:\n{}\nSTDERR:\n{}",
-                output.status.code().unwrap_or(-1),
-                stdout,
-                stderr
-            )));
-        }
+        // Truncate large outputs to prevent token exhaustion
+        const MAX_OUTPUT_LINES: usize = 500;
+        let stdout = truncate_lines(&stdout, MAX_OUTPUT_LINES);
+        let stderr = truncate_lines(&stderr, MAX_OUTPUT_LINES);
 
         let mut result = String::new();
+        if !output.status.success() {
+            result.push_str(&format!(
+                "Command exited with code {}\n",
+                output.status.code().unwrap_or(-1)
+            ));
+        }
         if !stdout.is_empty() {
             result.push_str(&format!("STDOUT:\n{}\n", stdout));
         }

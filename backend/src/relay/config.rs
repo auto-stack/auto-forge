@@ -424,7 +424,7 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             model_tier: tier,
             is_default: true,
             temperature: 0.3,
-            max_tokens: 4096,
+            max_tokens: if tier == ModelTier::Light { 4096 } else { 8192 },
             reasoning_budget: if tier == ModelTier::Heavy { Some(4096) } else { None },
             thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
             thinking_budget: match profession {

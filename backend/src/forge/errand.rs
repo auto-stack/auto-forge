@@ -149,6 +149,7 @@ impl ErrandSession {
                 tools: tools.clone(),
                 system_prompt: Some(system_prompt.clone()),
                 thinking_budget: None,
+                max_tokens: None,
             };
 
             let (turn_tx, mut turn_rx) =

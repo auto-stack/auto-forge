@@ -27,7 +27,7 @@ impl Default for ModelConfig {
             provider: Provider::Anthropic,
             model: String::from("claude-3-5-sonnet-20241022"),
             temperature: 0.3,
-            max_tokens: 4096,
+            max_tokens: 8192,
             reasoning_budget: None,
             fallback_chain: vec![
                 String::from("claude-3-5-sonnet-20241022"),
@@ -54,7 +54,7 @@ impl ModelConfig {
             provider: Provider::Anthropic,
             model: String::from("claude-3-5-sonnet-20241022"),
             temperature: 0.3,
-            max_tokens: 4096,
+            max_tokens: 8192,
             reasoning_budget: None,
             fallback_chain: vec![
                 String::from("claude-3-5-sonnet-20241022"),
@@ -340,6 +340,7 @@ impl AgentInstance {
             } else {
                 None
             },
+            max_tokens: Some(self.model.max_tokens),
         }
     }
 }

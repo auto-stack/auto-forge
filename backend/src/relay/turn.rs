@@ -170,6 +170,7 @@ impl AgentTurn {
                 } else {
                     None
                 },
+                max_tokens: Some(self.agent.model.max_tokens),
             };
 
             let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();

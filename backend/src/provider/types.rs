@@ -554,6 +554,8 @@ pub struct ToolChatRequest {
     pub system_prompt: Option<String>,
     /// Thinking budget in tokens. None = disabled, Some(n) = enabled with n token budget.
     pub thinking_budget: Option<u32>,
+    /// Max output tokens for this turn. None = use provider default.
+    pub max_tokens: Option<u32>,
 }
 
 // ============================================================================

@@ -214,6 +214,9 @@ fn review_validators() -> Vec<StepValidator> {
             StepValidator::SpecUpdatesNonEmpty {
                 sections: vec!["reviews".to_string()],
             },
+            StepValidator::WorkProductHasExtensions {
+                exts: vec![".md".to_string(), ".ad".to_string(), ".txt".to_string()],
+            },
         ]),
     ]
 }

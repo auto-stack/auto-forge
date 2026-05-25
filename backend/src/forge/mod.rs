@@ -1955,7 +1955,11 @@ mod handlers {
             {
                 let store = forge_sessions().lock().unwrap();
                 if let Some(session) = store.get(&sid) {
-                    for msg in &session.messages {
+                    let mut handled = std::collections::HashSet::new();
+                    for (i, msg) in session.messages.iter().enumerate() {
+                        if handled.contains(&i) {
+                            continue;
+                        }
                         match msg.role.as_str() {
                             "system" => {
                                 // System prompt is handled separately via phase prompt
@@ -1965,7 +1969,24 @@ mod handlers {
                             }
                             "assistant" => {
                                 if let Some(ref calls) = msg.tool_calls {
-                                    let mut blocks = vec![ContentBlock::text(&msg.content)];
+                                    // In old sessions, tool results were persisted BEFORE the
+                                    // assistant message. Gather preceding tool messages that
+                                    // match this assistant's tool_calls and output them AFTER.
+                                    let mut preceding_tools = Vec::new();
+                                    let mut j = i;
+                                    while j > 0 && session.messages[j - 1].role == "tool" {
+                                        j -= 1;
+                                        if let Some(ref tool_calls) = session.messages[j].tool_calls {
+                                            if calls.iter().any(|c| tool_calls.iter().any(|tc| tc.id == c.id)) {
+                                                preceding_tools.push(j);
+                                            }
+                                        }
+                                    }
+
+                                    let mut blocks = Vec::new();
+                                    if !msg.content.is_empty() {
+                                        blocks.push(ContentBlock::text(&msg.content));
+                                    }
                                     for call in calls {
                                         blocks.push(ContentBlock::ToolUse {
                                             id: call.id.clone(),
@@ -1977,11 +1998,28 @@ mod handlers {
                                         role: "assistant".to_string(),
                                         content: blocks,
                                     });
+
+                                    // Output matching tool results in forward order
+                                    for &idx in preceding_tools.iter().rev() {
+                                        handled.insert(idx);
+                                        let tool_msg = &session.messages[idx];
+                                        if let Some(ref tool_calls) = tool_msg.tool_calls {
+                                            for call in tool_calls {
+                                                if let Some(ref result) = call.result {
+                                                    chat_messages.push(ChatMessage::tool_result(
+                                                        &call.id, result,
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                    }
                                 } else {
                                     chat_messages.push(ChatMessage::assistant_text(&msg.content));
                                 }
                             }
                             "tool" => {
+                                // Only output standalone tool messages (those not handled by
+                                // a preceding assistant in the loop above).
                                 if let Some(ref calls) = msg.tool_calls {
                                     for call in calls {
                                         if let Some(ref result) = call.result {
@@ -2002,7 +2040,7 @@ mod handlers {
             fn build_system_and_tools(
                 registry: &crate::forge::tools::ToolRegistry,
                 profession_id: &str,
-            ) -> (String, Vec<crate::forge::tools::ToolDefinition>, Vec<String>) {
+            ) -> (String, Vec<crate::forge::tools::ToolDefinition>, Vec<String>, u32) {
                 let relay = crate::relay::RelayRegistry::new();
                 let agent_config = relay.default_agent_for(profession_id);
                 let prompt = match agent_config.and_then(|cfg| relay.spawn_agent_from_config(cfg)) {
@@ -2026,10 +2064,11 @@ mod handlers {
                 let tools: Vec<_> = registry.definitions().into_iter()
                     .filter(|t| allowed.is_empty() || allowed.contains(&t.name))
                     .collect();
-                (prompt, tools, allowed)
+                let max_tokens = agent_config.map(|c| c.max_tokens).unwrap_or(4096);
+                (prompt, tools, allowed, max_tokens)
             }
 
-            let (system_prompt, all_tools, allowed_tool_names) = build_system_and_tools(&registry, &active_profession);
+            let (system_prompt, all_tools, allowed_tool_names, max_tokens) = build_system_and_tools(&registry, &active_profession);
 
             // Load thinking configuration: prefer AgentConfig, fall back to Profession defaults
             let (thinking_enabled, thinking_budget) = {
@@ -2085,6 +2124,7 @@ mod handlers {
                     } else {
                         None
                     },
+                    max_tokens: Some(max_tokens),
                 };
 
                 let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();
@@ -2152,7 +2192,6 @@ mod handlers {
                                     c.result = Some(err.clone());
                                     c.status = "error".to_string();
                                 }
-                                chat_messages.push(ChatMessage::tool_result(&id, &err));
 
                                 // Notify frontend about the error
                                 let event = Event::default().data(
@@ -2304,27 +2343,6 @@ mod handlers {
                                 );
                                 let _ = event_tx.send(Ok(event));
 
-                                // Add tool result to conversation for next turn
-                                chat_messages.push(ChatMessage::tool_result(&id, &result_str));
-
-                                // Persist tool result message
-                                let result_for_msg = result_str.clone();
-                                let tool_msg = ForgeMessage {
-                                    id: format!("m-{}", uuid::Uuid::new_v4()),
-                                    role: "tool".to_string(),
-                                    content: result_for_msg,
-                                    timestamp: now_secs(),
-                                    tool_calls: Some(vec![ToolCallInfo {
-                                        id: id.clone(),
-                                        name: name.clone(),
-                                        arguments: input_clone.clone(),
-                                        result: turn_tool_calls.iter().find(|c| c.id == id).and_then(|c| c.result.clone()),
-                                        status: "success".to_string(),
-                                    }]),
-                                    profession_id: None,
-                                };
-                                forge_sessions().lock().unwrap().push_message(&sid, tool_msg);
-
                                 // ── Handle bring_in tool result ──
                                 if name == "bring_in" {
                                     if let Ok(handoff_data) = serde_json::from_str::<serde_json::Value>(&result_str) {
@@ -2386,10 +2404,11 @@ mod handlers {
 
                                             // Rebuild system prompt and tools for the new agent
                                             current_profession = target_for_prompt.clone();
-                                            let (new_prompt, new_tools, new_allowed) = build_system_and_tools(&registry, &target_for_prompt);
+                                            let (new_prompt, new_tools, new_allowed, new_max_tokens) = build_system_and_tools(&registry, &target_for_prompt);
                                             system_prompt = new_prompt;
                                             all_tools = new_tools;
                                             allowed_tool_names = new_allowed;
+                                            let _ = new_max_tokens; // max_tokens is set per-turn via the request
 
                                             // Reset turn count so the incoming agent gets a full budget
                                             turn_count = 0;
@@ -2423,7 +2442,8 @@ mod handlers {
                     break;
                 }
 
-                // Persist assistant message for this turn
+                // Persist assistant message first, then tool results
+                // (Anthropic API requires assistant with tool_use BEFORE user with tool_result)
                 if !turn_text.is_empty() || !turn_tool_calls.is_empty() {
                     let assistant_msg = ForgeMessage {
                         id: format!("m-{}", uuid::Uuid::new_v4()),
@@ -2439,9 +2459,12 @@ mod handlers {
                     };
                     forge_sessions().lock().unwrap().push_message(&sid, assistant_msg.clone());
 
-                    // Also add to chat_messages for next turn continuity
+                    // Add assistant message to chat_messages for next turn continuity
                     if got_tool_use {
-                        let mut blocks = vec![ContentBlock::text(&turn_text)];
+                        let mut blocks = Vec::new();
+                        if !turn_text.is_empty() {
+                            blocks.push(ContentBlock::text(&turn_text));
+                        }
                         for call in &turn_tool_calls {
                             blocks.push(ContentBlock::ToolUse {
                                 id: call.id.clone(),
@@ -2453,6 +2476,24 @@ mod handlers {
                             role: "assistant".to_string(),
                             content: blocks,
                         });
+                    }
+                }
+
+                // Persist tool result messages after assistant message
+                for call in &turn_tool_calls {
+                    if let Some(ref result) = call.result {
+                        let tool_msg = ForgeMessage {
+                            id: format!("m-{}", uuid::Uuid::new_v4()),
+                            role: "tool".to_string(),
+                            content: result.clone(),
+                            timestamp: now_secs(),
+                            tool_calls: Some(vec![call.clone()]),
+                            profession_id: None,
+                        };
+                        forge_sessions().lock().unwrap().push_message(&sid, tool_msg);
+
+                        // Add tool result to chat_messages for next turn
+                        chat_messages.push(ChatMessage::tool_result(&call.id, result));
                     }
                 }
 

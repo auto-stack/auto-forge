@@ -552,7 +552,7 @@ impl PipelineEngine {
                 let has_meaningful_work = handoff.work_product.iter().any(|wp| {
                     !wp.path.ends_with("README.md") && !wp.path.is_empty()
                 });
-                if !has_meaningful_work {
+                if !has_meaningful_work && handoff.spec_updates.is_empty() {
                     return Some("Architect produced no meaningful spec work. Use write_specs to update architecture and designs.".into());
                 }
             }
@@ -560,7 +560,7 @@ impl PipelineEngine {
                 let has_plan_work = handoff.work_product.iter().any(|wp| {
                     wp.path.contains("plan") || wp.path.ends_with(".ad")
                 });
-                if !has_plan_work && handoff.work_product.len() < 2 {
+                if !has_plan_work && handoff.work_product.len() < 2 && handoff.spec_updates.is_empty() {
                     return Some("Planner produced no plans. Use write_specs to create or update plans.".into());
                 }
             }
@@ -573,12 +573,12 @@ impl PipelineEngine {
                 }
             }
             "review" => {
-                if handoff.work_product.is_empty() && handoff.decisions.is_empty() {
+                if handoff.work_product.is_empty() && handoff.decisions.is_empty() && handoff.spec_updates.is_empty() {
                     return Some("Reviewer produced no review output. Use write_specs to update reviews section.".into());
                 }
             }
             "report" => {
-                if handoff.work_product.is_empty() {
+                if handoff.work_product.is_empty() && handoff.spec_updates.is_empty() {
                     return Some("Documenter produced no report. Use write_specs to update reports and finalize spec statuses.".into());
                 }
             }
