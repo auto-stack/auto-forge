@@ -2241,11 +2241,13 @@ mod handlers {
                                             let run_store = crate::relay::api::run_store();
                                             let _ = crate::relay::store::start_run(run_store, flow, &run_id);
 
-                                            // Set mode on the engine after creation
+                                            // Generate and store title from task description
                                             {
                                                 let mut map = run_store.lock().unwrap();
                                                 if let Some(entry) = map.get_mut(&run_id) {
+                                                    entry.metadata.title = Some(crate::relay::title::generate_title(&task));
                                                     entry.engine.mode = mode;
+                                                    crate::relay::store::save_run(entry);
                                                 }
                                             }
 
