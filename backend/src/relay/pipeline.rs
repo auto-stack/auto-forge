@@ -130,6 +130,20 @@ pub enum PipelineStatus {
     },
 }
 
+impl PipelineStatus {
+    /// Return a clean, human-readable status string.
+    pub fn to_status_str(&self) -> String {
+        match self {
+            PipelineStatus::Idle => "idle".to_string(),
+            PipelineStatus::Running { .. } => "running".to_string(),
+            PipelineStatus::WaitingForHuman { .. } => "waiting_approval".to_string(),
+            PipelineStatus::Completed => "completed".to_string(),
+            PipelineStatus::Failed { error } => format!("failed"),
+            PipelineStatus::Paused { .. } => "paused".to_string(),
+        }
+    }
+}
+
 /// Information about a gate that is awaiting human resolution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingGate {

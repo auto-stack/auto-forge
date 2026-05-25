@@ -139,7 +139,7 @@ fn test_goal_discovery_flow_completes_with_mock_handoff() {
 
     // Verify final state
     let final_state = get_run(&store, run_id).unwrap();
-    assert_eq!(final_state.status, "Completed");
+    assert_eq!(final_state.status, "completed");
     assert_eq!(final_state.current_step, 1);
     assert_eq!(final_state.step_history.len(), 1);
     assert_eq!(final_state.cumulative_tokens, 1500);
@@ -164,7 +164,7 @@ fn test_goal_discovery_flow_fails_validation_without_spec_updates() {
     // The exact behavior depends on the pipeline implementation
     // We just check that it's not immediately Completed
     let state = get_run(&store, run_id).unwrap();
-    assert_ne!(state.status, "Completed", "Should not complete without spec updates");
+    assert_ne!(state.status, "completed", "Should not complete without spec updates");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

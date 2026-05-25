@@ -30,7 +30,7 @@
           @click="selectRun(run.run_id)"
         >
           <div class="run-card-header">
-            <span class="run-id">{{ run.run_id }}</span>
+            <span class="run-id" :title="run.run_id">{{ run.title || run.run_id }}</span>
             <div class="run-card-actions">
               <StatusBadge :status="run.status" />
               <button
@@ -667,7 +667,8 @@ function professionIcon(id: string): string {
 .run-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 0.5rem;
   margin-bottom: 0.3rem;
 }
 
@@ -675,6 +676,7 @@ function professionIcon(id: string): string {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  flex-shrink: 0;
 }
 
 .btn-delete {
@@ -692,6 +694,10 @@ function professionIcon(id: string): string {
   font-weight: 500;
   color: var(--af-fg);
   font-family: 'JetBrains Mono', monospace;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .run-card-meta {

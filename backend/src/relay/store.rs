@@ -221,7 +221,7 @@ pub fn list_runs(store: &RunStore) -> Vec<RunSummary> {
     let map = store.lock().unwrap();
     map.values().map(|e| RunSummary {
         run_id: e.run_id.clone(),
-        status: format!("{:?}", e.engine.status),
+        status: e.engine.status.to_status_str(),
         current_step: e.engine.current_step,
         total_steps: e.engine.flow.steps.len(),
         current_profession: e.engine.current_profession_id().map(|s| s.to_string()),
@@ -375,7 +375,7 @@ fn build_run_state(entry: &RunEntry) -> RunState {
 
     RunState {
         run_id: entry.run_id.clone(),
-        status: format!("{:?}", engine.status),
+        status: engine.status.to_status_str(),
         current_step: engine.current_step,
         total_steps: engine.flow.steps.len(),
         steps,
@@ -418,7 +418,7 @@ mod tests {
         let state = start_run(&store, flow, &run_id).unwrap();
         assert_eq!(state.run_id, run_id);
         assert_eq!(state.total_steps, 2);
-        assert_eq!(state.status, "Idle");
+        assert_eq!(state.status, "idle");
 
         let fetched = get_run(&store, &run_id).unwrap();
         assert_eq!(fetched.run_id, run_id);
@@ -441,7 +441,7 @@ mod tests {
         assert_eq!(r2, AdvanceResult::Completed);
 
         let state = get_run(&store, &run_id).unwrap();
-        assert_eq!(state.status, "Completed");
+        assert_eq!(state.status, "completed");
         assert_eq!(state.current_step, 1);
     }
 

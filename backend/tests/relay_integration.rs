@@ -93,7 +93,7 @@ fn drive_until_next(
 ) -> AdvanceResult {
     for _ in 0..20 {
         let state = get_run(store, run_id).unwrap();
-        if state.status == "Completed" {
+        if state.status == "completed" {
             return AdvanceResult::Completed;
         }
         if state.waiting_for_gate.is_some() {
@@ -130,7 +130,7 @@ fn test_end_to_end_standard_flow_with_mock_handoffs() {
     // Verify initial state
     let state = get_run(&store, run_id).unwrap();
     assert_eq!(state.total_steps, 9);
-    assert_eq!(state.status, "Idle");
+    assert_eq!(state.status, "idle");
 
     // Drive each step
     let professions = vec![
@@ -150,7 +150,7 @@ fn test_end_to_end_standard_flow_with_mock_handoffs() {
 
     // Final state
     let final_state = get_run(&store, run_id).unwrap();
-    assert_eq!(final_state.status, "Completed");
+    assert_eq!(final_state.status, "completed");
     assert!(
         final_state.current_step >= 9,
         "current_step should be at least 9, got {}",
