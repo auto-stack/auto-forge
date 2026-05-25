@@ -1,909 +1,493 @@
 # Plans
 
-# Plans
+> Phased implementation roadmap for AutoForge. Each plan references Goals (G), Architecture (A), and Designs (D) for traceability.
+
 
 ## P1: Relay Run Completion Notification in Chat
 
-### Overview
-Implement a notification system that alerts the boss (user) in the chat where a Relay Run was initiated when the run completes. If the run produced a Report, include a link to view it.
+**Status:** In Progress (Backend complete, frontend pending)
+**Objective:** G23 (Automatic Relay Mode), G18 (Wiki module)
+**Estimated Duration:** 4 sprints
+**Owner:** Documenter (backend), Frontend Team (UI)
 
-### Status
-**Phase 1**: ✅ Complete - Data model changes (HandoffDocument.generated_report)
-**Phase 2**: ✅ Complete - Completion detection and notification event emission
-**Phase 3**: ⏳ Partial - Report generation integration (backend ready, documenter workflow pending)
-**Phase 4**: ⏳ Pending - Frontend display and chat routing
+**Overview:**
+Implement a notification system that alerts the user in the chat where a Relay Run was initiated when the run completes. If the run produced a Report, include a link to view it.
 
-### Completed Work
+**Phase Breakdown:**
 
-#### ✅ Phase 1.1: Data Model Changes
-**File**: `backend/src/relay/handoff.rs`
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P1.1 | Data model changes — `generated_report` field | Core | 1 day | D3 | Done | Add `generated_report: Option<ReportReference>` to `HandoffDocument` per D3 §Schema. Define `ReportReference` struct with `report_id`, `report_title`, `wiki_slug`. File: `backend/src/relay/handoff.rs`. Deliverable: struct serializes to JSON. |
+| P1.2 | Chat-Relay Association (future) | Core | 1 day | — | Pending | Add `originating_chat_session: Option<String>` to `RunMetadata` per A13 §Metadata. This enables routing notifications to the correct chat session instead of broadcasting. File: `backend/src/relay/mod.rs`. Deliverable: spawn API accepts optional `chat_session_id`. |
+| P2.1 | Completion notification builder | Core | 2 days | P1.1 | Done | Implement `build_completion_notification()` in `backend/src/relay/driver.rs` per D3 §Notification. Extract run metadata (title, status, summary), check for `generated_report` in last handoff, build `RelayCompleteNotification` event. Use `relay::title::generate_title()`. Deliverable: notification JSON includes all fields. |
+| P2.2 | Event emission on run completion | Core | 1 day | P2.1 | Done | Modify `drive_run()` to: (1) build completion notification on finish, (2) persist to `RunEntry.events`, (3) broadcast via SSE with type `relay_complete_notification`, (4) maintain backward compatibility with legacy `run_completed` event per D3 §Events. Deliverable: SSE client receives event. |
+| P3.2 | Report generation integration | Documenter | 2 days | P2.2 | Partial | Documenter agent must populate `handoff.generated_report = Some(ReportReference { ... })` when creating reports per D3 §Report Link. File: `backend/src/relay/documenter.rs`. Deliverable: completed runs with documenter step include report link. |
+| P4.1 | Frontend notification bubble | UI | 2 days | P2.2 | Pending | Handle `relay_complete` SSE event in `ChatsView.vue` per D17 §Notification. Render notification bubble with distinct styling (success/failure icons). Show "View Report" button when `report_link` present. Navigate to `/wiki/{slug}` or `/specs/reports?report_id={id}`. Deliverable: bubble appears on completion. |
 
-Added `generated_report` field to `HandoffDocument`:
-```rust
-#[serde(skip_serializing_if = "Option::is_none")]
-pub generated_report: Option<ReportReference>,
-```
+**Risk:** Notification arrives before session is updated; old relay references accumulate in sessions; report generation fails but run completes.
+**Mitigation:** Events persisted in `RunEntry.events` for replay; add cleanup job for runs older than 24h; gracefully handle missing `report_slug`, show notification without link.
 
-Added `ReportReference` struct:
-```rust
-pub struct ReportReference {
-    pub report_id: String,
-    pub report_title: String,
-    pub wiki_slug: Option<String>,
-}
-```
+**Depends on:** G23, G18, D5, D3, A8
 
-#### ✅ Phase 2.1: Completion Notification Builder
-**File**: `backend/src/relay/driver.rs`
-
-Implemented `build_completion_notification()` function:
-- Extracts run metadata (title, status, summary)
-- Checks for generated reports in last handoff
-- Builds `RelayCompleteNotification` event
-- Uses `relay::title::generate_title()` for consistent formatting
-
-#### ✅ Phase 2.2: Event Emission
-Modified `drive_run()` to:
-1. Build completion notification on run completion
-2. Persist notification to `RunEntry.events`
-3. Broadcast via SSE with event type `relay_complete_notification`
-4. Maintain backward compatibility with legacy `run_completed` event
-
-### Pending Work
-
-#### ⏳ Phase 3.2: Report Generation Integration
-**Status**: Backend infrastructure ready, documenter workflow pending
-
-Required: Documenter agent must populate `generated_report` field when creating reports:
-```rust
-handoff.generated_report = Some(ReportReference {
-    report_id: "R1".to_string(),
-    report_title: "Implementation Report".to_string(),
-    wiki_slug: Some("impl-report".to_string()),
-});
-```
-
-#### ⏳ Phase 4: Frontend Display
-**File**: `frontend/src/components/Chat/MessageBubble.vue` (to be created)
-
-Required components:
-1. Handle `relay_complete` SSE event
-2. Render notification bubble with distinct styling
-3. Display run status (✅ success, ❌ failure)
-4. Show "View Report" button when `report_link` present
-5. Navigate to `/wiki/{slug}` or `/specs/reports?report_id={id}`
-
-#### ⏳ Phase 1.2: Chat-Relay Association (Future Enhancement)
-**Required**: Add `originating_chat_session` to `RunMetadata`
-
-```rust
-pub struct RunMetadata {
-    pub originating_chat_session: Option<String>,
-    pub title: Option<String>,
-}
-```
-
-This enables routing notifications to the correct chat session instead of broadcasting to all clients.
-
-### Success Criteria
-
-1. ✅ When a Relay Run completes, a notification event is emitted
-2. ✅ The notification includes the run ID, status, and task summary
-3. ✅ If a report was generated, report link metadata is included
-4. ⏳ The notification is visually distinct from regular messages (frontend pending)
-5. ✅ Multiple relay runs are tracked separately
-6. ⏳ The chat session persists relay run references (requires RunMetadata enhancement)
-
-### Testing Plan
-
-**T1: Basic Completion Notification** - ✅ Verified
-- Spawn a relay run from chat
-- Wait for completion
-- Verify notification event emitted with run ID and status
-
-**T2: Report Link** - ⏳ Manual verification pending
-- Use a flow with documenter step
-- Spawn relay run
-- Verify completion notification includes report link
-- Click link and verify report page opens
-
-**T3: Multiple Runs** - ✅ Verified
-- Spawn multiple relay runs from same chat
-- Verify each gets its own notification
-- Verify notifications don't duplicate
-
-**T4: Session Persistence** - ⏳ Requires RunMetadata enhancement
-- Spawn relay run
-- Refresh page
-- After run completes, verify notification still appears
-
-**T5: Cross-Session Isolation** - ⏳ Requires chat routing
-- Spawn relay run from Chat A
-- Verify Chat B doesn't receive notification
-
-### Risk Mitigation
-
-**R1: Race Conditions** - ✅ Mitigated
-- Risk: Notification arrives before session is updated
-- Mitigation: Events persisted in `RunEntry.events` for replay
-
-**R2: Memory Leaks** - ⏳ Future work
-- Risk: Old relay references accumulate in sessions
-- Mitigation: Add cleanup job to remove completed runs older than 24h
-
-**R3: Missing Report** - ✅ Mitigated
-- Risk: Report generation fails but run completes
-- Mitigation: Gracefully handle missing report_slug, show notification without link
-
-### Implementation Order
-
-1. ✅ **Sprint 1**: Phase 1 (Data model + report tracking)
-2. ✅ **Sprint 2**: Phase 2 (Completion detection + notification emission)
-3. ⏳ **Sprint 3**: Phase 3 (Report generation integration)
-4. ⏳ **Sprint 4**: Phase 4 (Frontend polish + testing)
-
-### Related Specs
-
-- **G23**: Automatic Relay Mode (enables background relay spawning)
-- **G18**: Wiki module (provides report storage)
-- **D5**: Relay Run Titles (provides run identification)
-- **A8**: Chat-First Gate Approval (chat UI patterns)
-
-**Status**: In Progress (Backend complete, frontend pending)
-**Priority**: P1
-**Assigned**: Documenter (complete), Frontend Team (pending)
-**Target Completion**: Sprint 4
+**Related Specs:** G23 (Automatic Relay Mode), G18 (Wiki module), D5 (Relay Run Titles), A8 (Chat-First Gate Approval)
 
 ---
 
 ## P1 Agents Relay — Foundation
 **Status:** done
-**Tags:** stack:both, module:relay
 **Depends on:** G1, G2, G3, D1, D3
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P1.1 | Soul + Profession data model and registry | Tooling | 3 days | D1 | Done |
-| P1.2 | Built-in professions (Intaker, Planner, Architect, Coder, Tester, Reviewer) | Tooling | 2 days | P1.1 | Done |
-| P1.3 | Default Soul configs in `.autoforge/souls/` | Tooling | 2 days | P1.1 | Done |
-| P1.4 | ModelConfig with provider abstraction and fallback chain | Tooling | 2 days | P1.1 | Done |
-| P1.5 | Refactor existing Forge into reusable `AgentTurn` engine | Tooling | 3 days | P1.2 | Done |
-| P1.6 | HandoffDocument schema and generation | Tooling | 3 days | D3 | Done |
-| P1.7 | Context scoping: filter specs by profession | Tooling | 2 days | P1.6 | Done |
-| P1.8 | Handoff compression (cheap model or rule-based) | Tooling | 2 days | P1.6 | Done |
-| P1.9 | Unit tests for AgentInstance and Handoff generation | Tooling | 2 days | P1.5, P1.6 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P1.1 | Soul + Profession data model and registry | Tooling | 3 days | D1 | Done | Define `AgentInstance` struct with `soul_id`, `profession_id`, `model_config` per D1 §Data Model. Build `ProfessionRegistry` singleton with `register()` / `get()` / `list()` APIs. New file: `backend/src/relay/profession.rs`. Deliverable: registry unit tests pass for all operations. |
+| P1.2 | Built-in professions | Tooling | 2 days | P1.1 | Done | Create `Profession` enum with `Intaker`, `Planner`, `Architect`, `Coder`, `Tester`, `Reviewer` variants per D1 §Profession Registry. Define `owned_sections`, `handoff_to`, and `allowed_tools` for each profession. Deliverable: all 6 professions registered and enumerable via API. |
+| P1.3 | Default Soul configs in `.autoforge/souls/` | Tooling | 2 days | P1.1 | Done | Create `.autoforge/souls/` directory structure with default soul markdown files per D1 §Soul Rendering. Implement `SoulRenderer` that reads `.md` files and injects profession context (name, role, owned_sections). Deliverable: soul files loadable at runtime with correct profession substitution. |
+| P1.4 | ModelConfig with provider abstraction and fallback chain | Tooling | 2 days | P1.1 | Done | Define `ModelConfig` struct with `provider`, `model_name`, `api_key_ref`, `max_tokens`, `temperature` per D1 §Provider Abstraction. Implement provider enum: `OpenAI`, `Anthropic`, `Local`. Support fallback chain: primary → secondary → local. File: `backend/src/forge/ai.rs`. Deliverable: config serializes to/from TOML correctly. |
+| P1.5 | Refactor existing Forge into reusable `AgentTurn` engine | Tooling | 3 days | P1.2 | Done | Extract chat loop logic from `forge/mod.rs` into reusable `AgentTurn` struct per D1 §Agent Turn. `AgentTurn` takes `AgentInstance` + message history, returns streaming response with token usage. Deliverable: existing chat functionality unchanged; `AgentTurn` usable by Relay pipeline without chat UI dependencies. |
+| P1.6 | HandoffDocument schema and generation | Tooling | 3 days | D3 | Done | Define `HandoffDocument` struct with `from_profession`, `to_profession`, `summary`, `specs_touched`, `files_changed` per D3 §Schema. Implement JSON serialization with `skip_serializing_if` for optional fields. File: `backend/src/relay/handoff.rs`. Deliverable: document round-trips through JSON without data loss. |
+| P1.7 | Context scoping: filter specs by profession | Tooling | 2 days | P1.6 | Done | Implement `SpecFilter` that takes a `Profession` and returns only relevant spec sections per D3 §Context Scoping. Use `owned_sections` to determine relevance: Architect sees Architecture+Designs; Coder sees Designs+Plans; Tester sees Plans+Tests. Deliverable: filtered context < 50% of full spec size. |
+| P1.8 | Handoff compression (cheap model or rule-based) | Tooling | 2 days | P1.6 | Done | Implement `HandoffCompressor` trait with two implementations: `CheapModelCompressor` (uses cheap LLM to summarize) and `RuleBasedCompressor` (heuristic truncation of message history) per D3 §Compression. Deliverable: compressed handoff < 4k tokens; unit tests for both strategies with realistic handoffs. |
+| P1.9 | Unit tests for AgentInstance and Handoff generation | Tooling | 2 days | P1.5, P1.6 | Done | Write integration tests for `AgentInstance::run_turn()`, `HandoffDocument::generate()`, and `ProfessionRegistry` lookups per D1 §Testing. Test file: `backend/tests/relay_agent_tests.rs`. Mock LLM provider for deterministic tests. Deliverable: >80% coverage on relay core types. |
 
 
-
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P2 Agents Relay — Flow Engine
 **Status:** done
-**Tags:** stack:both, module:relay
 **Depends on:** G2, G6, D2, P1
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P2.1 | FlowSpec parser (AutoDown-based DSL) | Tooling | 3 days | D2 | Done |
-| P2.2 | PipelineEngine state machine | Tooling | 3 days | D2 | Done |
-| P2.3 | Step execution: spawn agent, run turn, collect result | Tooling | 2 days | P1.5, P2.2 | Done |
-| P2.4 | Flow branching: Intaker → DIRECT vs full pipeline | Tooling | 2 days | P2.2 | Done |
-| P2.5 | Flow looping: Coder ↔ Tester with max iteration bound | Tooling | 2 days | P2.2 | Done |
-| P2.6 | Human gates: pause, notify, approve/reject/edit | Tooling | 3 days | D2 | Done |
-| P2.7 | Gate rejection routing back to drafting profession | Tooling | 2 days | P2.6 | Done |
-| P2.8 | Deterministic orchestrator unit tests | Tooling | 2 days | P2.1-P2.7 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P2.1 | FlowSpec parser (AutoDown-based DSL) | Tooling | 3 days | D2 | Done | Implement AutoDown-based DSL parser for flow definitions per D2 §FlowSpec DSL. Parse `step`, `gate`, `branch`, `loop` directives into `FlowSpec` AST. Support comments and nested blocks. File: `backend/src/relay/flow.rs`. Deliverable: all example flows in `designs/` parse without error. |
+| P2.2 | PipelineEngine state machine | Tooling | 3 days | D2 | Done | Build `PipelineEngine` with states: `Idle`, `Running`, `Paused`, `Completed`, `Failed` per D2 §State Machine. Implement `step()` method that advances one phase with transition validation. File: `backend/src/relay/pipeline.rs`. Deliverable: all state transitions tested via mock flows. |
+| P2.3 | Step execution: spawn agent, run turn, collect result | Tooling | 2 days | P1.5, P2.2 | Done | Implement `execute_step()` that spawns an `AgentInstance`, runs `AgentTurn`, and collects result into `StepResult` per D2 §Step Execution. Wire `AgentInstance` into pipeline with context injection. Deliverable: single-step flow runs end-to-end with real LLM. |
+| P2.4 | Flow branching: Intaker → DIRECT vs full pipeline | Tooling | 2 days | P2.2 | Done | Implement `BranchEvaluator` that routes flow based on gate outcome: `DIRECT` (skip to Coder) vs full pipeline per D2 §Branching. Use `Intaker` classification result to determine branch. Deliverable: both branches tested with mock gates; branch choice logged. |
+| P2.5 | Flow looping: Coder ↔ Tester with max iteration bound | Tooling | 2 days | P2.2 | Done | Implement Coder↔Tester retry loop with `max_iterations` bound (default 3, max 5) per D2 §Looping. Track iteration count in `StepResult`. Exit early on success. Deliverable: loop terminates at bound; success exits early; infinite loop impossible. |
+| P2.6 | Human gates: pause, notify, approve/reject/edit | Tooling | 3 days | D2 | Done | Implement gate pause mechanism: emit SSE `gate_reached`, wait for HTTP `approve`/`reject`/`edit` per D2 §Human Gates. Store gate state in `RunEntry` with timeout (default 24h). Deliverable: gate pauses flow; resume continues from same step; reject routes to redraft. |
+| P2.7 | Gate rejection routing back to drafting profession | Tooling | 2 days | P2.6 | Done | On gate reject, route back to drafting profession with feedback injected per D2 §Rejection Routing. Inject rejection reason into next turn's system message. Track rejection count per step. Deliverable: reject→redraft→re-gate cycle works; max 3 rejections before escalation. |
+| P2.8 | Deterministic orchestrator unit tests | Tooling | 2 days | P2.1-P2.7 | Done | Write unit tests for `PipelineEngine` with mock agents per D2 §Testing. Test all state transitions, branching, looping, gating. Use `tokio::test` for async tests. Deliverable: 100% state machine coverage; all edge cases documented. |
 
 
-
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P3 Agents Relay — Checkpoint & Durability
 **Status:** done
-**Tags:** stack:both, module:relay
 **Depends on:** G4, D4, P2
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P3.1 | Checkpoint data model and JSON serialization | Tooling | 2 days | D4 | Done |
-| P3.2 | File manifest capture (hash, size) | Tooling | 2 days | D4 | Done |
-| P3.3 | Git integration: auto-commit or diff capture | Tooling | 2 days | D4 | Done |
-| P3.4 | Checkpoint save/load on disk | Tooling | 2 days | P3.1 | Done |
-| P3.5 | Resume from checkpoint: restore files, ledger, state | Tooling | 3 days | P3.4 | Done |
-| P3.6 | Rehydrate agent from checkpoint (no chat history) | Tooling | 2 days | P3.5 | Done |
-| P3.7 | Rollback to previous checkpoint | Tooling | 2 days | P3.4 | Done |
-| P3.8 | Fork run from checkpoint with different parameters | Tooling | 2 days | P3.7 | Done |
-| P3.9 | Crash recovery integration tests | Tooling | 2 days | P3.5-P3.8 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P3.1 | Checkpoint data model and JSON serialization | Tooling | 2 days | D4 | Done | Define `Checkpoint` struct with `run_id`, `step_id`, `timestamp`, `agent_state`, `file_manifest`, `ledger_state` per D4 §Data Model. Implement JSON schema with serde. File: `backend/src/relay/checkpoint.rs`. Deliverable: schema validates against test fixtures. |
+| P3.2 | File manifest capture (hash, size) | Tooling | 2 days | D4 | Done | Implement `FileManifest::capture()` that walks project directory, records `path`, `hash` (SHA-256), `size` per D4 §Manifest. Exclude `.git/`, `target/`, `node_modules/`, `.autoforge/`. Deliverable: manifest matches `find | sha256sum` output for tracked files. |
+| P3.3 | Git integration: auto-commit or diff capture | Tooling | 2 days | D4 | Done | Add optional git integration: auto-commit at checkpoint with message `checkpoint: {run_id}@{step_id}` OR capture `git diff` per D4 §Git. Use `git2` crate. Configurable via `project.autoforge.git_strategy`. Deliverable: checkpoint creates commit OR stores diff; both paths tested. |
+| P3.4 | Checkpoint save/load on disk | Tooling | 2 days | P3.1 | Done | Implement `CheckpointStore` with `save()` → `{project}/.autoforge/checkpoints/{run_id}/{step_id}.json` and `load()` per D4 §Storage. Atomic write (temp file + rename). Deliverable: save/load round-trip preserves all fields; corruption impossible. |
+| P3.5 | Resume from checkpoint: restore files, ledger, state | Tooling | 3 days | P3.4 | Done | Implement `PipelineEngine::resume_from(checkpoint_id)` that restores files from manifest, ledger state, and pipeline position per D4 §Resume. Verify file hashes match before restore. Deliverable: resumed run continues from exact step; no data loss. |
+| P3.6 | Rehydrate agent from checkpoint (no chat history) | Tooling | 2 days | P3.5 | Done | Restore agent message history and context from checkpoint WITHOUT full chat replay per D4 §Rehydration. Use compressed handoff as system message. Reconstruct `AgentInstance` from saved state. Deliverable: agent responds correctly after rehydration; no replay needed. |
+| P3.7 | Rollback to previous checkpoint | Tooling | 2 days | P3.4 | Done | Implement `rollback(checkpoint_id)` that restores file manifest and resets pipeline state per D4 §Rollback. Warn if subsequent checkpoints exist. Deliverable: rollback restores files to checkpoint state; subsequent resume works from rolled-back state. |
+| P3.8 | Fork run from checkpoint with different parameters | Tooling | 2 days | P3.7 | Done | Implement `fork(checkpoint_id, new_params)` that clones checkpoint into new `RunEntry` with modified parameters (e.g., different model, different flow) per D4 §Fork. New run ID generated. Deliverable: forked run starts from checkpoint with new config; original unchanged. |
+| P3.9 | Crash recovery integration tests | Tooling | 2 days | P3.5-P3.8 | Done | Write tests that simulate crash mid-step: kill process during `AgentTurn`, verify checkpoint integrity on restart per D4 §Testing. Use `std::process::abort` in test helper. Deliverable: crash recovery works 100% of time in test suite. |
 
 
-
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P4 Agents Relay — Token Budgeting & Analytics
 **Status:** done
-**Tags:** stack:both, module:relay
 **Depends on:** G5, D5, P2
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P4.1 | TokenBudget and BudgetTracker data model | Tooling | 2 days | D5 | Done |
-| P4.2 | Per-step and per-run token tracking | Tooling | 2 days | D5 | Done |
-| P4.3 | Budget enforcement: warning, compression, hard-stop | Tooling | 2 days | P4.2 | Done |
-| P4.4 | Model escalation fallback on budget exceed | Tooling | 2 days | P4.3 | Done |
-| P4.5 | Cost analytics API (per run, per profession, cumulative) | Tooling | 2 days | P4.2 | Done |
-| P4.6 | "Savings vs parallel" estimation heuristic | Tooling | 2 days | P4.5 | Done |
-| P4.7 | Unit tests for budget enforcement | Tooling | 2 days | P4.3 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P4.1 | TokenBudget and BudgetTracker data model | Tooling | 2 days | D5 | Done | Define `TokenBudget` struct with `limit`, `consumed`, `warn_threshold`, `compression_threshold` and `BudgetTracker` singleton per D5 §Data Model. Support per-run and per-profession budgets. File: `backend/src/relay/budget.rs`. Deliverable: budget arithmetic unit-tested. |
+| P4.2 | Per-step and per-run token tracking | Tooling | 2 days | D5 | Done | Integrate token counting into `AgentTurn::run()`: count prompt + completion tokens per step, aggregate to run total per D5 §Tracking. Use provider-reported token counts when available; estimate via tiktoken when not. Deliverable: token count within 5% of provider billing. |
+| P4.3 | Budget enforcement: warning, compression, hard-stop | Tooling | 2 days | P4.2 | Done | Implement three-tier enforcement per D5 §Enforcement: `warn` (SSE notification to user), `compress` (trigger handoff compression), `hard_stop` (terminate run with summary). Configurable thresholds (default: warn 50%, compress 75%, stop 100%). Deliverable: all three tiers tested with mock budgets. |
+| P4.4 | Model escalation fallback on budget exceed | Tooling | 2 days | P4.3 | Done | On budget exceed, fallback to cheaper model tier per D5 §Fallback. Implement `ModelTier` enum: `cheap`, `mid`, `premium`. Auto-downgrade on compression trigger. Deliverable: fallback reduces cost by >30% in test scenarios. |
+| P4.5 | Cost analytics API (per run, per profession, cumulative) | Tooling | 2 days | P4.2 | Done | Add REST endpoints: `GET /api/relay/runs/{id}/cost`, `GET /api/relay/analytics` per D5 §Analytics. Return per-run, per-profession, cumulative stats with time series. Deliverable: API returns correct JSON with all aggregations. |
+| P4.6 | "Savings vs parallel" estimation heuristic | Tooling | 2 days | P4.5 | Done | Implement heuristic that estimates token savings from serial handoffs vs parallel multi-agent per D5 §Savings. Compare full history replay vs compressed handoff token count. Display in analytics. Deliverable: heuristic shows >3x savings for 6-profession flows. |
+| P4.7 | Unit tests for budget enforcement | Tooling | 2 days | P4.3 | Done | Write tests for budget thresholds, compression triggers, and hard stops per D5 §Testing. Mock token counts to test exact boundary conditions. Deliverable: all edge cases covered (exactly at threshold, 1 token over, etc.). |
 
 
-
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P5 Agents Relay — Frontend Agents View
 **Status:** done
-**Tags:** stack:both, module:relay
 **Depends on:** G5, G6, P2, P3, P4
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P5.1 | Pipeline visualization component (horizontal flow) | UI | 3 days | P2.2 | Done |
-| P5.2 | Run cards with live status and token spend | UI | 2 days | P4.5 | Done |
-| P5.3 | Checkpoint timeline viewer | UI | 2 days | P3.4 | Done |
-| P5.4 | Cost charts (per run, per profession, cumulative) | UI | 2 days | P4.5 | Done |
-| P5.5 | Role/Profession config panel | UI | 2 days | P1.2 | Done |
-| P5.6 | Human gate approval UI (diff view, approve/reject/edit) | UI | 3 days | P2.6 | Done |
-| P5.7 | Run control buttons: pause, resume, rollback, fork | UI | 2 days | P3.5, P3.7, P3.8 | Done |
-| P5.8 | Frontend integration tests | UI | 2 days | P5.1-P5.7 | Done |
-
-
-
----
-
----
-
----
-
----
-
----
-
----
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P5.1 | Pipeline visualization component (horizontal flow) | UI | 3 days | P2.2, D12 | Done | Build `PipelinePanel.vue` horizontal flow diagram showing professions as nodes per D12 §Node-Graph. Use CSS flex layout with SVG bezier connectors. Nodes colored by status (idle/running/done/failed). Deliverable: renders 6-8 professions with animated connecting lines. |
+| P5.2 | Run cards with live status and token spend | UI | 2 days | P4.5, D12 | Done | Build `RelayRunCard.vue` with live status badge, token spend display, and run title per D12 §Run Cards. Subscribe to SSE for real-time updates. Show progress bar for active runs. Deliverable: card updates in real-time without page refresh. |
+| P5.3 | Checkpoint timeline viewer | UI | 2 days | P3.4, D4 | Done | Build `CheckpointTimeline.vue` showing save points with timestamp, step name, and restore button per D4 §Timeline. Horizontal scrollable timeline. Deliverable: clickable timeline with restore confirmation modal. |
+| P5.4 | Cost charts (per run, per profession, cumulative) | UI | 2 days | P4.5, D5 | Done | Integrate chart library for per-run bar chart, per-profession pie chart, and cumulative line chart per D5 §Charts. Use lightweight SVG-based charts (no heavy dependency). Deliverable: three chart types render correctly with live data. |
+| P5.5 | Role/Profession config panel | UI | 2 days | P1.2, D7 | Done | Build `ProfessionConfigPanel.vue` for editing profession properties: `owned_sections`, `handoff_to`, `allowed_tools`, `model_config` per D7 §Config. Inline editing with validation. Deliverable: changes persist to backend; invalid configs rejected. |
+| P5.6 | Human gate approval UI (diff view, approve/reject/edit) | UI | 3 days | P2.6, D8 | Done | Build `GatePanel.vue` with diff rendering (vs previous spec version), Approve/Reject/Edit buttons per D8 §Gate Panel. Diff highlights added/removed lines. Edit opens inline text area. Deliverable: diff highlights changes; actions emit correct events to backend. |
+| P5.7 | Run control buttons: pause, resume, rollback, fork | UI | 2 days | P3.5, P3.7, P3.8, D4 | Done | Add pause, resume, rollback, fork buttons to `RelayRunCard.vue` per D4 §Controls. Wire to backend endpoints. Disable buttons based on run state. Deliverable: all four actions work without page refresh; state updates via SSE. |
+| P5.8 | Frontend integration tests | UI | 2 days | P5.1-P5.7, D12 | Done | Write Playwright tests for relay view: spawn run, verify card appears, approve gate, verify completion per D12 §Testing. Use mock SSE for deterministic tests. Deliverable: e2e test passes in CI. |
 
 ---
 
 ## P6 Agents Relay — Integration & Dogfooding
 **Status:** done
-**Tags:** stack:both, module:relay
 **Depends on:** G1, G2, G3, G4, G5, G6, P1, P2, P3, P4, P5
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P6.1 | End-to-end flow: Intake → Planner → Architect → Coder → Tester → Reviewer | Tooling | 3 days | P1-P5 | Done |
-| P6.2 | Migrate Agents module design into Ledger specs | Tooling | 2 days | P6.1 | Done |
-| P6.3 | Dogfooding: use Forge to implement P1-P5 specs | Tooling | 5 days | P6.2 | Done |
-| P6.4 | Drift detection on Agents module specs | Tooling | 2 days | P6.3 | Done |
-| P6.5 | Documentation and tutorial for custom flows | Tooling | 2 days | P6.1 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P6.1 | End-to-end flow: Intaker → Planner → Architect → Coder → Tester → Reviewer | Tooling | 3 days | P1-P5 | Done | Run full pipeline with real LLM calls using `post_discovery` flow per P2 §Integration. Verify each profession receives correct context scope. Measure total token usage. Deliverable: run completes without errors; all handoffs contain meaningful summaries. |
+| P6.2 | Migrate Agents module design into Ledger specs | Tooling | 2 days | P6.1 | Done | Convert `designs/agents-relay.md` into formal `.ad` spec sections per spec format. Add IDs (D1-D7), status, traceability links to G1-G6. Deliverable: specs parseable by `load_ad_format()` with no warnings. |
+| P6.3 | Dogfooding: use Forge to implement P1-P5 specs | Tooling | 5 days | P6.2 | Done | Use Forge chat to implement remaining P1-P5 specs: ask "implement P1.1", verify Coder generates correct code per G3 §Dogfooding. Track success rate. Deliverable: at least 3 specs implemented via chat with <3 corrections each. |
+| P6.4 | Drift detection on Agents module specs | Tooling | 2 days | P6.3 | Done | Run `drift-check` on Agents module specs after implementation per spec tooling. Detect mismatches between code and specs (missing fields, wrong types). Deliverable: drift report shows zero mismatches; any found fixed. |
+| P6.5 | Documentation and tutorial for custom flows | Tooling | 2 days | P6.1 | Done | Write `docs/tutorial/custom-flows.md` explaining how to define custom relay flows per G6 §Documentation. Include example flow with 3 professions (Advisor → Coder → Reviewer). Deliverable: tutorial is runnable by new user in <10 minutes. |
 
----
 
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P7 Relay Refactor — New Design v2
 **Status:** done
-**Tags:** stack:both, module:relay
 **Depends on:** G6, G7, D6, D7
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P7.1 | Rename `Intaker` profession to `Assistant`; update `profession.rs` registry | Tooling | 1 day | D7 | Done |
-| P7.2 | Add `Advisor` profession with Goals ownership and Discovery phase | Tooling | 1 day | D7 | Done |
-| P7.3 | Add `RelayMode` enum (`GSD` / `Check`) to `pipeline.rs` and `session` model | Tooling | 1 day | D6 | Done |
-| P7.4 | Extend `ForgePhase` enum: add Discovery, GoalGate, Design, Planning, Report | Tooling | 1 day | D6 | Done |
-| P7.5 | Update `PipelineEngine` gate logic: GSD only pauses at GoalGate; Check pauses at all gates | Tooling | 2 days | D6, P7.3 | Done |
-| P7.6 | Remove `APIs` from `SectionType` and Architect's `owned_sections` | Tooling | 0.5 day | G7 | Done |
-| P7.7 | Update all soul files: rename `intaker.md` → `assistant.md`; add `advisor.md`; remove API references | Tooling | 1 day | P7.1, P7.2 | Done |
-| P7.8 | Update `FlowSpec` default flow: Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter | Tooling | 1 day | P7.1-P7.5 | Done |
-| P7.9 | Update frontend: remove `ApisSchema` component; add `RelayMode` toggle (GSD/Check) | UI | 2 days | P7.3 | Done |
-| P7.10 | Update frontend pipeline visualization to show 8 professions | UI | 1 day | P7.8 | Done |
-| P7.11 | Update `design/docs` to match new spec categories (already done) | Tooling | 0.5 day | — | Done |
-| P7.12 | Write integration tests for new flow (S7.1–S7.4) | Tooling | 2 days | P7.1-P7.10 | Done |
-| P7.13 | Run full test suite: `cargo check -p auto-forge` and `cargo test -p auto-forge` | Tooling | 0.5 day | P7.12 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P7.1 | Rename `Intaker` profession to `Assistant`; update `profession.rs` registry | Tooling | 1 day | D7 | Done | Rename `Profession::Intaker` to `Profession::Assistant` throughout codebase per D7 §Rename. Update `profession.rs`, soul files, frontend references, and spec docs. Use IDE refactor. Deliverable: no `Intaker` string remains in codebase; all tests pass. |
+| P7.2 | Add `Advisor` profession with Goals ownership and Discovery phase | Tooling | 1 day | D7 | Done | Create `Profession::Advisor` with Goals ownership and Discovery phase per D7 §Advisor. Define `owned_sections: [Goals]`, `handoff_to: [Architect]`, `allowed_tools: [read_specs, write_goals]`. Deliverable: Advisor appears in registry; can be assigned to flow steps. |
+| P7.3 | Add `RelayMode` enum (`GSD` / `Check`) to `pipeline.rs` and `session` model | Tooling | 1 day | D6 | Done | Define `RelayMode` enum: `GSD` (Goal Gate only) and `Check` (all gates) per D6 §Mode. Add to `pipeline.rs` and `session` model. Persist mode in `RunEntry`. Deliverable: mode selectable at spawn; stored in run metadata. |
+| P7.4 | Extend `ForgePhase` enum: add Discovery, GoalGate, Design, Planning, Report | Tooling | 1 day | D6 | Done | Add `Discovery`, `GoalGate`, `Design`, `Planning`, `Report` variants to `ForgePhase` per D6 §Phases. Update phase transition logic and session status mapping. Deliverable: all phases reachable in flow; session phase display correct. |
+| P7.5 | Update `PipelineEngine` gate logic: GSD only pauses at GoalGate; Check pauses at all gates | Tooling | 2 days | D6, P7.3 | Done | Implement mode-specific gate logic per D6 §Gate Logic. `GSD`: pause only at `GoalGate`; `Check`: pause at all gates. Gate list filtered by mode before execution. Deliverable: mode-specific pause behavior tested with both modes. |
+| P7.6 | Remove `APIs` from `SectionType` and Architect's `owned_sections` | Tooling | 0.5 day | G7 | Done | Remove `APIs` variant from `SectionType` enum and Architect's `owned_sections` per G7 §Simplification. Update all match statements. Deliverable: `APIs` no longer in enum; no compiler warnings. |
+| P7.7 | Update all soul files: rename `intaker.md` → `assistant.md`; add `advisor.md`; remove API references | Tooling | 1 day | P7.1, P7.2 | Done | Rename `intaker.md` → `assistant.md`; add `advisor.md`; remove API references from all souls per D7 §Souls. Update soul content to reflect new profession names and responsibilities. Deliverable: all soul files load correctly; content references correct professions. |
+| P7.8 | Update `FlowSpec` default flow: Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter | Tooling | 1 day | P7.1-P7.5 | Done | Change default flow to 9-profession chain per D6 §Default Flow. File: `backend/src/relay/flow.rs`. Update example flows in docs. Deliverable: new flow parses and runs end-to-end. |
+| P7.9 | Update frontend: remove `ApisSchema` component; add `RelayMode` toggle (GSD/Check) | UI | 2 days | P7.3 | Done | Remove `ApisSchema.vue`; add GSD/Check mode toggle to `AppHeader.vue` per D6 §UI. Persist selection in `localStorage`. Show mode indicator in run cards. Deliverable: toggle switches mode; UI reflects selection without refresh. |
+| P7.10 | Update frontend pipeline visualization to show 8 professions | UI | 1 day | P7.8 | Done | Show 8 professions in `PipelinePanel.vue` per D7 §Visualization. Add Advisor and Documenter nodes with correct positions. Update connector logic. Deliverable: 8 nodes render with correct connections; no overlap. |
+| P7.11 | Update `design/docs` to match new spec categories (already done) | Tooling | 0.5 day | — | Done | Update `design/docs` to match new spec categories per G7 §Docs. Remove API references. Deliverable: docs consistent with code; no broken links. |
+| P7.12 | Write integration tests for new flow (S7.1–S7.4) | Tooling | 2 days | P7.1-P7.10 | Done | Write tests S7.1–S7.4 for new flow: verify Advisor runs, GSD mode skips gates, Check mode pauses at all gates, Documenter generates report per D6 §Testing. Deliverable: all 4 tests pass. |
+| P7.13 | Run full test suite: `cargo check -p auto-forge` and `cargo test -p auto-forge` | Tooling | 0.5 day | P7.12 | Done | Run `cargo check` and `cargo test` per D6 §Validation. Fix all warnings and failures. Deliverable: CI green; zero warnings. |
 
 
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P8 Chat-First Gates & Smart Secretary
 **Status:** implemented
-**Tags:** stack:both, module:chat
-**Depends on:** G8
+**Depends on:** G8, D8, D9, D17
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P8.1 | GateCard component with diff rendering and Approve/Reject/Edit actions | Alice | 3 days | — | Done |
-| P8.2 | SecretaryMessage component with queue UI, snooze, dismiss | Alice | 2 days | P8.1 | Done |
-| P8.3 | useGateInbox composable with cross-session registration and badge count | Bob | 2 days | — | Done |
-| P8.4 | useForge ↔ useRelay gate state integration | Bob | 2 days | P8.3 | Done |
-| P8.5 | ReportCard terminal completion component | Alice | 1 day | — | Done |
-
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P8.1 | GateCard component with diff rendering and Approve/Reject/Edit actions | Alice | 3 days | D8 | Done | Build `GateCard.vue` with diff rendering (side-by-side old/new), Approve/Reject/Edit actions per D8 §GateCard. Use existing diff library for syntax highlighting. Support inline edit (text area replaces diff). Deliverable: renders spec diffs with syntax highlighting; all actions emit correct events. |
+| P8.2 | SecretaryMessage component with queue UI, snooze, dismiss | Alice | 2 days | P8.1, D8 | Done | Build `SecretaryMessage.vue` with queue position UI, snooze (30min/1h/24h), dismiss actions per D8 §Secretary. Subscribe to `useGateInbox` for state. Deliverable: gates queue correctly; snooze reappears at chosen time; dismiss removes permanently. |
+| P8.3 | useGateInbox composable with cross-session registration and badge count | Bob | 2 days | D9 | Done | Implement `useGateInbox()` singleton with cross-session gate registration, badge count, and queue ordering per D9 §State Machine. File: `frontend/src/composables/useGateInbox.ts`. Deliverable: gates from multiple sessions aggregated; badge shows total pending. |
+| P8.4 | useForge ↔ useRelay gate state integration | Bob | 2 days | P8.3, D9 | Done | Wire `useGateInbox` into `useForge` and `useRelay` so gate state flows between chat and relay views per D9 §Integration. Gate approved in chat reflects in relay view and vice versa. Deliverable: gate state synchronized across all views. |
+| P8.5 | ReportCard terminal completion component | Alice | 1 day | D17 | Done | Build `ReportCard.vue` for chat terminal showing relay run completion summary per D17 §ReportCard. Include run ID, status (✅/❌), cost, and "View Report" link. Distinct styling from regular messages. Deliverable: card appears on `relay_complete` event; link navigates to report. |
 
 
-
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P9 Live Pipeline Node-Graph
 **Status:** implemented
-**Tags:** stack:frontend, module:relay
-**Depends on:** G10
+**Depends on:** G10, D12, D13, D11, D5
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P9.1 | PipelinePanel node-graph layout (dots, connectors, status colors) | Bob | 3 days | — | Done |
-| P9.2 | Expanded node card with token burn, specs touched, current action | Bob | 2 days | P9.1 | Done |
-| P9.3 | Retry loop backward edge with iteration counter | Alice | 1 day | P9.1 | Done |
-| P9.4 | Live Log panel streaming tool calls | Alice | 2 days | — | Done |
-| P9.5 | Specs Touched panel with click-to-jump | Alice | 1 day | P9.4 | Done |
-| P9.6 | Cost Breakdown panel with per-profession token bars | Bob | 1 day | — | Done |
-
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P9.1 | PipelinePanel node-graph layout (dots, connectors, status colors) | Bob | 3 days | D12 | Done | Build `PipelinePanel.vue` with SVG-based node layout: dots for professions, bezier curves for connectors, status color coding per D12 §Layout. Nodes positioned horizontally with even spacing. Deliverable: 8 nodes render with animated connectors; colors update on status change. |
+| P9.2 | Expanded node card with token burn, specs touched, current action | Bob | 2 days | P9.1, D13 | Done | Build `ExpandedNodeCard.vue` showing token burn, specs touched list, and current action text per D13 §Expanded Card. Click node to expand. Deliverable: click node expands card with live data; closes on second click or outside click. |
+| P9.3 | Retry loop backward edge with iteration counter | Alice | 1 day | P9.1, D12 | Done | Add animated backward edge from Tester to Coder with iteration counter badge per D12 §Looping. Edge dashed when inactive, solid+animated when active. Deliverable: loop edge animates on each retry; counter increments correctly. |
+| P9.4 | Live Log panel streaming tool calls | Alice | 2 days | D12 | Done | Build `LiveLogPanel.vue` streaming tool calls with timestamp, profession, tool name, and status per D12 §Log. Auto-scroll to bottom. Filterable by profession and tool type. Deliverable: logs scroll automatically; filter works without lag. |
+| P9.5 | Specs Touched panel with click-to-jump | Alice | 1 day | P9.4, D11 | Done | Build `SpecsTouchedPanel.vue` listing spec IDs modified during run with click-to-jump per D11 §Navigation. Parse `specs_touched` from handoff documents. Deliverable: click navigates to spec section in Specs view. |
+| P9.6 | Cost Breakdown panel with per-profession token bars | Bob | 1 day | D5 | Done | Build `CostBreakdownPanel.vue` with per-profession horizontal token bars per D5 §Breakdown. Bars animate from 0 to final width on run completion. Show percentage label. Deliverable: bars animate smoothly; total matches run cost. |
 
 
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P10 Specs Workspace Depth
 **Status:** implemented
-**Tags:** stack:frontend, module:specs
-**Depends on:** G9
+**Depends on:** G9, P10, D10, D11, D15, D38
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P10.1 | Category renderers (GoalsTable, ArchitectureCards, PlansTimeline, TestsCards, ReviewCards, ReportDashboard) | Alice | 4 days | — | Done |
-| P10.2 | RelationsPanel with parent/child lists and jump navigation | Bob | 2 days | P10.1 | Done |
-| P10.3 | AutoLinkContent for clickable ID references in markdown | Bob | 2 days | — | Done |
-| P10.4 | GateBanner sticky banner for sections with active gates | Alice | 1 day | P8.1 | Done |
-| P10.5 | Drift Check button with results visualization | Bob | 2 days | P10.2 | Done |
-
-
-
----
-
----
-
----
-
----
-
----
-
----
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P10.1 | Category renderers (GoalsTable, ArchitectureCards, PlansTimeline, TestsCards, ReviewCards, ReportDashboard) | Alice | 4 days | D10 | Done | Build 6 category-specific renderers per D10 §Renderers: `GoalsTable` (tree), `ArchitectureCards` (card grid), `PlansTimeline` (vertical timeline), `TestsCards` (status badges), `ReviewCards` (approval status), `ReportDashboard` (metrics). Deliverable: each category has distinct visual treatment matching its data shape. |
+| P10.2 | RelationsPanel with parent/child lists and jump navigation | Bob | 2 days | P10.1, D11 | Done | Build `RelationsPanel.vue` showing parent/child spec lists with jump navigation per D11 §Relations. Parse `depends_on` and `related` fields from spec items. Deliverable: click relation jumps to target spec section; bidirectional navigation works. |
+| P10.3 | AutoLinkContent for clickable ID references in markdown | Bob | 2 days | D11 | Done | Build `AutoLinkContent.vue` that scans markdown for `[[G1]]`, `[[A1]]`, `[[D1]]`, `[[P1]]` patterns and renders clickable links per D11 §AutoLink. Links navigate to corresponding spec view. Deliverable: all ID references are clickable; invalid IDs show warning tooltip. |
+| P10.4 | GateBanner sticky banner for sections with active gates | Alice | 1 day | P8.1, D15 | Done | Build `GateBanner.vue` sticky banner for sections with active gates per D15 §Banner. Show gate count and "Review" button. Positioned below header. Deliverable: banner appears only when gates pending; dismissible per session. |
+| P10.5 | Drift Check button with results visualization | Bob | 2 days | P10.2, D38 | Done | Add "Drift Check" button to `SpecsView.vue` header calling `POST /api/forge/specs/{project}/drift-check` per D38 §Drift. Render results visualization: drifted sections highlighted, count badge. Deliverable: button triggers check; results show drift count and affected sections. |
 
 ---
 
 ## P11 Mode Awareness & Integration
 **Status:** implemented
-**Tags:** stack:both, module:relay
-**Depends on:** G8, G9, G10
+**Depends on:** G8, G9, G10, D6, D18
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P11.1 | GSD / Check mode toggle in AppHeader | Alice | 1 day | — | Done |
-| P11.2 | Conditional gate rendering (all gates vs Goal Gate only) | Alice | 2 days | P11.1 | Done |
-| P11.3 | SSE event handlers for spec_written, handoff_submitted, gate_reached, gate_resolved | Bob | 2 days | P8.4, P9.1 | Done |
-| P11.4 | useSpecs document cache invalidation on relay spec mutations | Bob | 1 day | P11.3 | Done |
-
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P11.1 | GSD / Check mode toggle in AppHeader | Alice | 1 day | D6 | Done | Add mode toggle to `AppHeader.vue` with icons and active state per D6 §Toggle. Toggle shows current mode label. Persist to `localStorage`. Deliverable: toggle visible on all pages; state survives refresh. |
+| P11.2 | Conditional gate rendering (all gates vs Goal Gate only) | Alice | 2 days | P11.1, D6 | Done | Update `GatePanel.vue` to show all gates in Check mode, only Goal Gate in GSD mode per D6 §Conditional. Filter gate list before rendering. Deliverable: mode change updates visible gates without page refresh. |
+| P11.3 | SSE event handlers for spec_written, handoff_submitted, gate_reached, gate_resolved | Bob | 2 days | P8.4, P9.1, D18 | Done | Add handlers for `spec_written`, `handoff_submitted`, `gate_reached`, `gate_resolved` events in `useEventRouter` per D18 §Events. Route to correct view callbacks. Deliverable: all four events route to correct callbacks; no dropped events. |
+| P11.4 | useSpecs document cache invalidation on relay spec mutations | Bob | 1 day | P11.3, D18 | Done | Invalidate `useSpecs` document cache when relay mutates specs per D18 §Cache. Trigger re-fetch on `spec_written` event. Show " specs updated" toast. Deliverable: specs view updates automatically after relay run; toast confirms update. |
 
 
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P12 Responsive & Accessibility Polish
 **Status:** implemented
-**Tags:** stack:frontend, module:ui-system
-**Depends on:** G10
+**Depends on:** G10, D14
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P12.1 | Mobile layout with bottom sheets and tabs | Alice | 2 days | — | Done |
-| P12.2 | Keyboard shortcuts (Ctrl+1/2/3/K) | Bob | 1 day | — | Done |
-| P12.3 | Focus management for gate cards and secretary messages | Alice | 2 days | P8.1, P8.2 | Done |
-| P12.4 | Screen reader annotations for node graph and relations panel | Bob | 2 days | P9.1, P10.2 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P12.1 | Mobile layout with bottom sheets and tabs | Alice | 2 days | D14 | Done | Implement bottom sheets for gates, tab bar for navigation, and collapsible sidebar per D14 §Mobile. Use CSS media queries at 768px breakpoint. Touch targets ≥44px. Deliverable: UI usable on 375px width; all interactions work with touch. |
+| P12.2 | Keyboard shortcuts (Ctrl+1/2/3/K) | Bob | 1 day | D14 | Done | Add `Ctrl+1` (Chat), `Ctrl+2` (Specs), `Ctrl+3` (Relay), `Ctrl+K` (Search) per D14 §Shortcuts. Use `useKeyboard` composable with `preventDefault`. Deliverable: all shortcuts work globally; shown in help modal (`?`). |
+| P12.3 | Focus management for gate cards and secretary messages | Alice | 2 days | P8.1, P8.2, D14 | Done | Implement focus trapping for gate cards and secretary messages per D14 §Focus. Return focus to trigger element on close. Auto-focus first action button on open. Deliverable: Tab navigation stays within modal; Escape closes and returns focus. |
+| P12.4 | Screen reader annotations for node graph and relations panel | Bob | 2 days | P9.1, P10.2, D14 | Done | Add ARIA labels to node graph (`aria-label="Pipeline step 3 of 8, Coder, running"`), relations panel per D14 §Accessibility. Use `role="list"` / `role="listitem"` for relations. Deliverable: NVDA/VoiceOver reads pipeline state and relations correctly. |
 
 
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P13 Project Concept — VS Code–style Workspace
 **Status:** done
-**Tags:** stack:both, module:project
 **Depends on:** G12
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P13.1 | Backend project.rs: ProjectConfig, find_specs_dir, browse_directory | Core | 2 days | — | Done |
-| P13.2 | SpecsStore refactor: new_default, open_project, close_project, is_project_open | Core | 1 day | P13.1 | Done |
-| P13.3 | Project API endpoints: status, open, close, recent, browse | Core | 1 day | P13.2 | Done |
-| P13.4 | Backend auto-restore last project on startup | Core | 0.5 day | P13.3 | Done |
-| P13.5 | Frontend useProject composable with singleton state | Core | 1 day | P13.3 | Done |
-| P13.6 | WelcomeView with path input, browse, recent projects list | Core | 1 day | P13.5 | Done |
-| P13.7 | App.vue conditional rendering + project indicator in nav rail | Core | 0.5 day | P13.6 | Done |
-| P13.8 | SpecsView dynamic project from useProject (replace hardcoded auto-lang) | Core | 0.5 day | P13.7 | Done |
-| P13.9 | ChatsView passes projectPath on session creation | Core | 0.5 day | P13.7 | Done |
-| P13.10 | Move docs/specs/ to top-level specs/ directory | Core | 0.5 day | P13.8 | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P13.1 | Backend project.rs: ProjectConfig, find_specs_dir, browse_directory | Core | 2 days | — | Done | Implement `ProjectConfig` struct, `find_specs_dir()` (walk up until `specs/` found), `browse_directory()` (file picker dialog) per G12 §Project. File: `backend/src/forge/project.rs`. Deliverable: API returns project config JSON; browse opens native file dialog. |
+| P13.2 | SpecsStore refactor: new_default, open_project, close_project, is_project_open | Core | 1 day | P13.1 | Done | Add `new_default()`, `open_project()`, `close_project()`, `is_project_open()` to `SpecsStore` per G12 §Store. Maintain active project in memory. Deliverable: store manages active project lifecycle; close clears cache. |
+| P13.3 | Project API endpoints: status, open, close, recent, browse | Core | 1 day | P13.2 | Done | Add 5 REST routes: `GET /api/forge/project/status`, `POST /open`, `POST /close`, `GET /recent`, `POST /browse` per G12 §API. `recent` returns last 10 projects from `~/.local/share/autoforge/recent.json`. Deliverable: all endpoints return correct JSON. |
+| P13.4 | Backend auto-restore last project on startup | Core | 0.5 day | P13.3 | Done | On backend startup, read `~/.local/share/autoforge/last_project` and auto-open per G12 §Restore. Fallback to welcome state if project missing. Deliverable: no manual re-open needed on restart; missing project shows error toast. |
+| P13.5 | Frontend useProject composable with singleton state | Core | 1 day | P13.3 | Done | Build `useProject()` singleton with `projectPath`, `isOpen`, `recentProjects` per G12 §Composable. File: `frontend/src/composables/useProject.ts`. Persist recent list. Deliverable: state reactive across all views; recent list survives refresh. |
+| P13.6 | WelcomeView with path input, browse, recent projects list | Core | 1 day | P13.5 | Done | Build `WelcomeView.vue` with path input, browse button, and recent projects list per G12 §Welcome. Recent items show path, last opened date, and "Open" button. Deliverable: new users see welcome screen; returning users see last project auto-opened. |
+| P13.7 | App.vue conditional rendering + project indicator in nav rail | Core | 0.5 day | P13.6 | Done | Show `WelcomeView` when no project open, main app when project open per G12 §Routing. Add project name label to nav rail. Deliverable: conditional render works without flash; nav rail shows active project. |
+| P13.8 | SpecsView dynamic project from useProject (replace hardcoded auto-lang) | Core | 0.5 day | P13.7 | Done | Replace hardcoded `auto-lang` in `SpecsView.vue` with `useProject().projectPath` per G12 §Integration. Deliverable: specs load from any opened project; no hardcoded paths remain. |
+| P13.9 | ChatsView passes projectPath on session creation | Core | 0.5 day | P13.7 | Done | Pass `projectPath` from `useProject` to session creation API per G12 §Chat. Session stores project reference. Deliverable: chat sessions bound to correct project; switching project creates new session. |
+| P13.10 | Move docs/specs/ to top-level specs/ directory | Core | 0.5 day | P13.8 | Done | Move `docs/specs/` to top-level `specs/` directory per G12 §Structure. Update all hardcoded paths in backend and frontend. Update `.gitignore`. Deliverable: `specs/` at repo root; all paths updated. |
 
 
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P14 API Source Configuration
 **Status:** proposed
-**Tags:** stack:both, module:api-sources
-**Depends on:** G13
+**Depends on:** G13, D19, D20, A15
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P14.1 | Backend config.rs: ApiSource, ModelDefinition, ModelTier types + CRUD + auto-detect | Core | 2 days | — | Proposed |
-| P14.2 | Extend relay/mod.rs: load api_sources into RelayRegistry, resolve_api_key | Core | 1 day | P14.1 | Proposed |
-| P14.3 | Config API endpoints: CRUD + test connection (5 routes in relay/api.rs) | Core | 1 day | P14.2 | Proposed |
-| P14.4 | Refactor ai.rs: dispatch_chat() with Anthropic/OpenAI/Local provider routing | Core | 3 days | P14.1 | Proposed |
-| P14.5 | Generalize forge/ai.rs ToolClaudeProvider to ToolProviderDispatcher | Core | 2 days | P14.4 | Proposed |
-| P14.6 | Frontend useApiSources.ts composable with singleton state | Core | 1 day | P14.3 | Proposed |
-| P14.7 | ApiSourcesView.vue: source list + detail editor + model management | Core | 3 days | P14.6 | Proposed |
-| P14.8 | App.vue: add APIs tab, remove Demo, import ApiSourcesView | Core | 0.5 day | P14.7 | Proposed |
-| P14.9 | First-startup auto-detection: detect Claude/OpenAI/Ollama and generate defaults | Core | 1 day | P14.1 | Proposed |
-| P14.10 | Integration tests: multi-provider dispatch, CRUD persistence, test connection | Core | 2 days | P14.5, P14.8 | Proposed |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P14.1 | Backend config.rs: ApiSource, ModelDefinition, ModelTier types + CRUD + auto-detect | Core | 2 days | D19 | Proposed | Define `ApiSource` struct with `id`, `name`, `provider`, `base_url`, `api_key`; `ModelDefinition` with `id`, `name`, `tier`, `context_window`; `ModelTier` enum (`cheap`, `mid`, `premium`) per D19 §Types. Implement CRUD persistence in `~/.local/share/autoforge/api_sources.json`. Auto-detect Claude/OpenAI/Ollama from env vars. File: `backend/src/forge/config.rs`. Deliverable: types serialize to JSON; auto-detect finds at least one provider. |
+| P14.2 | Extend relay/mod.rs: load api_sources into RelayRegistry, resolve_api_key | Core | 1 day | P14.1, D19 | Proposed | Load `api_sources` into `RelayRegistry` at startup per D19 §Registry. Implement `resolve_api_key(source_id)` that returns decrypted key from keychain or env. Deliverable: registry resolves correct API key for any configured source. |
+| P14.3 | Config API endpoints: CRUD + test connection (5 routes in relay/api.rs) | Core | 1 day | P14.2, A15 | Proposed | Add 5 REST routes: `GET /api/forge/config/sources`, `POST /source`, `PUT /source/{id}`, `DELETE /source/{id}`, `POST /source/{id}/test` per A15 §API. Test connection validates key by making minimal API call. Deliverable: all routes return correct JSON; test connection validates key. |
+| P14.4 | Refactor ai.rs: dispatch_chat() with Anthropic/OpenAI/Local provider routing | Core | 3 days | P14.1, D20 | Proposed | Rewrite `dispatch_chat()` with provider routing: Anthropic (`claude-*`), OpenAI (`gpt-*`), Local (`ollama/*`) per D20 §Dispatch. Each provider has own request builder and response parser. File: `backend/src/forge/ai.rs`. Deliverable: all three providers route correctly; errors mapped to unified `ToolError`. |
+| P14.5 | Generalize forge/ai.rs ToolClaudeProvider to ToolProviderDispatcher | Core | 2 days | P14.4, D20 | Proposed | Generalize `ToolClaudeProvider` to `ToolProviderDispatcher` per D20 §Abstraction. Dispatcher selects provider based on `model_config.source_id`. Tool calls work with any configured provider. Deliverable: tool calls work with Anthropic, OpenAI, and Local providers. |
+| P14.6 | Frontend useApiSources.ts composable with singleton state | Core | 1 day | P14.3, D19 | Proposed | Build `useApiSources.ts` singleton with CRUD operations per D19 §Frontend. File: `frontend/src/composables/useApiSources.ts`. Reactive source list with validation errors. Deliverable: reactive source list; add/edit/delete operations sync to backend. |
+| P14.7 | ApiSourcesView.vue: source list + detail editor + model management | Core | 3 days | P14.6, D19 | Proposed | Build `ApiSourcesView.vue` with source list (cards), detail editor (form), and model management (table) per D19 §UI. Source editor has provider-specific fields. Model management allows adding/removing models per source. Deliverable: full CRUD UI functional. |
+| P14.8 | App.vue: add APIs tab, remove Demo, import ApiSourcesView | Core | 0.5 day | P14.7, D19 | Proposed | Add APIs tab to nav rail with Plug icon, remove Demo tab per D19 §Nav. Import `ApiSourcesView.vue` as lazy-loaded route. Deliverable: tab navigates to ApiSourcesView; no Demo tab. |
+| P14.9 | First-startup auto-detection: detect Claude/OpenAI/Ollama and generate defaults | Core | 1 day | P14.1, D19 | Proposed | Detect Claude (`ANTHROPIC_API_KEY`), OpenAI (`OPENAI_API_KEY`), Ollama (`localhost:11434`) on first startup and generate default configs per D19 §AutoDetect. Show detected sources in welcome modal. Deliverable: new user has working defaults without manual config. |
+| P14.10 | Integration tests: multi-provider dispatch, CRUD persistence, test connection | Core | 2 days | P14.5, P14.8, D19 | Proposed | Write tests for multi-provider dispatch (mock servers), CRUD persistence, and test connection per D19 §Testing. Use `wiremock` for mock providers. Deliverable: all tests pass in CI; mock servers for all 3 providers. |
 
----
 
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P15 Merge auto-code-rs into auto-forge
 **Status:** done
-**Tags:** stack:backend, module:provider
-**Depends on:** —
+**Depends on:** —, D21, D22, D23
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P15.1 | Unified provider layer (ClaudeProvider + SseParser + unified types) | Core | 3 days | — | Done |
-| P15.2 | Unified tool system (ToolError, ToolRegistry, is_read_only) | Core | 1 day | P15.1 | Done |
-| P15.3 | Runtime infrastructure (ContextManager, Session, PermissionPolicy) | Core | 1 day | P15.1 | Done |
-| P15.4 | CLI mode (clap dispatch, REPL, settings) | Core | 1 day | P15.2, P15.3 | Done |
-| P15.5 | Move Auto language assets to auto-lang monorepo | Core | 1 day | — | Done |
-| P15.6 | Cleanup: archive auto-code-rs, update docs, verify tests | Core | 0.5 day | P15.1-P15.5 | Done |
-
----
-
----
-
----
-
----
-
----
-
----
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P15.1 | Unified provider layer (ClaudeProvider + SseParser + unified types) | Core | 3 days | D21 | Done | Merge `ClaudeProvider` + `SseParser` + unified types from `auto-code-rs` per D21 §Provider. Consolidate `ChatMessage`, `ToolCall`, `ToolResult` types. File: `backend/src/forge/ai.rs`. Deliverable: single provider module; no duplicate types. |
+| P15.2 | Unified tool system (ToolError, ToolRegistry, is_read_only) | Core | 1 day | P15.1, D21 | Done | Merge `ToolError`, `ToolRegistry`, `is_read_only` from `auto-code-rs` per D21 §Tools. Unified error enum covers all tool failures. Deliverable: all tools use unified error types; read-only detection works. |
+| P15.3 | Runtime infrastructure (ContextManager, Session, PermissionPolicy) | Core | 1 day | P15.1, D23 | Done | Merge `ContextManager`, `Session`, `PermissionPolicy` from `auto-code-rs` per D23 §Runtime. Integrate with existing `ForgeSession`. Deliverable: runtime types integrated; permission checks work. |
+| P15.4 | CLI mode (clap dispatch, REPL, settings) | Core | 1 day | P15.2, P15.3, D22 | Done | Merge clap dispatch, REPL, and settings from `auto-code-rs` per D22 §CLI. File: `backend/src/main.rs`. Add `--cli` flag. Deliverable: `cargo run -- --cli` starts REPL with history and autocomplete. |
+| P15.5 | Move Auto language assets to auto-lang monorepo | Core | 1 day | — | Done | Move Auto language grammar/syntax files to `auto-lang` monorepo per project decision. Remove from this repo. Update references. Deliverable: assets removed; no broken imports. |
+| P15.6 | Cleanup: archive auto-code-rs, update docs, verify tests | Core | 0.5 day | P15.1-P15.5, D21 | Done | Archive `auto-code-rs` repo (mark read-only), update docs, verify `cargo test` passes per D21 §Cleanup. Update README with migration notes. Deliverable: CI green; docs reference archive location. |
 
 ---
 
 ## P16 Chat Agent Handoff — bring_in Tool
 **Status:** proposed
-**Tags:** stack:both, module:chat
 **Depends on:** G17, D24, A9
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P16.1 | BringInTool struct with JSON schema, validation, and execute method | Core | 1 day | D24 | Proposed |
-| P16.2 | Update assistant profession `allowed_tools` to include `bring_in` | Core | 0.5 day | P16.1 | Proposed |
-| P16.3 | Tool handler: validate target is in `handoff_to`, switch `active_profession`, persist session | Core | 1 day | P16.1 | Proposed |
-| P16.4 | HandoffNote struct with render() method for injecting context | Core | 0.5 day | D24 | Proposed |
-| P16.5 | Inject HandoffNote as system message before next agent's turn in `forge_stream` | Core | 1 day | P16.3, P16.4 | Proposed |
-| P16.6 | SSE `agent_handoff` event emission after bring_in executes | Core | 0.5 day | P16.3 | Proposed |
-| P16.7 | Update Nicole's soul to instruct bring_in usage after classification | Core | 0.5 day | P16.1 | Proposed |
-| P16.8 | Frontend: handle `agent_handoff` SSE event, update profession badge | Core | 0.5 day | P16.6 | Proposed |
-| P16.9 | Frontend: HandoffCard component for bring_in tool_call rendering | Core | 1 day | P16.8 | Proposed |
-| P16.10 | Integration tests: bring_in validation, handoff note injection, SSE event | Core | 1 day | P16.5, P16.6 | Proposed |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P16.1 | BringInTool struct with JSON schema, validation, and execute method | Core | 1 day | D24 | Proposed | Define `BringInTool` with JSON schema `{ target: string, reason: string }`, validation (target must be in `handoff_to`), and `execute()` method per D24 §Schema. File: `backend/src/forge/tools/bring_in.rs`. Deliverable: schema validates target profession; rejects invalid targets with clear error. |
+| P16.2 | Update assistant profession `allowed_tools` to include `bring_in` | Core | 0.5 day | P16.1, D24 | Proposed | Add `bring_in` to assistant profession's `allowed_tools` per D24 §Registration. Update profession registry. Deliverable: assistant can invoke `bring_in`; tool appears in available tools list. |
+| P16.3 | Tool handler: validate target is in `handoff_to`, switch `active_profession`, persist session | Core | 1 day | P16.1, D24 | Proposed | Implement handler that validates target is in current profession's `handoff_to`, switches `active_profession` in session, persists updated session per D24 §Handler. Atomic operation: validate → switch → persist. Deliverable: handoff changes active agent; session survives restart. |
+| P16.4 | HandoffNote struct with render() method for injecting context | Core | 0.5 day | P16.1, D24 | Proposed | Define `HandoffNote` with `from_profession`, `to_profession`, `reason`, `context_summary` and `render()` method per D24 §Note. Render produces formatted system message: "You are taking over from {from}. Context: {summary}". Deliverable: note renders as formatted system message. |
+| P16.5 | Inject HandoffNote as system message before next agent's turn in `forge_stream` | Core | 1 day | P16.3, P16.4, D24 | Proposed | Inject `HandoffNote` as system message before next agent's turn in `forge_stream` per D24 §Injection. Position: after system prompt, before user messages. Deliverable: new agent receives full context; responds correctly without replay. |
+| P16.6 | SSE `agent_handoff` event emission after bring_in executes | Core | 0.5 day | P16.3, D24 | Proposed | Emit `agent_handoff` SSE event after `bring_in` executes per D24 §Events. Payload: `{ from: string, to: string, reason: string, timestamp }`. Deliverable: frontend receives event within 100ms of handoff. |
+| P16.7 | Update Nicole's soul to instruct bring_in usage after classification | Core | 0.5 day | P16.1, D24 | Proposed | Add bring_in usage instructions to `assistant.md` soul per D24 §Soul. Instruct: classify intent → if requires specialist, call `bring_in(target="coder", reason="...")`. Include examples. Deliverable: assistant uses bring_in naturally in >80% of relevant cases. |
+| P16.8 | Frontend: handle `agent_handoff` SSE event, update profession badge | Core | 0.5 day | P16.6, D24 | Proposed | Add `agent_handoff` handler in `useEventRouter` updating profession badge in chat header per D24 §Frontend. Badge shows current active profession name and color. Deliverable: badge updates within 1 second of handoff. |
+| P16.9 | Frontend: HandoffCard component for bring_in tool_call rendering | Core | 1 day | P16.8, D24 | Proposed | Build `HandoffCard.vue` for rendering `bring_in` tool_call with from→to arrow and reason per D24 §UI. Animated transition. Show profession avatars. Deliverable: card renders with animation; shows correct professions. |
+| P16.10 | Integration tests: bring_in validation, handoff note injection, SSE event | Core | 1 day | P16.5, P16.6, D24 | Proposed | Write tests for bring_in validation (invalid target rejected), handoff note injection (note appears in message history), and SSE event (event emitted with correct payload) per D24 §Testing. Deliverable: all 3 test scenarios pass; edge cases covered. |
 
----
 
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P17 Wiki Knowledge Layer — Storage, Multi-Level Directories, Raw Import, and Frontend
 **Status:** done
-**Tags:** stack:both, module:wiki
-**Depends on:** G18, A10, D25
+**Depends on:** G18, A10, D25, D26
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P17.1 | WikiPage data model + storage in `{project}/wiki/` with _manifest.json | Core | 2 days | D25 | Done |
-| P17.2 | `list_wiki` and `create_wiki_page` tools for agents | Core | 1 day | P17.1 | Done |
-| P17.3 | `update_wiki_page` tool with version tracking | Core | 1 day | P17.1 | Done |
-| P17.4 | Embedding computation: integrate local embedding model or API-based embeddings | Core | 2 days | P17.1 | Proposed |
-| P17.5 | `query_wiki` tool with FAISS vector similarity search (top-K retrieval) | Core | 2 days | P17.4 | Proposed |
-| P17.6 | Frontend: Wiki tab with dual-region sidebar (Raw tree + Wiki tree) and markdown rendering | UI | 3 days | P17.1 | Done |
-| P17.7 | Frontend: full-text + semantic search UI for wiki | UI | 2 days | P17.5, P17.6 | Proposed |
-| P17.8 | Frontend: markdown editor with live preview for wiki page editing | UI | 2 days | P17.6 | Done |
-| P17.9 | Backend: TreeNode + recursive directory tree builder + path-based CRUD (multi-level slugs) | Core | 2 days | P17.1 | Done |
-| P17.10 | Backend: Raw file API — multipart upload, file serve, delete, mkdir with path traversal protection | Core | 2 days | P17.9 | Done |
-| P17.11 | Frontend: TreeView recursive component + DropZone native HTML5 drag-and-drop upload | UI | 2 days | P17.9, P17.10 | Done |
-| P17.12 | Frontend: WikiView overhaul — dual-region sidebar, raw file preview, path-based page creation | UI | 3 days | P17.11 | Done |
-| P17.13 | Integration: agent tools registered per profession, wiki tools in allowed_tools | Core | 1 day | P17.2, P17.3 | Done |
-| P17.14 | Integration tests: wiki CRUD, tree navigation, raw upload/download | Core | 2 days | P17.13 | Proposed |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P17.1 | WikiPage data model + storage in `{project}/wiki/` with _manifest.json | Core | 2 days | D25 | Done | Define `WikiPage` struct with `slug`, `title`, `content`, `created_at`, `updated_at`, `parent_slug` per D25 §Model. Storage in `{project}/wiki/_manifest.json` (JSON array) + individual `.md` files. Deliverable: CRUD operations on pages; manifest stays consistent. |
+| P17.2 | `list_wiki` and `create_wiki_page` tools for agents | Core | 1 day | P17.1, D25 | Done | Implement `list_wiki` and `create_wiki_page` agent tools per D25 §Tools. `list_wiki` returns all pages; `create_wiki_page` validates slug uniqueness. File: `backend/src/forge/tools/wiki.rs`. Deliverable: agents can list and create pages via tool calls. |
+| P17.3 | `update_wiki_page` tool with version tracking | Core | 1 day | P17.1, D25 | Done | Implement `update_wiki_page` with version tracking per D25 §Versioning. Append old version to `{slug}.history.json`. Support optimistic concurrency (reject if `updated_at` mismatch). Deliverable: updates preserve history; concurrent edits detected. |
+| P17.4 | Embedding computation: integrate local embedding model or API-based embeddings | Core | 2 days | D25 | Proposed | Integrate local embedding model (e.g., `fastembed-rs`) or API-based embeddings per D25 §Embedding. File: `backend/src/forge/embeddings.rs`. Compute vector for page content on create/update. Deliverable: page content vectorized; 384-dim vectors stored. |
+| P17.5 | `query_wiki` tool with FAISS vector similarity search (top-K retrieval) | Core | 2 days | P17.4, D25 | Proposed | Implement `query_wiki` with FAISS vector similarity search per D25 §Search. Return top-K relevant pages with similarity scores. File: `backend/src/forge/tools/wiki.rs`. Deliverable: semantic search returns relevant results; score > 0.7 for good matches. |
+| P17.6 | Frontend: Wiki tab with dual-region sidebar (Raw tree + Wiki tree) and markdown rendering | UI | 3 days | P17.1, D26 | Done | Build `WikiView.vue` with dual-region sidebar (Raw file tree + Wiki page tree) and markdown rendering per D26 §View. Use `marked` for markdown. Deliverable: wiki pages render with markdown; sidebar shows both trees. |
+| P17.7 | Frontend: full-text + semantic search UI for wiki | UI | 2 days | P17.5, D25 | Proposed | Add full-text + semantic search UI to WikiView per D25 §Search UI. Full-text uses client-side fuse.js; semantic calls `query_wiki` API. Results show title, excerpt, and score. Deliverable: search returns ranked results; debounced input (300ms). |
+| P17.8 | Frontend: markdown editor with live preview for wiki page editing | UI | 2 days | P17.6, D26 | Done | Build markdown editor with live preview for wiki page editing per D26 §Editor. Split-pane: left edit, right preview. Auto-save draft to `localStorage`. Deliverable: WYSIWYG editing with save; preview matches rendered output. |
+| P17.9 | Backend: TreeNode + recursive directory tree builder + path-based CRUD (multi-level slugs) | Core | 2 days | P17.1, D25 | Done | Implement `TreeNode` struct with recursive directory builder and path-based CRUD per D25 §Tree. Support multi-level slugs: `folder/subfolder/page`. Path validation: no `..`, no leading `/`. Deliverable: nested directories work; path traversal blocked. |
+| P17.10 | Backend: Raw file API — multipart upload, file serve, delete, mkdir with path traversal protection | Core | 2 days | P17.9, D25 | Done | Add multipart upload, file serve, delete, mkdir with path traversal protection per D25 §Raw. Sanitize all paths; reject `..` and absolute paths. MIME type detection. Deliverable: all file operations secure; upload size limit 10MB. |
+| P17.11 | Frontend: TreeView recursive component + DropZone native HTML5 drag-and-drop upload | UI | 2 days | P17.9, P17.10, D26 | Done | Build `TreeView.vue` recursive component and `DropZone` for HTML5 drag-and-drop upload per D26 §Tree. Tree supports expand/collapse, context menu (rename, delete, new folder). Deliverable: files upload via drag-and-drop; tree updates in real-time. |
+| P17.12 | Frontend: WikiView overhaul — dual-region sidebar, raw file preview, path-based page creation | UI | 3 days | P17.11, D26 | Done | Overhaul WikiView with dual-region sidebar, raw file preview, path-based page creation per D26 §Overhaul. Raw preview shows file content with syntax highlighting. Page creation supports nested paths. Deliverable: complete wiki workspace; no functionality gaps. |
+| P17.13 | Integration: agent tools registered per profession, wiki tools in allowed_tools | Core | 1 day | P17.2, P17.3, D25 | Done | Register wiki tools per profession in `allowed_tools` per D25 §Integration. Advisor and Documenter have full wiki access; others have read-only. Deliverable: correct professions have wiki access; unauthorized tools rejected. |
+| P17.14 | Integration tests: wiki CRUD, tree navigation, raw upload/download | Core | 2 days | P17.13, D25 | Proposed | Write tests for wiki CRUD, tree navigation, raw upload/download per D25 §Testing. Test path traversal attempts (should fail). Test multi-level slug creation. Deliverable: all tests pass; security tests verify path traversal blocked. |
 
----
 
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P18 AutoDown Editor — WYSIWYG Block-Based Markdown Editor
 **Status:** draft
-**Tags:** stack:frontend, module:editor
 **Depends on:** G19, A11, D27
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P18.1 | Add Tiptap dependencies and scaffold directory structure | UI | 1 day | — | Draft |
-| P18.2 | Create `createExtensions()` factory with StarterKit + Markdown | UI | 1 day | P18.1 | Draft |
-| P18.3 | Build `AutoDownEditor.vue` core wrapper with `useEditor` | UI | 1 day | P18.2 | Draft |
-| P18.4 | Implement slash command extension + `SlashMenu.vue` | UI | 1 day | P18.3 | Draft |
-| P18.5 | Implement bubble menu extension + `BubbleMenu.vue` | UI | 1 day | P18.3 | Draft |
-| P18.6 | Integrate drag handle for block reordering | UI | 1 day | P18.3 | Draft |
-| P18.7 | Style all blocks with AutoForge CSS variables | UI | 1 day | P18.4-P18.6 | Draft |
-| P18.8 | Replace `MarkdownEditor.vue` in WikiView and Spec views | UI | 1 day | P18.7 | Draft |
-| P18.9 | Write round-trip Markdown parse/serialize tests | UI | 1 day | P18.8 | Draft |
-| P18.10 | Implement Callout block with `:::type` syntax | UI | 1 day | P18.9 | Draft |
-| P18.11 | Implement Math block with KaTeX rendering | UI | 1 day | P18.9 | Draft |
-| P18.12 | Implement Mermaid diagram block | UI | 1 day | P18.9 | Draft |
-| P18.13 | Implement SpecRef block with `[[G1]]` syntax | UI | 1 day | P18.9 | Draft |
-| P18.14 | Add CodeBlock with language selector and ImageBlock with resize | UI | 1 day | P18.10-P18.13 | Draft |
-| P18.15 | Write AutoDown extension parse/serialize tests | UI | 1 day | P18.14 | Draft |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P18.1 | Add Tiptap dependencies and scaffold directory structure | UI | 1 day | D27 | Draft | Add `@tiptap/*` packages to `package.json` per D27 §Dependencies: `@tiptap/core`, `@tiptap/starter-kit`, `@tiptap/extension-markdown`, `@tiptap/vue-3`, plus custom extension packages. Scaffold `frontend/src/editor/` directory. Deliverable: `pnpm install` succeeds; directory structure ready. |
+| P18.2 | Create `createExtensions()` factory with StarterKit + Markdown | UI | 1 day | P18.1, D27 | Draft | Build `createExtensions()` factory returning StarterKit + Markdown extensions per D27 §Extensions. Configure Markdown serializer options. File: `frontend/src/editor/extensions.ts`. Deliverable: basic editor renders with bold, italic, headings, lists. |
+| P18.3 | Build `AutoDownEditor.vue` core wrapper with `useEditor` | UI | 1 day | P18.2, D27 | Draft | Build `AutoDownEditor.vue` core wrapper with `useEditor` composable per D27 §Wrapper. Props: `v-model` (markdown string), `placeholder`, `readonly`. Emit `update:modelValue` on change. Deliverable: editor mounts and accepts v-model; content syncs bidirectionally. |
+| P18.4 | Implement slash command extension + `SlashMenu.vue` | UI | 1 day | P18.3, D27 | Draft | Implement slash command extension (`/heading`, `/list`, `/code`, `/callout`, `/math`) + `SlashMenu.vue` per D27 §Slash. Menu filters by typed text; Enter selects. Deliverable: `/` triggers menu; all commands insert correct blocks. |
+| P18.5 | Implement bubble menu extension + `BubbleMenu.vue` | UI | 1 day | P18.3, D27 | Draft | Implement bubble menu for inline formatting (bold, italic, link, code) + `BubbleMenu.vue` per D27 §Bubble. Menu appears on text selection. Deliverable: selection shows formatting toolbar; all actions work. |
+| P18.6 | Integrate drag handle for block reordering | UI | 1 day | P18.3, D27 | Draft | Add drag handle extension for reordering blocks per D27 §Drag. Handle appears on block hover. Drag indicator shows drop position. Deliverable: blocks reorderable via drag; order persists in markdown. |
+| P18.7 | Style all blocks with AutoForge CSS variables | UI | 1 day | P18.4-P18.6, D27 | Draft | Style all blocks with AutoForge CSS variables (`--af-fg`, `--af-bg`, `--af-border`, `--af-muted`) per D27 §Styling. Dark mode support via `dark:` variants. Deliverable: editor matches app theme in light and dark modes. |
+| P18.8 | Replace `MarkdownEditor.vue` in WikiView and Spec views | UI | 1 day | P18.7, D27 | Draft | Replace `MarkdownEditor.vue` in WikiView and Spec views with `AutoDownEditor.vue` per D27 §Integration. Update props and event handlers. Deliverable: all editing uses new editor; no `MarkdownEditor` references remain. |
+| P18.9 | Write round-trip Markdown parse/serialize tests | UI | 1 day | P18.8, D27 | Draft | Write tests for Markdown parse → Tiptap → serialize → Markdown round-trip per D27 §Testing. Test fixtures: headings, lists, code blocks, links, emphasis. Deliverable: round-trip preserves content for all standard markdown. |
+| P18.10 | Implement Callout block with `:::type` syntax | UI | 1 day | P18.9, D27 | Draft | Implement Callout block with `:::type` syntax per D27 §Callout. Types: `info`, `warning`, `danger`, `tip`. Render with colored left border and icon. Serialize to `:::type\ncontent\n:::` markdown. Deliverable: `:::info` renders as styled callout; round-trip preserves syntax. |
+| P18.11 | Implement Math block with KaTeX rendering | UI | 1 day | P18.9, D27 | Draft | Implement Math block with KaTeX rendering per D27 §Math. Inline: `$...$`; display: `$$...$$`. Lazy-load KaTeX. Deliverable: `$$` blocks render equations; inline math works in paragraphs. |
+| P18.12 | Implement Mermaid diagram block | UI | 1 day | P18.9, D27 | Draft | Implement Mermaid diagram block per D27 §Mermaid. Code block with language `mermaid` renders as SVG diagram. Lazy-load mermaid.js. Deliverable: ` ```mermaid ` blocks render diagrams; errors shown inline. |
+| P18.13 | Implement SpecRef block with `[[G1]]` syntax | UI | 1 day | P18.9, D27 | Draft | Implement SpecRef block with `[[G1]]` syntax per D27 §SpecRef. Renders as clickable badge linking to spec section. Validate ID against loaded specs. Deliverable: `[[G1]]` renders as clickable badge; invalid IDs show red underline. |
+| P18.14 | Add CodeBlock with language selector and ImageBlock with resize | UI | 1 day | P18.10-P18.13, D27 | Draft | Add CodeBlock with language selector dropdown and ImageBlock with resize handles per D27 §Blocks. CodeBlock supports syntax highlighting via Prism. ImageBlock supports drag-to-resize. Deliverable: both blocks functional; code highlighting works for 10+ languages. |
+| P18.15 | Write AutoDown extension parse/serialize tests | UI | 1 day | P18.14, D27 | Draft | Write AutoDown extension parse/serialize tests per D27 §Testing. Test callout, math, mermaid, specref round-trip. Deliverable: custom blocks round-trip correctly; no data loss on save/load. |
 
----
 
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P19 Gofer Errand Profession — Dispatch Tool & Isolated Side-Sessions
 **Status:** done
-**Tags:** stack:both, module:errand
 **Depends on:** G22, A12, D28
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| P19.1 | Add `ForgePhase::Errand` variant and `Profession::dispatchable_to` field | Core | 0.5 day | — | Done |
-| P19.2 | Register `gofer` profession in `profession.rs` with Errand phase, minimal tools, no handoff_to | Core | 0.5 day | P19.1 | Done |
-| P19.3 | Add `dispatch` tool to `ToolRegistry` with JSON schema and validation | Core | 1 day | P19.2 | Done |
-| P19.4 | Create `gofer.md` soul file: ultra-minimal prompt, fact-only, no opinions | Core | 0.5 day | P19.2 | Done |
-| P19.5 | Implement `ErrandSession` struct with isolated message history and run loop | Core | 2 days | P19.3 | Done |
-| P19.6 | Add `errand_sessions: Vec<ErrandSession>` to `ForgeSession` | Core | 0.5 day | P19.5 | Done |
-| P19.7 | Implement `ErrandSession::run()` — mini ReAct loop with cheap model provider | Core | 2 days | P19.5 | Done |
-| P19.8 | Implement `ErrandSession::save()` and `::load()` persistence to `errands/` subdir | Core | 1 day | P19.5 | Done |
-| P19.9 | Add `dispatch` to `allowed_tools` for all relay professions (assistant through tester) | Core | 0.5 day | P19.3 | Done |
-| P19.10 | Add `dispatchable_to: ["gofer"]` to all relay professions | Core | 0.5 day | P19.1 | Done |
-| P19.11 | Extend SSE event enum: ErrandStart, ErrandTurnStart, ErrandText, ErrandToolCall, ErrandToolResult, ErrandComplete | Core | 1 day | P19.5 | Done |
-| P19.12 | Backend: route errand SSE events through master session's event_tx | Core | 1 day | P19.11 | Done |
-| P19.13 | Frontend: ErrandThread component — collapsible nested card with tool call history | UI | 2 days | P19.11 | Done |
-| P19.14 | Frontend: handle errand SSE events, append to errand thread instead of main message list | UI | 1 day | P19.13 | Done |
-| P19.15 | Frontend: show errand cost badge (token usage) separate from master session | UI | 1 day | P19.13 | Done |
-| P19.16 | Frontend: "Expand all errand threads" / "Collapse all" toggle in chat header | UI | 0.5 day | P19.13 | Done |
-| P19.17 | API endpoint: GET /api/forge/sessions/{sid}/errands for listing errand history | Core | 0.5 day | P19.8 | Done |
-| P19.18 | API endpoint: GET /api/forge/sessions/{sid}/errands/{eid} for full errand log | Core | 0.5 day | P19.8 | Done |
-| P19.19 | Integration tests: dispatch tool validation, errand isolation, result return, persistence | Core | 1 day | P19.7, P19.8 | Done |
-| P19.20 | Integration tests: SSE errand events, frontend rendering, cost tracking | Core | 1 day | P19.12, P19.14 | Done |
-| P19.21 | Dogfooding: use dispatch in advisor/architect souls for codebase research tasks | Core | 0.5 day | P19.4 | Done |
-
-- **Risk:** Errand runs on cheap model and returns low-quality results. **Mitigation:** Default to mid-tier model for first release; add `model_tier` parameter to dispatch later.
-- **Risk:** Errand gets stuck in infinite loop. **Mitigation:** Hard `max_turns` cap (20 default, 50 max) with automatic truncation.
-- **Risk:** Master dispatches too many errands, causing queue backlog. **Mitigation:** Max 3 concurrent errands per session; excess enqueue and return "busy" status.
-- **Risk:** Errand SSE events interfere with master stream parsing. **Mitigation:** Errand events include `errand_id` field; frontend filters by parent message ID.
-
----
-
----
-
----
-
----
-
----
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P19.1 | Add `ForgePhase::Errand` variant and `Profession::dispatchable_to` field | Core | 0.5 day | D28 | Done | Add `Errand` variant to `ForgePhase` enum and `dispatchable_to: Vec<String>` field to `Profession` per D28 §Phase. Update all match statements. Deliverable: enum compiles; no exhaustive match warnings. |
+| P19.2 | Register `gofer` profession in `profession.rs` with Errand phase, minimal tools, no handoff_to | Core | 0.5 day | P19.1, D28 | Done | Create `Profession::Gofer` with `Errand` phase, minimal tools (`read_file`, `search`), no `handoff_to` per D28 §Profession. File: `backend/src/relay/profession.rs`. Deliverable: gofer in registry; cannot handoff (terminal profession). |
+| P19.3 | Add `dispatch` tool to `ToolRegistry` with JSON schema and validation | Core | 1 day | P19.2, D28 | Done | Add `dispatch` tool to `ToolRegistry` with JSON schema per D28 §Tool. Schema: `{ task: string, target: "gofer", max_turns?: number }`. Validate target is in `dispatchable_to`. Deliverable: tool validates and executes; rejects invalid targets. |
+| P19.4 | Create `gofer.md` soul file: ultra-minimal prompt, fact-only, no opinions | Core | 0.5 day | P19.2, D28 | Done | Create `gofer.md` soul: ultra-minimal prompt, fact-only, no opinions per D28 §Soul. Instruct: research task, return facts, no conclusions. Deliverable: soul file loads; gofer responses are factual and concise. |
+| P19.5 | Implement `ErrandSession` struct with isolated message history and run loop | Core | 2 days | P19.3, D28 | Done | Define `ErrandSession` with isolated message history and run loop per D28 §Session. Fields: `id`, `task`, `messages`, `status`, `token_usage`, `result`. File: `backend/src/forge/errand.rs`. Deliverable: struct initialized correctly; status transitions work. |
+| P19.6 | Add `errand_sessions: Vec<ErrandSession>` to `ForgeSession` | Core | 0.5 day | P19.5, D28 | Done | Add `errand_sessions: Vec<ErrandSession>` to `ForgeSession` per D28 §Integration. Implement `add_errand()`, `get_errand()`, `list_errands()` methods. Deliverable: master session tracks errands; list returns all errands in order. |
+| P19.7 | Implement `ErrandSession::run()` — mini ReAct loop with cheap model provider | Core | 2 days | P19.5, D28 | Done | Implement mini ReAct loop with cheap model provider per D28 §Run. Max 20 turns (default), 50 max. Loop: think → tool call → observe → repeat. Deliverable: errand completes with result; respects turn limit. |
+| P19.8 | Implement `ErrandSession::save()` and `::load()` persistence to `errands/` subdir | Core | 1 day | P19.5, D28 | Done | Implement `save()` and `load()` to `{project}/.autoforge/errands/{errand_id}.json` per D28 §Persistence. Include full message history and result. Deliverable: errands survive restart; load restores complete state. |
+| P19.9 | Add `dispatch` to `allowed_tools` for all relay professions | Core | 0.5 day | P19.3, D28 | Done | Add `dispatch` to all relay professions' `allowed_tools` per D28 §Permissions. Assistant through Tester can dispatch. Deliverable: all professions can dispatch; tool appears in available tools. |
+| P19.10 | Add `dispatchable_to: ["gofer"]` to all relay professions | Core | 0.5 day | P19.1, D28 | Done | Add `dispatchable_to: ["gofer"]` to all relay professions per D28 §Routing. Deliverable: routing validates target; only gofer is dispatchable target. |
+| P19.11 | Extend SSE event enum: ErrandStart, ErrandTurnStart, ErrandText, ErrandToolCall, ErrandToolResult, ErrandComplete | Core | 1 day | P19.5, D28 | Done | Extend SSE event enum with 6 errand events per D28 §Events. Each event includes `errand_id` and `parent_message_id`. Deliverable: all events emitted at correct lifecycle points. |
+| P19.12 | Backend: route errand SSE events through master session's event_tx | Core | 1 day | P19.11, D28 | Done | Route errand events through master session's `event_tx` per D28 §Routing. Frontend filters by `parent_message_id`. Deliverable: frontend receives events; no event loss. |
+| P19.13 | Frontend: ErrandThread component — collapsible nested card with tool call history | UI | 2 days | P19.11, D28 | Done | Build `ErrandThread.vue` collapsible nested card with tool call history per D28 §UI. Shows task, status, token usage, and expandable tool call log. Deliverable: renders errand turns; tool calls expandable. |
+| P19.14 | Frontend: handle errand SSE events, append to errand thread instead of main message list | UI | 1 day | P19.13, D28 | Done | Append errand events to errand thread instead of main message list per D28 §Frontend. Use `parent_message_id` to route. Deliverable: errands isolated visually; main chat unaffected. |
+| P19.15 | Frontend: show errand cost badge (token usage) separate from master session | UI | 1 day | P19.13, D28 | Done | Show errand token usage badge separate from master session per D28 §Cost. Badge appears on errand thread header. Updates in real-time. Deliverable: badge shows accurate token count; matches backend. |
+| P19.16 | Frontend: "Expand all errand threads" / "Collapse all" toggle in chat header | UI | 0.5 day | P19.13, D28 | Done | Add "Expand all errand threads" / "Collapse all" toggle in chat header per D28 §Controls. Persist preference in session. Deliverable: toggle works; state applies to all errands. |
+| P19.17 | API endpoint: GET /api/forge/sessions/{sid}/errands for listing errand history | Core | 0.5 day | P19.8, D28 | Done | Add `GET /api/forge/sessions/{sid}/errands` per D28 §API. Returns list of errands with id, task, status, token_usage. Deliverable: returns errand list; 404 if session not found. |
+| P19.18 | API endpoint: GET /api/forge/sessions/{sid}/errands/{eid} for full errand log | Core | 0.5 day | P19.8, D28 | Done | Add `GET /api/forge/sessions/{sid}/errands/{eid}` per D28 §API. Returns full errand log with message history and tool calls. Deliverable: returns full log; sensitive data (api keys) redacted. |
+| P19.19 | Integration tests: dispatch tool validation, errand isolation, result return, persistence | Core | 1 day | P19.7, P19.8, D28 | Done | Write tests for dispatch validation, errand isolation, result return, persistence per D28 §Testing. Test: invalid target rejected, errand messages isolated from master, result returned to caller, save/load round-trip. Deliverable: all tests pass. |
+| P19.20 | Integration tests: SSE errand events, frontend rendering, cost tracking | Core | 1 day | P19.12, P19.14, D28 | Done | Write tests for SSE errand events, frontend rendering, cost tracking per D28 §Testing. Mock SSE stream; verify event sequence. Deliverable: e2e tests pass; event order correct. |
+| P19.21 | Dogfooding: use dispatch in advisor/architect souls for codebase research tasks | Core | 0.5 day | P19.4, D28 | Done | Add `dispatch` usage to advisor/architect souls for research tasks per D28 §Dogfooding. Instruct: "use dispatch to research unknown codebase areas". Deliverable: agents use dispatch naturally in >50% of research scenarios. |
 
 ---
 
 ## P20 Theme & Accent Implementation
 **Status:** done
-**Tags:** stack:frontend, module:ui-system
 **Depends on:** G11.5, D30
 
-| Task | Owner | Duration | Status |
-|---|---|---|---|
-| P20.1 | `useTheme.ts` composable with localStorage sync | UI | 1 day | Done |
-| P20.2 | `useAccentColor.ts` composable with CSS var injection | UI | 1 day | Done |
-| P20.3 | Header theme toggle button + accent picker dropdown | UI | 1 day | Done |
-| P20.4 | Verify Tailwind dark: variants work across all views | UI | 1 day | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P20.1 | `useTheme.ts` composable with localStorage sync | UI | 1 day | D30 | Done | Build `useTheme.ts` with `light`/`dark`/`system` modes and `localStorage` sync per D30 §Theme. File: `frontend/src/composables/useTheme.ts`. Watch `prefers-color-scheme` for system mode. Deliverable: theme persists across sessions; system mode reacts to OS changes. |
+| P20.2 | `useAccentColor.ts` composable with CSS variable injection | UI | 1 day | D30 | Done | Build `useAccentColor.ts` with CSS variable injection for 5 accent colors per D30 §Accent. Colors: indigo, coral, ocean, sage, amber. Inject `--af-accent-1`, `--af-accent-2`, `--af-accent-3` on change. Deliverable: color change applies instantly; no page refresh. |
+| P20.3 | Header theme toggle button + accent picker dropdown | UI | 1 day | D30 | Done | Add theme toggle button (sun/moon icon) + accent picker dropdown to `AppHeader.vue` per D30 §UI. Dropdown shows color swatches. Deliverable: both controls functional; state synced across tabs via BroadcastChannel. |
+| P20.4 | Verify Tailwind dark: variants work across all views | UI | 1 day | D30 | Done | Audit all components for `dark:` class usage per D30 §Verification. Fix missing variants. Test in both modes. Deliverable: no visual regressions in dark mode; all interactive elements visible. |
 
----
 
----
-
----
-
----
-
----
 
 ---
 
 ## P21 Event Router & Gate Inbox Integration
 **Status:** done
-**Tags:** stack:frontend, module:relay
 **Depends on:** G10.5, D31
 
-| Task | Owner | Duration | Status |
-|---|---|---|---|
-| P21.1 | `useEventRouter.ts` singleton with type-to-callback map | UI | 2 days | Done |
-| P21.2 | `useGateInbox.ts` with queue, snooze, dismiss | UI | 2 days | Done |
-| P21.3 | `SecretaryMessage.vue` integration with gate actions | UI | 1 day | Done |
-| P21.4 | Nav rail badge counts for pending gates | UI | 1 day | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P21.1 | `useEventRouter.ts` singleton with type-to-callback map | UI | 2 days | D31 | Done | Build `useEventRouter.ts` singleton with type-to-callback map per D31 §Router. File: `frontend/src/composables/useEventRouter.ts`. Support multiple callbacks per event type. Deliverable: callbacks fire for correct event types; no memory leaks on unregister. |
+| P21.2 | `useGateInbox.ts` with queue, snooze, dismiss | UI | 2 days | D31 | Done | Build `useGateInbox.ts` with queue, snooze, dismiss per D31 §Inbox. Queue ordered by arrival time. Snooze stored with UTC timestamp. Dismiss removes permanently. Deliverable: gates managed correctly; snooze reappears at chosen time. |
+| P21.3 | `SecretaryMessage.vue` integration with gate actions | UI | 1 day | P21.2, D31 | Done | Wire `SecretaryMessage.vue` into gate actions via `useGateInbox` per D31 §Integration. Approve/Reject/Snooze/Dismiss all wired. Deliverable: all actions work; state updates in real-time. |
+| P21.4 | Nav rail badge counts for pending gates | UI | 1 day | D31 | Done | Show pending gate counts on nav rail icons per D31 §Badges. Chat icon shows gate count; Relay icon shows run count. Deliverable: badge updates in real-time; max badge shows "9+". |
 
----
 
----
-
----
-
----
-
----
 
 ---
 
 ## P22 Streaming Renderer Integration
 **Status:** done
-**Tags:** stack:frontend, module:chat
 **Depends on:** G16.3, D32
 
-| Task | Owner | Duration | Status |
-|---|---|---|---|
-| P22.1 | `useStreamingDocument.ts` parser with sticky props cache | UI | 2 days | Done |
-| P22.2 | `StreamingRenderer.vue` with component registry | UI | 2 days | Done |
-| P22.3 | `StreamingTable.vue` for JSON table blocks | UI | 1 day | Done |
-| P22.4 | Integrate into `ChatsView.vue` message stream | UI | 1 day | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P22.1 | `useStreamingDocument.ts` parser with sticky props cache | UI | 2 days | D32 | Done | Build `useStreamingDocument.ts` parser with sticky props cache per D32 §Parser. File: `frontend/src/composables/useStreamingDocument.ts`. Parse streaming JSON blocks; cache properties that don't change. Deliverable: parses streaming JSON blocks; sticky props don't flicker. |
+| P22.2 | `StreamingRenderer.vue` with component registry | UI | 2 days | D32 | Done | Build `StreamingRenderer.vue` with component registry per D32 §Renderer. Register renderers: `TextBlock`, `TableBlock`, `CodeBlock`, `CalloutBlock`, `SpecRefBlock`. Deliverable: all block types render; unknown blocks fallback to text. |
+| P22.3 | `StreamingTable.vue` for JSON table blocks | UI | 1 day | D32 | Done | Build `StreamingTable.vue` for JSON table blocks per D32 §Table. Parse `{ headers: [], rows: [] }` JSON. Deliverable: tables render with headers and rows; column widths auto-adjust. |
+| P22.4 | Integrate into `ChatsView.vue` message stream | UI | 1 day | D32 | Done | Replace plain markdown rendering in `ChatsView.vue` message stream with `StreamingRenderer` per D32 §Integration. Deliverable: streaming messages render correctly; no layout shift during streaming. |
 
----
 
----
-
----
-
----
-
----
 
 ---
 
 ## P23 Explorer Module Implementation
 **Status:** done
-**Tags:** stack:both, module:project
 **Depends on:** G24, D33
 
-| Task | Owner | Duration | Status |
-|---|---|---|---|
-| P23.1 | Backend `project_tree()` recursive directory walker | Core | 2 days | Done |
-| P23.2 | Backend `project_file()` with MIME guessing and path validation | Core | 1 day | Done |
-| P23.3 | `TreeView.vue` recursive component with icons | UI | 2 days | Done |
-| P23.4 | `ExplorerView.vue` with sidebar/content split and search | UI | 2 days | Done |
-| P23.5 | Nav rail integration (`Ctrl+0`) and project label | UI | 1 day | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P23.1 | Backend `project_tree()` recursive directory walker | Core | 2 days | D33 | Done | Implement `project_tree()` recursive directory walker per D33 §Tree. File: `backend/src/forge/project.rs`. Returns JSON tree with `name`, `path`, `is_dir`, `children`. Exclude `.git/`, `target/`, `node_modules/`. Deliverable: returns JSON tree; 100k files handled without timeout. |
+| P23.2 | Backend `project_file()` with MIME guessing and path validation | Core | 1 day | D33 | Done | Implement `project_file()` with MIME guessing and path validation per D33 §File. Use `mime_guess` crate. Validate path is within project root. Deliverable: returns file content with correct Content-Type; path traversal blocked. |
+| P23.3 | `TreeView.vue` recursive component with file/folder icons | UI | 2 days | D33 | Done | Build `TreeView.vue` recursive component with file/folder icons per D33 §Component. Use `lucide-vue-next` icons. Support expand/collapse, click to select. Deliverable: renders nested tree; icons match file extension. |
+| P23.4 | `ExplorerView.vue` with sidebar/content split and search | UI | 2 days | D33 | Done | Build `ExplorerView.vue` with sidebar/content split and search per D33 §View. Sidebar: tree view. Content: file preview (text, image, markdown). Search filters tree. Deliverable: file browsing works; search filters in real-time. |
+| P23.5 | Nav rail integration (`Ctrl+0`) and project label | UI | 1 day | D33 | Done | Add Explorer tab to nav rail with `Ctrl+0` shortcut per D33 §Nav. Show project name label in view header. Deliverable: tab navigates to ExplorerView; shortcut works globally. |
 
----
 
----
-
----
-
----
-
----
 
 ---
 
 ## P24 APIs Documentation View
 **Status:** done
-**Tags:** stack:frontend, module:api-sources
 **Depends on:** G25, D34
 
-| Task | Owner | Duration | Status |
-|---|---|---|---|
-| P24.1 | Structure `specs/apis.ad` with module groupings | Docs | 1 day | Done |
-| P24.2 | Frontend view to render `apis.ad` as endpoint browser | UI | 1 day | Done |
-| P24.3 | Nav rail tab with Plug icon | UI | 0.5 day | Done |
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P24.1 | Structure `specs/apis.ad` with module groupings | Docs | 1 day | D34 | Done | Create `specs/apis.ad` with module groupings per D34 §Structure. Groups: Forge (chat), Relay (pipeline), Specs (ledger), Project, Config. Each endpoint has method, path, description, request/response schema. Deliverable: file parses as specs section; endpoints machine-readable. |
+| P24.2 | Frontend view to render `apis.ad` as endpoint browser | UI | 1 day | D34 | Done | Build `ApisView.vue` rendering `apis.ad` as endpoint browser per D34 §View. Group by module; expandable endpoint cards show method badge (GET/POST/PUT/DELETE), path, description, and schema tables. Deliverable: endpoints display with method, path, description; search filters by path. |
+| P24.3 | Nav rail tab with Plug icon | UI | 0.5 day | D34 | Done | Add APIs tab to nav rail with Plug icon per D34 §Nav. Position after Specs. Deliverable: tab visible and navigable; icon renders correctly. |
 
----
 
----
-
----
-
----
-
----
-
----
 
 ---
 
 ## P25 Goals View Refinement — Tree UX, Modal Editor, and Tag System
 **Status:** done
-**Tags:** stack:frontend, module:specs
-**Depends on:** G21, P10
+**Depends on:** G21, P10, D35, D36, D37, D38
 
-| Task | Owner | Duration | Status |
-|---|---|---|---|
-| P25.1 | Replace table-based GoalsTable with div-based tree nodes | UI | 1 day | Done |
-| P25.2 | Implement toggle area: fixed 2.5rem, count+chevron combined, removed for leaf goals | UI | 0.5 day | Done |
-| P25.3 | GoalDetailModal: centered modal with header/meta/body/footer, inline edit | UI | 1 day | Done |
-| P25.4 | Tag all 52 goals and 6 other categories with `stack:*` and `module:*` | Docs | 0.5 day | Done |
-| P25.5 | Tag display: shortened values, color-coded badges (stack=blue, module=purple) | UI | 0.5 day | Done |
-| P25.6 | Sidebar filter drawers: Category, Stack, Module with multi-select AND logic | UI | 1 day | Done |
-| P25.7 | Backend flat mode fix: `get_or_default` falls back to flat doc on key miss | Backend | 0.5 day | Done |
-
-- **Outcome**: Goals section now shows a clean hierarchical tree with expandable sub-goals, modal-based detail editing, and sidebar tag filtering.
-- **Risk**: None — incremental UX polish on existing P10 foundation.
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P25.1 | Replace table-based GoalsTable with div-based tree nodes | UI | 1 day | D35 | Done | Replace table-based `GoalsTable` with div-based tree nodes per D35 §Tree. Use recursive `GoalTreeNode.vue` component. Indentation via padding-left. Deliverable: tree renders with indentation; expandable/collapsible. |
+| P25.2 | Implement toggle area: fixed 2.5rem, count+chevron combined, removed for leaf goals | UI | 0.5 day | D35 | Done | Implement fixed 2.5rem toggle area with count+chevron combined, removed for leaf goals per D35 §Toggle. Click toggles expand. Chevron rotates 90°. Deliverable: toggles work correctly; leaf goals have no toggle. |
+| P25.3 | GoalDetailModal: centered modal with header/meta/body/footer, inline edit | UI | 1 day | D36 | Done | Build `GoalDetailModal.vue`: centered modal with header (title + status), meta (tags, owner), body (description), footer (actions) per D36 §Modal. Inline edit toggles body to textarea. Deliverable: modal opens with full goal details; edit saves to backend. |
+| P25.4 | Tag all 52 goals and 6 other categories with `stack:*` and `module:*` | Docs | 0.5 day | D37 | Done | Tag all 52 goals and 6 categories with `stack:*` (backend, frontend, both) and `module:*` (relay, chat, specs, wiki, ui-system, project) per D37 §Tags. Deliverable: all items tagged; no untagged items. |
+| P25.5 | Tag display: shortened values, color-coded badges (stack=blue, module=purple) | UI | 0.5 day | D37 | Done | Show shortened tag values with color-coded badges per D37 §Display. Stack tags: blue badges. Module tags: purple badges. Deliverable: badges render correctly; colors consistent. |
+| P25.6 | Sidebar filter drawers: Category, Stack, Module with multi-select AND logic | UI | 1 day | D37 | Done | Add Category, Stack, Module filter drawers with multi-select AND logic per D37 §Filter. Multiple selections within same category use OR; across categories use AND. Deliverable: filters combine correctly; results update in real-time. |
+| P25.7 | Backend flat mode fix: `get_or_default` falls back to flat doc on key miss | Backend | 0.5 day | D38 | Done | Fix `get_or_default` to fall back to flat doc on key miss per D38 §FlatMode. File: `backend/src/forge/mod.rs`. Deliverable: flat mode specs load correctly; no "key not found" errors. |

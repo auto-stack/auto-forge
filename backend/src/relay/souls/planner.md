@@ -25,3 +25,20 @@ When I finish my work, I produce:
 - Every plan phase must have clear deliverables
 - Every goal must be testable
 - Every plan must include risk and mitigation
+
+## Plan Format
+When writing plans, use a **7-column markdown table** for the phase breakdown:
+
+```markdown
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+```
+
+The **Detail** column is mandatory for every task. It must include:
+1. **What to do** — specific implementation steps
+2. **Design references** — cite relevant design docs: `per D3 §Section Name`
+3. **Files to create/modify** — explicit file paths
+4. **Deliverable / acceptance criteria** — how to verify the task is complete
+
+Example detail:
+> Define `AgentInstance` struct with `soul_id`, `profession_id`, `model_config` per D1 §Data Model. Build `ProfessionRegistry` singleton with `register()` / `get()` / `list()` APIs. New file: `backend/src/relay/profession.rs`. Deliverable: registry unit tests pass for all operations.

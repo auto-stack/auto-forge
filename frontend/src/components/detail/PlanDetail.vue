@@ -21,7 +21,27 @@
           :class="{ done: task.done }"
         >
           <span class="task-check">{{ task.done ? '✓' : '○' }}</span>
-          <span class="task-text">{{ task.text }}</span>
+          <div class="task-body">
+            <button
+              class="task-title-btn"
+              :class="{ active: activeTaskId === task.id }"
+              @click="toggleTask(task.id)"
+            >
+              {{ task.title }}
+            </button>
+            <div v-if="activeTaskId === task.id" class="task-detail-popover">
+              <div class="task-detail-content">
+                <div v-if="task.detail" class="task-detail-text">{{ task.detail }}</div>
+                <div v-else class="task-detail-empty">No detail provided.</div>
+                <div class="task-detail-meta">
+                  <span v-if="task.owner" class="task-meta-item">👤 {{ task.owner }}</span>
+                  <span v-if="task.duration" class="task-meta-item">⏱️ {{ task.duration }}</span>
+                  <span v-if="task.dependencies" class="task-meta-item">🔗 {{ task.dependencies }}</span>
+                  <span class="task-meta-item" :class="task.status.toLowerCase().replace(/\s+/g, '_')">{{ task.status }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </li>
       </ul>
     </div>
@@ -30,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import MarkdownContent from '@/components/MarkdownContent.vue'
 
 const props = defineProps<{
@@ -41,74 +61,205 @@ const emit = defineEmits<{
   linkClick: [id: string]
 }>()
 
+const activeTaskId = ref<string | null>(null)
+
+function toggleTask(id: string) {
+  activeTaskId.value = activeTaskId.value === id ? null : id
+}
+
+interface Task {
+  id: string
+  title: string
+  detail: string
+  owner: string
+  duration: string
+  dependencies: string
+  status: string
+  done: boolean
+}
+
 interface Phase {
   number: number
   title: string
   version: string
-  tasks: { text: string; done: boolean }[]
+  tasks: Task[]
   completed: number
   progress: number
+}
+
+function parseMarkdownTable(lines: string[], startIdx: number): { rows: string[][], endIdx: number } {
+  const rows: string[][] = []
+  let i = startIdx
+  // Header row
+  const headerLine = lines[i]?.trim()
+  if (!headerLine || !headerLine.startsWith('|')) return { rows, endIdx: startIdx }
+  rows.push(splitTableRow(headerLine))
+  i++
+  // Separator row
+  if (i < lines.length && lines[i]?.trim().startsWith('|')) {
+    i++ // skip separator like |---|---|---|
+  }
+  // Data rows
+  while (i < lines.length) {
+    const line = lines[i]?.trim()
+    if (!line || !line.startsWith('|')) break
+    rows.push(splitTableRow(line))
+    i++
+  }
+  return { rows, endIdx: i }
+}
+
+function splitTableRow(line: string): string[] {
+  return line
+    .split('|')
+    .map(c => c.trim())
+    .filter((c, idx, arr) => {
+      // Keep non-empty cells, but also keep empty cells between pipes
+      if (idx === 0 || idx === arr.length - 1) return c !== ''
+      return true
+    })
 }
 
 const phases = computed<Phase[]>(() => {
   const result: Phase[] = []
   const lines = props.content.split('\n')
-  let current: Phase | null = null
 
-  for (const raw of lines) {
-    const line = raw.trimEnd()
-    const headingMatch = line.match(/^##\s+Phase\s+(\d+):\s+(.+?)(?:\s+\(([^)]+)\))?\s*$/i)
-    if (headingMatch) {
-      if (current) result.push(current)
-      current = {
-        number: parseInt(headingMatch[1]),
-        title: headingMatch[2].trim(),
-        version: headingMatch[3] || '',
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd()
+
+    // Match plan heading like "## P1 Agents Relay — Foundation" or "## P1: Title"
+    const planHeadingMatch = line.match(/^##\s+P(\d+)(?::|\s+)(.+)/i)
+    if (planHeadingMatch) {
+      // We don't create phases from plan headings — the whole content is one plan
+      continue
+    }
+
+    // Match phase heading like "## Phase 1: Foundation (v0.1)"
+    const phaseHeadingMatch = line.match(/^##\s+Phase\s+(\d+):\s+(.+?)(?:\s+\(([^)]+)\))?\s*$/i)
+    if (phaseHeadingMatch) {
+      const phase: Phase = {
+        number: parseInt(phaseHeadingMatch[1]),
+        title: phaseHeadingMatch[2].trim(),
+        version: phaseHeadingMatch[3] || '',
         tasks: [],
         completed: 0,
         progress: 0,
       }
+      result.push(phase)
       continue
     }
-    if (current) {
-      const taskMatch = line.match(/^-\s+\[([ xX])\]\s+(.+)$/)
-      if (taskMatch) {
-        const done = taskMatch[1].toLowerCase() === 'x'
-        current.tasks.push({ text: taskMatch[2].trim(), done })
-        if (done) current.completed++
+
+    // Match table rows
+    if (line.trim().startsWith('|')) {
+      const { rows, endIdx } = parseMarkdownTable(lines, i)
+      i = endIdx - 1
+
+      if (rows.length >= 2) {
+        // Find column indices
+        const header = rows[0].map(h => h.toLowerCase().trim())
+        const taskIdx = header.findIndex(h => h.includes('task'))
+        const detailIdx = header.findIndex(h => h.includes('detail'))
+        const ownerIdx = header.findIndex(h => h.includes('owner'))
+        const durationIdx = header.findIndex(h => h.includes('duration'))
+        const depsIdx = header.findIndex(h => h.includes('depend') || h.includes('deps'))
+        const statusIdx = header.findIndex(h => h.includes('status'))
+        const phaseIdx = header.findIndex(h => h.includes('phase'))
+
+        // Determine which phase to add tasks to
+        let targetPhase = result[result.length - 1]
+        if (!targetPhase) {
+          targetPhase = {
+            number: 0,
+            title: 'Tasks',
+            version: '',
+            tasks: [],
+            completed: 0,
+            progress: 0,
+          }
+          result.push(targetPhase)
+        }
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r]
+          if (row.every(c => c === '' || c.match(/^-+$/))) continue // skip separator
+
+          const status = statusIdx >= 0 ? row[statusIdx] || '' : ''
+          const task: Task = {
+            id: `${targetPhase.number}-${r}`,
+            title: taskIdx >= 0 ? row[taskIdx] || '' : '',
+            detail: detailIdx >= 0 ? row[detailIdx] || '' : '',
+            owner: ownerIdx >= 0 ? row[ownerIdx] || '' : '',
+            duration: durationIdx >= 0 ? row[durationIdx] || '' : '',
+            dependencies: depsIdx >= 0 ? row[depsIdx] || '' : '',
+            status,
+            done: /done|complete|implemented/i.test(status),
+          }
+          targetPhase.tasks.push(task)
+          if (task.done) targetPhase.completed++
+        }
+
+        targetPhase.progress = targetPhase.tasks.length
+          ? Math.round((targetPhase.completed / targetPhase.tasks.length) * 100)
+          : 0
+      }
+      continue
+    }
+
+    // Legacy checkbox format: "- [x] Task text"
+    const checkboxMatch = line.match(/^-\s+\[([ xX])\]\s+(.+)$/)
+    if (checkboxMatch) {
+      const targetPhase = result[result.length - 1]
+      if (targetPhase) {
+        const done = checkboxMatch[1].toLowerCase() === 'x'
+        targetPhase.tasks.push({
+          id: `${targetPhase.number}-${targetPhase.tasks.length}`,
+          title: checkboxMatch[2].trim(),
+          detail: '',
+          owner: '',
+          duration: '',
+          dependencies: '',
+          status: done ? 'Done' : '',
+          done,
+        })
+        if (done) targetPhase.completed++
+        targetPhase.progress = targetPhase.tasks.length
+          ? Math.round((targetPhase.completed / targetPhase.tasks.length) * 100)
+          : 0
       }
     }
   }
-  if (current) {
-    current.progress = current.tasks.length ? Math.round((current.completed / current.tasks.length) * 100) : 0
-    result.push(current)
-  }
-  // Calculate progress for all
-  result.forEach(p => {
-    p.progress = p.tasks.length ? Math.round((p.completed / p.tasks.length) * 100) : 0
-  })
+
   return result
 })
 
 const remainingContent = computed(() => {
-  // Strip out phase headings and tasks that we've parsed, keep everything else
   const lines = props.content.split('\n')
   const kept: string[] = []
-  let inPhase = false
+  let inTable = false
+
   for (const raw of lines) {
     const line = raw.trimEnd()
+
     if (line.match(/^##\s+Phase\s+\d+/i)) {
-      inPhase = true
       continue
     }
-    if (inPhase && line.match(/^##\s+/)) {
-      inPhase = false
-    }
-    if (inPhase && line.match(/^-\s+\[[ xX]\]/)) {
+
+    if (line.trim().startsWith('|')) {
+      inTable = true
       continue
     }
+
+    if (inTable && !line.trim().startsWith('|')) {
+      inTable = false
+    }
+
+    if (line.match(/^-\s+\[[ xX]\]/)) {
+      continue
+    }
+
     if (line.trim()) kept.push(line)
   }
+
   return kept.join('\n')
 })
 </script>
@@ -207,7 +358,7 @@ const remainingContent = computed(() => {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
-  font-size: 0rem;
+  font-size: 0.93rem;
   color: var(--af-fg);
   line-height: 1.4;
 }
@@ -216,8 +367,9 @@ const remainingContent = computed(() => {
   opacity: 0.55;
 }
 
-.task-list li.done .task-text {
+.task-list li.done .task-title-btn {
   text-decoration: line-through;
+  color: var(--af-muted);
 }
 
 .task-check {
@@ -225,14 +377,100 @@ const remainingContent = computed(() => {
   color: hsl(var(--primary));
   min-width: 1rem;
   text-align: center;
-  margin-top: 0.05rem;
+  margin-top: 0.15rem;
 }
 
 .task-list li.done .task-check {
   color: hsl(142 71% 45%);
 }
 
-.task-text {
+.task-body {
   flex: 1;
+  min-width: 0;
+}
+
+.task-title-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.93rem;
+  color: hsl(var(--primary));
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--primary) / 0.3);
+  text-underline-offset: 2px;
+  transition: all 0.15s;
+  line-height: 1.4;
+}
+
+.task-title-btn:hover {
+  text-decoration-color: hsl(var(--primary));
+  color: hsl(var(--primary) / 0.85);
+}
+
+.task-title-btn.active {
+  color: hsl(var(--primary));
+  text-decoration-color: hsl(var(--primary));
+  font-weight: 500;
+}
+
+.task-detail-popover {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+  padding: 0.75rem 1rem;
+  background: hsl(var(--muted-foreground) / 0.04);
+  border: 1px solid hsl(var(--primary) / 0.15);
+  border-radius: 8px;
+  animation: detailFadeIn 0.15s ease;
+}
+
+@keyframes detailFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.task-detail-text {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--af-fg);
+  white-space: pre-wrap;
+}
+
+.task-detail-empty {
+  font-size: 0.88rem;
+  color: var(--af-muted);
+  font-style: italic;
+}
+
+.task-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--af-border);
+}
+
+.task-meta-item {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: hsl(var(--muted-foreground) / 0.06);
+  color: var(--af-muted);
+}
+
+.task-meta-item.done,
+.task-meta-item.complete,
+.task-meta-item.implemented {
+  background: hsl(142 71% 45% / 0.1);
+  color: hsl(142 71% 45%);
+}
+
+.task-meta-item.draft,
+.task-meta-item.proposed {
+  background: hsl(38 92% 50% / 0.1);
+  color: hsl(38 92% 50%);
 }
 </style>

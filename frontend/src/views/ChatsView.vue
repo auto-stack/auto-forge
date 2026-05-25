@@ -32,8 +32,6 @@
           />
           <div class="session-meta">
             <span class="session-count">{{ s.message_count }} msgs</span>
-            <span class="session-phase" :class="s.phase">{{ s.phase }}</span>
-            <span class="session-status" :class="s.status">{{ s.status }}</span>
             <button
               v-if="editingSessionId !== s.id"
               class="session-rename-btn"
@@ -1371,24 +1369,6 @@ onMounted(async () => {
   color: var(--af-muted);
 }
 
-.session-status,
-.session-phase {
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: var(--af-muted);
-}
-
-.session-status.idle { color: hsl(var(--af-success)); }
-.session-status.thinking { color: hsl(var(--af-warning)); }
-.session-status.tool_call { color: hsl(var(--af-info)); }
-.session-status.error { color: hsl(var(--af-error)); }
-
-.session-phase.intake { color: hsl(var(--af-info)); }
-.session-phase.spec_draft { color: hsl(var(--af-warning)); }
-.session-phase.spec_review { color: hsl(var(--af-chats)); }
-.session-phase.execution { color: hsl(var(--af-success)); }
-.session-phase.verification { color: hsl(var(--af-accent)); }
-
 .session-empty {
   font-size: 0.88rem;
   color: var(--af-muted);
@@ -1413,6 +1393,7 @@ onMounted(async () => {
   padding: 0.75rem 1rem;
   flex-shrink: 0;
   height: 48px;
+  position: relative;
 }
 
 .header-title-row {
@@ -1436,8 +1417,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex: 1;
   justify-content: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .header-project {
@@ -1452,6 +1435,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.4rem;
   width: 100%;
+  max-width: 320px;
   padding: 0.35rem 0.75rem;
   background: hsl(var(--muted-foreground) / 0.06);
   border: 1px solid hsl(var(--muted-foreground) / 0.12);
@@ -1471,9 +1455,10 @@ onMounted(async () => {
   border: none;
   outline: none;
   color: var(--af-fg);
-  font-size: 0.93rem;
+  font-size: 0.88rem;
   font-family: inherit;
   min-width: 0;
+  width: 100%;
 }
 
 .search-input::placeholder {

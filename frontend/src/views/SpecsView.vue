@@ -776,6 +776,7 @@ watch(project, (newVal) => {
   flex-shrink: 0;
   border-bottom: 1px solid var(--af-border);
   gap: 1rem;
+  position: relative;
 }
 
 .header-title-row {
@@ -802,8 +803,10 @@ watch(project, (newVal) => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex: 1;
   justify-content: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .header-project {

@@ -327,8 +327,8 @@ Empty → Draft → UnderReview → Approved → Superseded / Outdated
 
 **Phase Breakdown:**
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
 | P1.1 | Sandbox wrapper generation | Alice | 3 days | D1 | Done |
 | P1.2 | cargo build integration | Alice | 2 days | P1.1 | Done |
 | P1.3 | RustFfiBridge registration | Bob | 3 days | P1.2 | Done |
@@ -748,8 +748,8 @@ graph TB
 **Estimated Duration:** N weeks
 **Owner:** <team>
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
 | P1.1 | ... | ... | ... | ... | ... |
 
 **Risk:** ...
