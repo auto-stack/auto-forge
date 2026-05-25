@@ -80,6 +80,8 @@ pub struct RunSummary {
     pub cumulative_tokens: u64,
     pub created_at: u64,
     pub updated_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }
 
 /// Detailed run state for the frontend.
@@ -99,6 +101,8 @@ pub struct RunState {
     pub savings: u64,
     pub savings_ratio: f64,
     pub events: Vec<RunEvent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -224,6 +228,7 @@ pub fn list_runs(store: &RunStore) -> Vec<RunSummary> {
         cumulative_tokens: e.engine.cumulative_tokens,
         created_at: e.created_at,
         updated_at: e.updated_at,
+        title: e.metadata.title.clone(),
     }).collect()
 }
 
@@ -383,6 +388,7 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         savings,
         savings_ratio,
         events: entry.events.clone(),
+        title: entry.metadata.title.clone(),
     }
 }
 
@@ -408,13 +414,14 @@ mod tests {
         flow.add_step(FlowStep::new("s1", "planner"));
         flow.add_step(FlowStep::new("s2", "coder"));
 
-        let state = start_run(&store, flow, "run-1").unwrap();
-        assert_eq!(state.run_id, "run-1");
+        let run_id = format!("run-1-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        let state = start_run(&store, flow, &run_id).unwrap();
+        assert_eq!(state.run_id, run_id);
         assert_eq!(state.total_steps, 2);
         assert_eq!(state.status, "Idle");
 
-        let fetched = get_run(&store, "run-1").unwrap();
-        assert_eq!(fetched.run_id, "run-1");
+        let fetched = get_run(&store, &run_id).unwrap();
+        assert_eq!(fetched.run_id, run_id);
     }
 
     #[test]
@@ -423,16 +430,17 @@ mod tests {
         let mut flow = FlowSpec::new("test");
         flow.add_step(FlowStep::new("s1", "planner"));
 
-        start_run(&store, flow, "run-1").unwrap();
+        let run_id = format!("run-adv-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        start_run(&store, flow, &run_id).unwrap();
 
-        let r = advance_run(&store, "run-1").unwrap();
+        let r = advance_run(&store, &run_id).unwrap();
         assert!(matches!(r, AdvanceResult::ExecuteStep { .. }));
 
-        let h = HandoffDocument::new("planner", "done", "run-1", 0);
-        let r2 = submit_handoff(&store, "run-1", h).unwrap();
+        let h = HandoffDocument::new("planner", "done", &run_id, 0);
+        let r2 = submit_handoff(&store, &run_id, h).unwrap();
         assert_eq!(r2, AdvanceResult::Completed);
 
-        let state = get_run(&store, "run-1").unwrap();
+        let state = get_run(&store, &run_id).unwrap();
         assert_eq!(state.status, "Completed");
         assert_eq!(state.current_step, 1);
     }
@@ -443,19 +451,20 @@ mod tests {
         let mut flow = FlowSpec::new("test");
         flow.add_step(FlowStep::new("s1", "advisor").with_gate(GateType::Human));
 
-        start_run(&store, flow, "run-gate").unwrap();
-        let r = advance_run(&store, "run-gate").unwrap();
+        let run_id = format!("run-gate-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        start_run(&store, flow, &run_id).unwrap();
+        let r = advance_run(&store, &run_id).unwrap();
         assert!(matches!(r, AdvanceResult::WaitForHuman { .. }));
 
-        let state = get_run(&store, "run-gate").unwrap();
+        let state = get_run(&store, &run_id).unwrap();
         assert!(state.waiting_for_gate.is_some());
         assert_eq!(state.steps[0].status, "waiting_gate");
 
         // Resolve gate
-        let r2 = resolve_gate(&store, "run-gate", GateDecision::Approve).unwrap();
+        let r2 = resolve_gate(&store, &run_id, GateDecision::Approve).unwrap();
         assert!(matches!(r2, AdvanceResult::ExecuteStep { .. }));
 
-        let state2 = get_run(&store, "run-gate").unwrap();
+        let state2 = get_run(&store, &run_id).unwrap();
         assert!(state2.waiting_for_gate.is_none());
     }
 
@@ -465,14 +474,15 @@ mod tests {
         let mut flow = FlowSpec::new("test");
         flow.add_step(FlowStep::new("s1", "planner"));
 
-        start_run(&store, flow, "run-budget").unwrap();
-        advance_run(&store, "run-budget");
+        let run_id = format!("run-budget-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        start_run(&store, flow, &run_id).unwrap();
+        advance_run(&store, &run_id);
 
-        let mut h = HandoffDocument::new("planner", "done", "run-budget", 0);
+        let mut h = HandoffDocument::new("planner", "done", &run_id, 0);
         h.token_usage = TokenUsage { step_input: 1000, step_output: 500, cumulative: 1500, budget_remaining: 9_998_500 };
-        submit_handoff(&store, "run-budget", h);
+        submit_handoff(&store, &run_id, h);
 
-        let state = get_run(&store, "run-budget").unwrap();
+        let state = get_run(&store, &run_id).unwrap();
         assert_eq!(state.cumulative_tokens, 1500);
         assert_eq!(state.budget_limit, 10_000_000);
         assert_eq!(state.budget_remaining, 10_000_000 - 1500);

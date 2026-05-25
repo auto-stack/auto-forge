@@ -57,8 +57,8 @@ async fn main() {
 
     let app = app.layer(cors);
 
-    // Start periodic specs reload task (picks up disk edits and derives statuses)
-    auto_forge::forge::start_periodic_reload();
+    // Start specs file watcher (replaces polling with native OS file-system events)
+    auto_forge::forge::start_specs_watcher();
 
     // Restore last opened project from config
     auto_forge::forge::restore_last_project();

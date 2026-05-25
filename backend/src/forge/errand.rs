@@ -148,6 +148,7 @@ impl ErrandSession {
                 messages: chat_messages.clone(),
                 tools: tools.clone(),
                 system_prompt: Some(system_prompt.clone()),
+                thinking_budget: None,
             };
 
             let (turn_tx, mut turn_rx) =
@@ -177,6 +178,7 @@ impl ErrandSession {
                             )));
                         }
                     }
+                    ToolChatEvent::ThinkingDelta { .. } => {}
                     ToolChatEvent::ToolUse { id, name, input } => {
                         tool_use_info = Some((id.clone(), name.clone(), input.clone()));
                         // Emit errand_tool_call event

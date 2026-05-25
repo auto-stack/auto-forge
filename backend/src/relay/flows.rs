@@ -99,16 +99,22 @@ pub fn init_flow_registry() {
 /// Get a flow from the global registry.
 /// Auto-initializes on first call if a project is open.
 pub fn get_flow(flow_id: &str) -> Option<FlowSpec> {
+    // Support both hyphen and underscore variants (e.g. "post_discovery" ↔ "post-discovery")
+    let alt_id = if flow_id.contains('_') {
+        flow_id.replace('_', "-")
+    } else {
+        flow_id.replace('-', "_")
+    };
     {
         let guard = FLOW_REGISTRY.lock().unwrap();
         if let Some(ref registry) = *guard {
-            return registry.get(flow_id);
+            return registry.get(flow_id).or_else(|| registry.get(&alt_id));
         }
     }
     // Auto-initialize if not yet loaded
     init_flow_registry();
     let guard = FLOW_REGISTRY.lock().unwrap();
-    guard.as_ref()?.get(flow_id)
+    guard.as_ref()?.get(flow_id).or_else(|| guard.as_ref()?.get(&alt_id))
 }
 
 /// Default validators for the discover (advisor) step.

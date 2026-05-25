@@ -315,6 +315,16 @@ pub async fn start_run_handler(
     let run_id = req.run_id.unwrap_or_else(|| format!("run-{}", uuid::Uuid::new_v4()));
     match start_run(&RUN_STORE, flow, &run_id) {
         Ok(run_state) => {
+            // Generate and store title from task description
+            let task = req.task.unwrap_or_default();
+            {
+                let mut store = RUN_STORE.lock().unwrap();
+                if let Some(entry) = store.get_mut(&run_id) {
+                    entry.metadata.title = Some(crate::relay::title::generate_title(&task));
+                    crate::relay::store::save_run(entry);
+                }
+            }
+
             let _ = EVENT_TX.send(RunEventBroadcast {
                 run_id: run_id.clone(),
                 event_type: "run_started".into(),
@@ -323,7 +333,6 @@ pub async fn start_run_handler(
 
             // Spawn background driver to execute the pipeline
             let project_path = crate::forge::current_project_path().unwrap_or_default();
-            let task = req.task.unwrap_or_default();
             tokio::spawn(crate::relay::driver::drive_run(
                 run_id.clone(),
                 RUN_STORE.clone(),

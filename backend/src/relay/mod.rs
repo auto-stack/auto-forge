@@ -23,6 +23,7 @@ pub mod profession;
 pub mod skills;
 pub mod soul;
 pub mod store;
+pub mod title;
 pub mod turn;
 
 pub use agent::{AgentContext, AgentInstance, ModelConfig, Provider};
@@ -127,8 +128,13 @@ impl RelayRegistry {
         let model = config::resolve_model(config, &self.api_sources)?;
         let profession = self.professions.get(&config.profession_id)?.clone();
         let soul = self.souls.get(&config.soul_id)?.clone();
-        let agent = AgentInstance::spawn_named(profession, soul, model, config.name.clone())
+        let mut agent = AgentInstance::spawn_named(profession, soul, model, config.name.clone())
             .with_skills(&self.skills, &config.equipped_skills);
+        // Override thinking config from AgentConfig if set
+        agent.thinking_enabled = config.thinking_enabled;
+        if let Some(budget) = config.thinking_budget {
+            agent.thinking_budget = budget;
+        }
         Some(agent)
     }
 
