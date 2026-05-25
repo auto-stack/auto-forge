@@ -30,7 +30,10 @@
           @click="selectRun(run.run_id)"
         >
           <div class="run-card-header">
-            <span class="run-id" :title="run.run_id">{{ run.title || run.run_id }}</span>
+            <div class="run-card-title-col">
+              <span class="run-id" :title="run.run_id">{{ run.title || run.run_id }}</span>
+              <span v-if="run.title" class="run-id-sub">{{ run.run_id }}</span>
+            </div>
             <StatusBadge :status="run.status" />
           </div>
           <div class="run-card-meta">
@@ -686,10 +689,27 @@ function professionIcon(id: string): string {
   opacity: 1;
 }
 
+.run-card-title-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
 .run-id {
   font-size: 0.83rem;
   font-weight: 500;
   color: var(--af-fg);
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-id-sub {
+  font-size: 0.72rem;
+  color: var(--af-muted);
   font-family: 'JetBrains Mono', monospace;
   min-width: 0;
   overflow: hidden;

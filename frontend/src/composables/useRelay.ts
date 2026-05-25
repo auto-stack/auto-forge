@@ -170,7 +170,7 @@ export function useRelay() {
       const resp = await fetch(`${API_BASE}/runs`)
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       const data = await resp.json()
-      runs.value = data
+      runs.value = data.sort((a: RunSummary, b: RunSummary) => b.updated_at - a.updated_at)
       // Clear stale currentRun if it's no longer in the list
       if (currentRun.value && !data.find((r: RunSummary) => r.run_id === currentRun.value!.run_id)) {
         currentRun.value = null
