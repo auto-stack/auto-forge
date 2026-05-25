@@ -523,6 +523,8 @@ pub enum ForgeStreamEvent {
     TurnStart { profession_id: String },
     #[serde(rename = "delta")]
     Delta { text: String },
+    #[serde(rename = "thinking")]
+    Thinking { thinking: String },
     #[serde(rename = "tool_call")]
     ToolCall {
         id: String,
@@ -747,6 +749,7 @@ impl SpecsStore {
             .to_string_lossy()
             .to_string();
         tracing::info!("Opened project '{}' — specs at {}", name, specs_dir.display());
+        notify_watcher_path(Some(self.data_dir.clone()));
         Ok(project::ProjectInfo {
             path: project_path.to_string_lossy().to_string(),
             name,
@@ -760,6 +763,7 @@ impl SpecsStore {
         self.projects.clear();
         self.data_dir = PathBuf::new();
         self.flat_mode_project = None;
+        notify_watcher_path(None);
     }
 
     fn extract_embedded_templates(&self) {
@@ -923,18 +927,18 @@ impl SpecsStore {
 
     fn load_ad_format(&self, project_dir: &std::path::Path, project_name: &str) -> Option<SpecsDocument> {
         let manifest_path = project_dir.join("manifest.at");
-        tracing::info!("load_ad_format: manifest_path={}", manifest_path.display());
+        tracing::debug!("load_ad_format: manifest_path={}", manifest_path.display());
         let manifest_content = std::fs::read_to_string(&manifest_path).ok()?;
         let manifest: ManifestAt = toml::from_str(&manifest_content).ok()?;
-        tracing::info!("load_ad_format: parsed manifest with {} sections", manifest.sections.len());
+        tracing::debug!("load_ad_format: parsed manifest with {} sections", manifest.sections.len());
 
         let mut sections = Vec::new();
         for msec in &manifest.sections {
             let ad_path = project_dir.join(format!("{}.ad", msec.id));
-            tracing::info!("load_ad_format: loading {} from {}", msec.id, ad_path.display());
+            tracing::debug!("load_ad_format: loading {} from {}", msec.id, ad_path.display());
             if let Ok(ad_content) = std::fs::read_to_string(&ad_path) {
                 if let Some(section) = Self::parse_ad_file(&msec.id, &msec.section_type, &msec.title, &ad_content) {
-                    tracing::info!("load_ad_format: {} parsed {} items", msec.id, section.items.len());
+                    tracing::debug!("load_ad_format: {} parsed {} items", msec.id, section.items.len());
                     sections.push(SpecsSection {
                         id: msec.id.clone(),
                         section_type: Self::parse_section_type(&msec.section_type),
@@ -1566,20 +1570,78 @@ pub fn restore_last_project() {
     }
 }
 
-/// Start a background task that reloads specs from disk every 5 seconds
-/// and persists any derived status changes.
-pub fn start_periodic_reload() {
+// ─── Specs File Watcher ──────────────────────────────────────────────────────
+
+use notify::Watcher;
+use tokio::sync::mpsc::UnboundedSender;
+
+static WATCHER_TX: std::sync::Mutex<Option<UnboundedSender<Option<PathBuf>>>> = std::sync::Mutex::new(None);
+
+/// Start a background file watcher that reloads specs when .ad or manifest.at files change.
+/// Replaces the old 5-second polling with native OS file system events.
+pub fn start_specs_watcher() {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Option<PathBuf>>();
+    *WATCHER_TX.lock().unwrap() = Some(tx);
+
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        let mut _watcher: Option<notify::RecommendedWatcher> = None;
+        let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+
         loop {
-            interval.tick().await;
-            if let Ok(mut store) = specs().lock() {
-                if store.is_project_open() {
-                    store.reload_changed();
+            tokio::select! {
+                Some(path_opt) = rx.recv() => {
+                    _watcher = None; // drop old watcher
+                    if let Some(ref path) = path_opt {
+                        let tx = event_tx.clone();
+                        let new_watcher = notify::recommended_watcher(
+                            move |res: Result<notify::Event, notify::Error>| {
+                                if let Ok(event) = res {
+                                    let is_relevant = matches!(
+                                        event.kind,
+                                        notify::EventKind::Modify(_) |
+                                        notify::EventKind::Create(_) |
+                                        notify::EventKind::Remove(_)
+                                    ) && event.paths.iter().any(|p| {
+                                        p.extension().map_or(false, |e| e == "ad") ||
+                                        p.file_name().map_or(false, |n| n == "manifest.at")
+                                    });
+                                    if is_relevant {
+                                        let _ = tx.send(());
+                                    }
+                                }
+                            },
+                        );
+                        if let Ok(mut w) = new_watcher {
+                            let _ = w.watch(path.as_ref(), notify::RecursiveMode::Recursive);
+                            _watcher = Some(w);
+                            tracing::info!("Watching specs directory: {}", path.display());
+                        }
+                    } else {
+                        tracing::info!("Stopped watching specs directory");
+                    }
+                }
+                Some(()) = event_rx.recv() => {
+                    // Debounce: wait 300ms, then drain any queued events
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    while event_rx.try_recv().is_ok() {}
+                    if let Ok(mut store) = specs().lock() {
+                        if store.is_project_open() {
+                            store.reload_changed();
+                        }
+                    }
                 }
             }
         }
     });
+}
+
+/// Notify the watcher task to watch a new path (or stop watching).
+pub fn notify_watcher_path(path: Option<PathBuf>) {
+    if let Ok(tx) = WATCHER_TX.lock() {
+        if let Some(ref tx) = *tx {
+            let _ = tx.send(path);
+        }
+    }
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -1969,9 +2031,21 @@ mod handlers {
 
             let (system_prompt, all_tools, allowed_tool_names) = build_system_and_tools(&registry, &active_profession);
 
+            // Load thinking configuration: prefer AgentConfig, fall back to Profession defaults
+            let (thinking_enabled, thinking_budget) = {
+                let relay = crate::relay::RelayRegistry::new();
+                if let Some(agent_cfg) = relay.default_agent_for(&active_profession) {
+                    (agent_cfg.thinking_enabled, agent_cfg.thinking_budget.unwrap_or(0))
+                } else {
+                    relay.professions.get(&active_profession)
+                        .map(|p| (p.thinking_enabled, p.thinking_budget))
+                        .unwrap_or((false, 0))
+                }
+            };
+
             // ReAct loop: chat → tool_use → execute → tool_result → chat → ...
             let mut turn_count = 0;
-            let max_turns = 8;
+            let max_turns = 64;
             let mut system_prompt = system_prompt;
             let mut current_profession = active_profession.clone();
             let mut all_tools = all_tools;
@@ -1980,6 +2054,18 @@ mod handlers {
             while turn_count < max_turns {
                 turn_count += 1;
                 let mut turn_text = String::new();
+
+                // Re-resolve thinking config when profession changes (e.g. after bring_in)
+                let (thinking_enabled, thinking_budget) = {
+                    let relay = crate::relay::RelayRegistry::new();
+                    if let Some(agent_cfg) = relay.default_agent_for(&current_profession) {
+                        (agent_cfg.thinking_enabled, agent_cfg.thinking_budget.unwrap_or(0))
+                    } else {
+                        relay.professions.get(&current_profession)
+                            .map(|p| (p.thinking_enabled, p.thinking_budget))
+                            .unwrap_or((false, 0))
+                    }
+                };
 
                 // Notify frontend that a new turn is starting (creates a new message bubble)
                 let turn_start_event = Event::default().data(
@@ -1994,6 +2080,11 @@ mod handlers {
                     messages: chat_messages.clone(),
                     tools: all_tools.clone(),
                     system_prompt: Some(system_prompt.clone()),
+                    thinking_budget: if thinking_enabled {
+                        Some(thinking_budget)
+                    } else {
+                        None
+                    },
                 };
 
                 let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();
@@ -2014,6 +2105,15 @@ mod handlers {
                             let event = Event::default().data(
                                 serde_json::to_string(&ForgeStreamEvent::Delta {
                                     text: text.clone(),
+                                })
+                                .unwrap(),
+                            );
+                            let _ = event_tx.send(Ok(event));
+                        }
+                        ToolChatEvent::ThinkingDelta { thinking } => {
+                            let event = Event::default().data(
+                                serde_json::to_string(&ForgeStreamEvent::Thinking {
+                                    thinking: thinking.clone(),
                                 })
                                 .unwrap(),
                             );
@@ -2077,7 +2177,7 @@ mod handlers {
                                             let agent = dispatch_data["agent"].as_str().unwrap_or("gofer");
                                             let task = dispatch_data["task"].as_str().unwrap_or("");
                                             let context = dispatch_data["context"].as_str();
-                                            let max_turns = dispatch_data.get("max_turns").and_then(|v| v.as_u64()).unwrap_or(20) as u32;
+                                            let max_turns = dispatch_data.get("max_turns").and_then(|v| v.as_u64()).unwrap_or(80) as u32;
 
                                             let mut errand = crate::forge::errand::ErrandSession::new(
                                                 sid.clone(),
@@ -2288,6 +2388,9 @@ mod handlers {
                                             system_prompt = new_prompt;
                                             all_tools = new_tools;
                                             allowed_tool_names = new_allowed;
+
+                                            // Reset turn count so the incoming agent gets a full budget
+                                            turn_count = 0;
                                         }
                                     }
                                 }
@@ -2435,8 +2538,10 @@ mod handlers {
                     .find(|m| m.role == "user")
                     .map(|m| {
                         let content = m.content.trim();
-                        if content.len() > 60 {
-                            format!("{}…", &content[..60])
+                        let char_count = content.chars().count();
+                        if char_count > 60 {
+                            let truncated: String = content.chars().take(60).collect();
+                            format!("{}…", truncated)
                         } else {
                             content.to_string()
                         }

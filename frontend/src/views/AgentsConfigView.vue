@@ -170,6 +170,26 @@
                 <input v-model.number="editing.reasoning_budget" type="number" class="form-input" min="0" max="16384" step="512" />
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="toggle-label">
+                  <input v-model="editing.thinking_enabled" type="checkbox" />
+                  <span>Thinking Mode</span>
+                </label>
+                <div class="form-hint">Enable Claude extended thinking for deeper reasoning.</div>
+              </div>
+              <div v-if="editing.thinking_enabled" class="form-group">
+                <label>Thinking Budget ({{ editing.thinking_budget ?? 0 }})</label>
+                <input
+                  v-model.number="editing.thinking_budget"
+                  type="range"
+                  min="512"
+                  max="4096"
+                  step="512"
+                  class="form-range"
+                />
+              </div>
+            </div>
           </details>
 
           <div class="edit-footer">
@@ -260,7 +280,11 @@ function getSoulPreview(soulId: string): string {
 }
 
 function startEdit(agent: AgentConfigDto) {
-  editing.value = { ...agent }
+  editing.value = {
+    ...agent,
+    thinking_enabled: agent.thinking_enabled ?? false,
+    thinking_budget: agent.thinking_budget ?? 2048,
+  }
   editingId.value = agent.id
   isNew.value = false
   soulMarkdown.value = getSoulMarkdown(agent.soul_id)
@@ -285,6 +309,8 @@ function startCreate() {
     temperature: 0.3,
     max_tokens: 4096,
     reasoning_budget: null,
+    thinking_enabled: true,
+    thinking_budget: 2048,
     equipped_skills: [],
   }
   editingId.value = null
@@ -444,7 +470,7 @@ function toggleSkill(skillId: string) {
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 1rem auto 0;
   align-items: stretch;
 }
 
@@ -683,6 +709,21 @@ function toggleSkill(skillId: string) {
 
 .form-range {
   width: 100%;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.88rem;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--af-primary);
 }
 
 /* Tier selector */

@@ -31,8 +31,8 @@ fn read_claude_settings() -> Option<ClaudeSettings> {
     serde_json::from_str(&content).ok()
 }
 
-/// Load API key and base URL from ~/.claude/settings.json or env vars.
-pub fn load_api_config() -> (Option<String>, String) {
+/// Load API key, base URL, and optional reasoning model from ~/.claude/settings.json or env vars.
+pub fn load_api_config() -> (Option<String>, String, Option<String>) {
     // 1. Try ~/.claude/settings.json
     if let Some(settings) = read_claude_settings() {
         let key = settings
@@ -45,8 +45,12 @@ pub fn load_api_config() -> (Option<String>, String) {
             .get("ANTHROPIC_BASE_URL")
             .cloned()
             .unwrap_or_else(|| "https://api.anthropic.com".to_string());
+        let reasoning_model = settings
+            .env
+            .get("ANTHROPIC_REASONING_MODEL")
+            .cloned();
         if key.is_some() {
-            return (key, base);
+            return (key, base, reasoning_model);
         }
     }
 
@@ -56,8 +60,9 @@ pub fn load_api_config() -> (Option<String>, String) {
         .ok();
     let base = env::var("ANTHROPIC_BASE_URL")
         .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
+    let reasoning_model = env::var("ANTHROPIC_REASONING_MODEL").ok();
 
-    (key, base)
+    (key, base, reasoning_model)
 }
 
 // -- Provider -----------------------------------------------------------------
@@ -67,16 +72,30 @@ pub struct ClaudeProvider {
     pub(crate) client: reqwest::Client,
     pub(crate) api_key: Option<String>,
     pub(crate) base_url: String,
+    pub(crate) reasoning_model: Option<String>,
 }
 
 impl ClaudeProvider {
     pub fn new() -> Self {
-        let (api_key, base_url) = load_api_config();
+        let (api_key, base_url, reasoning_model) = load_api_config();
         Self {
             client: reqwest::Client::new(),
             api_key,
             base_url,
+            reasoning_model,
         }
+    }
+
+    /// Return the model to use for a given request. If thinking is requested
+    /// and a reasoning model is configured, use it; otherwise fall back to
+    /// the default Claude model.
+    fn resolve_model(&self, thinking_budget: Option<u32>) -> String {
+        if thinking_budget.is_some() {
+            if let Some(ref model) = self.reasoning_model {
+                return model.clone();
+            }
+        }
+        CLAUDE_MODEL.to_string()
     }
 
     pub fn is_available(&self) -> bool {
@@ -218,14 +237,23 @@ impl ClaudeProvider {
             .system_prompt
             .unwrap_or_else(build_forge_system_prompt);
 
-        let body = serde_json::json!({
-            "model": CLAUDE_MODEL,
+        let model = self.resolve_model(request.thinking_budget);
+        let mut body = serde_json::json!({
+            "model": model,
             "max_tokens": 4096,
             "system": system,
             "messages": request.messages,
             "tools": request.tools,
             "stream": true
         });
+        if let Some(budget) = request.thinking_budget {
+            if budget > 0 {
+                body["thinking"] = serde_json::json!({
+                    "type": "enabled",
+                    "budget_tokens": budget
+                });
+            }
+        }
 
         let resp = match self
             .client
@@ -282,7 +310,9 @@ impl ClaudeProvider {
                                 tracing::info!("Claude InputJsonDelta: {}", partial_json);
                                 partial_json_acc.push_str(&partial_json);
                             }
-                            ContentBlockDelta::ThinkingDelta { .. } => {}
+                            ContentBlockDelta::ThinkingDelta { thinking } => {
+                                let _ = tx.send(ToolChatEvent::ThinkingDelta { thinking: thinking.clone() });
+                            }
                         }
                     }
                     StreamEvent::ContentBlockStop { .. } => {
@@ -333,7 +363,9 @@ impl ClaudeProvider {
                             ContentBlockDelta::InputJsonDelta { partial_json } => {
                                 partial_json_acc.push_str(&partial_json);
                             }
-                            ContentBlockDelta::ThinkingDelta { .. } => {}
+                            ContentBlockDelta::ThinkingDelta { thinking } => {
+                                let _ = tx.send(ToolChatEvent::ThinkingDelta { thinking: thinking.clone() });
+                            }
                         }
                     }
                     StreamEvent::ContentBlockStop { .. } => {

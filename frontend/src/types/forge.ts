@@ -97,6 +97,7 @@ export interface RelayRunState {
   steps: { step_id: string; profession_id: string }[]
   summary?: string
   tokens_used?: number
+  title?: string
 }
 
 export interface ForgeSessionSummary {

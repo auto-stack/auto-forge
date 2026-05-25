@@ -13,6 +13,8 @@ export interface AgentConfigDto {
   temperature: number
   max_tokens: number
   reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
   avatar_url?: string
   equipped_skills?: string[]
 }

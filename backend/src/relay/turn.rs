@@ -112,7 +112,7 @@ impl AgentTurn {
             tool_definitions,
             tool_registry: registry,
             messages,
-            max_turns: 10,
+            max_turns: 40,
             budget_tracker: None,
             tool_guard: None,
         }
@@ -165,6 +165,11 @@ impl AgentTurn {
                 messages: self.messages.clone(),
                 tools: self.tool_definitions.clone(),
                 system_prompt: Some(system_prompt.clone()),
+                thinking_budget: if self.agent.thinking_enabled {
+                    Some(self.agent.thinking_budget)
+                } else {
+                    None
+                },
             };
 
             let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();
@@ -183,6 +188,7 @@ impl AgentTurn {
                         turn_text.push_str(&text);
                         let _ = tx.send(TurnEvent::TextDelta { text: text.clone() });
                     }
+                    ToolChatEvent::ThinkingDelta { .. } => {}
                     ToolChatEvent::ToolUse { id, name, input } => {
                         got_tool_use = true;
                         let _ = tx.send(TurnEvent::ToolCall {
@@ -577,8 +583,10 @@ mod tests {
             handoff_to: vec![],
             dispatchable_to: vec![],
             approval_gates: vec![],
-            max_turns: 5,
+            max_turns: 20,
             token_budget: 10_000,
+            thinking_enabled: false,
+            thinking_budget: 0,
             base_skills: Vec::new(),
         };
         let soul = SoulConfig::parse("tester", "# Soul of the Tester\n\n## Core Values\n- Test everything\n").unwrap();

@@ -358,6 +358,8 @@ fn extract_tool_result_content(value: &Value) -> String {
 pub enum ToolChatEvent {
     /// A text delta from the AI.
     TextDelta { text: String },
+    /// A thinking delta from the AI (Claude extended thinking).
+    ThinkingDelta { thinking: String },
     /// The AI wants to use a tool.
     ToolUse { id: String, name: String, input: Value },
     /// Token usage for this turn.
@@ -550,6 +552,8 @@ pub struct ToolChatRequest {
     pub messages: Vec<ChatMessage>,
     pub tools: Vec<ToolDefinition>,
     pub system_prompt: Option<String>,
+    /// Thinking budget in tokens. None = disabled, Some(n) = enabled with n token budget.
+    pub thinking_budget: Option<u32>,
 }
 
 // ============================================================================

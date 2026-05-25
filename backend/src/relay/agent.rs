@@ -118,6 +118,10 @@ pub struct AgentInstance {
     /// When true, this agent is running inside a relay pipeline (not chat).
     /// Affects system prompt and available tools.
     pub relay_mode: bool,
+    /// Enable Claude extended thinking mode for this agent.
+    pub thinking_enabled: bool,
+    /// Thinking budget in tokens (e.g. 1024, 2048). Only used when thinking_enabled is true.
+    pub thinking_budget: u32,
 }
 
 impl AgentInstance {
@@ -130,7 +134,7 @@ impl AgentInstance {
         let display_name = profession.name.clone();
         Self {
             id: format!("agent-{}", uuid::Uuid::new_v4()),
-            profession,
+            profession: profession.clone(),
             soul,
             model,
             context: AgentContext::default(),
@@ -138,6 +142,8 @@ impl AgentInstance {
             skill_prompts: Vec::new(),
             skill_tools: Vec::new(),
             relay_mode: false,
+            thinking_enabled: profession.thinking_enabled,
+            thinking_budget: profession.thinking_budget,
         }
     }
 
@@ -150,7 +156,7 @@ impl AgentInstance {
     ) -> Self {
         Self {
             id: format!("agent-{}", uuid::Uuid::new_v4()),
-            profession,
+            profession: profession.clone(),
             soul,
             model,
             context: AgentContext::default(),
@@ -158,6 +164,8 @@ impl AgentInstance {
             skill_prompts: Vec::new(),
             skill_tools: Vec::new(),
             relay_mode: false,
+            thinking_enabled: profession.thinking_enabled,
+            thinking_budget: profession.thinking_budget,
         }
     }
 
@@ -327,6 +335,11 @@ impl AgentInstance {
             messages,
             tools,
             system_prompt: Some(system),
+            thinking_budget: if self.thinking_enabled {
+                Some(self.thinking_budget)
+            } else {
+                None
+            },
         }
     }
 }

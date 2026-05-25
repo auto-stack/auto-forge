@@ -335,6 +335,12 @@ pub struct AgentConfig {
     pub max_tokens: u32,
     #[serde(default)]
     pub reasoning_budget: Option<u32>,
+    /// Enable Claude extended thinking mode for this agent.
+    #[serde(default)]
+    pub thinking_enabled: bool,
+    /// Thinking budget in tokens (e.g. 1024, 2048). Only used when thinking_enabled is true.
+    #[serde(default)]
+    pub thinking_budget: Option<u32>,
     #[serde(default)]
     pub avatar_url: Option<String>,
     /// Skills equipped to this agent config.
@@ -420,6 +426,12 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             temperature: 0.3,
             max_tokens: 4096,
             reasoning_budget: if tier == ModelTier::Heavy { Some(4096) } else { None },
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_budget: match profession {
+                "architect" | "coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                _ => None,
+            },
             avatar_url: None,
             equipped_skills: Vec::new(),
         })
