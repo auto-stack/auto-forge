@@ -95,7 +95,34 @@
             <span class="errand-toggle-label">{{ allErrandsExpanded ? 'Collapse' : 'Expand' }}</span>
             <span class="errand-toggle-badge">{{ Object.keys(errands).length }}</span>
           </button>
-          <!-- Phase and status badges removed per user request -->
+          <!-- Session info button -->
+          <div class="session-info-wrapper">
+            <button
+              class="session-info-btn"
+              title="Session info"
+              @click="showSessionInfo = !showSessionInfo"
+            >
+              <Info :size="15" />
+            </button>
+            <div v-if="showSessionInfo" class="session-info-tooltip" @click.stop>
+              <div class="session-info-row">
+                <span class="session-info-label">Chat ID</span>
+                <code class="session-info-value session-info-id">{{ sessionId }}</code>
+                <button class="session-info-copy" @click="copyChatId" title="Copy chat ID">
+                  <CopyCheck v-if="copiedChatId" :size="12" />
+                  <Copy v-else :size="12" />
+                </button>
+              </div>
+              <div class="session-info-row">
+                <span class="session-info-label">Messages</span>
+                <span class="session-info-value">{{ messages.length }}</span>
+              </div>
+              <div class="session-info-row">
+                <span class="session-info-label">Token cost</span>
+                <span class="session-info-value">{{ sessionTokenCost }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="chat-canvas" ref="chatRef">
@@ -245,6 +272,9 @@
                 <div class="tool-header" @click="tc._expanded = !tc._expanded">
                   <span class="tool-icon">🔧</span>
                   <span class="tool-name">{{ tc.name }}</span>
+                  <template v-for="(seg, i) in getToolSummary(tc)" :key="i">
+                    <span class="tool-seg" :class="'seg-' + seg.type">{{ seg.text }}</span>
+                  </template>
                   <span class="tool-status" :class="tc.status">{{ tc.status }}</span>
                   <ChevronDown v-if="!tc._expanded" :size="14" class="tool-chevron" />
                   <ChevronUp v-else :size="14" class="tool-chevron" />
@@ -347,6 +377,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import {
   Send, ChevronDown, ChevronUp, Plus, PanelLeft,
   Check, X, Clipboard, RefreshCw, Search, Trash2, Pencil,
+  Info, Copy, CopyCheck,
 } from 'lucide-vue-next'
 import { useForge } from '@/composables/useForge'
 import { useGateInbox } from '@/composables/useGateInbox'
@@ -457,6 +488,52 @@ function getErrandStatus(tc: { id: string }) {
 
 function getErrandToolCalls(tc: { id: string }) {
   return getErrandState(tc)?.tool_calls || []
+}
+
+// ─── Tool summary for inline header display ─────────────────────────────────
+
+interface ToolSeg { type: string; text: string }
+
+function getToolSummary(tc: { name: string; arguments?: Record<string, unknown> }): ToolSeg[] {
+  const args = tc.arguments ?? {}
+  const segs: ToolSeg[] = []
+
+  const path = (args.path as string) || ''
+  const slug = (args.slug as string) || ''
+  const sectionId = (args.section_id as string) || ''
+  const pattern = (args.pattern as string) || ''
+  const query = (args.query as string) || ''
+  const task = (args.task as string) || ''
+  const command = (args.command as string) || ''
+  const limit = args.limit as number | undefined
+  const offset = args.offset as number | undefined
+
+  if (path) {
+    segs.push({ type: 'path', text: path })
+    if (limit !== undefined || offset !== undefined) {
+      segs.push({ type: 'loc', text: `:${limit ?? ''}:${offset ?? ''}` })
+    }
+  }
+  if (slug) segs.push({ type: 'path', text: slug })
+  if (sectionId) segs.push({ type: 'path', text: sectionId })
+  if (pattern) {
+    const s = pattern.length > 60 ? pattern.slice(0, 57) + '…' : pattern
+    segs.push({ type: 'pattern', text: `"${s}"` })
+  }
+  if (query) {
+    const s = query.length > 60 ? query.slice(0, 57) + '…' : query
+    segs.push({ type: 'pattern', text: `"${s}"` })
+  }
+  if (task && !segs.length) {
+    const s = task.length > 60 ? task.slice(0, 57) + '…' : task
+    segs.push({ type: 'desc', text: s })
+  }
+  if (command && !segs.length) {
+    const s = command.length > 80 ? command.slice(0, 77) + '…' : command
+    segs.push({ type: 'desc', text: s })
+  }
+
+  return segs
 }
 
 // ─── Relay helpers ──────────────────────────────────────────────────────────
@@ -629,6 +706,27 @@ const CHAT_SIDEBAR_KEY = 'autoforge-chat-sidebar-collapsed'
 const inputText = ref('')
 const chatRef = ref<HTMLDivElement>()
 const sidebarCollapsed = ref(localStorage.getItem(CHAT_SIDEBAR_KEY) === 'true')
+const showSessionInfo = ref(false)
+const copiedChatId = ref(false)
+
+const sessionTokenCost = computed(() => {
+  let total = 0
+  for (const key in errands.value) {
+    total += errands.value[key].token_usage || 0
+  }
+  for (const key in relayRuns.value) {
+    total += relayRuns.value[key].tokens_used || 0
+  }
+  return total > 0 ? `${total.toLocaleString()} tok` : '—'
+})
+
+function copyChatId() {
+  if (!sessionId.value) return
+  navigator.clipboard.writeText(sessionId.value).then(() => {
+    copiedChatId.value = true
+    setTimeout(() => { copiedChatId.value = false }, 2000)
+  })
+}
 
 watch(sidebarCollapsed, (v) => {
   localStorage.setItem(CHAT_SIDEBAR_KEY, String(v))
@@ -1389,6 +1487,85 @@ onMounted(async () => {
   gap: 0.5rem;
 }
 
+.session-info-wrapper {
+  position: relative;
+}
+
+.session-info-btn {
+  background: transparent;
+  border: none;
+  color: var(--af-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.session-info-btn:hover {
+  color: var(--af-text);
+  background: var(--af-surface);
+}
+
+.session-info-tooltip {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 280px;
+  background: var(--af-bg);
+  border: 1px solid var(--af-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.session-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.session-info-label {
+  font-size: 0.78rem;
+  color: var(--af-muted);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.session-info-value {
+  font-size: 0.85rem;
+  color: var(--af-text);
+  flex: 1;
+}
+
+.session-info-id {
+  font-family: monospace;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.session-info-copy {
+  background: transparent;
+  border: none;
+  color: var(--af-muted);
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.session-info-copy:hover {
+  color: var(--af-primary);
+}
+
 .chat-canvas {
   flex: 1;
   overflow-y: auto;
@@ -1686,6 +1863,17 @@ onMounted(async () => {
 .tool-status.running { color: hsl(var(--af-info)); }
 .tool-status.success { color: hsl(var(--af-success)); }
 .tool-status.error { color: hsl(var(--af-error)); }
+
+/* Inline tool summary segments */
+.tool-seg {
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: 'Geist Mono', 'Fira Code', monospace;
+}
+.tool-seg.seg-path { color: hsl(var(--af-info)); }
+.tool-seg.seg-loc { color: var(--af-muted); }
+.tool-seg.seg-pattern { color: hsl(var(--af-warning)); }
+.tool-seg.seg-desc { color: hsl(var(--af-chats)); }
 
 .tool-chevron {
   color: var(--af-muted);
