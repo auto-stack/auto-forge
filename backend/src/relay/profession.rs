@@ -32,6 +32,12 @@ pub struct Profession {
     pub max_turns: u32,
     /// Default token budget for this profession.
     pub token_budget: u64,
+    /// Enable Claude extended thinking mode for this profession.
+    #[serde(default)]
+    pub thinking_enabled: bool,
+    /// Thinking budget in tokens (e.g. 1024, 2048). Only used when thinking_enabled is true.
+    #[serde(default)]
+    pub thinking_budget: u32,
     /// Base skills that all agents of this profession receive.
     #[serde(default)]
     pub base_skills: Vec<String>,
@@ -141,8 +147,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             ],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 3,
+            max_turns: 12,
             token_budget: 2_000_000,
+            thinking_enabled: false,
+            thinking_budget: 0,
             base_skills: Vec::new(),
         },
         Profession {
@@ -157,6 +165,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             allowed_tools: vec![
                 String::from("read_specs"),
                 String::from("write_specs"),
+                String::from("update_spec"),
                 String::from("write_goals"),
                 String::from("list_specs"),
                 String::from("read_file"),
@@ -169,8 +178,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             handoff_to: vec![String::from("architect")],
             approval_gates: vec![String::from("architect")],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 10,
+            max_turns: 40,
             token_budget: 8_000_000,
+            thinking_enabled: true,
+            thinking_budget: 1024,
             base_skills: Vec::new(),
         },
         Profession {
@@ -189,6 +200,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             allowed_tools: vec![
                 String::from("read_specs"),
                 String::from("write_specs"),
+                String::from("update_spec"),
                 String::from("list_specs"),
                 String::from("read_file"),
                 String::from("query_wiki"),
@@ -199,8 +211,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             handoff_to: vec![String::from("planner")],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 10,
+            max_turns: 40,
             token_budget: 12_000_000,
+            thinking_enabled: true,
+            thinking_budget: 2048,
             base_skills: Vec::new(),
         },
         Profession {
@@ -218,6 +232,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             allowed_tools: vec![
                 String::from("read_specs"),
                 String::from("write_specs"),
+                String::from("update_spec"),
                 String::from("list_specs"),
                 String::from("read_file"),
                 String::from("query_wiki"),
@@ -227,8 +242,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             handoff_to: vec![String::from("tester")],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 10,
+            max_turns: 40,
             token_budget: 8_000_000,
+            thinking_enabled: true,
+            thinking_budget: 1024,
             base_skills: Vec::new(),
         },
         Profession {
@@ -245,6 +262,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             allowed_tools: vec![
                 String::from("read_specs"),
                 String::from("write_specs"),
+                String::from("update_spec"),
                 String::from("list_specs"),
                 String::from("read_file"),
                 String::from("query_wiki"),
@@ -254,8 +272,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             handoff_to: vec![String::from("coder")],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 10,
+            max_turns: 40,
             token_budget: 8_000_000,
+            thinking_enabled: true,
+            thinking_budget: 1024,
             base_skills: Vec::new(),
         },
         Profession {
@@ -288,8 +308,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             ],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 15,
+            max_turns: 60,
             token_budget: 20_000_000,
+            thinking_enabled: true,
+            thinking_budget: 2048,
             base_skills: Vec::new(),
         },
         Profession {
@@ -319,8 +341,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             handoff_to: vec![String::from("documenter")],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 10,
+            max_turns: 40,
             token_budget: 15_000_000,
+            thinking_enabled: true,
+            thinking_budget: 1024,
             base_skills: Vec::new(),
         },
         Profession {
@@ -350,8 +374,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             handoff_to: vec![],
             approval_gates: vec![],
             dispatchable_to: vec![],
-            max_turns: 5,
+            max_turns: 20,
             token_budget: 4_000_000,
+            thinking_enabled: false,
+            thinking_budget: 0,
             base_skills: Vec::new(),
         },
         Profession {
@@ -378,8 +404,10 @@ pub fn generate_default_professions() -> Vec<Profession> {
             handoff_to: vec![],
             approval_gates: vec![],
             dispatchable_to: vec![],
-            max_turns: 5,
+            max_turns: 20,
             token_budget: 4_000_000,
+            thinking_enabled: false,
+            thinking_budget: 0,
             base_skills: Vec::new(),
         },
     ]
@@ -400,9 +428,21 @@ pub fn load_or_generate_professions() -> Vec<Profession> {
 
     for default in &defaults {
         if let Some(idx) = merged.iter().position(|p| p.id == default.id) {
-            // Update token_budget if default has changed (allows scaling budgets via code updates)
+            // Sync fields that may change via code updates
             if merged[idx].token_budget != default.token_budget {
                 merged[idx].token_budget = default.token_budget;
+                changed = true;
+            }
+            if merged[idx].max_turns != default.max_turns {
+                merged[idx].max_turns = default.max_turns;
+                changed = true;
+            }
+            if merged[idx].thinking_enabled != default.thinking_enabled {
+                merged[idx].thinking_enabled = default.thinking_enabled;
+                changed = true;
+            }
+            if merged[idx].thinking_budget != default.thinking_budget {
+                merged[idx].thinking_budget = default.thinking_budget;
                 changed = true;
             }
         } else {
