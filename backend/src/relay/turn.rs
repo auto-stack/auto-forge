@@ -243,7 +243,7 @@ impl AgentTurn {
 
                         tracing::info!("AgentTurn tool call: name={}, profession={}, result={}", name, self.agent.profession.id, exec_result.chars().take(100).collect::<String>());
                         // Track special tools
-                        if name == "handoff" {
+                        if name == "handoff" || name == "bring_in" || name == "spawn_relay" {
                             result.handoff_requested = true;
                         }
                         let action = match name.as_str() {
@@ -278,6 +278,19 @@ impl AgentTurn {
                                 change_type: "modified".to_string(),
                                 description: "Updated goals section via write_goals".to_string(),
                             });
+                        }
+                        if name == "update_spec" {
+                            if let Some(section_id) = input.get("section_id").and_then(|v| v.as_str()) {
+                                let item_id = input.get("item_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+                                let action = input.get("action").and_then(|v| v.as_str()).unwrap_or("upsert");
+                                let description = format!("{} item '{}' in section '{}' via update_spec", action, item_id.as_deref().unwrap_or("unknown"), section_id);
+                                result.spec_updates.push(SpecUpdate {
+                                    section_id: section_id.to_string(),
+                                    item_id,
+                                    change_type: action.to_string(),
+                                    description,
+                                });
+                            }
                         }
 
                         turn_tools.push(ToolCallRecord {

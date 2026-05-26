@@ -165,7 +165,7 @@ impl StepValidator {
                 let has = handoff.spec_updates.iter().any(|u| sections.contains(&u.section_id));
                 if !has {
                     return Some(format!(
-                        "Step must produce spec updates for at least one of: {}. Use write_specs to create or update specs.",
+                        "Step must produce spec updates for at least one of: {}. Use write_specs or update_spec to create or update specs.",
                         sections.join(", ")
                     ));
                 }

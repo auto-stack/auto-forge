@@ -45,9 +45,62 @@ pub struct ModelDefinition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelTier {
+    Min,    // Ultra-cheap: Haiku, GPT-4o-mini
+    Lite,   // Cheap: Sonnet 3.5, GPT-4o
+    Mid,    // Balanced: Sonnet 3.5, GPT-4-turbo
+    Large,  // Strong: Opus, o1-preview
+    Max,    // Ultra-strong: Opus 4 (future), o1
+}
+
+impl ModelTier {
+    pub fn display_name(&self) -> &str {
+        match self {
+            ModelTier::Min => "Min",
+            ModelTier::Lite => "Lite",
+            ModelTier::Mid => "Mid",
+            ModelTier::Large => "Large",
+            ModelTier::Max => "Max",
+        }
+    }
+
+    pub fn description(&self) -> &str {
+        match self {
+            ModelTier::Min => "Ultra-cheap: high-volume, low-complexity tasks",
+            ModelTier::Lite => "Cheap: routing, chat, simple coding",
+            ModelTier::Mid => "Balanced: planning, coding, most tasks",
+            ModelTier::Large => "Strong: architecture, review, complex tasks",
+            ModelTier::Max => "Ultra-strong: deepest reasoning, research",
+        }
+    }
+
+    pub fn order(&self) -> u8 {
+        match self {
+            ModelTier::Min => 0,
+            ModelTier::Lite => 1,
+            ModelTier::Mid => 2,
+            ModelTier::Large => 3,
+            ModelTier::Max => 4,
+        }
+    }
+}
+
+/// Legacy 3-tier model (for migration only)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OldModelTier {
     Light,
     Mid,
     Heavy,
+}
+
+impl From<OldModelTier> for ModelTier {
+    fn from(old: OldModelTier) -> Self {
+        match old {
+            OldModelTier::Light => ModelTier::Lite,
+            OldModelTier::Mid => ModelTier::Mid,
+            OldModelTier::Heavy => ModelTier::Large,
+        }
+    }
 }
 
 /// Result of testing an API source connection.
@@ -225,7 +278,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: cheap_id.clone(),
                     name: cheap_id.clone(),
-                    tier: ModelTier::Light,
+                    tier: ModelTier::Lite,
                 },
                 ModelDefinition {
                     id: standard_id.clone(),
@@ -235,7 +288,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: strong_id.clone(),
                     name: strong_id.clone(),
-                    tier: ModelTier::Heavy,
+                    tier: ModelTier::Large,
                 },
             ],
         });
@@ -255,7 +308,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: "gpt-4o-mini".into(),
                     name: "GPT-4o Mini".into(),
-                    tier: ModelTier::Light,
+                    tier: ModelTier::Lite,
                 },
                 ModelDefinition {
                     id: "gpt-4o".into(),
@@ -265,7 +318,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: "o1".into(),
                     name: "o1".into(),
-                    tier: ModelTier::Heavy,
+                    tier: ModelTier::Large,
                 },
             ],
         });
@@ -403,15 +456,15 @@ pub fn generate_default_agents() -> Vec<AgentConfig> {
 /// Generate 9 default agent configs with the given API source ID.
 pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
     let defaults: [(&str, &str, &str, ModelTier); 9] = [
-        ("assistant", "Nicole", "assistant", ModelTier::Light),
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),
         ("advisor", "Isaac", "advisor", ModelTier::Mid),
-        ("architect", "Vera", "architect", ModelTier::Heavy),
+        ("architect", "Vera", "architect", ModelTier::Large),
         ("planner", "Felix", "planner", ModelTier::Mid),
-        ("tester", "Quinn", "tester", ModelTier::Light),
+        ("tester", "Quinn", "tester", ModelTier::Lite),
         ("coder", "Ash", "coder", ModelTier::Mid),
-        ("reviewer", "Marcus", "reviewer", ModelTier::Heavy),
-        ("documenter", "Luna", "documenter", ModelTier::Light),
-        ("gofer", "Gus", "gofer", ModelTier::Light),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Large),
+        ("documenter", "Luna", "documenter", ModelTier::Lite),
+        ("gofer", "Gus", "gofer", ModelTier::Lite),
     ];
 
     defaults
@@ -424,8 +477,8 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             model_tier: tier,
             is_default: true,
             temperature: 0.3,
-            max_tokens: if tier == ModelTier::Light { 4096 } else { 8192 },
-            reasoning_budget: if tier == ModelTier::Heavy { Some(4096) } else { None },
+            max_tokens: if tier == ModelTier::Lite { 4096 } else { 8192 },
+            reasoning_budget: if tier == ModelTier::Large { Some(4096) } else { None },
             thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
             thinking_budget: match profession {
                 "architect" | "coder" => Some(2048),
@@ -519,7 +572,7 @@ mod tests {
                 ModelDefinition {
                     id: "model-a".into(),
                     name: "Model A".into(),
-                    tier: ModelTier::Light,
+                    tier: ModelTier::Lite,
                 },
             ],
         };
@@ -528,7 +581,7 @@ mod tests {
         let parsed: ApiSource = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.id, "test-source");
         assert_eq!(parsed.models.len(), 1);
-        assert_eq!(parsed.models[0].tier, ModelTier::Light);
+        assert_eq!(parsed.models[0].tier, ModelTier::Lite);
     }
 
     #[test]

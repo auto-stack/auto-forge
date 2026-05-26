@@ -135,9 +135,9 @@ fn discover_validators() -> Vec<StepValidator> {
 /// Advisor must call write_specs before reading files or dispatching.
 fn discover_tool_guard() -> ToolGuard {
     ToolGuard {
-        required_first: vec!["write_goals".to_string()],
+        required_first: vec!["write_specs".to_string(), "write_goals".to_string()],
         unlocks: HashMap::new(),
-        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string(), "write_specs".to_string()],
+        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string()],
         forbidden: vec![],
     }
 }
@@ -157,10 +157,10 @@ fn design_validators() -> Vec<StepValidator> {
 /// Default tool guard for the design (architect) step.
 fn design_tool_guard() -> ToolGuard {
     ToolGuard {
-        required_first: vec!["write_specs".to_string()],
+        required_first: vec!["update_spec".to_string()],
         unlocks: HashMap::new(),
-        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string(), "read_file".to_string()],
-        forbidden: vec![],
+        always_allowed: vec!["list_specs".to_string(), "read_specs".to_string(), "read_file".to_string(), "dispatch".to_string()],
+        forbidden: vec!["write_specs".to_string()],
     }
 }
 
@@ -176,7 +176,7 @@ fn plan_validators() -> Vec<StepValidator> {
 /// Default tool guard for the plan (planner) step.
 fn plan_tool_guard() -> ToolGuard {
     ToolGuard {
-        required_first: vec!["write_specs".to_string()],
+        required_first: vec!["write_specs".to_string(), "update_spec".to_string()],
         unlocks: HashMap::new(),
         always_allowed: vec!["list_specs".to_string(), "read_specs".to_string(), "read_file".to_string()],
         forbidden: vec![],
