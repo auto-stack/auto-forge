@@ -2361,25 +2361,74 @@ mod handlers {
                                                 .map(|c| c.name.clone())
                                                 .unwrap_or_else(|| target.clone());
 
-                                            // Switch active_profession on the session
-                                            {
+                                            // Switch active_profession on the session AND extract research summary
+                                            let research_summary = {
                                                 let mut store = forge_sessions().lock().unwrap();
                                                 if let Some(session) = store.get_mut(&sid) {
                                                     session.active_profession = Some(target.clone());
+
+                                                    // Extract recent research from messages to pass to the next agent
+                                                    let mut research_parts = Vec::new();
+                                                    for msg in session.messages.iter().rev().take(20) {
+                                                        if let Some(ref tool_calls) = msg.tool_calls {
+                                                            for tc in tool_calls {
+                                                                if let Some(ref result) = tc.result {
+                                                                    match tc.name.as_str() {
+                                                                        "read_file" | "search_code" | "dispatch" => {
+                                                                            let snippet = if result.len() > 600 {
+                                                                                format!("{}... (truncated)", &result[..600])
+                                                                            } else {
+                                                                                result.clone()
+                                                                            };
+                                                                            let args_preview = tc.arguments.to_string();
+                                                                            let args_short = if args_preview.len() > 120 {
+                                                                                format!("{}...", &args_preview[..120])
+                                                                            } else {
+                                                                                args_preview
+                                                                            };
+                                                                            research_parts.push(format!(
+                                                                                "- [{}] {} => {}",
+                                                                                tc.name, args_short, snippet
+                                                                            ));
+                                                                        }
+                                                                        _ => {}
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                     let clone = session.clone();
                                                     store.save(&clone);
+                                                    if research_parts.is_empty() {
+                                                        None
+                                                    } else {
+                                                        // Deduplicate and limit
+                                                        research_parts.dedup();
+                                                        let limited: Vec<String> = research_parts.into_iter().take(8).collect();
+                                                        Some(limited.join("\n"))
+                                                    }
+                                                } else {
+                                                    None
                                                 }
-                                            }
+                                            };
 
                                             // Inject handoff note into chat history for the next agent
+                                            let research_section = research_summary
+                                                .map(|s| format!(
+                                                    "\n\n## Research Already Done (DO NOT repeat)\n\n{}\n\n\
+                                                     **Use the information above. Proceed directly to editing or writing files.**",
+                                                    s
+                                                ))
+                                                .unwrap_or_default();
+
                                             let note = format!(
                                                 "## Handoff Note\n\
                                                  {} ({}) handed off to you.\n\
                                                  **Classification:** {}\n\
                                                  **Summary:** {}\n\
                                                  You are now the active agent. Do NOT call bring_in — you are already here.\n\
-                                                 Continue the conversation from here. Do not ask the user to repeat what was already discussed.",
-                                                from_name, from_profession, classification, reason
+                                                 Continue the conversation from here. Do not ask the user to repeat what was already discussed.{}",
+                                                from_name, from_profession, classification, reason, research_section
                                             );
                                             chat_messages.push(ChatMessage::user(&note));
 

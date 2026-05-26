@@ -173,10 +173,22 @@ impl ClaudeProvider {
             };
 
             for event in events {
-                if let StreamEvent::ContentBlockDelta { delta, .. } = event {
-                    if let ContentBlockDelta::TextDelta { text } = delta {
-                        let _ = tx.send(AIStreamDelta { text });
+                match event {
+                    StreamEvent::ContentBlockDelta { delta, .. } => {
+                        if let ContentBlockDelta::TextDelta { text } = delta {
+                            let _ = tx.send(AIStreamDelta { text });
+                        }
                     }
+                    StreamEvent::Error { error, request_id } => {
+                        let msg = format!("Claude API stream error: {error}");
+                        if let Some(req_id) = request_id {
+                            tracing::error!("Claude SSE error [req_id={}]: {}", req_id, msg);
+                        } else {
+                            tracing::error!("Claude SSE error: {}", msg);
+                        }
+                        return Some(msg);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -184,10 +196,22 @@ impl ClaudeProvider {
         // Flush remaining buffer
         if let Ok(remaining) = parser.finish() {
             for event in remaining {
-                if let StreamEvent::ContentBlockDelta { delta, .. } = event {
-                    if let ContentBlockDelta::TextDelta { text } = delta {
-                        let _ = tx.send(AIStreamDelta { text });
+                match event {
+                    StreamEvent::ContentBlockDelta { delta, .. } => {
+                        if let ContentBlockDelta::TextDelta { text } = delta {
+                            let _ = tx.send(AIStreamDelta { text });
+                        }
                     }
+                    StreamEvent::Error { error, request_id } => {
+                        let msg = format!("Claude API stream error: {error}");
+                        if let Some(req_id) = request_id {
+                            tracing::error!("Claude SSE error [req_id={}]: {}", req_id, msg);
+                        } else {
+                            tracing::error!("Claude SSE error: {}", msg);
+                        }
+                        return Some(msg);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -247,12 +271,17 @@ impl ClaudeProvider {
             "tools": request.tools,
             "stream": true
         });
-        if let Some(budget) = request.thinking_budget {
-            if budget > 0 {
-                body["thinking"] = serde_json::json!({
-                    "type": "enabled",
-                    "budget_tokens": budget
-                });
+        // Only send thinking param to official Anthropic API.
+        // Third-party compatible providers (e.g. Zhipu AI) often reject it.
+        let is_official = self.base_url.contains("anthropic.com");
+        if is_official {
+            if let Some(budget) = request.thinking_budget {
+                if budget > 0 {
+                    body["thinking"] = serde_json::json!({
+                        "type": "enabled",
+                        "budget_tokens": budget
+                    });
+                }
             }
         }
 
@@ -339,6 +368,15 @@ impl ClaudeProvider {
                             output_tokens: usage.output_tokens,
                         });
                     }
+                    StreamEvent::Error { error, request_id } => {
+                        let msg = format!("Claude API stream error: {error}");
+                        if let Some(req_id) = request_id {
+                            tracing::error!("Claude SSE error [req_id={}]: {}", req_id, msg);
+                        } else {
+                            tracing::error!("Claude SSE error: {}", msg);
+                        }
+                        return Some(msg);
+                    }
                     _ => {}
                 }
             }
@@ -386,6 +424,15 @@ impl ClaudeProvider {
                             input_tokens: usage.input_tokens,
                             output_tokens: usage.output_tokens,
                         });
+                    }
+                    StreamEvent::Error { error, request_id } => {
+                        let msg = format!("Claude API stream error: {error}");
+                        if let Some(req_id) = request_id {
+                            tracing::error!("Claude SSE error [req_id={}]: {}", req_id, msg);
+                        } else {
+                            tracing::error!("Claude SSE error: {}", msg);
+                        }
+                        return Some(msg);
                     }
                     _ => {}
                 }

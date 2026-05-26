@@ -3,12 +3,18 @@
     <div class="agents-header">
       <h2>Agents Relay</h2>
       <div class="agents-actions">
-        <button class="btn-primary" @click="showStartModal = true" :disabled="loading">
-          <Play :size="14" />
-          Start Run
-        </button>
         <button class="btn-secondary" @click="refresh">
           <RefreshCw :size="14" />
+        </button>
+        <button
+          v-if="finishedRunCount > 0"
+          class="btn-secondary btn-danger-outline"
+          @click="onDeleteFinishedRuns"
+          :disabled="loading"
+          :title="`Delete all ${finishedRunCount} completed/failed runs`"
+        >
+          <Trash2 :size="14" />
+          Clear Finished ({{ finishedRunCount }})
         </button>
       </div>
     </div>
@@ -59,7 +65,7 @@
       <!-- Center: Pipeline visualization -->
       <div class="pipeline-panel" data-testid="pipeline-panel">
         <div v-if="!currentRun" class="empty-state">
-          Select a run or start a new one
+          Select a run to view details
         </div>
 
         <template v-else>
@@ -323,49 +329,6 @@
 
     </div>
 
-    <!-- Start Run Modal -->
-    <div v-if="showStartModal" class="modal-overlay" @click.self="showStartModal = false">
-      <div class="modal-content">
-        <h3>Start New Run</h3>
-        <div class="form-group">
-          <label>Flow ID</label>
-          <input v-model="newFlowId" placeholder="e.g. feature-auth" />
-        </div>
-        <div class="form-group">
-          <label>Task / Initial Prompt</label>
-          <textarea v-model="newTask" placeholder="Describe what the relay should build or investigate..." rows="3" />
-        </div>
-        <div class="form-group">
-          <label>Steps</label>
-          <div class="steps-builder">
-            <div v-for="(step, i) in newSteps" :key="i" class="step-row">
-              <input v-model="step.id" placeholder="step-id" class="step-input" />
-              <select v-model="step.profession_id" class="step-select">
-                <option v-for="p in professions" :key="p.id" :value="p.id">{{ p.name }}</option>
-              </select>
-              <select v-model="step.gate" class="step-select">
-                <option value="auto">Auto</option>
-                <option value="human">Human</option>
-              </select>
-              <button class="btn-icon" @click="removeStep(i)">
-                <Trash2 :size="14" />
-              </button>
-            </div>
-            <button class="btn-add" @click="addStep">
-              <Plus :size="14" />
-              Add Step
-            </button>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="showStartModal = false">Cancel</button>
-          <button class="btn-primary" :disabled="loading" @click="onStartRun">
-            <Play :size="14" />
-            Start
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -373,7 +336,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   Play, RefreshCw, Coins, Zap, ChevronRight,
-  Trash2, Plus, Wrench, CheckCircle, AlertCircle, AlertTriangle,
+  Trash2, Wrench, CheckCircle, AlertCircle, AlertTriangle,
 } from 'lucide-vue-next'
 import { useRelay } from '@/composables/useRelay'
 import { useGateInbox } from '@/composables/useGateInbox'
@@ -385,14 +348,13 @@ import AgentAvatar from '@/components/AgentAvatar.vue'
 const {
   runs, currentRun, professions, souls, loading, error,
   hasActiveGate, budgetUsedPercent, liveLog, professionTokens, sessionLog,
-  loadProfessions, loadSouls, loadRuns, loadRun, startRun,
+  loadProfessions, loadSouls, loadRuns, loadRun,
   resolveGate, subscribeToRun, deleteRun,
 } = useRelay()
 
 const gateInbox = useGateInbox()
 const { shouldPauseGate } = useForgeMode()
 
-const showStartModal = ref(false)
 const expandedStepId = ref<string | null>(null)
 const sessionLogRef = ref<HTMLElement | null>(null)
 
@@ -438,19 +400,6 @@ const currentGate = computed(() => {
     status: 'pending' as const,
   }
 })
-const newFlowId = ref('demo-flow')
-const newTask = ref('')
-const newSteps = ref<{ id: string; profession_id: string; gate: string }[]>([
-  { id: 'intake', profession_id: 'assistant', gate: 'auto' },
-  { id: 'discover', profession_id: 'advisor', gate: 'human' },
-  { id: 'design', profession_id: 'architect', gate: 'auto' },
-  { id: 'plan', profession_id: 'planner', gate: 'auto' },
-  { id: 'draft-tests', profession_id: 'tester', gate: 'auto' },
-  { id: 'code', profession_id: 'coder', gate: 'auto' },
-  { id: 'run-tests', profession_id: 'tester', gate: 'auto' },
-  { id: 'review', profession_id: 'reviewer', gate: 'auto' },
-  { id: 'report', profession_id: 'documenter', gate: 'auto' },
-])
 
 let unsubscribe: (() => void) | null = null
 
@@ -478,30 +427,22 @@ async function refresh() {
   }
 }
 
-function addStep() {
-  newSteps.value.push({ id: '', profession_id: 'coder', gate: 'auto' })
-}
-
-function removeStep(i: number) {
-  newSteps.value.splice(i, 1)
-}
-
-async function onStartRun() {
-  const runId = await startRun({
-    flow_id: newFlowId.value,
-    steps: newSteps.value,
-    task: newTask.value,
-  })
-  if (runId) {
-    showStartModal.value = false
-    newTask.value = ''
-    selectRun(runId)
-  }
-}
-
 async function onDeleteRun(runId: string) {
   if (confirm('Delete this run?')) {
     await deleteRun(runId)
+  }
+}
+
+const finishedRunCount = computed(() =>
+  runs.value.filter((r: any) => r.status === 'completed' || r.status === 'failed').length,
+)
+
+async function onDeleteFinishedRuns() {
+  const finishedRuns = runs.value.filter((r: any) => r.status === 'completed' || r.status === 'failed')
+  if (finishedRuns.length === 0) return
+  if (!confirm(`Delete ${finishedRuns.length} completed/failed run(s)?`)) return
+  for (const run of finishedRuns) {
+    await deleteRun(run.run_id)
   }
 }
 
@@ -613,6 +554,8 @@ function professionIcon(id: string): string {
 .btn-reject { background: hsl(0 70% 45% / 0.15); color: hsl(0 70% 45%); }
 .btn-edit { background: hsl(220 70% 50% / 0.15); color: hsl(220 70% 45%); }
 .btn-add { background: transparent; color: var(--af-muted); border: 1px dashed var(--af-border); width: 100%; justify-content: center; }
+.btn-danger-outline { background: hsl(0 70% 45% / 0.1); color: hsl(0 70% 45%); border-color: hsl(0 70% 45% / 0.3); }
+.btn-danger-outline:hover { background: hsl(0 70% 45% / 0.2); }
 
 .error-banner {
   padding: 0.5rem 1.25rem;

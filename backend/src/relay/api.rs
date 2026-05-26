@@ -470,10 +470,19 @@ pub struct CreateApiSourceRequest {
 
 pub async fn create_api_source(
     Json(req): Json<CreateApiSourceRequest>,
-) -> Result<Json<ApiSource>, StatusCode> {
+) -> Result<Json<ApiSource>, (StatusCode, Json<serde_json::Value>)> {
+    if let Err(missing) = config::validate_source_tiers(&req.source) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Missing tier(s): {}", missing.join(", ")),
+                "missing_tiers": missing,
+            })),
+        ));
+    }
     let mut sources = API_SOURCES.lock().unwrap();
     if sources.iter().any(|s| s.id == req.source.id) {
-        return Err(StatusCode::CONFLICT);
+        return Err((StatusCode::CONFLICT, Json(serde_json::json!({"error": "Source already exists"}))));
     }
     let source = req.source;
     sources.push(source.clone());
@@ -484,11 +493,20 @@ pub async fn create_api_source(
 pub async fn update_api_source(
     Path(id): Path<String>,
     Json(req): Json<ApiSource>,
-) -> Result<Json<ApiSource>, StatusCode> {
+) -> Result<Json<ApiSource>, (StatusCode, Json<serde_json::Value>)> {
+    if let Err(missing) = config::validate_source_tiers(&req) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("Missing tier(s): {}", missing.join(", ")),
+                "missing_tiers": missing,
+            })),
+        ));
+    }
     let mut sources = API_SOURCES.lock().unwrap();
-    let idx = sources.iter().position(|s| s.id == id).ok_or(StatusCode::NOT_FOUND)?;
+    let idx = sources.iter().position(|s| s.id == id).ok_or((StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Source not found"}))))?;
     if req.id != id {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "ID mismatch"}))));
     }
     sources[idx] = req.clone();
     let _ = config::save_api_sources(&sources);

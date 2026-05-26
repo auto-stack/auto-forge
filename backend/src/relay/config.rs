@@ -42,13 +42,16 @@ pub struct ModelDefinition {
 }
 
 /// Cost/performance tier for model selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelTier {
+    #[serde(alias = "light")]
     Min,    // Ultra-cheap: Haiku, GPT-4o-mini
     Lite,   // Cheap: Sonnet 3.5, GPT-4o
     Mid,    // Balanced: Sonnet 3.5, GPT-4-turbo
-    Large,  // Strong: Opus, o1-preview
+    #[serde(alias = "large")]
+    Pro,    // Strong: Opus, o1-preview
+    #[serde(alias = "heavy")]
     Max,    // Ultra-strong: Opus 4 (future), o1
 }
 
@@ -58,7 +61,7 @@ impl ModelTier {
             ModelTier::Min => "Min",
             ModelTier::Lite => "Lite",
             ModelTier::Mid => "Mid",
-            ModelTier::Large => "Large",
+            ModelTier::Pro => "Pro",
             ModelTier::Max => "Max",
         }
     }
@@ -68,7 +71,7 @@ impl ModelTier {
             ModelTier::Min => "Ultra-cheap: high-volume, low-complexity tasks",
             ModelTier::Lite => "Cheap: routing, chat, simple coding",
             ModelTier::Mid => "Balanced: planning, coding, most tasks",
-            ModelTier::Large => "Strong: architecture, review, complex tasks",
+            ModelTier::Pro => "Strong: architecture, review, complex tasks",
             ModelTier::Max => "Ultra-strong: deepest reasoning, research",
         }
     }
@@ -78,27 +81,8 @@ impl ModelTier {
             ModelTier::Min => 0,
             ModelTier::Lite => 1,
             ModelTier::Mid => 2,
-            ModelTier::Large => 3,
+            ModelTier::Pro => 3,
             ModelTier::Max => 4,
-        }
-    }
-}
-
-/// Legacy 3-tier model (for migration only)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum OldModelTier {
-    Light,
-    Mid,
-    Heavy,
-}
-
-impl From<OldModelTier> for ModelTier {
-    fn from(old: OldModelTier) -> Self {
-        match old {
-            OldModelTier::Light => ModelTier::Lite,
-            OldModelTier::Mid => ModelTier::Mid,
-            OldModelTier::Heavy => ModelTier::Large,
         }
     }
 }
@@ -126,6 +110,22 @@ impl std::fmt::Display for ConfigError {
             ConfigError::ParseError(s) => write!(f, "Parse error: {}", s),
             ConfigError::NotFound(s) => write!(f, "Not found: {}", s),
         }
+    }
+}
+
+/// Validate that an API source has at least one model for every tier.
+/// Returns the list of missing tier display names if validation fails.
+pub fn validate_source_tiers(source: &ApiSource) -> Result<(), Vec<String>> {
+    let all_tiers = [ModelTier::Min, ModelTier::Lite, ModelTier::Mid, ModelTier::Pro, ModelTier::Max];
+    let present: std::collections::HashSet<ModelTier> = source.models.iter().map(|m| m.tier).collect();
+    let missing: Vec<String> = all_tiers.iter()
+        .filter(|t| !present.contains(t))
+        .map(|t| t.display_name().to_string())
+        .collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(missing)
     }
 }
 
@@ -278,7 +278,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: cheap_id.clone(),
                     name: cheap_id.clone(),
-                    tier: ModelTier::Lite,
+                    tier: ModelTier::Min,
                 },
                 ModelDefinition {
                     id: standard_id.clone(),
@@ -288,7 +288,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: strong_id.clone(),
                     name: strong_id.clone(),
-                    tier: ModelTier::Large,
+                    tier: ModelTier::Max,
                 },
             ],
         });
@@ -308,7 +308,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: "gpt-4o-mini".into(),
                     name: "GPT-4o Mini".into(),
-                    tier: ModelTier::Lite,
+                    tier: ModelTier::Min,
                 },
                 ModelDefinition {
                     id: "gpt-4o".into(),
@@ -318,7 +318,7 @@ pub fn scan_importable_sources() -> Vec<ApiSource> {
                 ModelDefinition {
                     id: "o1".into(),
                     name: "o1".into(),
-                    tier: ModelTier::Large,
+                    tier: ModelTier::Max,
                 },
             ],
         });
@@ -458,11 +458,11 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
     let defaults: [(&str, &str, &str, ModelTier); 9] = [
         ("assistant", "Nicole", "assistant", ModelTier::Lite),
         ("advisor", "Isaac", "advisor", ModelTier::Mid),
-        ("architect", "Vera", "architect", ModelTier::Large),
+        ("architect", "Vera", "architect", ModelTier::Pro),
         ("planner", "Felix", "planner", ModelTier::Mid),
         ("tester", "Quinn", "tester", ModelTier::Lite),
         ("coder", "Ash", "coder", ModelTier::Mid),
-        ("reviewer", "Marcus", "reviewer", ModelTier::Large),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
         ("documenter", "Luna", "documenter", ModelTier::Lite),
         ("gofer", "Gus", "gofer", ModelTier::Lite),
     ];
@@ -478,7 +478,7 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             is_default: true,
             temperature: 0.3,
             max_tokens: if tier == ModelTier::Lite { 4096 } else { 8192 },
-            reasoning_budget: if tier == ModelTier::Large { Some(4096) } else { None },
+            reasoning_budget: if tier == ModelTier::Pro { Some(4096) } else { None },
             thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
             thinking_budget: match profession {
                 "architect" | "coder" => Some(2048),
@@ -505,8 +505,18 @@ pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentCon
         return defaults;
     }
 
-    // Merge: start with existing, add any missing default agents
-    let mut merged = existing;
+    // Fix empty api_source_id in existing configs when sources are available
+    let first_source_id = api_sources.first().map(|s| s.id.as_str()).unwrap_or("");
+    let mut fixed = false;
+    let mut merged: Vec<AgentConfig> = existing.into_iter().map(|mut c| {
+        if c.api_source_id.is_empty() && !first_source_id.is_empty() {
+            c.api_source_id = first_source_id.to_string();
+            fixed = true;
+        }
+        c
+    }).collect();
+
+    // Add any missing default agents
     let mut added = false;
     for default in &defaults {
         if !merged.iter().any(|c| c.id == default.id) {
@@ -515,22 +525,46 @@ pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentCon
         }
     }
 
-    if added {
+    if added || fixed {
         let _ = save_agent_configs(&merged);
     }
     merged
 }
 
 /// Resolve an AgentConfig into a concrete ModelConfig for use by AgentInstance.
+///
+/// Fallback strategy when the exact tier is missing:
+/// 1. Try the requested tier.
+/// 2. Walk down the tier ladder (Pro→Mid→Lite→Min, Max→Pro→Mid→Lite→Min).
+/// 3. As a last resort, use the first available model in the source.
 pub fn resolve_model(
     config: &AgentConfig,
     api_sources: &[ApiSource],
 ) -> Option<crate::relay::agent::ModelConfig> {
-    // Find the configured source, or fall back to the first available source
-    // if api_source_id is empty or no longer exists.
     let source = api_sources.iter().find(|s| s.id == config.api_source_id)
         .or_else(|| api_sources.first())?;
-    let model_def = source.models.iter().find(|m| m.tier == config.model_tier)
+
+    // Collect available tiers in this source
+    let available_tiers: std::collections::HashSet<ModelTier> =
+        source.models.iter().map(|m| m.tier).collect();
+
+    // Try the requested tier first, then walk down the ladder
+    let target_tier = if available_tiers.contains(&config.model_tier) {
+        config.model_tier
+    } else {
+        // Walk down: try each lower tier in order
+        let order = config.model_tier.order();
+        let mut found = None;
+        for target_order in (0..order).rev() {
+            if let Some(tier) = available_tiers.iter().find(|t| t.order() == target_order) {
+                found = Some(*tier);
+                break;
+            }
+        }
+        found.or_else(|| source.models.first().map(|m| m.tier))?
+    };
+
+    let model_def = source.models.iter().find(|m| m.tier == target_tier)
         .or_else(|| source.models.first())?;
 
     Some(crate::relay::agent::ModelConfig {

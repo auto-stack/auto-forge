@@ -37,6 +37,7 @@
             <div class="source-meta">
               <span class="status-dot" :class="source.is_available ? 'ok' : 'err'" />
               {{ source.models.length }} models
+              <span v-if="!hasAllTiers(source)" class="tier-missing-dot" title="Missing tiers">!</span>
             </div>
           </div>
         </button>
@@ -122,9 +123,11 @@
                 <input v-model="model.id" class="model-input" placeholder="model-id" />
                 <input v-model="model.name" class="model-input" placeholder="Display Name" />
                 <select v-model="model.tier" class="model-select">
-                  <option value="light">Light</option>
+                  <option value="min">Min</option>
+                  <option value="lite">Lite</option>
                   <option value="mid">Mid</option>
-                  <option value="heavy">Heavy</option>
+                  <option value="pro">Pro</option>
+                  <option value="max">Max</option>
                 </select>
                 <button class="btn-icon btn-remove" @click="editing.models.splice(i, 1)">
                   <X :size="12" />
@@ -133,6 +136,10 @@
               <button class="btn-add-model" @click="editing.models.push({ id: '', name: '', tier: 'mid' as const })">
                 <Plus :size="12" /> Add Model
               </button>
+            </div>
+            <div v-if="missingTiers.length" class="tier-warning">
+              <AlertTriangle :size="14" />
+              <span>Missing tier(s): {{ missingTiers.join(', ') }}</span>
             </div>
           </div>
         </div>
@@ -175,7 +182,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import {
-  Plus, X, Zap, Trash2, Eye, EyeOff, Server, Cloud, Cpu, Search,
+  Plus, X, Zap, Trash2, Eye, EyeOff, Server, Cloud, Cpu, Search, AlertTriangle,
 } from 'lucide-vue-next'
 import { useApiSources, type ApiSource, type ModelTier } from '@/composables/useApiSources'
 
@@ -206,6 +213,11 @@ const providerIcon = (provider: string) => {
   }
 }
 
+function hasAllTiers(source: ApiSource): boolean {
+  const present = new Set(source.models.map(m => m.tier))
+  return ALL_TIERS.every(t => present.has(t))
+}
+
 function selectSource(id: string) {
   selectedId.value = id
   const source = sources.value.find(s => s.id === id)
@@ -226,9 +238,9 @@ function startCreate() {
     base_url: null,
     is_available: false,
     models: [
-      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tier: 'light' as ModelTier },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tier: 'lite' as ModelTier },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', tier: 'mid' as ModelTier },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', tier: 'heavy' as ModelTier },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', tier: 'pro' as ModelTier },
     ],
   }
   isNew.value = true
@@ -241,10 +253,23 @@ function cancelEdit() {
   selectedId.value = null
 }
 
+const ALL_TIERS: ModelTier[] = ['min', 'lite', 'mid', 'pro', 'max']
+
+const missingTiers = computed(() => {
+  if (!editing.value) return []
+  const present = new Set(editing.value.models.map(m => m.tier))
+  return ALL_TIERS.filter(t => !present.has(t))
+})
+
 async function handleSave() {
   if (!editing.value) return
-  saving.value = true
 
+  if (missingTiers.value.length) {
+    alert(`Please add at least one model for each tier. Missing: ${missingTiers.value.join(', ')}`)
+    return
+  }
+
+  saving.value = true
   const source = { ...editing.value }
   if (apiKeyInput.value) {
     source.api_key_stored = apiKeyInput.value
@@ -415,6 +440,20 @@ onMounted(loadSources)
 
 .status-dot.ok { background: hsl(var(--success)); }
 .status-dot.err { background: hsl(var(--error)); }
+
+.tier-missing-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: hsl(var(--warning));
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 0.3rem;
+}
 
 /* Detail panel */
 .sources-detail {
@@ -590,6 +629,18 @@ onMounted(loadSources)
 
 .btn-add-model:hover {
   background: hsl(var(--primary) / 0.06);
+}
+
+.tier-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  background: hsl(40 90% 50% / 0.1);
+  color: hsl(35 80% 40%);
+  font-size: 0.78rem;
 }
 
 /* Buttons */

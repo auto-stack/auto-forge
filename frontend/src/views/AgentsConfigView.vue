@@ -29,7 +29,7 @@
         <div class="card-name">{{ agent.name }}</div>
         <div class="card-badges">
           <span class="badge profession-badge">{{ agent.profession_id }}</span>
-          <span class="badge tier-badge" :class="agent.model_tier">{{ agent.model_tier }}</span>
+          <span class="badge tier-badge" :class="agent.model_tier">{{ tierLabel(agent.model_tier) }}</span>
           <span v-if="agent.is_default" class="badge default-badge">Default</span>
         </div>
         <div v-if="agent.equipped_skills?.length" class="card-skills">
@@ -165,7 +165,7 @@
                 <label>Max Tokens</label>
                 <input v-model.number="editing.max_tokens" type="number" class="form-input" min="256" max="32768" step="256" />
               </div>
-              <div v-if="editing.model_tier === 'heavy'" class="form-group">
+              <div v-if="editing.model_tier === 'pro' || editing.model_tier === 'max'" class="form-group">
                 <label>Reasoning Budget</label>
                 <input v-model.number="editing.reasoning_budget" type="number" class="form-input" min="0" max="16384" step="512" />
               </div>
@@ -242,10 +242,17 @@ const professions = [
 ]
 
 const tiers = [
-  { value: 'light' as const, label: 'Light', bars: 1 },
+  { value: 'min' as const, label: 'Min', bars: 1 },
+  { value: 'lite' as const, label: 'Lite', bars: 1 },
   { value: 'mid' as const, label: 'Mid', bars: 2 },
-  { value: 'heavy' as const, label: 'Heavy', bars: 3 },
+  { value: 'pro' as const, label: 'Pro', bars: 3 },
+  { value: 'max' as const, label: 'Max', bars: 3 },
 ]
+
+function tierLabel(tier: string): string {
+  const map: Record<string, string> = { min: 'Min', lite: 'Lite', mid: 'Mid', pro: 'Pro', max: 'Max' }
+  return map[tier] || tier
+}
 
 const professionEmoji = (id: string) => {
   const map: Record<string, string> = {
@@ -526,9 +533,11 @@ function toggleSkill(skillId: string) {
   color: var(--af-primary);
 }
 
-.tier-badge.light { background: hsl(140 60% 40% / 0.12); color: hsl(140 60% 35%); }
+.tier-badge.min { background: hsl(140 60% 40% / 0.12); color: hsl(140 60% 35%); }
+.tier-badge.lite { background: hsl(150 55% 42% / 0.12); color: hsl(150 55% 37%); }
 .tier-badge.mid { background: hsl(210 60% 50% / 0.12); color: hsl(210 60% 45%); }
-.tier-badge.heavy { background: hsl(280 50% 50% / 0.12); color: hsl(280 50% 45%); }
+.tier-badge.pro { background: hsl(260 55% 52% / 0.12); color: hsl(260 55% 47%); }
+.tier-badge.max { background: hsl(280 50% 50% / 0.12); color: hsl(280 50% 45%); }
 
 .default-badge {
   background: hsl(var(--muted-foreground) / 0.08);
@@ -750,9 +759,14 @@ function toggleSkill(skillId: string) {
   border-color: hsl(var(--primary) / 0.3);
 }
 
-.tier-option.active.light {
+.tier-option.active.min {
   border-color: hsl(140 60% 35%);
   background: hsl(140 60% 40% / 0.08);
+}
+
+.tier-option.active.lite {
+  border-color: hsl(150 55% 37%);
+  background: hsl(150 55% 42% / 0.08);
 }
 
 .tier-option.active.mid {
@@ -760,7 +774,12 @@ function toggleSkill(skillId: string) {
   background: hsl(210 60% 50% / 0.08);
 }
 
-.tier-option.active.heavy {
+.tier-option.active.pro {
+  border-color: hsl(260 55% 47%);
+  background: hsl(260 55% 52% / 0.08);
+}
+
+.tier-option.active.max {
   border-color: hsl(280 50% 45%);
   background: hsl(280 50% 50% / 0.08);
 }
@@ -777,9 +796,11 @@ function toggleSkill(skillId: string) {
   background: var(--af-muted);
 }
 
-.tier-option.active.light .tier-bar { background: hsl(140 60% 35%); }
+.tier-option.active.min .tier-bar { background: hsl(140 60% 35%); }
+.tier-option.active.lite .tier-bar { background: hsl(150 55% 37%); }
 .tier-option.active.mid .tier-bar { background: hsl(210 60% 45%); }
-.tier-option.active.heavy .tier-bar { background: hsl(280 50% 45%); }
+.tier-option.active.pro .tier-bar { background: hsl(260 55% 47%); }
+.tier-option.active.max .tier-bar { background: hsl(280 50% 45%); }
 
 .tier-label {
   font-size: 0.78rem;

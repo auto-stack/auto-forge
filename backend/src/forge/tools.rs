@@ -8,12 +8,68 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::LazyLock;
 use std::sync::Mutex;
+use std::time::SystemTime;
 
 // ─── Tool Context (injected by forge_stream handler) ─────────────────────────
 
 static CURRENT_PROJECT: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 static CURRENT_SESSION_ID: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 static CURRENT_PROFESSION: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
+
+// ─── File Read Cache ─────────────────────────────────────────────────────────
+
+#[derive(Clone)]
+struct FileCacheEntry {
+    content: String,
+    modified: SystemTime,
+}
+
+static FILE_READ_CACHE: LazyLock<Mutex<HashMap<String, FileCacheEntry>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Invalidate cached entries for a given file path (called after write/edit).
+pub fn invalidate_file_cache(path: &str) {
+    let mut cache = FILE_READ_CACHE.lock().unwrap();
+    let keys_to_remove: Vec<String> = cache
+        .keys()
+        .filter(|k| k.starts_with(path))
+        .cloned()
+        .collect();
+    for key in keys_to_remove {
+        cache.remove(&key);
+    }
+}
+
+fn build_cache_key(full_path: &Path, offset: usize, limit: Option<usize>) -> String {
+    format!("{}:{}:{:?}", full_path.display(), offset, limit)
+}
+
+fn try_cache(full_path: &Path, offset: usize, limit: Option<usize>) -> Option<String> {
+    let cache = FILE_READ_CACHE.lock().unwrap();
+    let key = build_cache_key(full_path, offset, limit);
+    let entry = cache.get(&key)?;
+    let modified = std::fs::metadata(full_path).ok()?.modified().ok()?;
+    if modified == entry.modified {
+        Some(entry.content.clone())
+    } else {
+        None
+    }
+}
+
+fn store_cache(full_path: &Path, offset: usize, limit: Option<usize>, content: String) {
+    if let Ok(modified) = std::fs::metadata(full_path).and_then(|m| m.modified()) {
+        let mut cache = FILE_READ_CACHE.lock().unwrap();
+        let key = build_cache_key(full_path, offset, limit);
+        cache.insert(key, FileCacheEntry { content, modified });
+        // Prune if cache grows too large (>200 entries)
+        if cache.len() > 200 {
+            let first_key = cache.keys().next().cloned();
+            if let Some(k) = first_key {
+                cache.remove(&k);
+            }
+        }
+    }
+}
 
 /// Set the project and session context for specs tools.
 pub fn set_tool_context(project: &str, session_id: &str) {
@@ -182,7 +238,12 @@ impl Tool for ReadFileTool {
 
         let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { path.to_path_buf()  } else { Path::new(&*project).join(path) } };
 
-        let content = std::fs::read_to_string(&full_path)
+        // Try cache first
+        if let Some(cached) = try_cache(&full_path, offset, limit) {
+            return Ok(cached);
+        }
+
+        let mut content = std::fs::read_to_string(&full_path)
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))?;
 
         let total_lines = content.lines().count();
@@ -196,7 +257,9 @@ impl Tool for ReadFileTool {
             let slice = &lines[start..end];
             let result = slice.join("\n");
             let header = format!("// Lines {}-{} of {} ({} bytes total)\n", start, end, total_lines, total_bytes);
-            return Ok(header + &result);
+            let output = header + &result;
+            store_cache(&full_path, offset, limit, output.clone());
+            return Ok(output);
         }
 
         // No offset/limit: check size and truncate if needed
@@ -215,9 +278,12 @@ impl Tool for ReadFileTool {
                 "\n\n// --- TRUNCATED ---\n// File is {} bytes ({} lines).\n// Only first {} lines shown (~{}KB).\n// Use offset={} with read_file to continue, or use list_symbols to browse structure.\n",
                 total_bytes, total_lines, truncated_lines, READ_FILE_MAX_BYTES / 1024, truncated_lines
             );
-            return Ok(truncated + &notice);
+            let output = truncated + &notice;
+            store_cache(&full_path, offset, limit, output.clone());
+            return Ok(output);
         }
 
+        store_cache(&full_path, offset, limit, content.clone());
         Ok(content)
     }
 
@@ -654,7 +720,10 @@ impl Tool for WriteFileTool {
         }
 
         std::fs::write(&full_path, content)
-            .map(|_| format!("Successfully wrote {} bytes to {}", content.len(), full_path.display()))
+            .map(|_| {
+                invalidate_file_cache(&full_path.to_string_lossy());
+                format!("Successfully wrote {} bytes to {}", content.len(), full_path.display())
+            })
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", path.display(), e)))
     }
 }
@@ -668,9 +737,12 @@ impl Tool for EditFileTool {
     }
 
     fn description(&self) -> &'static str {
-        "Replace a specific string in a file with another string. \
-         Use this for surgical edits when you only need to change a small part of a file. \
-         The old_string must match exactly (including whitespace)."
+        "Replace specific strings in a file with new text. \
+         Supports two modes: (1) legacy single replacement with old_string/new_string, \
+         or (2) multiple line-targeted edits via the 'edits' array. \
+         When using 'edits', each entry has a 1-based starting line number and the exact old/new strings. \
+         The old_string may span multiple lines; matching begins at the specified line and searches downward. \
+         Multiple edits are applied from bottom to top so line numbers stay valid."
     }
 
     fn input_schema(&self) -> Value {
@@ -683,14 +755,36 @@ impl Tool for EditFileTool {
                 },
                 "old_string": {
                     "type": "string",
-                    "description": "The exact text to replace"
+                    "description": "(Legacy mode) The exact text to replace anywhere in the file"
                 },
                 "new_string": {
                     "type": "string",
-                    "description": "The replacement text"
+                    "description": "(Legacy mode) The replacement text"
+                },
+                "edits": {
+                    "type": "array",
+                    "description": "(Recommended mode) Array of line-targeted edits. Each edit specifies a starting line and an exact old/new string block. The old_string may span multiple lines; search begins at the given line and proceeds downward.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "line": {
+                                "type": "integer",
+                                "description": "1-based line number where the search for old_string begins"
+                            },
+                            "old_string": {
+                                "type": "string",
+                                "description": "The exact text to replace. May span multiple lines."
+                            },
+                            "new_string": {
+                                "type": "string",
+                                "description": "The replacement text. May span multiple lines."
+                            }
+                        },
+                        "required": ["line", "old_string", "new_string"]
+                    }
                 }
             },
-            "required": ["path", "old_string", "new_string"]
+            "required": ["path"]
         })
     }
 
@@ -699,14 +793,6 @@ impl Tool for EditFileTool {
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidInput("Missing 'path' argument".into()))?;
-        let old_str = args
-            .get("old_string")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidInput("Missing 'old_string' argument".into()))?;
-        let new_str = args
-            .get("new_string")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidInput("Missing 'new_string' argument".into()))?;
 
         let path = Path::new(path);
         if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
@@ -715,8 +801,108 @@ impl Tool for EditFileTool {
 
         let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { path.to_path_buf()  } else { Path::new(&*project).join(path) } };
 
-        let content = std::fs::read_to_string(&full_path)
+        let mut content = std::fs::read_to_string(&full_path)
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file '{}': {}", full_path.display(), e)))?;
+
+        // Mode 2: line-targeted edits array
+        if let Some(edits_val) = args.get("edits") {
+            if let Some(edits) = edits_val.as_array() {
+                if edits.is_empty() {
+                    return Err(ToolError::InvalidInput("'edits' array is empty".into()));
+                }
+
+                let mut edit_items: Vec<(usize, String, String)> = Vec::new();
+                for edit in edits {
+                    let line = edit
+                        .get("line")
+                        .and_then(|v| v.as_u64())
+                        .ok_or_else(|| ToolError::InvalidInput("Each edit must have a 'line' number".into()))? as usize;
+                    if line == 0 {
+                        return Err(ToolError::InvalidInput("Line numbers are 1-based and must be > 0".into()));
+                    }
+                    let old_str = edit
+                        .get("old_string")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| ToolError::InvalidInput("Each edit must have an 'old_string'".into()))?;
+                    let new_str = edit
+                        .get("new_string")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| ToolError::InvalidInput("Each edit must have a 'new_string'".into()))?;
+                    edit_items.push((line, old_str.to_string(), new_str.to_string()));
+                }
+
+                // Sort by line descending so earlier edits don't shift later line numbers
+                edit_items.sort_by(|a, b| b.0.cmp(&a.0));
+
+                let mut applied = 0;
+                let mut errors = Vec::new();
+
+                for (line_1based, old_str, new_str) in edit_items {
+                    if old_str.is_empty() {
+                        errors.push(format!("Edit at line {} has empty old_string", line_1based));
+                        continue;
+                    }
+
+                    let start_idx = line_1based.saturating_sub(1);
+
+                    // Compute character offset of the start of line `start_idx` in the content
+                    let mut start_pos = 0usize;
+                    for _ in 0..start_idx {
+                        if let Some(pos) = content[start_pos..].find('\n') {
+                            start_pos += pos + 1;
+                        } else {
+                            start_pos = content.len();
+                            break;
+                        }
+                    }
+
+                    if start_pos > content.len() {
+                        errors.push(format!("Line {} is beyond file length", line_1based));
+                        continue;
+                    }
+
+                    if let Some(offset) = content[start_pos..].find(&old_str) {
+                        let match_start = start_pos + offset;
+                        let match_end = match_start + old_str.len();
+                        let mut new_content = String::with_capacity(content.len() - old_str.len() + new_str.len());
+                        new_content.push_str(&content[..match_start]);
+                        new_content.push_str(&new_str);
+                        new_content.push_str(&content[match_end..]);
+                        content = new_content;
+                        applied += 1;
+                    } else {
+                        let preview = content[start_pos..].lines().next().unwrap_or("").chars().take(80).collect::<String>();
+                        errors.push(format!(
+                            "Starting at line {}, old_string not found. First line: '{}'",
+                            line_1based, preview
+                        ));
+                    }
+                }
+
+                std::fs::write(&full_path, &content)
+                    .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", full_path.display(), e)))?;
+                invalidate_file_cache(&full_path.to_string_lossy());
+
+                let mut result = format!("Successfully applied {} edit(s) to {}", applied, full_path.display());
+                if !errors.is_empty() {
+                    result.push_str("\nErrors:\n");
+                    for err in errors {
+                        result.push_str(&format!("- {}\n", err));
+                    }
+                }
+                return Ok(result);
+            }
+        }
+
+        // Mode 1: legacy single replacement
+        let old_str = args
+            .get("old_string")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'old_string' argument (or use 'edits' array)".into()))?;
+        let new_str = args
+            .get("new_string")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'new_string' argument (or use 'edits' array)".into()))?;
 
         if !content.contains(old_str) {
             return Err(ToolError::ExecutionFailed(format!(
@@ -728,7 +914,10 @@ impl Tool for EditFileTool {
 
         let new_content = content.replacen(old_str, new_str, 1);
         std::fs::write(&full_path, new_content)
-            .map(|_| format!("Successfully edited {}", full_path.display()))
+            .map(|_| {
+                invalidate_file_cache(&full_path.to_string_lossy());
+                format!("Successfully edited {}", full_path.display())
+            })
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", full_path.display(), e)))
     }
 }
@@ -748,6 +937,41 @@ fn truncate_lines(text: &str, max_lines: usize) -> String {
     }
 }
 
+/// Detect the best shell to use on Windows.
+/// Prefers bash.exe (Git Bash, WSL, MSYS2) over cmd.exe for better Unix command compatibility.
+fn detect_windows_shell() -> (&'static str, &'static str) {
+    static DETECTED: std::sync::OnceLock<(&'static str, &'static str)> = std::sync::OnceLock::new();
+    *DETECTED.get_or_init(|| {
+        let test = std::process::Command::new("bash.exe")
+            .arg("-c")
+            .arg("echo ok")
+            .output();
+        if test.map(|o| o.status.success()).unwrap_or(false) {
+            ("bash.exe", "-c")
+        } else {
+            ("cmd.exe", "/C")
+        }
+    })
+}
+
+/// If a shell command fails and uses common Unix tools, suggest alternatives.
+fn shell_failure_advice(cmd: &str) -> Option<String> {
+    let lower = cmd.to_lowercase();
+    let unix_tools = ["grep", "awk", "sed", "find", "head", "tail", "wc", "cat", "tr", "cut", "sort", "uniq"];
+    let used: Vec<&str> = unix_tools.iter().filter(|&&t| lower.contains(t)).copied().collect();
+    if !used.is_empty() {
+        Some(format!(
+            "\n\n[Windows Shell Tip] Your command uses Unix tools ({}). \
+On Windows these often fail due to quoting, escaping, or regex differences. \
+Consider using the built-in tools instead: `search_code` instead of grep, \
+`read_file` with offset/limit instead of head/tail/sed, `list_files` instead of find/ls.",
+            used.join(", ")
+        ))
+    } else {
+        None
+    }
+}
+
 /// Execute a shell command.
 struct ShellTool;
 
@@ -759,7 +983,10 @@ impl Tool for ShellTool {
     fn description(&self) -> &'static str {
         "Execute a shell command in the project directory. \
          Use this to run tests, check git status, list files, install dependencies, etc. \
-         Be careful with destructive commands."
+         Be careful with destructive commands. \
+         \
+         WINDOWS COMPATIBILITY: On Windows, prefer built-in tools (`search_code`, `read_file`, `list_files`) \
+         over Unix shell utilities (grep, awk, sed, find, head, tail) because quoting and regex behavior differ."
     }
 
     fn input_schema(&self) -> Value {
@@ -793,7 +1020,7 @@ impl Tool for ShellTool {
 
         // Platform-aware shell selection
         let (shell, shell_arg) = if cfg!(target_os = "windows") {
-            ("cmd.exe", "/C")
+            detect_windows_shell()
         } else {
             ("bash", "-c")
         };
@@ -817,7 +1044,8 @@ impl Tool for ShellTool {
         let stderr = truncate_lines(&stderr, MAX_OUTPUT_LINES);
 
         let mut result = String::new();
-        if !output.status.success() {
+        let success = output.status.success();
+        if !success {
             result.push_str(&format!(
                 "Command exited with code {}\n",
                 output.status.code().unwrap_or(-1)
@@ -828,6 +1056,11 @@ impl Tool for ShellTool {
         }
         if !stderr.is_empty() {
             result.push_str(&format!("STDERR:\n{}\n", stderr));
+        }
+        if !success {
+            if let Some(advice) = shell_failure_advice(cmd) {
+                result.push_str(&advice);
+            }
         }
 
         Ok(if result.is_empty() {

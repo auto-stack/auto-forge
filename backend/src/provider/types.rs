@@ -110,6 +110,11 @@ pub enum StreamEvent {
     },
     MessageStop,
     Ping,
+    Error {
+        error: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        request_id: Option<String>,
+    },
 }
 
 /// The full (non-streaming) response from the LLM API.

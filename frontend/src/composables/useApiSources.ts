@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 
 const API_BASE = '/api/forge/config/api-sources'
 
-export type ModelTier = 'light' | 'mid' | 'heavy'
+export type ModelTier = 'min' | 'lite' | 'mid' | 'pro' | 'max'
 
 export interface ModelDefinition {
   id: string
@@ -65,7 +65,10 @@ export function useApiSources() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source }),
       })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${resp.status}`)
+      }
       const created = await resp.json()
       _sources.value.push(created)
       return true
@@ -83,7 +86,10 @@ export function useApiSources() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(source),
       })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${resp.status}`)
+      }
       const updated = await resp.json()
       const idx = _sources.value.findIndex(s => s.id === id)
       if (idx >= 0) _sources.value[idx] = updated
