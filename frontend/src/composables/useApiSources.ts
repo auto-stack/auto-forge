@@ -166,6 +166,18 @@ export function useApiSources() {
     }
   }
 
+  function clearTestResult() {
+    _testResult.value = null
+  }
+
+  function addDraft(source: ApiSource) {
+    _sources.value.unshift(source)
+  }
+
+  function removeDraft(id: string) {
+    _sources.value = _sources.value.filter(s => s.id !== id)
+  }
+
   return {
     sources,
     loading,
@@ -177,6 +189,9 @@ export function useApiSources() {
     createSource,
     updateSource,
     deleteSource,
+    clearTestResult,
+    addDraft,
+    removeDraft,
     testConnection,
     getTierModels,
     scanSources,

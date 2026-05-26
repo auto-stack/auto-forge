@@ -33,7 +33,7 @@
             <component :is="providerIcon(source.provider)" :size="18" />
           </div>
           <div class="source-info">
-            <div class="source-name">{{ source.name }}</div>
+            <div class="source-name">{{ source.name || '(New Source)' }}</div>
             <div class="source-meta">
               <span class="status-dot" :class="source.is_available ? 'ok' : 'err'" />
               {{ source.models.length }} models
@@ -63,6 +63,9 @@
           </div>
         </div>
 
+        <div v-if="apiError" class="test-banner err">
+          <span>{{ apiError }}</span>
+        </div>
         <div v-if="testResult" class="test-banner" :class="testResult.success ? 'ok' : 'err'">
           <span v-if="testResult.success">Connected to {{ testResult.model }} ({{ testResult.latency_ms }}ms)</span>
           <span v-else>{{ testResult.error }}</span>
@@ -187,9 +190,9 @@ import {
 import { useApiSources, type ApiSource, type ModelTier } from '@/composables/useApiSources'
 
 const {
-  sources, loading, hasSources, testResult,
+  sources, loading, hasSources, testResult, error: apiError,
   loadSources, createSource, updateSource, deleteSource, testConnection,
-  scanSources, importSources,
+  scanSources, importSources, clearTestResult, addDraft, removeDraft,
 } = useApiSources()
 
 const selectedId = ref<string | null>(null)
@@ -229,26 +232,34 @@ function selectSource(id: string) {
 }
 
 function startCreate() {
-  editing.value = {
+  const draft = {
     id: `source-${Date.now()}`,
     name: '',
-    provider: 'anthropic',
+    provider: 'anthropic' as const,
     api_key_env: '',
-    api_key_stored: null,
-    base_url: null,
+    api_key_stored: null as string | null,
+    base_url: null as string | null,
     is_available: false,
     models: [
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tier: 'min' as ModelTier },
       { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', tier: 'lite' as ModelTier },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', tier: 'mid' as ModelTier },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', tier: 'pro' as ModelTier },
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', tier: 'pro' as ModelTier },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', tier: 'max' as ModelTier },
     ],
   }
+  addDraft(draft)
+  editing.value = draft
   isNew.value = true
-  selectedId.value = null
+  selectedId.value = draft.id
   apiKeyInput.value = ''
+  clearTestResult()
 }
 
 function cancelEdit() {
+  if (isNew.value && editing.value) {
+    removeDraft(editing.value.id)
+  }
   editing.value = null
   selectedId.value = null
 }
@@ -276,10 +287,20 @@ async function handleSave() {
   }
 
   if (isNew.value) {
+    // Remove draft from local list before API call
+    removeDraft(source.id)
     const ok = await createSource(source)
     if (ok) {
+      // Sync editing to the server-returned object so left panel updates live
+      const created = sources.value.find(s => s.id === source.id)
+      editing.value = created || null
       selectedId.value = source.id
       isNew.value = false
+    } else {
+      // Re-add draft on failure so user can keep editing
+      addDraft(source)
+      editing.value = source
+      selectedId.value = source.id
     }
   } else {
     await updateSource(source.id, source)
