@@ -166,9 +166,27 @@ Specs are not flat documents — they form a live decision pyramid. Every Plan t
 **Tags:** stack:both
 **Depends on:** Specs-G4, UiSystem-G1
 
-- [x] `overview.md` lives at `specs/{project}/overview.md` as a navigational document
+- [x] `overview.ad` lives at `specs/{project}/overview.ad` as a navigational document (AutoDown/Markdown format)
 - [x] Backend API `GET /api/forge/specs/{project}/overview` serves the markdown content
-- [x] Frontend Specs view renders overview with a dedicated "Overview" tab
+- [x] Frontend Specs view renders overview with a dedicated "Overview" sidebar entry
 - [x] Architect profession is granted `write_file` tool access
 - [x] Architect's soul mandates overview regeneration after every Architecture/Design update
-- [x] Overview structure: project summary, ASCII architecture diagram, module index table, navigation guide, ID convention
+- [x] Overview structure: project summary, Mermaid.js architecture diagram, module index table, navigation guide, ID convention
+- [x] Each module has its own `module.ad` at `specs/{project}/{module}/module.ad`
+- [x] Backend API `GET /api/forge/specs/{project}/module/{module}/outline` serves per-module outline content
+- [x] Frontend sidebar shows module accordion with "Outline" as the first item under each module
+
+---
+
+## Specs-G11 Modular Navigation with Per-Module Outlines
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** Specs-G10, UiSystem-G1
+
+- [x] Specs sidebar groups items by module derived from ID prefix (`AgentConfig-G1` → `agent-config`)
+- [x] Each module accordion shows an "Outline" item that loads the module's `module.ad`
+- [x] Backend exposes `GET /api/forge/specs/{project}/module/{module}/outline` for per-module content
+- [x] Overview is a flat top-level sidebar item and is shown by default on first load
+- [x] Search box moved from sidebar to title bar for better space utilization
+- [x] Breadcrumb path (`Project / Module / Section`) displayed in title bar left side
+- [x] `module:` tags removed from spec items (redundant with directory structure and ID prefix)

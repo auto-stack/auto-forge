@@ -64,3 +64,137 @@
 ---
 
 ---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-D3 SpecsView Layout Refactor
+**Status:** implemented
+**Module:** `frontend/src/views/SpecsView.vue`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-D1, Specs-G11
+
+### Problem
+
+The original `SpecsView` layout had several UX issues:
+- Search input consumed vertical sidebar space that could be used for module navigation
+- Breadcrumb was centered in the title bar, pushing action buttons to the far right
+- The "Overview" was a separate mode with no clear visual hierarchy alongside module sections
+- No way to discover a module's high-level purpose without opening its individual spec items
+
+### Solution
+
+Refactor the layout into a three-zone information architecture:
+
+#### 1. Sidebar Zone (220px, scrollable)
+
+**Before:**
+```
+[Search input]
+[Overview tab]
+[Category filter]
+[Stack filter]
+[Module filter]
+```
+
+**After:**
+```
+[Overview — flat top-level item]
+[Module accordion tree]
+  ├─ Module A
+  │   ├─ Outline
+  │   ├─ Goals (N)
+  │   └─ ...
+  └─ Module B
+[Stack filter drawer]
+```
+
+Changes:
+- Removed search input (relocated to title bar)
+- Removed Category filter (redundant; categories are now children of modules)
+- Removed Module filter (redundant; modules are the accordion headers themselves)
+- Added flat "Overview" item at top
+- Added "Outline" as first child of every module
+
+#### 2. Title Bar Zone (48px, fixed)
+
+**Before:**
+```
+[Toggle]        [Breadcrumb — centered]        [Drift] [Links]
+```
+
+**After:**
+```
+[Toggle] [Breadcrumb — left-aligned] [Search] [Drift] [Links]
+```
+
+Changes:
+- Breadcrumb moved to left side (`Project / module / Section`)
+- Search input (`max-width: 240px`) inserted between breadcrumb and action buttons
+- Action buttons remain right-aligned
+
+#### 3. Content Zone (flex, scrollable)
+
+Three mutually exclusive render paths:
+
+| Path | Trigger | Component |
+|---|---|---|
+| **Project Overview** | `showOverview === true` | `<MarkdownContent :content="overviewContent" />` |
+| **Module Outline** | `activeModuleOutline !== null` | `<MarkdownContent :content="moduleOutlineContent" />` |
+| **Module Section** | `currentSection !== null` | Category-specific renderer (GoalsTable, ArchitectureCards, etc.) |
+
+### Responsive Behavior
+
+- **Desktop (≥1280px)**: Full 3-zone layout as described
+- **Tablet (768–1279px)**: Sidebar collapses to toggle; breadcrumb truncates with ellipsis
+- **Mobile (<768px)**: Sidebar becomes fixed overlay; search shrinks to icon-only
+
+### CSS Changes
+
+Key style additions:
+```css
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-search {
+  max-width: 240px;
+  flex-shrink: 0;
+}
+
+.outline-nav-item .section-top {
+  gap: 0.4rem;
+  justify-content: flex-start;
+}
+```
+
+Removed styles:
+- `.module-search` (sidebar search container)
+- `.header-center` (absolute-centered breadcrumb)
+
+### Requirements
+
+- Overview must be the default view when `SpecsView` is first opened
+- Module accordion must expand at least the first module by default (if no overview is active)
+- Search must filter both module names and category type titles
+- Active state must be visually distinct for all three view paths (blue left border)

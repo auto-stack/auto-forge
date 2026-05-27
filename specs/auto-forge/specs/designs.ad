@@ -339,41 +339,55 @@ function parseTag(tag: string): { type: string; value: string; full: string } {
 - **Limit**: max 2 tags shown inline; `+N` overflow indicator
 - Applied to: `GoalsTable`, `SpecItemRow` (Architecture, Designs, Plans, Tests, Reviews, Reports)
 
-### Sidebar Filter Drawers
+### Module Accordion Navigation
 
-Three `<details>` elements in `SpecsView` sidebar:
+The sidebar is organized as a module accordion tree:
 
 ```
 ┌─ Sidebar ──────────────────────────────┐
-│ <details open> Category                │
-│   [Goals] [Architecture] [Designs] ... │
-│ </details>                             │
+│ 📖 Overview                            │
+│ ─────────────────────────────────────  │
+│ ▼ agent-config                         │
+│   📄 Outline                           │
+│   🎯 Goals (1)                         │
+│   🏗️ Architecture (1)                  │
+│   ...                                  │
+│ ▼ api-sources                          │
+│   📄 Outline                           │
+│   ...                                  │
+│ ─────────────────────────────────────  │
 │ <details open> Stack                   │
-│   [backend] [frontend] [both]          │
-│ </details>                             │
-│ <details open> Module                  │
-│   [specs] [relay] [wiki] ...           │
+│   [All] [backend] [frontend] [both]    │
 │ </details>                             │
 └────────────────────────────────────────┘
 ```
 
+- **Overview**: flat top-level item; shown by default when Specs view opens
+- **Module drawers**: one `<details>` per module, derived from item ID prefixes (e.g. `AgentConfig-G1` → `agent-config`)
+- **Outline**: first item under each module; loads the module's `module.ad` via `GET /module/{module}/outline`
+- **Type items**: the 7 spec categories (Goals, Architecture, Designs, Plans, Tests, Reviews, Reports) with item counts
+
 ### Filter Logic
+
+Module filtering is implicit: clicking a type under a module shows only items whose ID prefix matches that module. Stack filtering uses tag pills with AND logic:
 
 ```typescript
 const filteredItems = computed(() => {
-  return items.value.filter(item => {
-    const stacks = item.tags?.filter(t => t.startsWith('stack:')) || []
-    const modules = item.tags?.filter(t => t.startsWith('module:')) || []
-    const matchStack = selectedStacks.value.size === 0 ||
-      stacks.some(t => selectedStacks.value.has(parseTag(t).value))
-    const matchModule = selectedModules.value.size === 0 ||
-      modules.some(t => selectedModules.value.has(parseTag(t).value))
-    return matchStack && matchModule
-  })
+  let items = section.items
+  if (activeModule.value) {
+    items = items.filter(item => idToModule(item.id) === activeModule.value)
+  }
+  if (selectedStacks.value.length > 0) {
+    items = items.filter(item =>
+      selectedStacks.value.some(s => item.tags?.includes(`stack:${s}`))
+    )
+  }
+  return items
 })
 ```
 
-- **AND logic**: item must match at least one selected stack AND at least one selected module
+- **Module filter**: derived from `idToModule(item.id)`, not tags; `module:` tags are redundant and have been removed
+- **Stack filter**: item must match at least one selected stack
 - **Empty selection**: counts as "match all" for that filter type
 - Tag pills toggle on click; active state styled with primary color
 
@@ -453,14 +467,14 @@ pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
 
 ### Problem
 
-The project `overview.md` is a critical entry point for developers to understand the system. Currently it is handwritten by humans (or the AI assistant), which means:
+The project `overview.ad` is a critical entry point for developers to understand the system. Currently it is handwritten by humans (or the AI assistant), which means:
 - It drifts out of sync as the architecture evolves
 - Module descriptions become stale after redesigns
 - The architecture diagram does not reflect new components
 
 ### Solution
 
-Make the **Architect** profession responsible for generating and maintaining `overview.md` as part of its standard deliverables.
+Make the **Architect** profession responsible for generating and maintaining `overview.ad` and per-module `module.ad` files as part of its standard deliverables.
 
 #### 1. Tool Access
 
@@ -470,36 +484,193 @@ Architect is granted `write_file` in addition to its existing read-only file acc
 
 The Architect's soul (`architect.md`) contains an explicit Execution Mandate:
 
-> After updating Architecture and Designs, you MUST also update `overview.md`. The overview lives at `specs/{project}/overview.md`. Use `write_file` with `path="specs/{project}/overview.md"` to rewrite it.
+> After updating Architecture and Designs, you MUST also update `overview.ad`. The overview lives at `specs/{project}/overview.ad`. Use `write_file` with `path="specs/{project}/overview.ad"` to rewrite it.
 
 #### 3. Required Overview Structure
 
-Every `overview.md` produced by Architect MUST contain:
+Every `overview.ad` produced by Architect MUST contain:
 
 | Section | Description |
 |---|---|
 | **Project Summary** | 1–2 sentence elevator pitch of the entire system |
-| **System Architecture** | ASCII diagram showing layers (UI → Orchestrator → Core Services) |
-| **Module Index** | Table of all modules with descriptions, spec counts, and deep links |
+| **System Architecture** | Mermaid.js diagram showing layers (UI → Orchestrator → Core Services) |
+| **Module Index** | Table of all modules with descriptions, spec counts, and deep links to each `module.ad` |
 | **Navigation Guide** | How to read specs: Goals → Architecture → Designs → Plans → Tests → Reviews → Reports |
 | **ID Convention** | Explanation of `ModulePrefix-TypeNumber` format (e.g. `Relay-G1`, `Chat-D3`) |
 
-#### 4. Trigger Conditions
+#### 4. Per-Module Outline (`module.ad`)
 
-Architect MUST regenerate `overview.md` when any of the following occur:
+Each module directory contains a `module.ad` that serves as the module's entry point:
+
+| Section | Description |
+|---|---|
+| **Module Overview** | 1–2 sentence description of the module's purpose |
+| **Core Components** | Key components and their responsibilities |
+| **Architecture Relationship** | How this module interacts with other modules |
+| **Spec Index** | Table linking to the module's goals, architecture, designs, plans, tests, reviews, reports |
+
+#### 5. Trigger Conditions
+
+Architect MUST regenerate `overview.ad` and affected `module.ad` files when any of the following occur:
 - A new module is added or removed
 - A module's goals are significantly rewritten
 - The system architecture diagram changes
 - Module names are refactored (affects ID convention and links)
+- A module's core components or architecture relationships change
 
-### API Endpoint
+### API Endpoints
 
-`GET /api/forge/specs/{project}/overview` returns `{ content: string, exists: boolean }`.
+- `GET /api/forge/specs/{project}/overview` returns `{ content: string, exists: boolean }`
+- `GET /api/forge/specs/{project}/module/{module}/outline` returns `{ content: string, exists: boolean }`
 
-The frontend renders the markdown content via `<MarkdownContent />` in the Specs view.
+The frontend renders both via `<MarkdownContent />` with Mermaid diagram support.
 
 ### Requirements
 
-- Architect MUST call `write_file` for `overview.md` BEFORE handing off to Planner
+- Architect MUST call `write_file` for `overview.ad` BEFORE handing off to Planner
+- Architect SHOULD update `module.ad` when a single module's architecture changes
 - Outdated overviews are treated as bugs and filed as follow-up relay runs
 - The overview is NOT a spec section; it lives outside the 7-type pyramid as a navigational document
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Specs-D9 Modular Navigation & Module Outline System
+**Status:** implemented
+**Module:** `frontend/src/views/SpecsView.vue`, `backend/src/forge/mod.rs`
+**Tags:** stack:both
+**Depends on:** Specs-G11, Specs-D8
+
+### Problem
+
+The original Specs sidebar used three independent filter drawers (Category, Stack, Module) with tag-based filtering. This design had several issues:
+- **Redundant tags**: Every spec item needed a `module:*` tag to participate in module filtering
+- **No module context**: Users could not see which specs belonged to which module at a glance
+- **No module overview**: There was no way to read a module's high-level description without browsing its individual specs
+- **Wasted sidebar space**: The search input occupied valuable vertical real estate
+
+### Solution
+
+Replace the tag-based filter drawers with a **module accordion tree** that derives module membership directly from spec IDs.
+
+#### 1. Module Derivation from IDs
+
+```typescript
+function idToModule(id: string): string | null {
+  const prefix = id.split('-')[0]
+  if (!prefix) return null
+  let result = ''
+  for (let i = 0; i < prefix.length; i++) {
+    const c = prefix[i]
+    const isUpper = c >= 'A' && c <= 'Z'
+    if (isUpper && i > 0) {
+      const prev = prefix[i - 1]
+      const next = prefix[i + 1]
+      const prevLower = prev >= 'a' && prev <= 'z'
+      const nextLower = next >= 'a' && next <= 'z'
+      if (prevLower || nextLower) {
+        result += '-'
+      }
+    }
+    result += c.toLowerCase()
+  }
+  return result
+}
+```
+
+Examples:
+| ID | Module |
+|---|---|
+| `AgentConfig-G1` | `agent-config` |
+| `Relay-D3` | `relay` |
+| `UiSystem-A1` | `ui-system` |
+| `Chat-V1` | `chat` |
+
+#### 2. Sidebar Structure
+
+```
+┌─ Sidebar (220px) ──────────────────────┐
+│ Specs                           [≡]    │
+│ ─────────────────────────────────────  │
+│ 📖 Overview                            │
+│ ─────────────────────────────────────  │
+│ ▼ agent-config                    (7)  │
+│   📄 Outline                           │
+│   🎯 Goals                        (1)  │
+│   🏗️ Architecture                 (1)  │
+│   ...                                  │
+│ ▼ relay                          (65)  │
+│   📄 Outline                           │
+│   ...                                  │
+│ ─────────────────────────────────────  │
+│ <details open> Stack                   │
+│   [All] [backend] [frontend] [both]    │
+└────────────────────────────────────────┘
+```
+
+- **Overview**: flat item at top; `selectOverview()` sets `showOverview = true`; rendered via `<MarkdownContent />`
+- **Module drawers**: `<details>` per module; expand/collapse toggled independently
+- **Outline**: first child of every module drawer; loads `module.ad` content via API
+- **Type items**: the 7 categories, filtered to show only counts for that module
+
+#### 3. Title Bar Layout
+
+```
+┌─ Title Bar ──────────────────────────────────────────────────────────┐
+│ [≡] Project / relay / 🏗️ Architecture    [Search...] [Drift] [Links] │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- **Left**: breadcrumb (`ProjectName / ModuleName / SectionTitle`)
+- **Center-right**: search input (filters module names and type titles)
+- **Right**: action buttons (Drift Check, Rebuild Links)
+
+#### 4. Backend APIs
+
+```
+GET /api/forge/specs/{project}/overview
+→ { content: string, exists: boolean }
+
+GET /api/forge/specs/{project}/module/{module}/outline
+→ { content: string, exists: boolean }
+```
+
+Both endpoints read `.ad` files from the project specs directory:
+- `overview.ad` → `{project_dir}/overview.ad`
+- `module.ad` → `{project_dir}/{module}/module.ad`
+
+#### 5. State Model
+
+Three mutually exclusive view states:
+
+| State | `showOverview` | `activeModuleOutline` | `activeModule` | `activeSection` |
+|---|---|---|---|---|
+| **Project Overview** | `true` | `null` | `""` | `""` |
+| **Module Outline** | `false` | `"relay"` | `"relay"` | `""` |
+| **Module Section** | `false` | `null` | `"relay"` | `"goals"` |
+
+#### 6. Default View Behavior
+
+On first load (`watch(moduleTree, { immediate: true })`), if no module or overview is active, the view defaults to **Project Overview** (`showOverview = true`). This ensures new users see the high-level system description before diving into individual modules.
+
+### Requirements
+
+- `module:` tags are deprecated and no longer serialized; module membership is derived from ID prefix only
+- `module.ad` files are static documents; they are NOT loaded into `SpecsDocument` sections and are NOT overwritten by `save_module_format`
+- The module accordion tree is rebuilt dynamically from `document.sections` whenever specs are loaded or saved

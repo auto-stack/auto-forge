@@ -42,7 +42,7 @@
 | Specs-P25.3 | GoalDetailModal: centered modal with header/meta/body/footer, inline edit | UI | 1 day | Done |
 | Specs-P25.4 | Tag all 52 goals and 6 other categories with `stack:*` and `module:*` | Docs | 0.5 day | Done |
 | Specs-P25.5 | Tag display: shortened values, color-coded badges (stack=blue, module=purple) | UI | 0.5 day | Done |
-| Specs-P25.6 | Sidebar filter drawers: Category, Stack, Module with multi-select AND logic | UI | 1 day | Done |
+| Specs-P25.6 | Module accordion sidebar: Overview entry + per-module Outline + type navigation, Stack filter retained | UI | 1 day | Done |
 | Specs-P25.7 | Backend flat mode fix: `get_or_default` falls back to flat doc on key miss | Backend | 0.5 day | Done |
 
 - **Outcome**: Goals section now shows a clean hierarchical tree with expandable sub-goals, modal-based detail editing, and sidebar tag filtering.
