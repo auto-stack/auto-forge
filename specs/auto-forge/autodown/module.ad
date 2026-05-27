@@ -1,0 +1,32 @@
+# AutoDown Module
+
+## Overview
+
+AutoDown is the block-based rich-text editor for AutoForge. It is built on Tiptap/ProseMirror and uses Markdown as its serialization format, with Auto language-inspired extensions for table metadata and other structured content.
+
+## Core Components
+
+| Component | Path | Responsibility |
+|---|---|---|
+| `AutoDownEditor.vue` | `frontend/src/components/editors/autodown/core/AutoDownEditor.vue` | Main editor component, hosts Tiptap editor instance |
+| `useAutoDownEditor` | `frontend/src/components/editors/autodown/composables/useAutoDownEditor.ts` | Editor initialization, IAL preprocessing, event wiring |
+| `createExtensions` | `frontend/src/components/editors/autodown/extensions/index.ts` | Tiptap extension registry (StarterKit, Table, TaskList, etc.) |
+| `tableAttributes` | `frontend/src/components/editors/autodown/extensions/tableAttributes.ts` | IAL parsing, generation, and ProseMirror attribute application |
+| `rowResizing` | `frontend/src/components/editors/autodown/extensions/rowResizing.ts` | ProseMirror plugin for row-height drag resizing |
+| `SlashMenu` | `frontend/src/components/editors/autodown/menus/SlashMenu.vue` | `/` command palette for block insertion |
+| `BubbleMenu` | `frontend/src/components/editors/autodown/menus/BubbleMenu.vue` | Inline formatting toolbar on text selection |
+| `TableMenu` | `frontend/src/components/editors/autodown/menus/TableMenu.vue` | Floating toolbar for table row/column operations |
+
+## Architecture Relationship
+
+- **Specs** — AutoDown is used in the Wiki page editor and may be used for inline spec editing
+- **Wiki** — Primary consumer; WikiView embeds AutoDownEditor for page creation/editing
+- **UiSystem** — Depends on theme CSS variables (`--af-border`, `--af-fg`, etc.)
+
+## Spec Index
+
+| Type | Count | File |
+|------|-------|------|
+| Goals | 2 | [goals.ad](goals.ad) |
+| Designs | 2 | [designs.ad](designs.ad) |
+| Tests | 1 | [tests.ad](tests.ad) |

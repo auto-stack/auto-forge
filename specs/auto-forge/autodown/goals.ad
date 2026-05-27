@@ -1,0 +1,28 @@
+# Goals
+
+## AutoDown-G1 Block-Based Markdown Editor
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** UiSystem-G1
+
+- [x] Tiptap/ProseMirror-based editor with Markdown round-trip serialization
+- [x] Support headings (H1–H3), paragraphs, lists (bullet/ordered/task), blockquotes, code blocks, horizontal rules
+- [x] Inline formatting: bold, italic, strikethrough, links, inline code
+- [x] Image embedding with base64 support
+- [x] Slash menu (`/`) for quick block insertion
+- [x] Bubble menu for inline text formatting
+- [x] Drag handle for block reordering
+
+## AutoDown-G2 Table Editor with Resizable Columns and Rows
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** AutoDown-G1
+
+- [x] Table insertion via slash menu (`/table`)
+- [x] Table structure editing: add/delete rows and columns, merge/split cells
+- [x] Column width resizing via draggable handles
+- [x] Row height resizing via draggable handles
+- [x] Double-click on column boundary resets column width to auto
+- [x] Double-click on row boundary resets row height to auto
+- [x] Column widths and row heights persist through Markdown serialization via IAL
+- [x] IAL syntax: `{cols:[120,"auto",200], rows:[40,"auto","auto"]}`

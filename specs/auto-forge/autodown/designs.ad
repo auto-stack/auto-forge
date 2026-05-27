@@ -1,0 +1,126 @@
+# Designs
+
+## AutoDown-D1 Editor Extension Architecture
+**Status:** implemented
+**Module:** `frontend/src/components/editors/autodown/extensions/index.ts`
+**Tags:** stack:frontend
+**Depends on:** AutoDown-G1
+
+### Extension Registry
+
+```typescript
+[
+  StarterKit,          // Paragraph, heading, bold, italic, strike, code, blockquote, hr, list, history
+  Placeholder,         // Empty-state placeholder text
+  Link,                // Clickable hrefs with `autodown-link` class
+  Image,               // `<img class="autodown-image">` with base64 support
+  TaskList/TaskItem,   // Checkbox task lists
+  Table,               // Resizable tables with `autodown-table` class
+  CustomTableRow,      // Extended TableRow with `rowheight` attribute
+  TableHeader,         // `<th>` cells
+  TableCell,           // `<td>` cells with `colwidth` attribute
+  Markdown,            // Markdown serialization via marked
+  SlashCommand,        // `/` trigger for block insertion
+  DragHandle,          // Six-dot drag handle on block hover
+  RowResizingExtension,// ProseMirror plugin for row-height drag resize
+  CustomKeymap,        // Custom keyboard shortcuts
+]
+```
+
+### Markdown Serialization
+
+Tiptap's `@tiptap/markdown` extension uses `marked` for parsing and a custom serializer for rendering.
+- `contentType: 'markdown'` on editor initialization
+- `editor.getMarkdown()` serializes the document to Markdown
+- `editor.commands.setContent(md, false, { contentType: 'markdown' })` loads Markdown
+
+---
+
+## AutoDown-D2 Table IAL (Inline Attribute List) Storage
+**Status:** implemented
+**Module:** `frontend/src/components/editors/autodown/extensions/tableAttributes.ts`
+**Tags:** stack:frontend
+**Depends on:** AutoDown-G2
+
+### Problem
+
+Standard Markdown tables have no syntax for column widths or row heights. Tiptap/ProseMirror stores these as node attributes (`colwidth` on `tableCell`, `rowheight` on `tableRow`), but the default Markdown serializer drops them.
+
+### Solution: Auto-Style IAL
+
+Append a metadata block immediately after each Markdown table:
+
+```markdown
+| Header 1 | Header 2 |
+| --- | --- |
+| Cell 1 | Cell 2 |
+{cols:[120,"auto"], rows:[40,"auto"]}
+```
+
+**Syntax rules:**
+- `{}` encloses the attribute list
+- `cols:[...]` — array of pixel widths; `"auto"` means no fixed width
+- `rows:[...]` — array of pixel heights; `"auto"` means no fixed height
+- Both arrays are optional; omit if all values are `"auto"`
+
+### Lifecycle
+
+**Load (Markdown → Editor):**
+1. `preprocessMarkdown(md)` extracts IAL blocks with regex
+2. IAL text is removed from Markdown before Tiptap parses it
+3. After editor creation, `applyTableAttrs(editor, tableAttrs)` traverses tables and sets `colwidth`/`rowheight`
+
+**Save (Editor → Markdown):**
+1. `editor.getMarkdown()` produces standard Markdown tables
+2. `appendTableIAL(md, editor)` traverses ProseMirror document to collect `colwidth`/`rowheight`
+3. Regex-matches each table block and appends IAL line
+
+### ProseMirror Attribute Mapping
+
+| IAL | ProseMirror Node | Attribute | Type |
+|---|---|---|---|
+| `cols:[120,"auto"]` | `tableCell` / `tableHeader` | `colwidth` | `(number \| null)[]` |
+| `rows:[40,"auto"]` | `tableRow` | `rowheight` | `number \| null` |
+
+### Column Width Rendering
+
+Tiptap Table extension renders `colwidth` as `<colgroup><col style="width:120px"></colgroup>`. ProseMirror's `columnResizing` plugin reads/writes `colwidth` during drag.
+
+### Row Height Rendering
+
+`CustomTableRow` adds `rowheight` attribute. The `rowResizing` plugin writes `rowheight` on drag. A CSS rule renders it:
+```css
+.autodown-editor-content tr[rowheight] {
+  height: attr(rowheight px);
+}
+```
+
+### Resize Handle CSS
+
+```css
+/* Column resize handle (provided by prosemirror-tables) */
+.ProseMirror .column-resize-handle {
+  position: absolute; right: -2px; top: 0; bottom: 0;
+  width: 4px; background: hsl(var(--primary) / 0.35);
+  pointer-events: none; opacity: 0;
+}
+.ProseMirror .tableWrapper:hover .column-resize-handle { opacity: 1; }
+.ProseMirror.resize-cursor { cursor: col-resize; }
+
+/* Row resize handle (custom plugin) */
+.autodown-row-resize-handle {
+  position: absolute; left: 0; right: 0; bottom: -2px;
+  height: 4px; background: hsl(var(--primary) / 0.35);
+  pointer-events: none; opacity: 0;
+}
+.autodown-editor-content tr:hover .autodown-row-resize-handle { opacity: 1; }
+```
+
+### Row Resizing Plugin
+
+`rowResizing()` is a ProseMirror plugin that:
+1. Renders `Decoration.widget` at the bottom of each `tableRow`
+2. On `mousedown` over handle: captures start Y and current row height
+3. On `mousemove`: computes delta, updates `rowheight` via `tr.setNodeMarkup`
+4. On `dblclick`: resets `rowheight` to `null` (auto)
+5. Uses `document.addEventListener('mouseup')` to end drag

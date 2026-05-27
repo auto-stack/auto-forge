@@ -218,6 +218,60 @@
   align-items: flex-start;
 }
 
+/* ─── Table Resize Handles ─── */
+
+/* Column resize handle (rendered by prosemirror-tables when mouse is near boundary) */
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 20;
+  background-color: hsl(var(--primary) / 0.55);
+  pointer-events: none;
+  border-radius: 3px;
+}
+
+.ProseMirror .column-resize-dragging {
+  background-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.25);
+}
+
+/* Cursor change when near column boundary (plugin adds .resize-cursor to editor root) */
+.ProseMirror.resize-cursor,
+.ProseMirror.resize-cursor * {
+  cursor: col-resize !important;
+}
+
+/* Row resize handle (rendered by custom rowResizing plugin Decoration) */
+.autodown-row-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 6px;
+  z-index: 20;
+  background-color: hsl(var(--primary) / 0.55);
+  pointer-events: none;
+  border-radius: 3px;
+}
+
+.autodown-row-resize-handle.active {
+  background-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.25);
+}
+
+/* Cursor change when near row boundary */
+.autodown-row-resize-cursor,
+.autodown-row-resize-cursor * {
+  cursor: row-resize !important;
+}
+
+.autodown-editor-content tr {
+  position: relative;
+}
+
 /* ─── Table ─── */
 .autodown-editor-content .tableWrapper,
 .autodown-editor-content .autodown-table,

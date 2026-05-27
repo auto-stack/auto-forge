@@ -2,6 +2,7 @@ project auto-forge
 
 module agent-config
 module api-sources
+module autodown
 module chat
 module cli
 module editor

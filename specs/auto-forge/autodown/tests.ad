@@ -1,0 +1,29 @@
+# Tests
+
+## AutoDown-T1 Markdown Round-trip Serialization
+**Status:** implemented
+**Tags:** stack:frontend
+
+- [x] Plain paragraph round-trips identically
+- [x] Headings (H1–H3) preserve level and text
+- [x] Bold, italic, and strikethrough inline marks
+- [x] Bullet and numbered lists
+- [x] Code blocks with language hint
+- [x] Blockquotes
+- [x] Links with URL and title
+- [x] Images with alt text and src
+- [x] Horizontal rules
+- [x] Task lists with checked/unchecked items
+- [x] Tables with header and body rows
+
+## AutoDown-T2 Table IAL Persistence
+**Status:** implemented
+**Tags:** stack:frontend
+
+- [x] Loading Markdown with IAL applies colwidth to table cells
+- [x] Loading Markdown with IAL applies rowheight to table rows
+- [x] Saving editor content appends IAL after each table block
+- [x] IAL is omitted when all widths/heights are auto
+- [x] `"auto"` in IAL maps to `null` in ProseMirror attributes
+- [x] Multiple tables in one document each get their own IAL block
+- [x] IAL does not interfere with standard Markdown rendering

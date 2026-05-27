@@ -36,3 +36,4 @@ specs/debug_*.txt
 
 # One-off scripts
 backend/fix_vue_symbols.py
+specs/auto-forge.bak/

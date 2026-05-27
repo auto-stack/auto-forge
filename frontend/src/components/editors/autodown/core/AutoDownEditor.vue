@@ -21,6 +21,7 @@
 import { computed, watch } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { useAutoDownEditor } from '../composables/useAutoDownEditor'
+import { appendTableIAL } from '../extensions/tableAttributes'
 import BubbleMenuVue from '../menus/BubbleMenu.vue'
 import SlashMenu, { type SlashItem } from '../menus/SlashMenu.vue'
 import TableMenu from '../menus/TableMenu.vue'
@@ -186,7 +187,9 @@ watch(
 
 function handleSave() {
   if (editor.value) {
-    emit('save', editor.value.getMarkdown())
+    const md = editor.value.getMarkdown()
+    const mdWithIAL = appendTableIAL(md, editor.value)
+    emit('save', mdWithIAL)
   }
 }
 
