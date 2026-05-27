@@ -1,0 +1,14 @@
+# Reviews
+
+## Chat-V1 Post-Implementation Review — Chat-First Gates & Smart Secretary
+**Status:** draft
+**Tags:** stack:frontend
+
+| Criterion | Goal | Result | Evidence | Issue |
+|---|---|---|---|---|
+| C1 | Inline gate approval works | ✅ Pass | `GateCard.vue` renders diff, emits approve/reject | — |
+| C2 | Secretary queue enforces one-at-a-time | ✅ Pass | `useGateInbox` promotes next on resolve | — |
+| C3 | Input bar is never blocked | ✅ Pass | `SecretaryMessage` is non-blocking overlay | — |
+| C4 | Chat history contains no status noise | ✅ Pass | `step_advanced` → NO chat message (Relay-D10 rule) | — |
+
+---

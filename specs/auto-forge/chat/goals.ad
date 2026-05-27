@@ -1,0 +1,102 @@
+# Goals
+
+## Chat-G1 Chat-First Gate Approval with Smart Secretary
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Runtime-G3, Specs-G1
+
+The chat is the boss's office. All gates, regardless of origin, are delivered here. The secretary only enters when a signature is needed or the job is done.
+---
+
+## Chat-G2 Inline GateCard renders diff view with Approve/Reject/Edit
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G1
+
+- [x] GateCard appears at the bottom of chat for current-session gates
+- [x] Diff view shows what changed vs previous version with inline highlighting
+- [x] Approve button advances pipeline; Reject button prompts for reason and routes back to Advisor
+- [x] Edit escape hatch opens Specs drawer without losing gate state
+---
+
+## Chat-G3 SecretaryMessage delivers cross-session gates without blocking input
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G1
+
+- [x] Ephemeral messenger renders above input bar for gates from other sessions/runs
+- [x] Input bar remains usable; secretary waits without interrupting
+- [x] Message shows profession, session ID, and summary of proposed items
+- [x] Resolved messages collapse to compact audit line after 3 seconds
+---
+
+## Chat-G4 Gate queue enforces one-at-a-time delivery with snooze and dismiss
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G1
+
+- [x] Only one secretary message is active at a time; additional gates enqueue
+- [x] Queue pill shows "+N more" with expandable mini-list
+- [x] Snooze moves gate to back of queue with configurable timer
+- [x] Dismiss removes gate from active view but does not resolve it
+---
+
+## Chat-G5 Ambient progress indicators keep chat history free of status spam
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G1
+
+- [x] Session list shows pulsing dot + phase label for active relays
+- [x] Chat history never contains interim "Architect done" messages
+- [x] Errors are the only exception: single secretary message on unrecoverable failure
+- [x] ReportCard renders terminal completion with metrics, cost, and deliverables
+---
+
+## Chat-G6 @Mention Agent Targeting directs chat messages to named agents with sticky profession routing
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** AgentConfig-G1, Project-G1
+
+- [x] `@DisplayName` syntax in chat input resolves to profession_id via AgentConfig lookup
+- [x] Autocomplete dropdown filters agents by display name and profession_id after typing `@`
+- [x] Session stores `active_profession` — subsequent messages without `@` keep targeting the same agent
+- [x] Backend resolves profession to full agent (soul + profession system prompt) via RelayRegistry
+- [x] Agent identifies by display name in system prompt and responses (e.g., "I'm Nicole")
+- [x] @mentions render as inline styled chips in both input backdrop and message bubbles
+- [x] Tool role messages hidden from chat display; bouncing dots animation replaces empty assistant bubble
+- [x] Enter sends, Ctrl+Enter inserts newline
+- [x] Tool names renamed from jade to specs (list_jade→list_specs, etc.)
+- [x] All tools resolve file paths via project directory instead of backend CWD
+---
+
+## Chat-G7 Display name resolution and identity
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G6
+
+- [x] AgentConfig `name` field serves as display name (e.g., "Nicole", "Isaac")
+- [x] `resolveMention()` maps both display names and profession_ids to canonical profession_id
+- [x] `AgentInstance.display_name` propagated through `spawn_agent_from_config()`
+- [x] System prompt leads with "You are {display_name}" instead of "AutoForge"
+---
+
+## Chat-G8 @Mention autocomplete with backdrop overlay
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G6
+
+- [x] MentionDropdown component with keyboard navigation (up/down/enter/escape)
+- [x] `@` detection scans backwards from cursor position (not limited to start of input)
+- [x] Backdrop overlay technique renders styled @mention chips behind transparent textarea
+- [x] Selection replaces `@filter` with `@DisplayName ` at cursor position
+---
+
+## Chat-G9 Streaming Content Renderer with Mixed Markdown/JSON
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G6
+
+- [x] `useStreamingDocument` splits markdown from JSON component blocks in real-time SSE streams
+- [x] `StreamingRenderer` dispatches to component registry (table → `StreamingTable`, etc.)
+- [x] Sticky props cache handles incomplete/partial JSON without flicker
+- [x] Integrates with `markstream-vue` for incremental markdown rendering

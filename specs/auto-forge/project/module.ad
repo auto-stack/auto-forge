@@ -1,0 +1,30 @@
+# Project Module
+
+## Overview
+
+Project Concept enables VS Code–style folder opening with persistent workspace
+
+## Module Specs
+
+| Type | Count | File |
+|------|-------|------|
+| Goals | 1 | [goals.ad](goals.ad) |
+| Architecture | 3 | [architecture.ad](architecture.ad) |
+| Designs | 1 | [designs.ad](designs.ad) |
+| Plans | 2 | [plans.ad](plans.ad) |
+| Tests | 1 | [tests.ad](tests.ad) |
+
+## Navigation
+
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
+
+## ID Prefix
+
+Spec IDs in this module use the prefix **`Project-`** (e.g. `Project-G1`, `Project-D1`).

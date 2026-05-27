@@ -1,0 +1,62 @@
+# Architectures
+
+## Provider-A1 Unified Provider & Runtime Architecture
+**Status:** done
+**Tags:** stack:backend
+**Depends on:** Provider-G1, Cli-G1
+
+Two separate AI provider implementations (ai.rs for simple chat, forge/ai.rs for tool-enabled chat) created maintenance burden and duplicated SSE parsing logic. The unified provider/ module consolidates both into a single ClaudeProvider with two streaming modes, backed by a robust incremental SSE parser ported from auto-code-rs.
+
+```mermaid
+graph TB
+    subgraph "Entry Points"
+        CLI[CLI REPL] -->|chat_turn| P[ClaudeProvider]
+        WEB[Web API] -->|chat_stream| P
+        RLY[Relay Turn] -->|chat_turn| P
+    end
+    subgraph "Provider Layer"
+        P --> SSE[SseParser]
+        P --> CFG[load_api_config]
+    end
+    subgraph "Runtime"
+        CM[ContextManager]
+        SES[Session Persistence]
+        PM[PermissionPolicy]
+    end
+    subgraph "Tools"
+        TR[ToolRegistry]
+        TE[ToolError]
+    end
+
+    CLI --> CM
+    CLI --> TR
+    CLI --> PM
+    WEB --> TR
+    RLY --> TR
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Unified provider/ module (chosen) | Single source of truth, DRY, easy to add providers | All consumers must migrate imports |
+| Keep ai.rs + forge/ai.rs separate | No migration needed | Duplicate SSE logic, divergent error handling |
+| Trait-based provider abstraction | Pluggable providers | Over-engineered for single-provider use case |
+
+- Positive: Single SSE parser handles both `\r\n\r\n` and `\n\n` frame delimiters.
+- Positive: ToolError enum provides structured error classification instead of raw String.
+- Positive: Runtime infrastructure (ContextManager, Session, PermissionPolicy) available to both CLI and web modes.
+- Negative: OpenAI provider not yet ported (only Claude supported currently).
+- Mitigation: provider/ module is structured to accept additional providers without architectural changes.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

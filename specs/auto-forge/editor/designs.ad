@@ -1,0 +1,106 @@
+# Designs
+
+## Editor-D1 AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
+**Status:** draft
+**Module:** `frontend/src/components/editors/autodown/`
+**Tags:** stack:frontend
+**Depends on:** Editor-A1, Wiki-D2
+
+```typescript
+// AutoDownEditor.vue props/events
+interface AutoDownEditorProps {
+  content: string           // Markdown source
+  placeholder?: string
+  editable?: boolean
+  autofocus?: boolean
+}
+
+interface AutoDownEditorEvents {
+  'update': [markdown: string]     // Debounced on every change
+  'save': [markdown: string]       // Ctrl+S
+  'blur': []
+  'focus': []
+}
+
+// Extension factory
+function createExtensions(options?: EditorOptions): Extension[]
+
+// Slash item API
+interface SlashItem {
+  title: string
+  description: string
+  icon: Component
+  searchTerms: string[]
+  command: (ctx: { editor: Editor; range: Range }) => void
+}
+```
+
+
+```mermaid
+stateDiagram-v2
+    [*] --> Loading: mount
+    Loading --> Ready: editor initialized
+    Ready --> Editing: user types
+    Editing --> Editing: input
+    Editing --> SlashMenuOpen: type '/'
+    SlashMenuOpen --> Editing: select item or Esc
+    Editing --> BubbleMenuOpen: text selected
+    BubbleMenuOpen --> Editing: apply format or blur
+    Editing --> Dragging: drag handle engaged
+    Dragging --> Ready: drop completes
+    Editing --> Saving: Ctrl+S
+    Saving --> Ready: emit save event
+    Ready --> [*]: unmount
+```
+
+
+| Field | Type | Description |
+|---|---|---|
+| `editor` | `Editor` | Tiptap Editor instance (ProseMirror wrapper) |
+| `doc` | `JSONContent` | ProseMirror document tree (internal source of truth) |
+| `markdown` | `string` | Serialized persistence format |
+| `slashQuery` | `string` | Current filter text after '/' |
+| `slashRange` | `Range` | ProseMirror selection range when '/' triggered |
+| `bubbleVisible` | `boolean` | Whether bubble menu should render |
+
+
+```
+fn onUpdate({ editor }):
+    markdown = editor.storage.markdown.getMarkdown()
+    emit('update', markdown)
+
+fn onSlashTrigger({ query, range }):
+    slashQuery = query
+    slashRange = range
+    slashItems = filter(allSlashItems, query)
+    slashMenuOpen = true
+
+fn onSlashSelect(item):
+    editor.chain().focus().deleteRange(slashRange).run()
+    item.command({ editor, range: slashRange })
+    slashMenuOpen = false
+
+fn onKeydown(event):
+    if event.key == 'Mod-s':
+        event.preventDefault()
+        emit('save', editor.storage.markdown.getMarkdown())
+    if event.key == 'Mod-a':
+        // Notion-style: first press selects node, second selects all
+        if not selectionCoversFullNode:
+            editor.commands.selectTextWithinNodeBoundaries()
+            event.preventDefault()
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

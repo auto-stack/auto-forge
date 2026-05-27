@@ -1,0 +1,915 @@
+# Designs
+
+## Relay-D1 PipelineEngine & Flow Execution
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/pipeline.rs`
+**Tags:** stack:backend
+**Depends on:** Relay-A1, AgentConfig-D1
+
+```rust
+pub struct PipelineEngine {
+    pub flow: FlowSpec,
+    pub current_step: usize,
+    pub current_agent: Option<AgentInstance>,
+    pub checkpoints: Vec<Checkpoint>,
+    pub status: PipelineStatus,
+    pub run_id: String,
+}
+
+impl PipelineEngine {
+    /// Load a flow spec and initialize the pipeline.
+    pub fn new(flow: FlowSpec, run_id: String) -> Self;
+
+    /// Execute the next step in the flow.
+    pub async fn execute_next(&mut self) -> StepResult;
+
+    /// Pause the current run, saving checkpoint.
+    pub async fn pause(&mut self) -> Result<Checkpoint, PipelineError>;
+
+    /// Resume from a checkpoint.
+    pub async fn resume(checkpoint: &Checkpoint) -> Result<Self, PipelineError>;
+
+    /// Rollback to a previous checkpoint.
+    pub async fn rollback(target: u64) -> Result<(), PipelineError>;
+
+    /// Handle human approval/rejection at a gate.
+    pub async fn resolve_gate(&mut self, decision: GateDecision) -> Result<(), PipelineError>;
+}
+
+pub enum PipelineStatus {
+    Idle,
+    Running { agent_id: String, started_at: u64 },
+    WaitingForHuman { gate: Gate, since: u64 },
+    Completed { result: CompletionResult },
+    Failed { error: String, checkpoint: u64 },
+    Paused { at_checkpoint: u64 },
+}
+
+pub enum StepResult {
+    Handoff { to: String, checkpoint: Checkpoint },
+    GateTriggered { gate: Gate },
+    LoopBack { to: String, iteration: u32 },
+    Complete,
+    Error { message: String },
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: Flow loaded
+    Idle --> Running: execute_next() called
+    Running --> Running: Loop iteration
+    Running --> WaitingForHuman: Gate triggered
+    WaitingForHuman --> Running: Approved
+    WaitingForHuman --> Running: Rejected (redraft)
+    Running --> Paused: pause() called
+    Paused --> Running: resume() called
+    Running --> Completed: Final step done
+    Running --> Failed: Unrecoverable error
+    Failed --> Idle: reset
+    Completed --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `flow.id` | `String` | Flow specification identifier |
+| `current_step` | `usize` | Index into flow.steps vector |
+| `status` | `PipelineStatus` | Current state machine state |
+| `checkpoints` | `Vec<Checkpoint>` | Ordered list of saved states |
+| `run_id` | `String` | Unique run identifier |
+
+```
+fn execute_next():
+    step = flow.steps[current_step]
+    profession = registry.get(&step.profession_id)
+    
+    // Gate check
+    if step.gate == Human:
+        status = WaitingForHuman { gate: step.gate }
+        return StepResult::GateTriggered { gate }
+    
+    // Spawn agent
+    agent = AgentInstance::spawn(profession, ...)
+    status = Running { agent_id: agent.id, started_at: now() }
+    
+    // Run agent turn loop
+    loop:
+        result = agent.turn(filtered_tools)
+        if result.is_handoff():
+            checkpoint = create_checkpoint(agent, result)
+            advance_step_or_loop()
+            return StepResult::Handoff { to: next_profession, checkpoint }
+        if result.is_budget_exceeded():
+            return StepResult::Error { message: "Budget exceeded" }
+        if agent.turns_taken >= step.max_turns:
+            return StepResult::Error { message: "Max turns exceeded" }
+```
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D2 HandoffDocument Generation
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/handoff.rs`
+**Tags:** stack:backend
+**Depends on:** Relay-G2, AgentConfig-D1
+
+```rust
+pub struct HandoffDocument {
+    pub from: String,
+    pub to: String,
+    pub run_id: String,
+    pub checkpoint_id: u64,
+    pub summary: String,
+    pub decisions: Vec<Decision>,
+    pub open_questions: Vec<Question>,
+    pub spec_updates: Vec<SpecUpdate>,
+    pub work_product: Vec<WorkProduct>,
+    pub context_for_next: ContextPointers,
+    pub token_usage: TokenUsage,
+}
+
+impl HandoffDocument {
+    /// Generate from agent turn history and current state.
+    pub fn generate(
+        agent: &AgentInstance,
+        turn_history: &[TurnRecord],
+        specs: &SpecsDocument,
+    ) -> Result<Self, HandoffError>;
+
+    /// Render as markdown for the next agent's consumption.
+    pub fn render(&self) -> String;
+
+    /// Compress raw turn history into summary using cheap model or rules.
+    pub async fn compress_history(
+        history: &[TurnRecord],
+        model: &ModelConfig,
+    ) -> Result<String, CompressionError>;
+}
+
+pub struct ContextPointers {
+    pub files_to_read: Vec<String>,
+    pub specs_to_follow: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+pub struct TokenUsage {
+    pub step_input: u64,
+    pub step_output: u64,
+    pub cumulative: u64,
+    pub budget_remaining: u64,
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Collecting: Agent turn complete
+    Collecting --> Summarizing: Raw history gathered
+    Summarizing --> Structured: Decisions extracted
+    Structured --> Validated: Open questions identified
+    Validated --> Rendered: Work product catalogued
+    Rendered --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `summary` | `String` | ≤200 words executive summary |
+| `decisions.id` | `String` | Decision identifier |
+| `decisions.status` | `String` | made / deferred / rejected |
+| `open_questions.id` | `String` | Question identifier |
+| `spec_updates.section_id` | `String` | Which spec section was modified |
+| `work_product.path` | `String` | File path or artifact location |
+| `work_product.lines` | `u32` | Size indicator for context sizing |
+
+```
+fn generate(agent, turn_history, specs):
+    // Phase 1: Summarize (cheap model or rules)
+    summary = compress_history(turn_history, cheap_model)
+    
+    // Phase 2: Extract decisions from agent's explicit handoff tool calls
+    decisions = extract_decisions(turn_history)
+    
+    // Phase 3: Identify open questions from handoff tool calls
+    questions = extract_open_questions(turn_history)
+    
+    // Phase 4: Catalog spec changes made by agent
+    spec_updates = diff_specs(original_specs, current_specs)
+    
+    // Phase 5: List files touched
+    work_product = agent.context.files_touched
+    
+    // Phase 6: Build context pointers for next agent
+    pointers = build_context_pointers(agent.profession, next_profession, specs)
+    
+    return HandoffDocument { ... }
+```
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D3 Checkpoint Serialization
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/checkpoint.rs`
+**Tags:** stack:backend
+**Depends on:** Relay-A2
+
+```rust
+pub struct Checkpoint {
+    pub id: u64,
+    pub run_id: String,
+    pub timestamp: u64,
+    pub git_commit: Option<String>,
+    pub git_diff: Option<String>,
+    pub ledger_state: SpecsDocument,
+    pub handoff: HandoffDocument,
+    pub file_manifest: Vec<FileState>,
+    pub token_usage: TokenUsage,
+}
+
+pub struct FileState {
+    pub path: String,
+    pub hash: String,  // SHA-256
+    pub size: u64,
+}
+
+impl Checkpoint {
+    /// Create checkpoint from current pipeline state.
+    pub async fn create(engine: &PipelineEngine) -> Result<Self, CheckpointError>;
+
+    /// Serialize to disk.
+    pub fn save(&self, dir: &Path) -> Result<(), CheckpointError>;
+
+    /// Load from disk.
+    pub fn load(dir: &Path, checkpoint_id: u64) -> Result<Self, CheckpointError>;
+
+    /// Restore file system state from checkpoint.
+    pub async fn restore_files(&self, project_dir: &Path) -> Result<(), CheckpointError>;
+
+    /// Restore git state.
+    pub async fn restore_git(&self) -> Result<(), CheckpointError>;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Capturing: Handoff triggered
+    Capturing --> GitSnapshot: File manifest built
+    GitSnapshot --> LedgerSnapshot: Git commit or diff captured
+    LedgerSnapshot --> Serializing: Ledger embedded
+    Serializing --> Persisted: JSON written to disk
+    Persisted --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `u64` | Monotonic within run |
+| `git_commit` | `Option<String>` | Full SHA if auto-commit succeeded |
+| `git_diff` | `Option<String>` | Patch if working tree was dirty |
+| `ledger_state` | `SpecsDocument` | Deep copy of specs at this point |
+| `file_manifest` | `Vec<FileState>` | Hash of every touched file |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D4 TokenBudget Enforcement
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/budget.rs`
+**Tags:** stack:backend
+**Depends on:** Runtime-G2
+
+```rust
+pub struct TokenBudget {
+    pub limit: u64,
+    pub warning_at: u64,
+    pub strategy: BudgetStrategy,
+}
+
+pub enum BudgetStrategy {
+    HardStop,
+    EscalateModel,
+    SummarizeContext,
+    SkipOptional,
+}
+
+pub struct BudgetTracker {
+    pub run_budget: TokenBudget,
+    pub step_budgets: HashMap<String, TokenBudget>,
+    pub cumulative: u64,
+    pub per_step: HashMap<String, u64>,
+}
+
+impl BudgetTracker {
+    /// Record token usage from an API response.
+    pub fn record(&mut self, step: &str, input: u64, output: u64);
+
+    /// Check if current spend triggers any budget action.
+    pub fn check(&self, step: &str) -> BudgetAction;
+
+    /// Estimate "parallel cost" for analytics.
+    pub fn estimate_parallel_cost(&self, num_agents: u32, avg_context: u64) -> u64;
+}
+
+pub enum BudgetAction {
+    None,
+    Warning { remaining: u64 },
+    Compress,
+    HardStop,
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `limit` | `u64` | Hard token limit |
+| `warning_at` | `u64` | Percentage (0-1) of limit where warning fires |
+| `strategy` | `BudgetStrategy` | Action when limit reached |
+| `cumulative` | `u64` | Total tokens this run |
+| `per_step` | `HashMap` | Tokens per profession/step |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D5 RelayMode & GSD Flow Control
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/pipeline.rs`
+**Tags:** stack:backend
+**Depends on:** Runtime-G3, Relay-D1
+
+```rust
+pub enum RelayMode {
+    GSD,      // Get Shit Done — autonomous, only GoalGate is human
+    Check,    // Human reviews every gate
+}
+
+pub enum ForgePhase {
+    Intake,
+    Discovery,
+    GoalGate,
+    Design,
+    Planning,
+    Execution,
+    Verification,
+    Report,
+}
+
+pub struct PipelineEngine {
+    pub flow: FlowSpec,
+    pub current_step: usize,
+    pub current_agent: Option<AgentInstance>,
+    pub checkpoints: Vec<Checkpoint>,
+    pub status: PipelineStatus,
+    pub run_id: String,
+    pub mode: RelayMode,  // NEW
+}
+
+impl PipelineEngine {
+    /// Evaluate gate based on RelayMode.
+    /// GSD: only GoalGate triggers human pause.
+    /// Check: every gate triggers human pause.
+    pub fn evaluate_gate(&self, step: &FlowStep) -> GateDecision;
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `mode` | `RelayMode` | GSD (default) or Check |
+| `phase` | `ForgePhase` | Extended to 8 phases including Discovery, GoalGate, Design, Planning, Report |
+
+```
+fn evaluate_gate(step, mode):
+    if mode == Check:
+        return HumanGate
+    if mode == GSD:
+        if step.profession == "advisor" and step.exit == "handoff_to_architect":
+            return HumanGate  // Goal approval required
+        return AutoGate  // Everything else autonomous
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D6 useGateInbox State Machine
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/composables/useGateInbox.ts`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A1
+
+```typescript
+interface PendingGate {
+  id: string
+  type: 'session' | 'run'
+  gateType: 'goal' | 'spec' | 'review'
+  title: string
+  profession: string
+  since: number
+  context: {
+    sessionId?: string
+    runId?: string
+    sectionId?: string
+    itemId?: string
+  }
+}
+
+interface GateInboxState {
+  pending: PendingGate[]
+  active: PendingGate | null
+  resolved: PendingGate[]
+}
+
+function registerGate(gate: PendingGate): void
+function resolveGate(id: string): void
+function dismissSecretary(): void
+function snoozeGate(id: string, minutes: number): void
+```
+
+```
+fn registerGate(gate):
+    if active is null:
+        active = gate
+    else:
+        pending.push(gate)
+
+fn resolveGate(id):
+    if active?.id == id:
+        resolved.push(active)
+        active = pending.shift() ?? null
+    else:
+        pending.remove(where g.id == id)
+        resolved.push(g)
+
+fn snoozeGate(id, minutes):
+    if active?.id == id:
+        pending.push(active)
+        active = null
+        setTimeout(() => registerGate(active), minutes * 60000)
+```
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D7 Relay PipelinePanel Node-Graph
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/views/RelayView.vue`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A1
+
+```typescript
+interface PipelineNode {
+  id: string
+  profession: string
+  status: 'pending' | 'working' | 'done' | 'error' | 'waiting_gate'
+  tokens: number
+  cost: number
+  elapsedMs: number
+  outputs: string[]
+  currentAction?: string
+}
+
+interface PipelineEdge {
+  from: string
+  to: string
+  type: 'forward' | 'retry' | 'handoff'
+}
+```
+
+- Desktop (`≥1024px`): horizontal flexbox with absolute-positioned SVG connectors
+- Mobile (`<1024px`): vertical timeline with CSS border-left connectors
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D8 Expanded Node Card
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/NodeCard.vue`
+**Tags:** stack:frontend
+**Depends on:** Relay-D7
+
+```typescript
+interface NodeCardProps {
+  node: PipelineNode
+}
+```
+
+1. **Overview**: tokens, elapsed time, status, profession icon
+2. **Actions**: chronological tool call history (read_jade, write_file, etc.)
+3. **Output**: specs touched with click-to-jump links
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D9 GatePanel (Relay View)
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/GatePanel.vue`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A1, Relay-D6
+
+```typescript
+interface GatePanelProps {
+  runId: string
+  gate: PendingGate
+  professionIcon: string
+}
+
+// Events
+emit('approve', runId: string)
+emit('reject', runId: string)
+emit('reviewInSpecs', sectionId: string)
+```
+
+- Renders inside `PipelinePanel` when `currentRun.waiting_for_gate` is non-null
+- Shows profession icon, gate title, and elapsed waiting time
+- Provides Approve / Reject / Review in Specs actions
+- Non-blocking: pipeline animation continues in background
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D10 SSE Frontend Event Router
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/composables/useEventRouter.ts`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A1, Relay-D6
+
+```typescript
+interface SSEEvent {
+  type: 'run_started' | 'step_advanced' | 'spec_written'
+       | 'gate_reached' | 'gate_resolved'
+       | 'handoff_submitted' | 'run_completed'
+  runId: string
+  payload: Record<string, unknown>
+}
+
+function useEventRouter() {
+  function handleEvent(event: SSEEvent, currentView: 'chat' | 'specs' | 'relay')
+}
+```
+
+| Event | Chat View | Specs View | Relay View |
+|---|---|---|---|
+| `run_started` | System message | — | Highlight run |
+| `step_advanced` | **NO action** (ambient only) | — | Animate node |
+| `spec_written` | — | Flash changed section | — |
+| `gate_reached` | SecretaryMessage | GateBanner | GatePanel |
+| `gate_resolved` | Collapse message | Hide banner | Hide panel |
+| `handoff_submitted` | — | — | Append to Live Log |
+| `run_completed` | ReportCard | Update Reports | Mark run done |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D11 Spawn Relay Tool & Background Driver
+**Status:** implemented
+**Module:** `backend/src/forge/tools.rs`, `backend/src/relay/driver.rs`, `backend/src/forge/mod.rs`
+**Tags:** stack:backend
+**Depends on:** Relay-G13, Relay-A4, Relay-D1, Chat-D3, Errand-D1
+
+### SpawnRelayTool
+
+```rust
+pub struct SpawnRelayTool;
+
+impl Tool for SpawnRelayTool {
+    fn name(&self) -> &'static str { "spawn_relay" }
+
+    fn description(&self) -> &'static str {
+        "Spawn an autonomous background relay pipeline. \
+         Use this after you have completed discovery and written goals \
+         to hand off execution to a serial pipeline of profession agents."
+    }
+
+    fn input_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "required": ["flow_id", "task"],
+            "properties": {
+                "flow_id": {
+                    "type": "string",
+                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix"]
+                },
+                "task": { "type": "string" },
+                "mode": { "type": "string", "enum": ["gsd", "check"], "default": "gsd" },
+                "context": { "type": "string" }
+            }
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        // 1. Validate flow_id and mode
+        // 2. Validate caller profession has spawn_relay in allowed_tools
+        // 3. Generate run_id = format!("run-{}", Uuid::new_v4())
+        // 4. Return JSON with relay_spawned, run_id, flow_id, monitor_url
+    }
+}
+```
+
+### Profession Allowlist
+
+| Profession | `spawn_relay` in allowed_tools | Typical use case |
+|---|---|---|
+| assistant | ✅ | Intake complete → spawn standard flow |
+| advisor | ✅ | **Discovery complete → spawn post_discovery flow** |
+| architect | ✅ | Design complete → spawn from planner step |
+| planner | ❌ | — |
+| tester | ❌ | — |
+| coder | ❌ | — |
+| reviewer | ❌ | — |
+| documenter | ❌ | — |
+
+### Forge Stream Handler Interception
+
+```rust
+// In forge_stream ReAct loop, after tool execution:
+if name == "spawn_relay" {
+    if let Ok(data) = serde_json::from_str::<Value>(&result_str) {
+        if data.get("relay_spawned").and_then(|v| v.as_bool()) == Some(true) {
+            // 1. Build FlowSpec from flow_id
+            let flow = match flow_id.as_str() {
+                "standard" => standard_spec_flow(),
+                "post_discovery" => post_discovery_flow(),
+                // ...
+            };
+
+            // 2. Start run in RunStore
+            start_run(run_store, flow, &run_id);
+            set_mode_on_engine(mode);
+
+            // 3. Spawn background driver
+            tokio::spawn(relay::driver::drive_run(
+                run_id.clone(),
+                run_store.clone(),
+                event_sender(),
+                provider.clone(),
+                task,
+                project_path,
+            ));
+
+            // 4. Emit RelaySpawned SSE to chat
+            event_tx.send(ForgeStreamEvent::RelaySpawned { ... });
+
+            // 5. Replace result with friendly message
+            result_str = "Relay pipeline started: {run_id}...";
+        }
+    }
+}
+```
+
+### RelayDriver
+
+```rust
+pub async fn drive_run(
+    run_id: String,
+    run_store: RunStore,
+    event_tx: broadcast::Sender<RunEventBroadcast>,
+    provider: ClaudeProviderState,
+    initial_task: String,
+    project_path: String,
+) {
+    set_tool_context(&project_path, &run_id);
+
+    loop {
+        match advance_run(&run_store, &run_id) {
+            Some(ExecuteStep { step_id, profession_id, .. }) => {
+                // Build agent from RelayRegistry default config
+                let agent = build_agent(&profession_id);
+
+                // Build messages: task + previous handoff + gate feedback
+                let messages = build_step_messages(...);
+
+                // Run AgentTurn
+                let mut turn = AgentTurn::new(agent, ToolRegistry::new(), messages);
+                turn.max_turns = turn.agent.profession.max_turns;
+                let result = turn.run(&*provider, event_drain_tx).await;
+
+                // Build and submit handoff
+                let handoff = turn.to_handoff(&result, "next", &run_id, 0);
+                let next = submit_handoff(&run_store, &run_id, handoff);
+
+                // Handle next result...
+            }
+            Some(WaitForHuman { .. }) => {
+                wait_for_gate_resolution(&run_store, &run_id, &event_tx).await;
+            }
+            Some(Completed) | Some(Failed { .. }) | None => break,
+        }
+    }
+}
+```
+
+### Step Message Construction
+
+```
+## Task
+
+{initial_task}
+
+## Previous Agent's Handoff
+
+{previous_handoff.render()}
+
+## Feedback from Previous Attempt
+
+- {gate_feedback[0]}
+- {gate_feedback[1]}
+
+You are step '{step_id}' ({profession_id}) in a relay pipeline.
+Do your work using available tools. When finished, stop making tool calls.
+```
+
+### Frontend SSE Events
+
+```typescript
+// New ForgeStreamEvent variants
+interface ForgeStreamEvent {
+  type: 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
+  run_id: string
+  flow_id?: string
+  step_id?: string
+  profession_id?: string
+  status?: string
+  summary?: string
+  tokens_used?: number
+}
+```
+
+### Chat UI: Relay Card
+
+```vue
+<div class="relay-card">
+  <div class="relay-header">
+    <span class="relay-icon">🚀</span>
+    <span class="relay-name">Relay: {{ flow_id }}</span>
+    <span class="relay-status" :class="status">{{ status }}</span>
+    <button class="relay-view-btn" @click="goToRelayRun(run_id)">
+      Monitor →
+    </button>
+  </div>
+  <div v-if="task" class="relay-task">{{ task }}</div>
+  <div v-if="summary" class="relay-summary">{{ summary }}</div>
+</div>
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-D12 Cross-View Event Router & Gate Inbox Composables
+**Status:** implemented
+**Module:** `frontend/src/composables/useEventRouter.ts`, `useGateInbox.ts`
+**Tags:** stack:frontend
+**Depends on:** Relay-A5
+
+- Subscribe to relay SSE events and route by type to view callbacks
+- Maintain FIFO gate queue with snooze timer and dismiss state
+- Expose `pendingCount`, `activeGate`, `resolveGate()` to UI
+- Filter errand events by `parent_session_id` to avoid cross-talk
+
+- `useRelay.ts` for SSE connection
+- `useForge.ts` for session context
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

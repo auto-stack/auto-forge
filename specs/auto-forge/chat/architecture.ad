@@ -1,0 +1,118 @@
+# Architectures
+
+## Chat-A1 Chat Ephemeral Chrome Architecture
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G1
+
+Persisting cross-session gate messages into the current session's `ForgeMessage` array would pollute the chat audit trail with foreign conversation state. The backend `ForgeMessage` schema has no `gate` role and should not be extended for UI chrome.
+
+
+```mermaid
+graph LR
+    A[useGateInbox.active] -->|v-if| B[SecretaryMessage.vue]
+    C[messages: ForgeMessage[]] -->|v-for| D[ChatMessage.vue]
+    B -.->|ephemeral| E[Chat DOM]
+    D -->|persisted| E
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Ephemeral Vue components (chosen) | Clean backend schema, no migration, chat history is accurate | Secretary messages disappear on refresh unless inbox is hydrated |
+| Persisted `system` role messages | Survives refresh, simple rendering | Pollutes session history with external state; backend schema change |
+| Separate "inbox" message stream | Clean separation | Complex UI: two message streams to render and scroll |
+
+- Positive: Backend `ForgeMessage` schema unchanged.
+- Positive: Chat history export contains only this session's conversation.
+- Negative: Page refresh loses the visual secretary message (but not the gate state, which is in `useGateInbox` and can be rehydrated).
+- Mitigation: On mount, `useGateInbox` fetches `/api/forge/gates/pending` and re-renders any active gates.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-A2 Chat-Turn Agent Handoff Architecture
+**Status:** proposed
+**Tags:** stack:both
+**Depends on:** Chat-G6, Relay-G9
+
+The relay pipeline (Relay-A1) uses formal `HandoffDocument` generation between steps, but the free-form chat flow has no handoff mechanism. The assistant (Nicole) classifies user intent but cannot act on that classification — she answers everything herself with all tools. The bring-in tool bridges this gap by letting Nicole invoke another agent mid-conversation, passing structured context so the receiving agent doesn't ask the user to repeat.
+
+```mermaid
+graph LR
+    U[User Message] --> N[Nicole: Assistant]
+    N -->|classify| D{Intent?}
+    D -->|QUESTION| AN[Nicole answers]
+    D -->|DIRECT| AN
+    D -->|NEW_GOAL| B[bring_in tool]
+    D -->|REQ_UPDATE| B
+    B -->|handoff note| I[Isaac: Advisor]
+    I -->|continue chat| U
+    B -->|handoff note| ASH[Ash: Coder]
+    ASH -->|continue chat| U
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| bring_in tool with handoff note (chosen) | Seamless, no user action needed, context preserved | LLM must reliably call the tool; adds tool to ReAct loop |
+| Suggest + user @mentions | Simple, no new tool | Nicole can't act autonomously; user must remember to @mention |
+| Automatic backend routing based on classification | No LLM tool call needed | Requires structured classification output; brittle |
+
+- Positive: Nicole acts as a real dispatcher — she connects users to the right specialist.
+- Positive: Handoff note preserves context, so the next agent starts informed.
+- Positive: Frontend shows a visual handoff card, not raw tool output.
+- Negative: LLM must reliably call bring_in with correct target; may need prompt tuning.
+- Mitigation: Nicole's soul already instructs classification; bring_in is the natural action after classification. Validation rejects invalid targets (not in handoff_to).
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-A3 Streaming Content Renderer Architecture
+**Status:** approved
+**Tags:** stack:frontend
+
+| Component | Responsibility |
+|---|---|
+| `useStreamingDocument.ts` | Parses interleaved markdown + JSON blocks from SSE chunks |
+| `StreamingRenderer.vue` | Receives segments array, renders markdown or registered components |
+| `StreamingTable.vue` | Renders JSON table data with sticky headers |
+| `SseParser` (backend) | Handles `\r\n\r\n` and `\n\n` delimiters robustly |
+
+- Parser maintains a sticky props cache so partial JSON tables don't lose column definitions
+- Component registry is extensible: add `{ table: StreamingTable }` to support new block types
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

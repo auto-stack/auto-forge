@@ -1,0 +1,26 @@
+# Reports
+
+## UiSystem-R1 — Frontend Gap Closure Report (Post-Implementation)
+**Status:** draft
+**Tags:** stack:frontend
+
+All identified gaps from Specs-R1 have been implemented and verified. The frontend now supports the complete Smart Secretary pattern, live pipeline visualization, specs workspace depth, mode-aware gate filtering, and mobile-responsive accessibility.
+
+| Gap | Status | Evidence |
+|---|---|---|
+| Chat-P1: ReportCard trigger | ✅ Closed | `setEventCallbacks({ onReport })` in `ChatsView.vue` |
+| Relay-P8: Live Log data | ✅ Closed | `_liveLog` populated from SSE in `useRelay.ts` |
+| Relay-P8: Per-profession Cost Breakdown | ✅ Closed | `professionTokens` ref + bars in `AgentsView.vue` |
+| Specs-P1: Drift check visualization | ✅ Closed | `driftResult` panel with severity colors in `SpecsView.vue` |
+| Relay-P9: Mode toggle filters gates | ✅ Closed | `useForgeMode` + `showGatePanel` computed |
+| Relay-P9: Event router in useForge SSE | ✅ Closed | `useEventRouter` wired into `streamResponse` |
+| UiSystem-P1: Mobile bottom sheets | ✅ Closed | `@media (max-width: 768px)` across all views |
+| UiSystem-P1: Focus management | ✅ Closed | `approveBtnRef` + `onMounted` in `GateCard.vue` |
+| UiSystem-P1: Screen reader annotations | ✅ Closed | `aria-label` on pipeline steps + `aria-live` region |
+
+```
+vue-tsc -b && vite build  ✅  built in 19.67s
+```
+
+- Vite dev server: `http://localhost:5174/forge/`
+- AutoForge API: `http://localhost:3031`

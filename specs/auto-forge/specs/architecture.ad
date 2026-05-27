@@ -1,0 +1,142 @@
+# Architectures
+
+## Specs-A1 Goals Hierarchy Architecture
+**Status:** draft
+**Tags:** stack:frontend
+
+```mermaid
+graph TB
+    subgraph "Backend - Rust"
+        SM[SpecItem Model] --> PI[Parent ID Parser]
+        PI -->|derives| PID[parent_id field]
+        SM --> TG[Tag Parser]
+        TG -->|extracts| TK[typed tags: module:wiki]
+        
+        subgraph "Storage"
+            GF[goals.md]
+        end
+        
+        SM --> GF
+    end
+    
+    subgraph "Frontend - Vue 3"
+        GC[GoalsContainer] --> GT[GoalsTree]
+        GT --> GN[GoalNode]
+        GN -->|recursive| GN
+        
+        GN --> TB[TagBadge]
+        GN --> EXP[ExpandCollapse]
+        
+        subgraph "State"
+            VS[ViewState]
+            VS -->|collapsed| GT
+            VS -->|filter| GF
+        end
+    end
+    
+    GF -->|API| GC
+```
+
+```rust
+fn derive_parent_id(id: &str) -> Option<String> {
+    // Pattern: Specs-G3 -> parent is Specs-G2
+    // Pattern: G21.1 -> parent is Specs-G7
+    // Pattern: AgentConfig-G1 (no dots) -> no parent (top-level)
+    
+    if let Some(last_dot_pos) = id.rfind('.') {
+        let parent_id = &id[..last_dot_pos];
+        
+        // Validate: parent must exist and be a top-level goal
+        if is_valid_goal(parent_id) {
+            return Some(parent_id.to_string());
+        }
+    }
+    
+    None
+}
+
+fn is_valid_goal(id: &str) -> bool {
+    // Check if ID matches pattern G<digits> (top-level only)
+    Regex::new(r"^G\d+$").unwrap().is_match(id)
+}
+```
+
+```rust
+fn extract_typed_tags(content: &str) -> Vec<Tag> {
+    // Parse tags from content, filter for typed tags (kind:value)
+    let mut tags = Vec::new();
+    
+    for line in content.lines() {
+        if let Some(caps) = TAG_REGEX.captures(line) {
+            let kind = caps.get(1).map(|m| m.as_str()).unwrap_or("untagged");
+            let value = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+            tags.push(Tag { kind: kind.to_string(), value: value.to_string() });
+        }
+    }
+    
+    tags
+}
+
+// Tag format: [kind:value] or kind:value
+const TAG_REGEX: &str = r"(\w+):(\w+)";
+```
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecItem {
+    pub id: String,
+    pub title: String,
+    pub content: String,
+    pub status: Status,
+    
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    #[serde(default)]
+    pub related: Vec<String>,
+    
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priority: Option<String>,
+    
+    // ─── NEW: Hierarchy fields ─────────────────────────────
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,  // Derived from ID (Specs-G3 -> Specs-G2)
+    #[serde(default)]
+    pub tags: Vec<Tag>,             // Typed tags: {kind, value}
+    
+    pub created_at: u64,
+    pub modified_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tag {
+    pub kind: String,   // e.g., "module", "team", "priority"
+    pub value: String,  // e.g., "wiki", "ui", "p0"
+}
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| ID-based derivation | Simple, no extra fields needed | Limited to one level |
+| Explicit parent_id field | Flexible, supports deep nesting | Requires manual maintenance |
+| Content-based tag parsing | Rich metadata | Requires parsing markdown |
+
+- **Positive**: Goals automatically organized by ID convention (agents control hierarchy)
+- **Positive**: Tags enable cross-cutting classification (module, team, priority)
+- **Negative**: Limited to one-level hierarchy (G9.1.2 is invalid)
+- **Negative**: Tag parsing requires consistent format
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

@@ -1,0 +1,29 @@
+# Plans
+
+## Provider-P1 Merge auto-code-rs into auto-forge
+**Status:** done
+**Tags:** stack:backend
+**Depends on:** —
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Provider-P15.1 | Unified provider layer (ClaudeProvider + SseParser + unified types) | Core | 3 days | — | Done |
+| Provider-P15.2 | Unified tool system (ToolError, ToolRegistry, is_read_only) | Core | 1 day | Provider-P15.1 | Done |
+| Provider-P15.3 | Runtime infrastructure (ContextManager, Session, PermissionPolicy) | Core | 1 day | Provider-P15.1 | Done |
+| Provider-P15.4 | CLI mode (clap dispatch, REPL, settings) | Core | 1 day | Provider-P15.2, Provider-P15.3 | Done |
+| Provider-P15.5 | Move Auto language assets to auto-lang monorepo | Core | 1 day | — | Done |
+| Provider-P15.6 | Cleanup: archive auto-code-rs, update docs, verify tests | Core | 0.5 day | Provider-P15.1-Provider-P15.5 | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

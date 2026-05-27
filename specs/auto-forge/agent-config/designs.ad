@@ -1,0 +1,158 @@
+# Designs
+
+## AgentConfig-D1 AgentInstance & Soul Rendering
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/agent.rs`
+**Tags:** stack:backend
+**Depends on:** AgentConfig-A1
+
+```rust
+pub struct AgentInstance {
+    pub id: String,
+    pub profession: Profession,
+    pub soul: SoulConfig,
+    pub model: ModelConfig,
+    pub context: AgentContext,
+}
+
+impl AgentInstance {
+    /// Spawn a new agent for a pipeline step.
+    /// Loads Soul from disk, resolves model config (with fallback chain).
+    pub fn spawn(
+        profession: &Profession,
+        soul_id: &str,
+        handoff: &HandoffDocument,
+        specs: &SpecsDocument,
+    ) -> Result<Self, AgentError>;
+
+    /// Render the system prompt from Soul + Profession + context.
+    pub fn render_system_prompt(&self) -> String;
+
+    /// Render the user message from Handoff + relevant Specs.
+    pub fn render_user_message(&self) -> Vec<ChatMessage>;
+
+    /// Execute one turn of the ReAct loop.
+    pub async fn turn(&mut self, tools: &[Box<dyn Tool>]) -> TurnResult;
+}
+
+pub struct SoulConfig {
+    pub id: String,
+    pub name: String,
+    pub markdown: String,
+    pub values: Vec<String>,
+    pub handoff_ritual: String,
+}
+
+pub struct ModelConfig {
+    pub provider: Provider,
+    pub model: String,
+    pub temperature: f32,
+    pub max_tokens: u32,
+    pub reasoning_budget: Option<u32>,
+    pub fallback_chain: Vec<String>,
+}
+
+pub enum Provider {
+    Anthropic,
+    OpenAI,
+    Local { url: String },
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unresolved: Soul ID provided
+    Unresolved --> Resolved: Soul loaded from disk
+    Resolved --> Ready: Model config validated
+    Ready --> Thinking: Turn started
+    Thinking --> ToolCall: LLM requests tool
+    ToolCall --> Thinking: Tool result returned
+    Thinking --> Complete: LLM finishes
+    Thinking --> Error: API failure
+    Error --> Ready: Fallback model activated
+    Error --> Failed: Fallback exhausted
+    Complete --> [*]
+    Failed --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | UUID for this agent instance |
+| `profession.id` | `String` | Reference to Profession registry |
+| `soul.id` | `String` | Reference to Soul config file |
+| `model.provider` | `Provider` | API provider enum |
+| `model.fallback_chain` | `Vec<String>` | Ordered list of alternative models |
+| `context.budget_used` | `u64` | Tokens consumed this step |
+| `context.turns_taken` | `u32` | Number of LLM turns this step |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## AgentConfig-D2 Profession Registry (v2)
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/profession.rs`
+**Tags:** stack:backend
+**Depends on:** AgentConfig-G1, Specs-G1
+
+```rust
+pub struct Profession {
+    pub id: String,
+    pub name: String,
+    pub phase: ForgePhase,
+    pub owned_sections: Vec<SectionType>,
+    pub readable_sections: Vec<SectionType>,
+    pub allowed_tools: Vec<String>,
+    pub handoff_to: Vec<String>,
+    pub approval_gates: Vec<String>,
+    pub max_turns: u32,
+    pub token_budget: u64,
+}
+```
+
+
+| Profession | Phase | Owned Specs | Model Tier | Gate |
+|---|---|---|---|---|
+| Assistant | Intake | None | Light | Auto |
+| Advisor | Discovery | Goals | Medium | Human (GSD) / Human (Check) |
+| Architect | Design | Architecture, Designs | Heavy | Auto (GSD) / Human (Check) |
+| Planner | Planning | Plans | Medium | Auto |
+| Coder | Execution | None (code) | Heavy | Auto |
+| Tester | Execution | Tests | Medium | Auto |
+| Reviewer | Verification | Reviews | Heavy | Auto |
+| Documenter | Report | Reports | Light | Auto |
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | profession identifier |
+| `phase` | `ForgePhase` | which phase this profession runs in |
+| `owned_sections` | `Vec<SectionType>` | specs this profession can write |
+| `readable_sections` | `Vec<SectionType>` | specs this profession can read |
+| `approval_gates` | `Vec<String>` | handoff targets that require approval |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

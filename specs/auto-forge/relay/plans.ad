@@ -1,0 +1,316 @@
+# Plans
+
+## Relay-P1 Agents Relay — Foundation
+**Status:** done
+**Tags:** stack:both
+**Depends on:** AgentConfig-G1, Relay-G1, Relay-G2, AgentConfig-D1, Relay-D2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P1.1 | Soul + Profession data model and registry | Tooling | 3 days | AgentConfig-D1 | Done |
+| Relay-P1.2 | Built-in professions (Intaker, Planner, Architect, Coder, Tester, Reviewer) | Tooling | 2 days | Relay-P1.1 | Done |
+| Relay-P1.3 | Default Soul configs in `.autoforge/souls/` | Tooling | 2 days | Relay-P1.1 | Done |
+| Relay-P1.4 | ModelConfig with provider abstraction and fallback chain | Tooling | 2 days | Relay-P1.1 | Done |
+| Relay-P1.5 | Refactor existing Forge into reusable `AgentTurn` engine | Tooling | 3 days | Relay-P1.2 | Done |
+| Relay-P1.6 | HandoffDocument schema and generation | Tooling | 3 days | Relay-D2 | Done |
+| Relay-P1.7 | Context scoping: filter specs by profession | Tooling | 2 days | Relay-P1.6 | Done |
+| Relay-P1.8 | Handoff compression (cheap model or rule-based) | Tooling | 2 days | Relay-P1.6 | Done |
+| Relay-P1.9 | Unit tests for AgentInstance and Handoff generation | Tooling | 2 days | Relay-P1.5, Relay-P1.6 | Done |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P2 Agents Relay — Flow Engine
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Relay-G1, Runtime-G3, Relay-D1, Relay-P1
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P2.1 | FlowSpec parser (AutoDown-based DSL) | Tooling | 3 days | Relay-D1 | Done |
+| Relay-P2.2 | PipelineEngine state machine | Tooling | 3 days | Relay-D1 | Done |
+| Relay-P2.3 | Step execution: spawn agent, run turn, collect result | Tooling | 2 days | Relay-P1.5, Relay-P2.2 | Done |
+| Relay-P2.4 | Flow branching: Intaker → DIRECT vs full pipeline | Tooling | 2 days | Relay-P2.2 | Done |
+| Relay-P2.5 | Flow looping: Coder ↔ Tester with max iteration bound | Tooling | 2 days | Relay-P2.2 | Done |
+| Relay-P2.6 | Human gates: pause, notify, approve/reject/edit | Tooling | 3 days | Relay-D1 | Done |
+| Relay-P2.7 | Gate rejection routing back to drafting profession | Tooling | 2 days | Relay-P2.6 | Done |
+| Relay-P2.8 | Deterministic orchestrator unit tests | Tooling | 2 days | Relay-P2.1-Relay-P2.7 | Done |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P3 Agents Relay — Checkpoint & Durability
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Runtime-G1, Relay-D3, Relay-P2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P3.1 | Checkpoint data model and JSON serialization | Tooling | 2 days | Relay-D3 | Done |
+| Relay-P3.2 | File manifest capture (hash, size) | Tooling | 2 days | Relay-D3 | Done |
+| Relay-P3.3 | Git integration: auto-commit or diff capture | Tooling | 2 days | Relay-D3 | Done |
+| Relay-P3.4 | Checkpoint save/load on disk | Tooling | 2 days | Relay-P3.1 | Done |
+| Relay-P3.5 | Resume from checkpoint: restore files, ledger, state | Tooling | 3 days | Relay-P3.4 | Done |
+| Relay-P3.6 | Rehydrate agent from checkpoint (no chat history) | Tooling | 2 days | Relay-P3.5 | Done |
+| Relay-P3.7 | Rollback to previous checkpoint | Tooling | 2 days | Relay-P3.4 | Done |
+| Relay-P3.8 | Fork run from checkpoint with different parameters | Tooling | 2 days | Relay-P3.7 | Done |
+| Relay-P3.9 | Crash recovery integration tests | Tooling | 2 days | Relay-P3.5-Relay-P3.8 | Done |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P4 Agents Relay — Token Budgeting & Analytics
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Runtime-G2, Relay-D4, Relay-P2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P4.1 | TokenBudget and BudgetTracker data model | Tooling | 2 days | Relay-D4 | Done |
+| Relay-P4.2 | Per-step and per-run token tracking | Tooling | 2 days | Relay-D4 | Done |
+| Relay-P4.3 | Budget enforcement: warning, compression, hard-stop | Tooling | 2 days | Relay-P4.2 | Done |
+| Relay-P4.4 | Model escalation fallback on budget exceed | Tooling | 2 days | Relay-P4.3 | Done |
+| Relay-P4.5 | Cost analytics API (per run, per profession, cumulative) | Tooling | 2 days | Relay-P4.2 | Done |
+| Relay-P4.6 | "Savings vs parallel" estimation heuristic | Tooling | 2 days | Relay-P4.5 | Done |
+| Relay-P4.7 | Unit tests for budget enforcement | Tooling | 2 days | Relay-P4.3 | Done |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P5 Agents Relay — Frontend Agents View
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Runtime-G2, Runtime-G3, Relay-P2, Relay-P3, Relay-P4
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P5.1 | Pipeline visualization component (horizontal flow) | UI | 3 days | Relay-P2.2 | Done |
+| Relay-P5.2 | Run cards with live status and token spend | UI | 2 days | Relay-P4.5 | Done |
+| Relay-P5.3 | Checkpoint timeline viewer | UI | 2 days | Relay-P3.4 | Done |
+| Relay-P5.4 | Cost charts (per run, per profession, cumulative) | UI | 2 days | Relay-P4.5 | Done |
+| Relay-P5.5 | Role/Profession config panel | UI | 2 days | Relay-P1.2 | Done |
+| Relay-P5.6 | Human gate approval UI (diff view, approve/reject/edit) | UI | 3 days | Relay-P2.6 | Done |
+| Relay-P5.7 | Run control buttons: pause, resume, rollback, fork | UI | 2 days | Relay-P3.5, Relay-P3.7, Relay-P3.8 | Done |
+| Relay-P5.8 | Frontend integration tests | UI | 2 days | Relay-P5.1-Relay-P5.7 | Done |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P6 Agents Relay — Integration & Dogfooding
+**Status:** done
+**Tags:** stack:both
+**Depends on:** AgentConfig-G1, Relay-G1, Relay-G2, Runtime-G1, Runtime-G2, Runtime-G3, Relay-P1, Relay-P2, Relay-P3, Relay-P4, Relay-P5
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P6.1 | End-to-end flow: Intake → Planner → Architect → Coder → Tester → Reviewer | Tooling | 3 days | Relay-P1-Relay-P5 | Done |
+| Relay-P6.2 | Migrate Agents module design into Ledger specs | Tooling | 2 days | Relay-P6.1 | Done |
+| Relay-P6.3 | Dogfooding: use Forge to implement Relay-P1-Relay-P5 specs | Tooling | 5 days | Relay-P6.2 | Done |
+| Relay-P6.4 | Drift detection on Agents module specs | Tooling | 2 days | Relay-P6.3 | Done |
+| Relay-P6.5 | Documentation and tutorial for custom flows | Tooling | 2 days | Relay-P6.1 | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P7 Relay Refactor — New Design v2
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Runtime-G3, Specs-G1, Relay-D5, AgentConfig-D2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P7.1 | Rename `Intaker` profession to `Assistant`; update `profession.rs` registry | Tooling | 1 day | AgentConfig-D2 | Done |
+| Relay-P7.2 | Add `Advisor` profession with Goals ownership and Discovery phase | Tooling | 1 day | AgentConfig-D2 | Done |
+| Relay-P7.3 | Add `RelayMode` enum (`GSD` / `Check`) to `pipeline.rs` and `session` model | Tooling | 1 day | Relay-D5 | Done |
+| Relay-P7.4 | Extend `ForgePhase` enum: add Discovery, GoalGate, Design, Planning, Report | Tooling | 1 day | Relay-D5 | Done |
+| Relay-P7.5 | Update `PipelineEngine` gate logic: GSD only pauses at GoalGate; Check pauses at all gates | Tooling | 2 days | Relay-D5, Relay-P7.3 | Done |
+| Relay-P7.6 | Remove `APIs` from `SectionType` and Architect's `owned_sections` | Tooling | 0.5 day | Specs-G1 | Done |
+| Relay-P7.7 | Update all soul files: rename `intaker.md` → `assistant.md`; add `advisor.md`; remove API references | Tooling | 1 day | Relay-P7.1, Relay-P7.2 | Done |
+| Relay-P7.8 | Update `FlowSpec` default flow: Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter | Tooling | 1 day | Relay-P7.1-Relay-P7.5 | Done |
+| Relay-P7.9 | Update frontend: remove `ApisSchema` component; add `RelayMode` toggle (GSD/Check) | UI | 2 days | Relay-P7.3 | Done |
+| Relay-P7.10 | Update frontend pipeline visualization to show 8 professions | UI | 1 day | Relay-P7.8 | Done |
+| Relay-P7.11 | Update `design/docs` to match new spec categories (already done) | Tooling | 0.5 day | — | Done |
+| Relay-P7.12 | Write integration tests for new flow (S7.1–S7.4) | Tooling | 2 days | Relay-P7.1-Relay-P7.10 | Done |
+| Relay-P7.13 | Run full test suite: `cargo check -p auto-forge` and `cargo test -p auto-forge` | Tooling | 0.5 day | Relay-P7.12 | Done |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P8 Live Pipeline Node-Graph
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Relay-G3
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P9.1 | PipelinePanel node-graph layout (dots, connectors, status colors) | Bob | 3 days | — | Done |
+| Relay-P9.2 | Expanded node card with token burn, specs touched, current action | Bob | 2 days | Relay-P9.1 | Done |
+| Relay-P9.3 | Retry loop backward edge with iteration counter | Alice | 1 day | Relay-P9.1 | Done |
+| Relay-P9.4 | Live Log panel streaming tool calls | Alice | 2 days | — | Done |
+| Relay-P9.5 | Specs Touched panel with click-to-jump | Alice | 1 day | Relay-P9.4 | Done |
+| Relay-P9.6 | Cost Breakdown panel with per-profession token bars | Bob | 1 day | — | Done |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P9 Mode Awareness & Integration
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** Chat-G1, Specs-G2, Relay-G3
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Relay-P11.1 | GSD / Check mode toggle in AppHeader | Alice | 1 day | — | Done |
+| Relay-P11.2 | Conditional gate rendering (all gates vs Goal Gate only) | Alice | 2 days | Relay-P11.1 | Done |
+| Relay-P11.3 | SSE event handlers for spec_written, handoff_submitted, gate_reached, gate_resolved | Bob | 2 days | Chat-P8.4, Relay-P9.1 | Done |
+| Relay-P11.4 | useSpecs document cache invalidation on relay spec mutations | Bob | 1 day | Relay-P11.3 | Done |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-P10 Event Router & Gate Inbox Integration
+**Status:** done
+**Tags:** stack:frontend
+**Depends on:** Relay-G8, Relay-D12
+
+| Task | Owner | Duration | Status |
+|---|---|---|---|
+| Relay-P21.1 | `useEventRouter.ts` singleton with type-to-callback map | UI | 2 days | Done |
+| Relay-P21.2 | `useGateInbox.ts` with queue, snooze, dismiss | UI | 2 days | Done |
+| Relay-P21.3 | `SecretaryMessage.vue` integration with gate actions | UI | 1 day | Done |
+| Relay-P21.4 | Nav rail badge counts for pending gates | UI | 1 day | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

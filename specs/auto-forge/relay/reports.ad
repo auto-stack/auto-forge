@@ -1,0 +1,28 @@
+# Reports
+
+## Relay-R1 — Forge Specs Relay Frontend Implementation
+**Status:** draft
+**Tags:** stack:frontend
+
+Implementation of the redesigned specs relay frontend covering Chat-First Gates (Smart Secretary), Live Node-Graph Pipeline, Specs Workspace with bidirectional traceability, and responsive polish. All P0 gaps closed. Build passes. Dev server and backend API operational.
+
+| Metric | Value |
+|---|---|
+| Goals Met | 4/4 (Chat-G1–UiSystem-G1) |
+| Tests Pass | 14/14 (S8.1–S10.4 + S7.2) |
+| Plans Completed | 5/5 (Chat-P1–UiSystem-P1) |
+| Designs Implemented | 11/11 (Chat-D1–Relay-D10) |
+| Code Files Changed | ~30 Vue components + 7 composables + 2 type files |
+
+| Profession | Tokens | Cost |
+|---|---|---|
+| Advisor | 4,200 | $0.13 |
+| Architect | 12,500 | $0.38 |
+| Planner | 3,800 | $0.11 |
+| Coder | 58,000 | $1.74 |
+| Tester | 24,000 | $0.72 |
+| Reviewer | 6,200 | $0.19 |
+| **Total** | **108,700** | **$3.27** |
+
+
+---

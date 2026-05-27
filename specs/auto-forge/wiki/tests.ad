@@ -1,0 +1,309 @@
+# Tests
+
+## Wiki-T1 [G18] Wiki RAG semantic retrieval
+**Status:** proposed
+**Test File:** `backend/tests/wiki_rag.rs`
+**Tags:** stack:both
+**Depends on:** Wiki-G1, Wiki-D1
+
+1. Create 5 wiki pages with distinct technical content
+2. Call `query_wiki("timer register configuration")` tool
+3. Assert top-3 results are semantically relevant (timer/register pages ranked higher)
+4. Assert each result is ≤500 tokens
+5. Verify empty query returns error, not all pages
+
+- Vector similarity search returns relevant passages.
+- Token budget per retrieval is bounded.
+- Empty/malformed queries return errors.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T2 [G18] Wiki tool profession access control
+**Status:** done
+**Test File:** `backend/tests/wiki_tools.rs`
+**Tags:** stack:both
+**Depends on:** Wiki-G1, Wiki-D1
+
+1. Assert all professions can call `query_wiki` and `list_wiki`
+2. Assert only Coder and Documenter can call `create_wiki_page` and `update_wiki_page`
+3. Verify agent with wrong profession gets PermissionDenied on write tools
+4. Verify agent with correct profession succeeds on write tools
+
+- Read tools (query, list) available to all professions.
+- Write tools (create, update) restricted to Coder and Documenter.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T3 [G18] Wiki embedding pipeline
+**Status:** proposed
+**Test File:** `backend/tests/wiki_embedding.rs`
+**Tags:** stack:backend
+**Depends on:** Wiki-G1, Wiki-D1
+
+1. Create wiki page with technical content
+2. Assert embedding vector is computed and stored
+3. Update page content — assert embedding recomputed
+4. Verify embedding dimensions match model output
+5. Verify FAISS index updated after page operations
+
+- Embeddings computed on page create/update.
+- FAISS index stays in sync with page content.
+- Embedding dimensions are consistent.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T4 [G18] Wiki tab renders in navigation rail with BookOpen icon
+**Status:** done
+**Test File:** `frontend/src/App.vue` (component test)
+**Tags:** stack:frontend
+**Depends on:** Wiki-G1, Wiki-D2
+
+1. Render `<App />`
+2. Assert nav rail contains "Wiki" tab with BookOpen icon
+3. Click Wiki tab
+4. Assert `currentView === 'wiki'`
+5. Assert `<WikiView>` component is mounted
+
+- Wiki tab appears after Specs and before Relay in nav rail.
+- Clicking switches view to WikiView.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T5 [G18] WikiView sidebar loads dual-region tree (Raw + Wiki) and filters by search
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Tags:** stack:frontend
+**Depends on:** Wiki-G1, Wiki-D2
+
+1. Render `<WikiView />` with mock API returning 3 pages
+2. Assert sidebar shows 3 page items (title + tags)
+3. Type search query matching only 1 page title
+4. Assert sidebar filters to 1 item
+
+- Page list loads from `GET /api/forge/wiki/{project}/pages`.
+- Search input filters pages client-side by title and tags.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T6 [G18] Clicking wiki page loads full content and renders markdown
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Tags:** stack:frontend
+**Depends on:** Wiki-G1, Wiki-D2
+
+1. Render `<WikiView />` with mocked `loadPage`
+2. Click first page in sidebar
+3. Assert `loadPage(project, slug)` called with correct slug
+4. Assert `MarkdownContent` component renders with page content
+5. Assert content header shows page title, source type badge, version
+
+- Full page content loaded from `GET /api/forge/wiki/{project}/page/{slug}`.
+- Markdown rendered via existing `MarkdownContent.vue`.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T7 [G18] Edit mode switches to MarkdownEditor and saves updates
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Tags:** stack:both
+**Depends on:** Wiki-G1, Wiki-D2
+
+1. Render `<WikiView />`, select a page
+2. Click "Edit" button
+3. Assert `MarkdownEditor` component replaces `MarkdownContent`
+4. Modify content in editor
+5. Click "Save"
+6. Assert `updatePage(project, slug, data)` called with updated content
+7. Assert view returns to `MarkdownContent` with updated content
+
+- Edit button toggles between view and edit modes.
+- Save calls `PUT /api/forge/wiki/{project}/page/{slug}` and reloads.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T8 [G18] Create new page flow with path-based slug creates page and adds to tree
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Tags:** stack:both
+**Depends on:** Wiki-G1, Wiki-D2
+
+1. Render `<WikiView />`
+2. Click "+" button in sidebar header
+3. Fill slug, title, content in inline form
+4. Click "Create"
+5. Assert `createPage(project, page)` called with correct data
+6. Assert new page appears in sidebar
+7. Assert newly created page is selected and rendered
+
+- Create flow calls `POST /api/forge/wiki/{project}/pages`.
+- New page immediately appears in sidebar after creation.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T9 [G18] Delete page removes from tree after confirmation
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Tags:** stack:frontend
+**Depends on:** Wiki-G1, Wiki-D2
+
+1. Render `<WikiView />`, select a page
+2. Click "Delete" button
+3. Assert confirmation dialog appears
+4. Confirm deletion
+5. Assert `deletePage(project, slug)` called
+6. Assert page removed from sidebar
+7. Assert empty state shown (no page selected)
+
+- Delete calls `DELETE /api/forge/wiki/{project}/page/{slug}`.
+- Confirmation dialog prevents accidental deletion.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-T10 [G18] Wiki sidebar collapse state persists to localStorage
+**Status:** done
+**Test File:** `frontend/src/views/WikiView.vue` (component test)
+**Tags:** stack:frontend
+**Depends on:** Wiki-G1, Wiki-D2
+
+1. Render `<WikiView />`
+2. Click sidebar collapse button
+3. Assert sidebar width reduces to icon-only mode
+4. Assert `localStorage.getItem('autoforge-wiki-sidebar-collapsed') === 'true'`
+5. Reload component
+6. Assert sidebar starts collapsed (reads from localStorage)
+
+- Collapse state persisted across page reloads.
+- Key: `autoforge-wiki-sidebar-collapsed`.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

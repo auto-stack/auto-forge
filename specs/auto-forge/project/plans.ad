@@ -1,0 +1,60 @@
+# Plans
+
+## Project-P1 Project Concept — VS Code–style Workspace
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Project-G1
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Project-P13.1 | Backend project.rs: ProjectConfig, find_specs_dir, browse_directory | Core | 2 days | — | Done |
+| Project-P13.2 | SpecsStore refactor: new_default, open_project, close_project, is_project_open | Core | 1 day | Project-P13.1 | Done |
+| Project-P13.3 | Project API endpoints: status, open, close, recent, browse | Core | 1 day | Project-P13.2 | Done |
+| Project-P13.4 | Backend auto-restore last project on startup | Core | 0.5 day | Project-P13.3 | Done |
+| Project-P13.5 | Frontend useProject composable with singleton state | Core | 1 day | Project-P13.3 | Done |
+| Project-P13.6 | WelcomeView with path input, browse, recent projects list | Core | 1 day | Project-P13.5 | Done |
+| Project-P13.7 | App.vue conditional rendering + project indicator in nav rail | Core | 0.5 day | Project-P13.6 | Done |
+| Project-P13.8 | SpecsView dynamic project from useProject (replace hardcoded auto-lang) | Core | 0.5 day | Project-P13.7 | Done |
+| Project-P13.9 | ChatsView passes projectPath on session creation | Core | 0.5 day | Project-P13.7 | Done |
+| Project-P13.10 | Move docs/specs/ to top-level specs/ directory | Core | 0.5 day | Project-P13.8 | Done |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Project-P2 Explorer Module Implementation
+**Status:** done
+**Tags:** stack:both
+**Depends on:** UiSystem-G7, Project-D1
+
+| Task | Owner | Duration | Status |
+|---|---|---|---|
+| Project-P23.1 | Backend `project_tree()` recursive directory walker | Core | 2 days | Done |
+| Project-P23.2 | Backend `project_file()` with MIME guessing and path validation | Core | 1 day | Done |
+| Project-P23.3 | `TreeView.vue` recursive component with icons | UI | 2 days | Done |
+| Project-P23.4 | `ExplorerView.vue` with sidebar/content split and search | UI | 2 days | Done |
+| Project-P23.5 | Nav rail integration (`Ctrl+0`) and project label | UI | 1 day | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

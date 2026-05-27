@@ -1,0 +1,59 @@
+# Plans
+
+## ApiSources-P1 API Source Configuration
+**Status:** proposed
+**Tags:** stack:both
+**Depends on:** ApiSources-G1
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| ApiSources-P14.1 | Backend config.rs: ApiSource, ModelDefinition, ModelTier types + CRUD + auto-detect | Core | 2 days | — | Proposed |
+| ApiSources-P14.2 | Extend relay/mod.rs: load api_sources into RelayRegistry, resolve_api_key | Core | 1 day | ApiSources-P14.1 | Proposed |
+| ApiSources-P14.3 | Config API endpoints: CRUD + test connection (5 routes in relay/api.rs) | Core | 1 day | ApiSources-P14.2 | Proposed |
+| ApiSources-P14.4 | Refactor ai.rs: dispatch_chat() with Anthropic/OpenAI/Local provider routing | Core | 3 days | ApiSources-P14.1 | Proposed |
+| ApiSources-P14.5 | Generalize forge/ai.rs ToolClaudeProvider to ToolProviderDispatcher | Core | 2 days | ApiSources-P14.4 | Proposed |
+| ApiSources-P14.6 | Frontend useApiSources.ts composable with singleton state | Core | 1 day | ApiSources-P14.3 | Proposed |
+| ApiSources-P14.7 | ApiSourcesView.vue: source list + detail editor + model management | Core | 3 days | ApiSources-P14.6 | Proposed |
+| ApiSources-P14.8 | App.vue: add APIs tab, remove Demo, import ApiSourcesView | Core | 0.5 day | ApiSources-P14.7 | Proposed |
+| ApiSources-P14.9 | First-startup auto-detection: detect Claude/OpenAI/Ollama and generate defaults | Core | 1 day | ApiSources-P14.1 | Proposed |
+| ApiSources-P14.10 | Integration tests: multi-provider dispatch, CRUD persistence, test connection | Core | 2 days | ApiSources-P14.5, ApiSources-P14.8 | Proposed |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## ApiSources-P2 APIs Documentation View
+**Status:** done
+**Tags:** stack:frontend
+**Depends on:** ApiSources-G2, ApiSources-D2
+
+| Task | Owner | Duration | Status |
+|---|---|---|---|
+| ApiSources-P24.1 | Structure `specs/apis.ad` with module groupings | Docs | 1 day | Done |
+| ApiSources-P24.2 | Frontend view to render `apis.ad` as endpoint browser | UI | 1 day | Done |
+| ApiSources-P24.3 | Nav rail tab with Plug icon | UI | 0.5 day | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

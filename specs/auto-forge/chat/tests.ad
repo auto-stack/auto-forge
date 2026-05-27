@@ -1,0 +1,258 @@
+# Tests
+
+## Chat-T1 [G8] GateCard approval flow — approve triggers pipeline advance
+**Status:** done
+**Test File:** `packages/auto-forge-ui/tests/integration/GateCard.spec.ts`
+**Tags:** stack:frontend
+**Depends on:** Chat-G1, Chat-D1
+
+```typescript
+const gate = createPendingGate({ gateType: 'goal', profession: 'advisor' })
+render(<GateCard gate={gate} mode="inline" />)
+```
+
+1. Click "Approve & Execute" button
+2. Assert `approveSpec()` API is called
+3. Assert gate card transitions to `approved` state
+4. Assert `streamResponse()` resumes
+
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-T2 [G8] SecretaryMessage queue — multiple gates enqueue and dequeue correctly
+**Status:** done
+**Test File:** `packages/auto-forge-ui/tests/integration/SecretaryMessage.spec.ts`
+**Tags:** stack:frontend
+**Depends on:** Chat-G1, Relay-D6
+
+```typescript
+const inbox = useGateInbox()
+inbox.registerGate(gateA)  // becomes active
+inbox.registerGate(gateB)  // queued
+inbox.registerGate(gateC)  // queued
+```
+
+1. Render `<SecretaryMessage gate={inbox.active} />`
+2. Assert "+2 more" pill is visible
+3. Click pill; assert mini-list shows gateB and gateC
+4. Resolve gateA; assert gateB becomes active
+
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-T3 [G17] bring_in switches session active_profession and persists
+**Status:** proposed
+**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:both
+**Depends on:** Relay-G9, Chat-D3
+
+```rust
+let mut session = create_test_session();
+session.active_profession = Some("assistant".into());
+// Execute bring_in
+let result = execute_bring_in(&mut session, "advisor", "NEW_GOAL", "User wants OAuth");
+```
+
+1. Assert `session.active_profession` changed from "assistant" to "advisor"
+2. Assert a new system message was appended containing "Handoff Note"
+3. Assert handoff note contains "Nicole" as from_agent
+4. Assert handoff note contains "NEW_GOAL" as classification
+5. Reload session from disk, assert `active_profession` persisted
+
+- active_profession switches on successful bring_in.
+- Handoff note injected into message history.
+- Session state persists to disk.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-T4 [G17] HandoffNote renders correctly for downstream agent
+**Status:** proposed
+**Test File:** `backend/src/forge/mod.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:frontend
+**Depends on:** Relay-G9, Chat-D3
+
+```rust
+let note = HandoffNote {
+    from_agent: "Nicole".into(),
+    from_profession: "assistant".into(),
+    to_profession: "advisor".into(),
+    classification: "NEW_GOAL".into(),
+    summary: "User wants to add OAuth2 login with JWT tokens.".into(),
+    warnings: vec!["No existing auth code found".into()],
+};
+let rendered = note.render();
+```
+
+1. Assert rendered contains "Nicole (assistant) handed off to you"
+2. Assert rendered contains "Classification: NEW_GOAL"
+3. Assert rendered contains "OAuth2 login with JWT tokens"
+4. Assert rendered contains "Warnings: No existing auth code found"
+5. Assert rendered contains "do not ask the user to repeat"
+
+- All fields render in the handoff note.
+- Warnings render when present.
+- Instruction to continue without repeating is included.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-T5 [G17] forge_stream uses new agent after bring_in
+**Status:** proposed
+**Test File:** `backend/src/forge/mod.rs` (integration test)
+**Tags:** stack:backend
+**Depends on:** Relay-G9, Chat-D3, Chat-P16.5
+
+```rust
+// Create session, send message, let Nicole classify and call bring_in
+let mut session = create_test_session();
+session.active_profession = Some("advisor".into());
+// Forge_stream should use advisor system prompt for next turn
+```
+
+1. Create session with `active_profession: "assistant"`
+2. Send message "I want to add OAuth2"
+3. After Nicole's response (including bring_in call), assert `active_profession` is "advisor"
+4. Send another message
+5. Assert system prompt used for response contains "You are Isaac"
+6. Assert system prompt contains "Soul of the Advisor"
+
+- After bring_in, next turn uses target agent's system prompt.
+- Target agent sees handoff note in context.
+- Target agent sees full conversation history.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-T6 [G17] Frontend renders handoff card and updates profession badge
+**Status:** proposed
+**Test File:** `frontend/src/views/ChatsView.vue` (component test)
+**Tags:** stack:backend
+**Depends on:** Relay-G9, Chat-D3, Chat-P16.9
+
+```typescript
+// Simulate receiving agent_handoff SSE event
+const event = { type: 'agent_handoff', from_agent: 'Nicole', to_agent: 'Isaac', ... }
+```
+
+1. Receive `agent_handoff` event during streaming
+2. Assert HandoffCard component renders with "Nicole → Isaac"
+3. Assert classification badge shows "NEW_GOAL"
+4. Assert active profession badge in input area updates to "Isaac"
+5. Assert bring_in tool_call does NOT render as generic tool output
+
+- Handoff card renders for bring_in tool calls.
+- Profession badge updates on handoff.
+- No duplicate rendering (card replaces tool output).
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-T7 [G18] Wiki page CRUD operations with multi-level directory support
+**Status:** done
+**Test File:** `backend/tests/wiki_crud.rs`
+**Tags:** stack:frontend
+**Depends on:** Wiki-G1, Wiki-D1
+
+1. Create a wiki page via `create_wiki_page` tool with title, content, tags
+2. Assert page file exists at `{project}/wiki/{slug}.md`
+3. Assert manifest.json updated with page metadata
+4. Read page back via `list_wiki` — assert entry appears
+5. Update page via `update_wiki_page` — assert version incremented
+6. Delete page — assert file removed, manifest updated
+
+- Wiki pages persist to disk as markdown files.
+- Manifest.json tracks page metadata and version history.
+- Version increments on each update.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

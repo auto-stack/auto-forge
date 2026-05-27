@@ -1,0 +1,329 @@
+# Architectures
+
+## Project-A1 Backend API Extensions
+**Status:** draft
+**Tags:** stack:backend
+
+```rust
+// GET /api/forge/specs/{project}/goals/tree
+// Returns goals in hierarchical structure
+pub async fn get_goals_tree(
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+) -> Result<Json<GoalsTree>, AppError> {
+    let specs = state.specs_store.load(&project)?;
+    let goals = specs.sections.iter()
+        .find(|s| s.section_type == SectionType::Goals)
+        .map(|s| &s.items)
+        .unwrap_or(&vec![]);
+    
+    let mut tree = GoalsTree::new();
+    
+    // Build tree structure
+    for goal in goals {
+        let parsed = parse_goal(goal);
+        
+        if let Some(parent_id) = &parsed.parent_id {
+            tree.add_child(parent_id.clone(), parsed);
+        } else {
+            tree.add_root(parsed);
+        }
+    }
+    
+    Ok(Json(tree))
+}
+
+// POST /api/forge/specs/{project}/goals/validate
+// Validates goal ID format and parent references
+pub async fn validate_goal(
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+    Json(goal): Json<SpecItem>,
+) -> Result<Json<ValidationResult>, AppError> {
+    let mut errors = Vec::new();
+    
+    // Check ID format
+    if !VALID_ID_REGEX.is_match(&goal.id) {
+        errors.push("Invalid ID format".to_string());
+    }
+    
+    // Check parent exists
+    if let Some(parent_id) = &goal.parent_id {
+        let specs = state.specs_store.load(&project)?;
+        let parent_exists = specs.sections.iter()
+            .find(|s| s.section_type == SectionType::Goals)
+            .map(|s| s.items.iter().any(|g| g.id == *parent_id))
+            .unwrap_or(false);
+        
+        if !parent_exists {
+            errors.push(format!("Parent goal {} not found", parent_id));
+        }
+    }
+    
+    // Check depth (max 1 level)
+    if goal.id.matches('.').count() > 1 {
+        errors.push("Max hierarchy depth is 1 level (Specs-G3 is ok, G9.1.2 is invalid)".to_string());
+    }
+    
+    Ok(Json(ValidationResult {
+        valid: errors.is_empty(),
+        errors,
+    }))
+}
+```
+
+```typescript
+interface GoalsTree {
+  roots: GoalNode[]
+}
+
+interface GoalNode {
+  id: string
+  title: string
+  status: Status
+  priority?: string
+  tags: Tag[]
+  children: GoalNode[]
+  expanded: boolean  // Default: false
+}
+```
+
+- Frontend receives pre-built tree structure (no client-side tree building)
+- Validation ensures data integrity (orphans, circular refs, depth)
+- API is idempotent (same data, same tree)
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Project-A2 Frontend Tree View Architecture
+**Status:** draft
+**Tags:** stack:frontend
+
+```mermaid
+graph TB
+    subgraph "Vue 3 Components"
+        GC[GoalsContainer.vue] --> GT[GoalsTree.vue]
+        GT --> GN[GoalNode.vue]
+        GN -->|recursive| GN
+        
+        GN --> TB[TagBadge.vue]
+        GN --> EC[ExpandCollapseButton.vue]
+        GN --> SM[StatusBadge.vue]
+        
+        subgraph "Composables"
+            UFG[useGoalsTree]
+            UFS[useFilter]
+        end
+        
+        GC --> UFG
+        GC --> UFS
+        UFG --> GT
+        UFS --> GT
+    end
+```
+
+```vue
+<script setup lang="ts">
+interface Props {
+  node: GoalNode
+  filter: FilterQuery
+}
+
+const props = defineProps<Props>()
+const expanded = ref(false)  // Default: collapsed
+
+// Auto-expand if filter matches this node or any descendant
+watchEffect(() => {
+  if (matchesFilter(props.node, props.filter)) {
+    expanded.value = true
+  }
+})
+
+function matchesFilter(node: GoalNode, filter: FilterQuery): boolean {
+  // Search across all levels
+  const selfMatch = 
+    node.id.toLowerCase().includes(filter.query) ||
+    node.title.toLowerCase().includes(filter.query)
+  
+  const childMatch = node.children.some(child => 
+    matchesFilter(child, filter)
+  )
+  
+  return selfMatch || childMatch
+}
+</script>
+
+<template>
+  <div class="goal-node">
+    <!-- Node Header -->
+    <div class="goal-header" :class="{ 'has-children': node.children.length > 0 }">
+      <ExpandCollapseButton 
+        v-if="node.children.length > 0"
+        :expanded="expanded"
+        @toggle="expanded = !expanded"
+      />
+      
+      <span class="goal-id">{{ node.id }}</span>
+      <span class="goal-title">{{ node.title }}</span>
+      
+      <StatusBadge :status="node.status" />
+      <span v-if="node.priority" class="priority">{{ node.priority }}</span>
+      
+      <!-- Typed Tag Badges -->
+      <TagBadge 
+        v-for="tag in node.tags" 
+        :key="tag.kind + ':' + tag.value"
+        :tag="tag"
+      />
+    </div>
+    
+    <!-- Children (recursive) -->
+    <div v-if="expanded" class="goal-children">
+      <GoalNode 
+        v-for="child in node.children" 
+        :key="child.id"
+        :node="child"
+        :filter="filter"
+      />
+    </div>
+  </div>
+</template>
+```
+
+```vue
+<script setup lang="ts">
+interface Props {
+  tag: Tag
+}
+
+const props = defineProps<Props>()
+
+// Color coding by tag kind
+const kindColors: Record<string, string> = {
+  module: 'blue',
+  team: 'green',
+  priority: 'red',
+  status: 'gray',
+}
+
+const color = computed(() => kindColors[props.tag.kind] || 'gray')
+</script>
+
+<template>
+  <span class="tag-badge" :class="`tag-${color}`">
+    {{ tag.kind }}:{{ tag.value }}
+  </span>
+</template>
+
+<style scoped>
+.tag-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-left: 4px;
+}
+
+.tag-blue { background: #e3f2fd; color: #1565c0; }
+.tag-green { background: #e8f5e9; color: #2e7d32; }
+.tag-red { background: #ffebee; color: #c62828; }
+.tag-gray { background: #f5f5f5; color: #616161; }
+</style>
+```
+
+```typescript
+export const useGoalsTree = defineStore('goalsTree', {
+  state: () => ({
+    tree: null as GoalsTree | null,
+    filter: { query: '' } as FilterQuery,
+    expandedState: new Map<string, boolean>(),  // Persist expand/collapse
+  }),
+  
+  actions: {
+    async loadTree(project: string) {
+      const response = await fetch(`/api/forge/specs/${project}/goals/tree`)
+      this.tree = await response.json()
+      
+      // Restore expanded state
+      this.restoreExpandedState()
+    },
+    
+    toggleExpand(nodeId: string) {
+      const current = this.expandedState.get(nodeId) ?? false
+      this.expandedState.set(nodeId, !current)
+    },
+    
+    restoreExpandedState() {
+      // Recursively apply saved expanded state
+      function applyState(node: GoalNode) {
+        if (this.expandedState.has(node.id)) {
+          node.expanded = this.expandedState.get(node.id)!
+        }
+        node.children.forEach(applyState)
+      }
+      
+      this.tree?.roots.forEach(applyState)
+    },
+  },
+})
+```
+
+- Tree view is default (no flat view toggle)
+- All branches collapsed initially (performance-friendly for large trees)
+- Filter matches auto-expand relevant branches (UX optimization)
+- Expand/collapse state persists across sessions (user preference)
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Project-A3 Explorer Module Architecture
+**Status:** approved
+**Tags:** stack:both
+
+```mermaid
+graph TB
+    BE[GET /api/forge/project/tree] -->|TreeNode[]| TV[TreeView.vue]
+    BE2[GET /api/forge/project/file] -->|bytes + MIME| PV[Preview Pane]
+    TV -->|select| PV
+    TV -->|filter| FT[Client-side filter]
+    UC[useProject.ts] -->|projectName| NR[NavRail label]
+```
+
+- Tree API returns recursive `TreeNode` with `node_type: "file" | "folder"`
+- File API validates path stays within project directory (blocks `..` and absolute paths)
+- Preview pane uses `<pre>`, `<img>`, `<iframe>`, or download link based on MIME guess
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

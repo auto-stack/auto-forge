@@ -1,0 +1,20 @@
+# Goals
+
+## Project-G1 Project Concept enables VS Code–style folder opening with persistent workspace
+**Status:** done
+**Tags:** stack:backend
+**Depends on:** Specs-G1, Specs-G2
+
+- [x] Backend SpecsStore starts empty (no auto-load from current_dir)
+- [x] Project opens via API: POST /api/forge/project/open with directory path
+- [x] Specs auto-discovered from {project}/specs/ with fallback to legacy docs/specs/
+- [x] Project config persisted (last project, recent list) in user data dir
+- [x] Backend auto-restores last project on restart
+- [x] Frontend shows WelcomeView when no project is open
+- [x] Path input with directory browsing autocomplete
+- [x] Recent projects list for quick re-opening
+- [x] Project indicator (name + close button) in navigation rail
+- [x] SpecsView and ChatsView use dynamic project from useProject composable
+- [x] docs/specs/ promoted to top-level specs/ directory
+
+AutoForge operates on a user-chosen project directory, just like VS Code. On first launch the workspace is empty; the user opens a folder and specs are loaded from its specs/ subdirectory. The last project is remembered across restarts.

@@ -1,0 +1,165 @@
+# Designs
+
+## Provider-D1 Multi-Provider AI Dispatch
+**Status:** draft
+**Module:** `backend/src/ai.rs`
+**Tags:** stack:backend
+**Depends on:** ApiSources-G1, ApiSources-D1
+
+```rust
+/// Dispatch a streaming chat request to the correct provider.
+/// Returns error message on failure, None on success.
+pub async fn dispatch_chat(
+    source: &ApiSource,
+    model: &str,
+    system: &str,
+    messages: Vec<ChatMessage>,
+    tx: UnboundedSender<AIStreamDelta>,
+) -> Option<String>
+
+/// Build provider-specific request URL.
+fn build_api_url(source: &ApiSource) -> String
+
+/// Build provider-specific auth headers.
+fn build_auth_headers(source: &ApiSource) -> HeaderMap
+
+/// Parse provider-specific SSE stream into text deltas.
+fn parse_sse_delta(provider: &Provider, data: &str) -> Option<String>
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Routing: dispatch_chat()
+    Routing --> AnthropicStream: provider == Anthropic
+    Routing --> OpenAIStream: provider == OpenAI
+    Routing --> LocalStream: provider == Local
+    AnthropicStream --> Emitting: SSE content_block_delta
+    OpenAIStream --> Emitting: SSE choices[0].delta.content
+    LocalStream --> Emitting: Ollama /api/chat response
+    Emitting --> Emitting: more deltas
+    Emitting --> Done: stream ends
+    Emitting --> Error: connection/API error
+    Done --> [*]
+    Error --> [*]
+```
+
+| Provider | Auth Header | API Path | SSE Format |
+|---|---|---|---|
+| Anthropic | `x-api-key: {key}` | `/v1/messages` | `event: content_block_delta` → `delta.text` |
+| OpenAI | `Authorization: Bearer {key}` | `/v1/chat/completions` | `choices[0].delta.content` |
+| Local | None (or Bearer) | `/v1/chat/completions` | Same as OpenAI (Ollama-compatible) |
+
+```
+fn dispatch_chat(source, model, system, messages, tx):
+    url = build_api_url(source)
+    headers = build_auth_headers(source)
+    body = build_request_body(source.provider, model, system, messages)
+
+    resp = http_post(url, headers, body, stream=true)
+    if not resp.ok:
+        return Some(format("API error ({})", resp.status))
+
+    for chunk in resp.bytes_stream():
+        for sse_event in parse_sse(chunk):
+            text = parse_sse_delta(source.provider, sse_event.data)
+            if text:
+                tx.send(AIStreamDelta { text })
+
+    return None  // success
+
+fn build_api_url(source):
+    match source.provider:
+        Anthropic => "{base}/v1/messages"
+        OpenAI => "{base}/v1/chat/completions"
+        Local => "{source.url}/v1/chat/completions"
+
+fn parse_sse_delta(provider, data):
+    json = parse(data)
+    match provider:
+        Anthropic => json.delta.text  (from content_block_delta)
+        OpenAI => json.choices[0].delta.content
+        Local => json.choices[0].delta.content  // Ollama compatible
+```
+
+- `ClaudeProvider::chat_stream()` refactored into `dispatch_chat()`
+- `ToolClaudeProvider` in `forge/ai.rs` generalized to use `dispatch_chat()` with `ApiSource`
+- Existing `ModelConfig::cheap()/standard()/strong()` kept as fallback defaults
+- `ai.rs` `load_api_config()` replaced by `config::resolve_api_key()`
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Provider-D2 Unified Provider Layer
+**Status:** done
+**Module:** `backend/src/provider/`
+**Tags:** stack:backend
+
+```rust
+// provider/claude.rs
+pub struct ClaudeProvider {
+    pub(crate) client: reqwest::Client,
+    pub(crate) api_key: Option<String>,
+    pub(crate) base_url: String,
+}
+
+impl ClaudeProvider {
+    pub fn new() -> Self;
+    pub fn is_available(&self) -> bool;
+    pub async fn chat_stream(&self, request: AIRequest, tx: UnboundedSender<AIStreamDelta>) -> Option<String>;
+    pub async fn chat(&self, request: AIRequest) -> AIResponse;
+    pub async fn chat_turn(&self, request: ToolChatRequest, tx: UnboundedSender<ToolChatEvent>) -> Option<String>;
+}
+
+// provider/sse.rs
+pub struct SseParser { buffer: Vec<u8> }
+
+impl SseParser {
+    pub fn new() -> Self;
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>, SseError>;
+    pub fn finish(self) -> Result<Vec<StreamEvent>, SseError>;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Streaming: HTTP response received
+    Streaming --> Parsing: SSE chunk arrives
+    Parsing --> Emitting: complete frame found
+    Emitting --> Streaming: more chunks
+    Emitting --> Done: stream ends
+    Parsing --> Done: stream ends
+    Done --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `client` | `reqwest::Client` | Reusable HTTP client |
+| `api_key` | `Option<String>` | Loaded from ~/.claude/settings.json or env |
+| `base_url` | `String` | API endpoint (default: https://api.anthropic.com) |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

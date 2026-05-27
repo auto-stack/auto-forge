@@ -1,0 +1,59 @@
+# Goals
+
+## Errand-G1 Errand Agent Dispatch enables any profession to offload research tasks without context pollution
+**Status:** implemented
+**Tags:** stack:backend
+**Depends on:** AgentConfig-G1, Relay-G9, ApiSources-G1
+
+- [x] `dispatch` tool available to all relay professions for firing lightweight side-tasks
+- [x] `gofer` profession defined with minimal soul, cheap model tier, and short turn limit
+- [x] Errand runs in isolated message context — master's chat history stays clean
+- [x] Only final summary/fact returns to caller; intermediate tool outputs remain in errand log
+- [x] Full errand chat log persisted and visible in same session view for boss audit
+- [x] Errand agents do NOT participate in relay pipeline — no `handoff_to`, no approval gates
+- [x] Gofer uses cheapest configured model tier (e.g., Claude Haiku or GPT-4o-mini)
+
+1. **Dispatch Tool Interface**
+   - Any profession calls `dispatch` with: `agent` (profession_id, default "gofer"), `task` (string), `context` (optional caller context)
+   - Backend validates target is in `dispatchable_to` list (not `handoff_to`)
+   - Tool returns after errand completes or hits max_turns
+
+2. **Gofer Profession Definition**
+   - Profession id: `gofer`, display name: "Gofer", persona: "Gus"
+   - Phase: `ForgePhase::Errand` (new phase, lower than Intake)
+   - Tools: `shell`, `read_file`, `search`, `list_specs`, `read_specs`, `query_wiki`
+   - No `handoff_to`, no `approval_gates`, `max_turns: 20`, `token_budget: 4_000`
+   - Model tier: `Light` (cheapest available provider)
+
+3. **Isolated Errand Context**
+   - Each dispatch spawns a new `ErrandSession` with its own `message_history` Vec
+   - Errand session linked to parent session via `parent_session_id`
+   - System prompt = gofer soul + task description + caller context
+   - Errand runs standard ReAct loop but writes to isolated message list
+
+4. **Result Compression**
+   - Final assistant message from errand is returned as the `dispatch` tool result string
+   - Optional: errand can be instructed to return structured JSON (list of files, key findings)
+   - Master's chat history only grows by the dispatch tool call + result (~200-400 tokens)
+
+5. **Audit Trail & Visibility**
+   - Full errand message history persisted to `errands/` subdirectory in session store
+   - Frontend renders errand as a collapsible thread nested under caller's message
+   - Boss can expand to see all tool calls, reasoning, and intermediate outputs
+   - Errand thread shows token cost separately from master session cost
+
+| Decision | Choice |
+|----------|--------|
+| Dispatch mechanism | Tool-based (`dispatch` tool) not `bring_in` |
+| Context isolation | Separate `ErrandSession` message list, not shared history |
+| Model selection | Cheapest configured tier (Light) — configurable per API source |
+| Errand visibility | Collapsible nested thread in same chat view |
+| Persistence | JSON files in `errands/` subdir, not SQLite |
+| Max turns | 20 (hard cap to prevent runaway) |
+| Return format | Plain text summary (default), optional structured JSON |
+
+- Architect can dispatch "find how auth works" and receive 200-token summary instead of 5k-token grep output
+- Master's chat history does not contain errand tool outputs
+- Errand thread visible and expandable in frontend
+- Gofer runs on cheapest model, saving ~80% on errand token cost vs master model
+- Errand completes within 20 turns or returns truncated result

@@ -1,0 +1,53 @@
+# Plans
+
+## UiSystem-P1 Responsive & Accessibility Polish
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Relay-G3
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| UiSystem-P12.1 | Mobile layout with bottom sheets and tabs | Alice | 2 days | — | Done |
+| UiSystem-P12.2 | Keyboard shortcuts (Ctrl+1/2/3/K) | Bob | 1 day | — | Done |
+| UiSystem-P12.3 | Focus management for gate cards and secretary messages | Alice | 2 days | Chat-P8.1, Chat-P8.2 | Done |
+| UiSystem-P12.4 | Screen reader annotations for node graph and relations panel | Bob | 2 days | Relay-P9.1, Specs-P10.2 | Done |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-P2 Theme & Accent Implementation
+**Status:** done
+**Tags:** stack:frontend
+**Depends on:** UiSystem-G6, UiSystem-D2
+
+| Task | Owner | Duration | Status |
+|---|---|---|---|
+| UiSystem-P20.1 | `useTheme.ts` composable with localStorage sync | UI | 1 day | Done |
+| UiSystem-P20.2 | `useAccentColor.ts` composable with CSS var injection | UI | 1 day | Done |
+| UiSystem-P20.3 | Header theme toggle button + accent picker dropdown | UI | 1 day | Done |
+| UiSystem-P20.4 | Verify Tailwind dark: variants work across all views | UI | 1 day | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

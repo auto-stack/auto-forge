@@ -1,0 +1,38 @@
+# Plans
+
+## Editor-P1 AutoDown Editor — WYSIWYG Block-Based Markdown Editor
+**Status:** draft
+**Tags:** stack:frontend
+**Depends on:** Editor-G1, Editor-A1, Editor-D1
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Editor-P18.1 | Add Tiptap dependencies and scaffold directory structure | UI | 1 day | — | Draft |
+| Editor-P18.2 | Create `createExtensions()` factory with StarterKit + Markdown | UI | 1 day | Editor-P18.1 | Draft |
+| Editor-P18.3 | Build `AutoDownEditor.vue` core wrapper with `useEditor` | UI | 1 day | Editor-P18.2 | Draft |
+| Editor-P18.4 | Implement slash command extension + `SlashMenu.vue` | UI | 1 day | Editor-P18.3 | Draft |
+| Editor-P18.5 | Implement bubble menu extension + `BubbleMenu.vue` | UI | 1 day | Editor-P18.3 | Draft |
+| Editor-P18.6 | Integrate drag handle for block reordering | UI | 1 day | Editor-P18.3 | Draft |
+| Editor-P18.7 | Style all blocks with AutoForge CSS variables | UI | 1 day | Editor-P18.4-Editor-P18.6 | Draft |
+| Editor-P18.8 | Replace `MarkdownEditor.vue` in WikiView and Spec views | UI | 1 day | Editor-P18.7 | Draft |
+| Editor-P18.9 | Write round-trip Markdown parse/serialize tests | UI | 1 day | Editor-P18.8 | Draft |
+| Editor-P18.10 | Implement Callout block with `:::type` syntax | UI | 1 day | Editor-P18.9 | Draft |
+| Editor-P18.11 | Implement Math block with KaTeX rendering | UI | 1 day | Editor-P18.9 | Draft |
+| Editor-P18.12 | Implement Mermaid diagram block | UI | 1 day | Editor-P18.9 | Draft |
+| Editor-P18.13 | Implement SpecRef block with `[[AgentConfig-G1]]` syntax | UI | 1 day | Editor-P18.9 | Draft |
+| Editor-P18.14 | Add CodeBlock with language selector and ImageBlock with resize | UI | 1 day | Editor-P18.10-Editor-P18.13 | Draft |
+| Editor-P18.15 | Write AutoDown extension parse/serialize tests | UI | 1 day | Editor-P18.14 | Draft |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

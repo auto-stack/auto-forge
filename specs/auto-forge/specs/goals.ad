@@ -1,0 +1,174 @@
+# Goals
+
+## Specs-G1 Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** AgentConfig-G1
+
+- [x] APIs category removed from spec system
+- [x] Interface specs (REST endpoints, schemas) live in Designs under `Interface` section
+- [x] Architect owns Designs (including interfaces), not a separate APIs category
+- [x] Documenter generates public API docs as product, not spec
+- [x] Reports are relay execution summaries (cost, confidence, deliverables)
+
+Specs are internal decision records (how to build). Products are shipped artifacts (code + public docs). Interface contracts are design specs; public API docs are generated products.
+---
+
+## Specs-G2 Specs Workspace with Bidirectional Traceability
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Specs-G1, Chat-G1
+
+Specs are not flat documents — they form a live decision pyramid. Every Plan traces back to a Goal, every Test verifies a Design. The frontend makes this traceability the primary navigation model.
+---
+
+## Specs-G3 Seven spec categories render with structured per-category editors
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Specs-G2
+
+- [x] Goals table with inline row editing
+- [x] Architecture cards with Mermaid diagram rendering
+- [x] Designs cards with interface signature preview
+- [x] Plans timeline with Gantt-like phase table
+- [x] Tests cards with pass/fail indicators
+- [x] Reviews cards with criterion counts
+- [x] Reports dashboard with metric bars
+---
+
+## Specs-G4 RelationsPanel shows upstream parents and downstream children
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Specs-G2
+
+- [x] Every expanded item shows Parents (depends_on) and Children (related) lists
+- [x] Each relation entry shows ID, title, section type, and status badge
+- [x] Clicking a relation jumps to target section, expands item, and flashes highlight
+- [x] Backend auto-rebuilds related field on every document save
+---
+
+## Specs-G5 AutoLinkContent parses typed IDs into clickable hyperlinks
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Specs-G2
+
+- [x] Regex scans markdown content for typed ID references (`AgentConfig-G1`, `Relay-A1`, `Relay-P1.3`)
+- [x] Matching IDs render as clickable SpecLink components
+- [x] Clicking a link triggers jumpToItem with section switch + scroll + flash
+- [x] Non-ID text renders as normal markdown
+---
+
+## Specs-G6 Drift Check button compares code against specs on demand
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** Specs-G2
+
+- [x] Drift Check button visible in Specs header
+- [x] Runs comparison between Goals and implemented code
+- [x] Flags mismatches with drift status on affected goals
+- [x] Results render in a summary panel with severity indicators
+---
+
+## Specs-G7 Hierarchical Goals View
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Specs-G1
+
+1. **One-Level Goal Hierarchy**
+   - Goals can have parent-child relationships (one level deep only)
+   - Each parent goal can have multiple subgoals
+   - Each subgoal has exactly one parent (or is top-level)
+   - Subgoals detected automatically via dotted ID notation (e.g., `Specs-G3` is child of `Specs-G2`, `G9.1.2` is invalid)
+   - Data model: `parent_id` field derived from ID parsing (not manually set)
+
+2. **Tree Visualization**
+   - Tree view is the default (and only) view mode
+   - **All branches collapsed by default** - only top-level goals visible on initial load
+   - Visual hierarchy with indentation; root goals and sub-goals have distinct styling
+   - Rendered as `<div>`-based tree nodes (replaced earlier `<table>`-based layout)
+   - Show goal metadata (ID, priority, status, tags) in tree nodes
+   - Expand/collapse state is client-side only (session-scoped)
+
+3. **Toggle Area Interaction**
+   - Fixed-width 2.5rem toggle area on the left of each root goal
+   - Children count badge + expand chevron combined into a single clickable span
+   - **Goals WITH sub-goals**: toggle area visible; clicking expands/collapses; hover shows "N sub-goals"
+   - **Goals WITHOUT sub-goals**: toggle area removed entirely; the whole row click opens the detail modal
+   - Sub-goals (level > 0) render with left indent but no toggle area
+
+4. **Goal Detail Modal**
+   - Centered modal with backdrop blur; opened by clicking any tree row
+   - Header: ID badge + title + close button
+   - Meta bar: priority pill, status badge, tags (shortened, color-coded)
+   - Body: RelationsPanel (parents/children) + description content
+   - Inline edit mode: switches to GoalEditor within the same modal
+   - ESC key or click-outside closes; click on card content prevents close
+
+5. **Typed Tag System**
+   - Tags use `kind:value` format (e.g., `stack:frontend`, `module:specs`)
+   - Multiple tags per spec item; all 7 categories tagged (Goals, Architecture, Designs, Plans, Tests, Reviews, Reports)
+   - Tag display in tree rows: shortened form (`stack:frontend` → `frontend`), color-coded by type
+   - `stack:*` = blue, `module:*` = purple; hover shows full tag text
+   - Sidebar filtering: Stack and Module drawers with multi-select pill filters; AND logic across filter types
+
+6. **Sidebar Filtering (SpecsView)**
+   - Three `<details>` drawer sections in sidebar: Category, Stack, Module
+   - Category drawer switches active section (Goals, Architecture, Designs, etc.)
+   - Stack and Module drawers show tag pills; multi-select with active state
+   - Filtered items use AND logic: item must match at least one selected stack AND at least one selected module
+   - Default expanded state for all drawers
+
+| Decision | Choice |
+|----------|--------|
+| Hierarchy Depth | One level (parent → subgoals only) |
+| Subgoal Detection | Dotted ID notation (e.g., `Specs-G3` is child of `Specs-G2`) |
+| Classification System | Typed tags (`kind:value`) — `stack` and `module` kinds |
+| Default View State | All branches collapsed |
+| View Modes | Tree view only (no flat toggle) |
+| Toggle Area | Fixed 2.5rem; removed entirely for leaf goals |
+| Detail Interaction | Modal (not inline expansion) |
+
+- Tree view renders efficiently for 100+ goals
+- Expand/collapse operations complete in <100ms
+- Existing subgoals automatically detected via ID parsing
+- Tags display correctly as shortened color-coded badges on tree nodes
+- Sidebar filtering works across all categories with Stack/Module drawers
+- All branches collapsed on initial load
+---
+
+## Specs-G8 Clean Up Duplicate and Test Goals
+**Status:** proposed
+**Tags:** stack:internal
+**Depends on:** none
+
+- [ ] Remove all test goals created during relay testing (old duplicates)
+- [ ] Remove all duplicate "Human-Friendly Relay Run Titles" entries leaving one
+- [ ] Remove duplicate PDF Export entries leaving one consolidated goal
+- [ ] Goal sequence is continuous and properly numbered after cleanup
+- [ ] Only legitimate production goals remain after cleanup
+---
+
+## Specs-G9 Clean Up Duplicate and Test Goals
+**Status:** proposed
+**Tags:** stack:internal
+**Depends on:** none
+
+- [ ] Remove all duplicate "Human-Friendly Relay Run Titles" entries keeping only Specs-G8
+- [ ] Remove all duplicate "PDF Export" entries keeping only Relay-G14
+- [ ] Remove all test/validation goals (G30, G31, G39 and any future test artifacts)
+- [ ] Remove all duplicate "Clean Up" goals keeping only Specs-G9
+- [ ] Goal IDs are continuous and properly numbered after cleanup (AgentConfig-G1–Specs-G9)
+
+---
+
+## Specs-G10 Architect-Maintained Project Overview
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** Specs-G4, UiSystem-G1
+
+- [x] `overview.md` lives at `specs/{project}/overview.md` as a navigational document
+- [x] Backend API `GET /api/forge/specs/{project}/overview` serves the markdown content
+- [x] Frontend Specs view renders overview with a dedicated "Overview" tab
+- [x] Architect profession is granted `write_file` tool access
+- [x] Architect's soul mandates overview regeneration after every Architecture/Design update
+- [x] Overview structure: project summary, ASCII architecture diagram, module index table, navigation guide, ID convention

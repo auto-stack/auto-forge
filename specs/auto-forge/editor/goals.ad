@@ -1,0 +1,53 @@
+# Goals
+
+## Editor-G1 AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
+**Status:** proposed
+**Tags:** stack:frontend
+**Depends on:** Wiki-G1
+
+- [ ] Block-based WYSIWYG editor replaces split-pane Markdown editor
+- [ ] Native Markdown parse/serialize via Tiptap with bidirectional sync
+- [ ] Slash commands, bubble menu, and drag handle for Notion-like UX
+- [ ] Custom blocks render as Vue components via Tiptap node views
+- [ ] AutoDown extensions: callouts, math, mermaid diagrams, spec references
+- [ ] Used for Wiki content editing initially; extendable to Spec sections
+
+AutoDown Editor is a Tiptap-based rich text editor that presents Markdown content as editable blocks. Each paragraph, heading, list, code block, and custom element is a distinct block with interactive Vue rendering. The editor serializes to clean Markdown for backend persistence and extends to AutoDown syntax for project-specific block types.
+---
+
+## Editor-G2 Phase 1 — Markdown WYSIWYG Editor
+**Status:** proposed
+**Tags:** stack:frontend
+**Depends on:** Editor-G1
+
+- [ ] Tiptap editor core integrated into frontend with Vue 3 composition API
+- [ ] StarterKit blocks: paragraph, heading, list, code block, blockquote, HR, image, link, table, task list
+- [ ] Slash command palette for block insertion via "/"
+- [ ] Bubble menu for inline formatting on text selection
+- [ ] Drag handle for block reordering
+- [ ] Replaces `MarkdownEditor.vue` in Wiki and Spec views
+- [ ] Markdown round-trip: load from string, save to string, no data loss
+---
+
+## Editor-G3 Phase 2 — AutoDown Extensions
+**Status:** proposed
+**Tags:** stack:frontend
+**Depends on:** Editor-G2
+
+- [ ] Callout block with info/warning/tip/danger types
+- [ ] Math block with KaTeX rendering
+- [ ] Mermaid diagram block with live rendering
+- [ ] Spec reference block (`[[AgentConfig-G1]]`) with clickable links
+- [ ] Custom `marked` tokenizers for each AutoDown syntax extension
+- [ ] Each extension is a self-contained pair: Tiptap Node + Vue component
+---
+
+## Editor-G4 Phase 3 — Advanced Editing Features
+**Status:** proposed
+**Tags:** stack:frontend
+**Depends on:** Editor-G3
+
+- [ ] Multi-column layout blocks
+- [ ] Real-time collaborative cursors (Yjs integration)
+- [ ] AI-assisted inline completion
+- [ ] Version diff view between two document states

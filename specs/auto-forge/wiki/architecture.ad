@@ -1,0 +1,77 @@
+# Architectures
+
+## Wiki-A1 Wiki Knowledge Layer Architecture
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Wiki-G1
+
+Wiki provides a dual-root knowledge storage: `wiki/` for agent-processed markdown pages and `raw/` for original source documents (PDFs, images, text files). Both support multi-level directory hierarchies. Agents (Documenter) process raw resources into structured wiki pages.
+
+```mermaid
+graph TB
+    subgraph "Raw Storage"
+        RD[raw/ directory]
+        UF[File Upload API]
+        DZ[DropZone UI]
+    end
+    subgraph "Wiki Storage"
+        WS[wiki/ directory]
+        MD[Markdown Pages]
+        MF[_manifest.json]
+    end
+    subgraph "Tree API"
+        WT[Wiki Tree]
+        RT[Raw Tree]
+    end
+    subgraph "Agent Tools"
+        QW[query_wiki]
+        CW[create_wiki_page]
+        UW[update_wiki_page]
+    end
+    subgraph "UI"
+        WTab[Wiki Tab]
+        TV[TreeView]
+        WE[MarkdownEditor]
+    end
+
+    RD --> UF
+    UF --> DZ
+    WS --> MD
+    WS --> MF
+    MD --> WT
+    RD --> RT
+    QW -->|search| MD
+    CW -->|write| WS
+    UW -->|write| WS
+    WTab --> TV
+    TV -->|wiki tree| WT
+    TV -->|raw tree| RT
+    WTab -->|edit| WE
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Dual-root (wiki/ + raw/) with tree navigation (chosen) | Clear separation of raw vs processed, supports drag-drop import, hierarchical organization | Two directory trees to manage |
+| Flat slug list (no directories) | Simpler implementation | Poor organization for large knowledge bases |
+| Single root with source_type tagging | Fewer directories | Mixing raw and processed in same tree is confusing |
+| External wiki (Notion, Confluence) | No storage implementation needed | Network dependency, not offline, API latency |
+
+- Positive: Raw/ and wiki/ are clearly separated — agents process raw into wiki.
+- Positive: Tree navigation scales to large knowledge bases with nested folders.
+- Positive: Drag-and-drop upload makes importing resources effortless.
+- Negative: Semantic RAG (vector search) not yet implemented — uses text search for now.
+- Mitigation: RAG can be layered on top of existing wiki pages without restructuring.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

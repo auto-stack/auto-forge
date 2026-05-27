@@ -1,0 +1,238 @@
+# Designs
+
+## Errand-D1 Dispatch Tool & Gofer Profession
+**Status:** implemented
+**Module:** `crates/auto-forge/src/forge/dispatch.rs`, `crates/auto-forge/src/relay/profession.rs`
+**Tags:** stack:both
+**Depends on:** Errand-A1, Chat-D3
+
+```rust
+// ── Profession registry entry ──
+// In ProfessionRegistry::register_builtin():
+self.register(Profession {
+    id: String::from("gofer"),
+    name: String::from("Gofer"),
+    phase: ForgePhase::Errand,
+    owned_sections: vec![],
+    readable_sections: vec![
+        SectionType::Goals,
+        SectionType::Architecture,
+        SectionType::Designs,
+        SectionType::Plans,
+        SectionType::Tests,
+    ],
+    allowed_tools: vec![
+        String::from("shell"),
+        String::from("read_file"),
+        String::from("search"),
+        String::from("list_specs"),
+        String::from("read_specs"),
+        String::from("query_wiki"),
+        String::from("list_wiki"),
+    ],
+    dispatchable_to: vec![],  // Gofer cannot dispatch further
+    handoff_to: vec![],       // Gofer never hands off
+    approval_gates: vec![],
+    max_turns: 20,
+    token_budget: 4_000,
+});
+```
+
+```rust
+// ── Dispatch tool definition ──
+pub struct DispatchTool;
+
+impl Tool for DispatchTool {
+    fn name(&self) -> &'static str { "dispatch" }
+    
+    fn description(&self) -> &'static str {
+        "Dispatch a lightweight research or errand task to a side agent. \
+         Use this when you need to look up code, search files, or gather facts \
+         without polluting your own context window. \\n\\n \
+         The errand agent runs in isolation with a cheap model and returns \
+         only a summary. Full logs are available for audit."
+    }
+    
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "required": ["task"],
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Profession to dispatch to. Default: gofer",
+                    "enum": ["gofer"]
+                },
+                "task": {
+                    "type": "string",
+                    "description": "Clear, specific task description. Include what to find, where to look, and what format to return."
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional context from the caller. Why do you need this? What will you do with the result?"
+                },
+                "max_turns": {
+                    "type": "integer",
+                    "description": "Maximum turns for the errand. Default: 20",
+                    "default": 20,
+                    "maximum": 50
+                }
+            }
+        })
+    }
+    
+    fn execute(&self, input: serde_json::Value) -> Result<String, ToolError> {
+        // 1. Parse input
+        // 2. Validate target profession exists and is in caller's dispatchable_to
+        // 3. Spawn ErrandSession
+        // 4. Run errand loop
+        // 5. Return final assistant message
+    }
+}
+```
+
+```rust
+// ── ErrandSession ──
+pub struct ErrandSession {
+    pub id: String,                    // UUID
+    pub parent_session_id: String,     // Master's session
+    pub profession_id: String,         // Always "gofer" for now
+    pub task: String,                  // Original task description
+    pub context: Option<String>,       // Caller-provided context
+    pub messages: Vec<ChatMessage>,    // Isolated message history
+    pub tool_calls: Vec<ToolCallInfo>, // Tool calls made during errand
+    pub status: ErrandStatus,
+    pub token_usage: u64,
+    pub started_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ErrandStatus {
+    Running,
+    Completed { result: String },
+    Failed { error: String },
+    Truncated { result: String, reason: String },
+}
+
+impl ErrandSession {
+    /// Spawn and run the errand to completion (or max_turns).
+    /// This is a blocking call from the master's perspective.
+    pub async fn run(
+        &mut self,
+        provider: &dyn AIProvider,
+        tool_registry: &ToolRegistry,
+    ) -> Result<String, ApiError>;
+    
+    /// Persist full errand log to disk.
+    pub fn save(&self, base_path: &Path) -> Result<(), std::io::Error>;
+    
+    /// Load errand log for audit/review.
+    pub fn load(id: &str, base_path: &Path) -> Result<Self, std::io::Error>;
+}
+```
+
+```rust
+// ── ForgeSession extension ──
+pub struct ForgeSession {
+    pub id: String,
+    pub active_profession: Option<String>,
+    pub messages: Vec<ForgeMessage>,
+    pub errand_sessions: Vec<ErrandSession>,  // NEW
+    // ... existing fields
+}
+```
+
+```rust
+// ─-- SSE events for errand progress ──
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ForgeStreamEvent {
+    // ... existing variants
+    
+    /// Emitted when an errand starts
+    ErrandStart {
+        errand_id: String,
+        profession_id: String,
+        task: String,
+        parent_message_id: String,
+    },
+    
+    /// Emitted on each errand turn (mirrors TurnStart)
+    ErrandTurnStart {
+        errand_id: String,
+        turn: u32,
+        profession_id: String,
+    },
+    
+    /// Emitted when errand produces text
+    ErrandText {
+        errand_id: String,
+        text: String,
+    },
+    
+    /// Emitted when errand calls a tool
+    ErrandToolCall {
+        errand_id: String,
+        id: String,
+        name: String,
+        arguments: String,
+    },
+    
+    /// Emitted when errand tool completes
+    ErrandToolResult {
+        errand_id: String,
+        id: String,
+        result: String,
+    },
+    
+    /// Emitted when errand completes or fails
+    ErrandComplete {
+        errand_id: String,
+        status: String,  // "completed" | "failed" | "truncated"
+        result: String,
+        token_usage: u64,
+    },
+}
+```
+
+
+```markdown
+# Soul of the Gofer
+
+## Identity
+You are Gus, an AI research assistant. You do not make decisions, give opinions, or offer advice. Your only job is to gather facts and report them concisely.
+
+## Rules
+1. **Be brief.** Your output will be consumed by another agent who is busy. One paragraph is usually enough.
+2. **Cite sources.** When you find something, mention the file path or command you used.
+3. **No opinions.** Never say "I think" or "It would be better." Only facts.
+4. **No decisions.** Never say "You should use X." Say "The codebase uses X in file Y."
+5. **Stop early.** If you find the answer in 2 turns, stop. Do not keep searching for completeness.
+6. **Failure mode.** If you cannot find the answer after max turns, say what you searched and what you found (or didn't find).
+```
+
+
+| Profession | `dispatch` in allowed_tools | `dispatchable_to` |
+|---|---|---|
+| assistant | ✅ | [gofer] |
+| advisor | ✅ | [gofer] |
+| architect | ✅ | [gofer] |
+| planner | ✅ | [gofer] |
+| tester | ✅ | [gofer] |
+| coder | ✅ | [gofer] |
+| gofer | ❌ | [] |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

@@ -1,0 +1,90 @@
+# Architectures
+
+## ApiSources-A1 API Source & Multi-Provider Architecture
+**Status:** proposed
+**Tags:** stack:both
+**Depends on:** ApiSources-G1
+
+A single hardcoded provider (Claude only) limits agent flexibility and cost optimization. Agents in different roles have different cognitive requirements — a routing Assistant needs a cheap/fast model, while an Architect needs a strong reasoning model. Multi-provider support enables per-agent model selection from any configured API source.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        CF[config.rs] -->|load| AS[ApiSource Store]
+        CF -->|load| AC[AgentConfig Store]
+    end
+    subgraph "Provider Dispatch"
+        DP[dispatch_chat] --> AP[Anthropic Provider]
+        DP --> OP[OpenAI Provider]
+        DP --> LP[Local/Ollama Provider]
+    end
+    subgraph "Pipeline"
+        PE[PipelineEngine] -->|resolve| RC[RelayRegistry]
+        RC -->|spawn from| AC
+        AC -->|uses| AS
+        AS -->|routes via| DP
+    end
+
+    PE -->|step| AG[AgentInstance]
+    AG -->|chat via| DP
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Multi-provider dispatcher with ApiSource configs | Per-agent model selection, cost optimization, provider flexibility | More complex AI dispatch layer, multiple SSE format parsers |
+| Single provider with model tiers only | Simpler implementation | Locked into one provider, no fallback across providers |
+| Runtime model registry (no config UI) | No UI needed | Users cannot manage API keys or discover models |
+
+- Positive: Each agent can use the optimal provider + model for its task.
+- Positive: First-startup auto-detection finds existing keys — zero config for most users.
+- Positive: Test Connection endpoint validates setup before running pipelines.
+- Negative: Three different SSE parsing paths (Anthropic, OpenAI, Local) must be maintained.
+- Mitigation: OpenAI and Local share the same `/v1/chat/completions` format; only Anthropic differs.
+
+### Key Architecture Decisions
+
+
+
+
+
+```mermaid
+graph TB
+    subgraph "New Composables"
+        UA[useApiSources.ts]
+        UAC[useAgentConfigs.ts]
+    end
+    subgraph "Existing Composables"
+        UF[useForge.ts]
+        UR[useRelay.ts]
+        US[useSpecs.ts]
+        UG[useGateInbox.ts]
+    end
+
+    UAC -->|reads| UA
+    UR -->|uses| UAC
+    UF -->|uses| UA
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## ApiSources-A2 APIs Documentation View Architecture
+**Status:** approved
+**Tags:** stack:frontend
+
+- Static documentation living in `specs/apis.ad`; rendered as a read-only view in the frontend
+- Grouped by backend module: Forge, Relay, Config, Wiki, Raw
+- Each entry shows HTTP method, route path, handler function, and one-line description
+- Editable through the Specs workspace when `apis.ad` is updated

@@ -1,0 +1,109 @@
+# Tests
+
+## AgentConfig-T1 [G1] Agent profession registry loads built-in professions
+**Status:** done
+**Test File:** `crates/auto-forge/src/relay/profession.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:backend
+**Depends on:** AgentConfig-G1, AgentConfig-D1
+
+```rust
+let registry = ProfessionRegistry::new();
+```
+
+1. Call `registry.load_builtin()`
+2. Query `registry.get("architect")`
+3. Query `registry.get("coder")`
+4. Query `registry.get("nonexistent")`
+
+- Architect profession exists with `owned_sections: [Architecture, Designs]`.
+- Coder profession exists with `tools: [read_file, write_file, edit_file, shell, search]`.
+- Nonexistent returns `None`.
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## AgentConfig-T2 [G1] Soul markdown renders into system prompt context
+**Status:** done
+**Test File:** `crates/auto-forge/src/relay/agent.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:backend
+**Depends on:** AgentConfig-G1, AgentConfig-D1
+
+```rust
+let soul = SoulConfig::load("test-souls/planner.md").unwrap();
+let profession = ProfessionRegistry::new().get("planner").unwrap();
+```
+
+1. Call `AgentInstance::spawn(profession, &soul.id, ...)`
+2. Call `agent.render_system_prompt()`
+3. Assert prompt contains Soul values
+4. Assert prompt contains Profession constraints
+
+- System prompt includes "Core Values" section from Soul.
+- System prompt includes "You may ONLY use read_jade, write_jade tools" from Profession.
+- Prompt is ≤2000 tokens.
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## AgentConfig-T3 [G7] Profession registry contains new v2 professions and no Intaker or APIs
+**Status:** done
+**Test File:** `crates/auto-forge/src/relay/profession.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:backend
+**Depends on:** Specs-G1, AgentConfig-D2, Relay-P7.1, Relay-P7.2
+
+```rust
+let registry = ProfessionRegistry::new();
+```
+
+1. Query `registry.get("assistant")`.
+2. Query `registry.get("advisor")`.
+3. Query `registry.get("intaker")`.
+4. Query `registry.get("architect")`.
+5. Inspect `architect.owned_sections`.
+
+- Assistant exists with `phase: Intake`, `owned_sections: []`.
+- Advisor exists with `phase: Discovery`, `owned_sections: [Goals]`.
+- Intaker returns `None`.
+- Architect exists with `owned_sections: [Architecture, Designs]` (no APIs).
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

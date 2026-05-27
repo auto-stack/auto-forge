@@ -1,0 +1,43 @@
+# Goals
+
+## Runtime-G1 Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss
+**Status:** implemented
+**Tags:** stack:backend
+**Depends on:** Relay-G1, Relay-G2
+
+- [x] Every handoff produces a checkpoint with: git state, ledger state, handoff document, file manifest, token usage
+- [x] Runs can resume from any checkpoint after process restart
+- [x] Resume rehydrates the next agent from checkpoint (no chat history restored)
+- [x] Rollback restores files, ledger, and state to a previous checkpoint
+- [x] Fork creates a new run from an existing checkpoint with different parameters
+
+Since agents "work longer rather than quicker," flows may run for hours or days. Checkpointing makes this safe. On resume, the next agent starts fresh from the Handoff Document — token cost is identical to continuous execution.
+---
+
+## Runtime-G2 Token Budgeting tracks and enforces per-step spend with cost analytics visible in Agents view
+**Status:** implemented
+**Tags:** stack:backend
+**Depends on:** Relay-G1
+
+- [x] Per-step token budgets with configurable limit, warning threshold, and strategy
+- [x] Budget strategies: HardStop, EscalateModel, SummarizeContext, SkipOptional
+- [x] Agents view shows real-time token spend and "savings vs parallel" estimates
+- [x] Cumulative run budget prevents runaway costs
+- [x] Cost analytics persist across checkpoints
+
+Token budgeting makes cost a first-class constraint. The Agents view compares actual relay cost against estimated parallel-swarm cost to demonstrate savings.
+---
+
+## Runtime-G3 Boss-first execution: GSD mode runs autonomously with optional Check mode for gate review
+**Status:** implemented
+**Tags:** stack:backend
+**Depends on:** Relay-G1
+
+- [x] RelayMode enum exists: `GSD` (default) and `Check`
+- [x] GSD mode: only GoalGate requires human approval; Design, Plan, Execution gates are auto
+- [x] Check mode: every gate pauses for human review
+- [x] Reviewer acts as internal quality auditor in GSD mode (no human gate)
+- [x] Documenter compiles and delivers final Report as boss-facing product
+- [x] Boss is interrupted only on ambiguity, blockage, budget exceed, or explicit Check mode
+
+The human is the boss, not a coworker. The default behavior is autonomous execution. The boss gives one order and receives a Report. Human gates are opt-in, not mandatory.

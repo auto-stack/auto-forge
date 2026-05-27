@@ -27,9 +27,11 @@ backend/server.log
 backend.log
 
 # Build artifacts / generated data
+# Python cache
+__pycache__/
 backend/auto-forge/
 frontend/test-results/
-specs/auto-forge/
+# specs/auto-forge/
 specs/debug_*.txt
 
 # One-off scripts

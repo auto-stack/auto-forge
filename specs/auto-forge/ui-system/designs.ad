@@ -1,0 +1,66 @@
+# Designs
+
+## UiSystem-D1 Responsive 3-Zone Layout System
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/App.vue`
+**Tags:** stack:frontend
+**Depends on:** —
+
+| Breakpoint | Zone A | Zone B | Zone C |
+|---|---|---|---|
+| `≥1280px` | 220px sidebar | flex main | 280–320px context |
+| `1024–1279px` | 220px sidebar | flex main | hidden, toggle drawer |
+| `<1024px` | tab nav | full main | bottom sheet |
+
+```css
+.autoforge-app {
+  display: flex;
+  height: 100vh;
+}
+.view-rail { width: 180px; flex-shrink: 0; }
+.view-main { flex: 1; display: flex; min-width: 0; }
+```
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-D2 Theme & Accent Component System
+**Status:** implemented
+**Module:** `frontend/src/composables/useTheme.ts`, `useAccentColor.ts`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A3
+
+- Detect and apply theme preference (dark/light/system) on app mount
+- Persist choice to `localStorage` with VitePress-compatible key
+- Inject CSS custom properties for the selected accent palette
+- Expose `toggleTheme()`, `setAccent(color)` for UI controls
+
+- Browser `localStorage` API
+- `matchMedia('prefers-color-scheme')`
+- Tailwind CSS dark mode class strategy
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

@@ -1,0 +1,27 @@
+# Designs
+
+## Project-D1 Explorer View & Tree Component
+**Status:** implemented
+**Module:** `frontend/src/views/ExplorerView.vue`, `components/TreeView.vue`
+**Tags:** stack:frontend
+**Depends on:** Project-A3
+
+- Fetch and display recursive project file tree
+- Handle node expand/collapse with chevron animation
+- Filter tree client-side by search query
+- Render file previews by MIME type (text, image, PDF, download)
+
+- `useProject.ts` for project path and close action
+- `TreeNode` type from `@/types/wiki`
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

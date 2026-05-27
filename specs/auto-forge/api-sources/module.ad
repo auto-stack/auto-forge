@@ -1,0 +1,30 @@
+# ApiSources Module
+
+## Overview
+
+API Source Configuration supports multi-provider LLM management with auto-detection and model tiers
+
+## Module Specs
+
+| Type | Count | File |
+|------|-------|------|
+| Goals | 2 | [goals.ad](goals.ad) |
+| Architecture | 2 | [architecture.ad](architecture.ad) |
+| Designs | 2 | [designs.ad](designs.ad) |
+| Plans | 2 | [plans.ad](plans.ad) |
+| Tests | 3 | [tests.ad](tests.ad) |
+
+## Navigation
+
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
+
+## ID Prefix
+
+Spec IDs in this module use the prefix **`ApiSources-`** (e.g. `ApiSources-G1`, `ApiSources-D1`).

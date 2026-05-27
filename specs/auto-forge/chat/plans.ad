@@ -1,0 +1,89 @@
+# Plans
+
+## Chat-P1 Chat-First Gates & Smart Secretary
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** Chat-G1
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Chat-P8.1 | GateCard component with diff rendering and Approve/Reject/Edit actions | Alice | 3 days | — | Done |
+| Chat-P8.2 | SecretaryMessage component with queue UI, snooze, dismiss | Alice | 2 days | Chat-P8.1 | Done |
+| Chat-P8.3 | useGateInbox composable with cross-session registration and badge count | Bob | 2 days | — | Done |
+| Chat-P8.4 | useForge ↔ useRelay gate state integration | Bob | 2 days | Chat-P8.3 | Done |
+| Chat-P8.5 | ReportCard terminal completion component | Alice | 1 day | — | Done |
+
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-P2 Chat Agent Handoff — bring_in Tool
+**Status:** proposed
+**Tags:** stack:both
+**Depends on:** Relay-G9, Chat-D3, Chat-A2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| Chat-P16.1 | BringInTool struct with JSON schema, validation, and execute method | Core | 1 day | Chat-D3 | Proposed |
+| Chat-P16.2 | Update assistant profession `allowed_tools` to include `bring_in` | Core | 0.5 day | Chat-P16.1 | Proposed |
+| Chat-P16.3 | Tool handler: validate target is in `handoff_to`, switch `active_profession`, persist session | Core | 1 day | Chat-P16.1 | Proposed |
+| Chat-P16.4 | HandoffNote struct with render() method for injecting context | Core | 0.5 day | Chat-D3 | Proposed |
+| Chat-P16.5 | Inject HandoffNote as system message before next agent's turn in `forge_stream` | Core | 1 day | Chat-P16.3, Chat-P16.4 | Proposed |
+| Chat-P16.6 | SSE `agent_handoff` event emission after bring_in executes | Core | 0.5 day | Chat-P16.3 | Proposed |
+| Chat-P16.7 | Update Nicole's soul to instruct bring_in usage after classification | Core | 0.5 day | Chat-P16.1 | Proposed |
+| Chat-P16.8 | Frontend: handle `agent_handoff` SSE event, update profession badge | Core | 0.5 day | Chat-P16.6 | Proposed |
+| Chat-P16.9 | Frontend: HandoffCard component for bring_in tool_call rendering | Core | 1 day | Chat-P16.8 | Proposed |
+| Chat-P16.10 | Integration tests: bring_in validation, handoff note injection, SSE event | Core | 1 day | Chat-P16.5, Chat-P16.6 | Proposed |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-P3 Streaming Renderer Integration
+**Status:** done
+**Tags:** stack:frontend
+**Depends on:** Chat-G9, Chat-D4
+
+| Task | Owner | Duration | Status |
+|---|---|---|---|
+| Chat-P22.1 | `useStreamingDocument.ts` parser with sticky props cache | UI | 2 days | Done |
+| Chat-P22.2 | `StreamingRenderer.vue` with component registry | UI | 2 days | Done |
+| Chat-P22.3 | `StreamingTable.vue` for JSON table blocks | UI | 1 day | Done |
+| Chat-P22.4 | Integrate into `ChatsView.vue` message stream | UI | 1 day | Done |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

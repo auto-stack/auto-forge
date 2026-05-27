@@ -1,0 +1,24 @@
+# Reports
+
+## Specs-R1 — Spec Conversion Gap Audit (Post-Write)
+**Status:** draft
+**Tags:** stack:frontend
+
+After converting `docs/design/forge-specs-relay-frontend.md` into formal specs, a gap audit identified missing component designs and an undocumented SSE routing contract.
+
+| Gap | Severity | Resolution | Location |
+|---|---|---|---|
+| `GateBanner` component (Specs view sticky gate banner) | High | New Design Specs-D3 | `designs.ad` |
+| `GatePanel` component (Relay view gate approval) | High | New Design Relay-D9 | `designs.ad` |
+| `ReportCard` component (terminal completion in chat) | High | New Design Chat-D2 | `designs.ad` |
+| SSE Event Map / Frontend Integration | Critical | New Design Relay-D10 | `designs.ad` |
+| Open questions untracked (sound, escalation, persistence, locking) | Medium | Added as plan risks | `plans.ad` (Chat-P1, Relay-P9, UiSystem-P1) |
+
+- Sound design: opt-in chime for gates?
+- Gate escalation: browser notification after >30min?
+- Secretary queue persistence across refresh (backend dependency)
+- Multi-run document locking (ETag strategy)
+
+All P0 gaps are now closed. The 4 new designs (Specs-D3–Relay-D10) and 3 additional plan risks provide sufficient detail for the Coder to begin implementation.
+
+---

@@ -1,0 +1,39 @@
+# Tests
+
+## Project-T1 [G13] Multi-provider dispatch routes to correct API format
+**Status:** proposed
+**Test File:** `backend/src/ai.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:both
+**Depends on:** ApiSources-G1, Provider-D1
+
+```rust
+// Mock HTTP responses for each provider
+let anthropic_source = ApiSource { provider: Anthropic, ... };
+let openai_source = ApiSource { provider: OpenAI, ... };
+```
+
+1. Call `dispatch_chat(&anthropic_source, "claude-3-5-sonnet", ...)` with mock server
+2. Assert request uses `x-api-key` header, `/v1/messages` path
+3. Assert SSE parsing extracts `delta.text` from `content_block_delta`
+4. Call `dispatch_chat(&openai_source, "gpt-4o", ...)` with mock server
+5. Assert request uses `Authorization: Bearer` header, `/v1/chat/completions` path
+6. Assert SSE parsing extracts `choices[0].delta.content`
+
+- Anthropic provider sends correct auth header and URL.
+- OpenAI provider sends correct auth header and URL.
+- Both SSE formats are parsed into `AIStreamDelta` correctly.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

@@ -1,0 +1,88 @@
+# Tests
+
+## Runtime-T1 [G15] CLI settings serialize and deserialize correctly
+**Status:** done
+**Test File:** `backend/src/cli/settings.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:backend
+**Depends on:** Cli-G1, Cli-D1
+
+1. Create full `Settings` with env, provider, model, api_key, base_url, permission
+2. Serialize to JSON and deserialize back
+3. Assert round-trip preserves all fields
+4. Deserialize `{}` (minimal) → assert defaults
+
+- Full settings round-trip without data loss.
+- Empty JSON produces valid defaults.
+- env HashMap is correctly populated.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Runtime-T2 [G15] Settings env injection respects existing env vars
+**Status:** done
+**Test File:** `backend/src/cli/settings.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:backend
+**Depends on:** Cli-G1, Cli-D1
+
+1. Set `TEST_VAR=existing`
+2. Create `Settings { env: { "TEST_VAR": "new" } }`
+3. Call `inject_env()`
+4. Assert `TEST_VAR` still equals "existing" (not overwritten)
+
+- Existing env vars are not overwritten by settings.
+- Missing env vars are set from settings.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Runtime-T3 [G15] Full build passes with CLI module wired in
+**Status:** done
+**Test File:** CI (`cargo check && cargo test --lib`)
+**Tags:** stack:backend
+**Depends on:** Provider-G1, Cli-G1
+
+1. Run `cargo check`
+2. Assert 0 errors
+3. Run `cargo test --lib`
+4. Assert 131 passed, 1 pre-existing failure
+
+- Build compiles without errors.
+- All new and existing tests pass (except pre-existing `test_model_tier_serde`).
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

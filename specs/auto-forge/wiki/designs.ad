@@ -1,0 +1,216 @@
+# Designs
+
+## Wiki-D1 Wiki Knowledge Layer — Storage, Tree API, Raw Resources, and Agent Tools
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Wiki-G1, Wiki-A1
+
+### Data Model
+
+```rust
+struct WikiPage {
+    slug: String,            // path-based: "guide/getting-started"
+    title: String,
+    content: String,         // markdown content
+    source_type: WikiSource,  // Manual, Guide, ApiRef, Custom
+    tags: Vec<String>,
+    version: u32,
+    created_at: u64,
+    updated_at: u64,
+}
+
+struct TreeNode {
+    name: String,
+    path: String,            // relative path from wiki/ or raw/ root
+    node_type: String,       // "file" | "folder"
+    children: Option<Vec<TreeNode>>,
+    size: Option<u64>,
+    modified: Option<u64>,
+}
+
+enum WikiSource { Manual, Guide, ApiRef, Custom }
+```
+
+### Storage Layout
+
+```
+{project}/
+├── specs/          # existing specs
+├── wiki/
+│   ├── _manifest.json    # page metadata index
+│   ├── guide/
+│   │   ├── getting-started.md
+│   │   └── advanced/
+│   │       └── api-reference.md
+│   └── readme.md
+└── raw/
+    ├── datasheets/
+    │   ├── stm32f4-datasheet.pdf
+    │   └── pinout.png
+    └── meeting-notes/
+        └── 2024-01-15.md
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/forge/wiki/{project}/tree` | GET | Wiki directory tree (TreeNode[]) |
+| `/api/forge/wiki/{project}/pages` | GET/POST | List/Create wiki pages |
+| `/api/forge/wiki/{project}/page/{*slug}` | GET/PUT/DELETE | Read/Update/Delete wiki page (path-based) |
+| `/api/forge/wiki/{project}/search` | POST | Full-text search |
+| `/api/forge/raw/{project}/tree` | GET | Raw directory tree |
+| `/api/forge/raw/{project}/upload` | POST | Multipart file upload (50MB limit) |
+| `/api/forge/raw/{project}/file/{*path}` | GET/DELETE | Serve/Delete raw file |
+| `/api/forge/raw/{project}/mkdir` | POST | Create raw subdirectory |
+
+### Agent Tools
+
+| Tool | Description | Profession Access |
+|---|---|---|
+| `query_wiki` | Full-text search (semantic RAG planned) | All professions |
+| `create_wiki_page` | Create page with path-based slug | Coder, Documenter |
+| `update_wiki_page` | Update page content with versioning | Coder, Documenter |
+| `list_wiki` | List all wiki pages with metadata | All professions |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Wiki-D2 Wiki Frontend — Tree Navigation, Raw Import, and Tab Integration
+**Status:** done
+**Tags:** stack:frontend
+**Depends on:** Wiki-D1
+
+### Types (`frontend/src/types/wiki.ts`)
+
+```typescript
+type WikiSource = 'manual' | 'guide' | 'api_ref' | 'custom'
+
+interface WikiPage {
+  slug: string
+  title: string
+  content: string
+  source_type: WikiSource
+  tags: string[]
+  version: number
+  created_at: number
+  updated_at: number
+}
+
+interface WikiPageMeta {
+  slug: string
+  title: string
+  source_type: WikiSource
+  tags: string[]
+  version: number
+  updated_at: number
+}
+
+interface TreeNode {
+  name: string
+  path: string
+  type: 'file' | 'folder'
+  children?: TreeNode[]
+  size?: number
+  modified?: number
+}
+```
+
+### Composable (`frontend/src/composables/useWiki.ts`)
+
+Singleton pattern with module-level refs for wiki pages, trees, and upload state:
+
+```typescript
+const _pages = ref<WikiPageMeta[]>([])
+const _activePage = ref<WikiPage | null>(null)
+const _wikiTree = ref<TreeNode[]>([])
+const _rawTree = ref<TreeNode[]>([])
+const _uploadProgress = ref<number | null>(null)
+
+// Wiki CRUD
+loadPages(project), loadPage(project, slug), createPage(...)
+updatePage(project, slug, data), deletePage(project, slug), searchWiki(project, query)
+
+// Tree operations
+loadWikiTree(project), loadRawTree(project)
+
+// Raw operations
+uploadRawFiles(project, files[], prefix?), deleteRawFile(project, path)
+createRawFolder(project, path), rawFileUrl(project, path)
+```
+
+### View (`frontend/src/views/WikiView.vue`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty: no selection
+    Empty --> Viewing: click wiki page in tree
+    Empty --> ViewingRaw: click raw file in tree
+    Viewing --> Editing: click Edit button
+    Editing --> Viewing: save or cancel
+    Viewing --> Empty: delete page
+    ViewingRaw --> Empty: delete file
+    Empty --> Creating: click + button
+    Creating --> Viewing: save new page
+    Empty --> NewFolder: click folder+ button
+    NewFolder --> Empty: create folder
+```
+
+Layout — dual-region sidebar + content panel:
+
+```
+.wiki-view
+└── .wiki-body
+    ├── .wiki-nav (240px sidebar, collapsible)
+    │   ├── .wiki-nav-header (Wiki title + [+][<] buttons)
+    │   └── .wiki-nav-list
+    │       ├── tree-section "Raw"
+    │       │   ├── TreeView (recursive file tree)
+    │       │   └── DropZone (drag-drop upload)
+    │       └── tree-section "Wiki"
+    │           └── TreeView (recursive page tree)
+    └── .wiki-content
+        ├── content-header (title + Edit/Delete)
+        └── content-scroll
+            ├── MarkdownContent (wiki view)
+            ├── MarkdownEditor (wiki edit/create)
+            ├── img/iframe/MarkdownContent (raw preview)
+            └── Empty state
+```
+
+### Components
+
+| Component | File | Purpose |
+|---|---|---|
+| `wiki.ts` | `frontend/src/types/wiki.ts` | WikiPage, WikiPageMeta, TreeNode types |
+| `useWiki` | `frontend/src/composables/useWiki.ts` | Singleton state + wiki/raw API calls |
+| `TreeView` | `frontend/src/components/TreeView.vue` | Recursive tree with folder expand + file icons |
+| `DropZone` | `frontend/src/components/DropZone.vue` | HTML5 drag-drop file upload |
+| `WikiView` | `frontend/src/views/WikiView.vue` | Dual-region sidebar + content panel |
+| `App.vue` | `frontend/src/App.vue` | Tab registration (BookOpen icon) |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

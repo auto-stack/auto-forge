@@ -1,0 +1,60 @@
+# Architectures
+
+## Editor-A1 AutoDown Editor — Tiptap-Based WYSIWYG Architecture
+**Status:** draft
+**Tags:** stack:frontend
+**Depends on:** Editor-G1
+
+AutoForge needs a block-based WYSIWYG editor that natively supports Markdown serialization and can be extended with custom Vue components for AutoDown-specific blocks. Tiptap is the only evaluated framework that satisfies all constraints simultaneously: it is headless (no forced UI), has first-class Vue 3 integration via `VueNodeViewRenderer`, provides a native ProseMirror block model, and includes a dedicated `@tiptap/markdown` extension with per-extension `parseMarkdown`/`renderMarkdown` hooks. Novel.sh demonstrates that wrapping Tiptap into a product-grade editor is viable — we adapt its pattern (headless primitives + styled composition) to Vue 3's Composition API without Jotai or React-specific libraries.
+
+
+```mermaid
+graph TD
+    subgraph Frontend
+        A[AutoDownEditor.vue] --> B[Tiptap Editor]
+        B --> C[ProseMirror EditorView]
+        C --> D[Block Nodes]
+        D --> E[Vue NodeViews]
+        E --> F[CalloutBlock.vue]
+        E --> G[MathBlock.vue]
+        E --> H[MermaidBlock.vue]
+        E --> I[SpecRefBlock.vue]
+        B --> J[SlashCommand Extension]
+        B --> K[BubbleMenu Extension]
+        B --> L[DragHandle Extension]
+        B --> M[Markdown Extension]
+        M --> N[marked tokenizer]
+    end
+    subgraph Persistence
+        O[WikiPage.content] -->|parse| A
+        A -->|serialize| O
+    end
+```
+
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **Tiptap + Vue 3** (chosen) | Headless, Vue-native, markdown built-in, large extension ecosystem | Bundle size ~150KB+ for core + extensions |
+| **Native ContentEditable** | Zero dependencies, full control | Must rebuild block model, drag/drop, markdown parser from scratch |
+| **CodeMirror 6** | Excellent for code, modular | Flat document model, not block-oriented; poor WYSIWYG image/table support |
+| **Lexical (Meta)** | Modern, collaborative-ready | React-first; Vue integration is community-maintained and immature |
+
+- Positive: Custom blocks are real Vue components — reactive, interactive, testable.
+- Positive: Markdown round-trip is solved by Tiptap; no custom parser needed for Phase 1.
+- Positive: Extension system means adding a new block type does not touch core editor code.
+- Negative: Bundle size increase requires code-splitting the editor into a lazy-loaded chunk.
+- Negative: ProseMirror has a learning curve for developers implementing custom node views.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

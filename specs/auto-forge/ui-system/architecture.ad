@@ -1,0 +1,168 @@
+# Architectures
+
+## UiSystem-A1 Frontend Composable State Architecture
+**Status:** implemented
+**Tags:** stack:frontend
+**Depends on:** Chat-G1
+
+An LLM-based orchestrator would consume tokens for routing decisions, violating Relay-G2's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
+
+```mermaid
+graph TB
+    subgraph "Frontend Composables"
+        F[useForge.ts]
+        R[useRelay.ts]
+        S[useSpecs.ts]
+        G[useGateInbox.ts]
+        I[useItemRelations.ts]
+        AS[useApiSources.ts]
+        AC[useAgentConfigs.ts]
+        P[useProject.ts]
+    end
+    subgraph "Vue Components"
+        C[ChatView]
+        V[SpecsView]
+        L[RelayView]
+        AV[ApiSourcesView]
+        AE[AgentsConfigView]
+    end
+
+    F -->|session gates| G
+    R -->|run gates| G
+    G -->|renders| C
+    R -->|invalidates| S
+    S -->|finds item| I
+    I -->|enriches| V
+    R -->|uses agent configs| AC
+    AC -->|reads api sources| AS
+    F -->|uses api sources| AS
+    AS -->|renders| AV
+    AC -->|renders| AE
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Vue 3 Composables (singleton refs) | Zero boilerplate, matches existing code, tree-shakable, direct cross-import | No time-travel debugging; state is implicit |
+| Pinia global store | DevTools support, mutations traceable | More boilerplate, refactor cost for existing composables |
+| Redux/Vuex | Time-travel, predictable state updates | Massive overhead for a Vue 3 project |
+
+- Positive: `useGateInbox` can import `useRelay` and `useForge` directly to listen for gate events without event bus indirection.
+- Negative: Composable cross-imports create a soft dependency graph that is not explicitly declared.
+- Mitigation: Document cross-cutting concerns in the Architecture ADR; avoid circular imports by keeping `useGateInbox` as the central hub.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-A2 Search & Filter Architecture
+**Status:** draft
+**Tags:** stack:frontend
+
+```typescript
+function filterTree(tree: GoalsTree, query: string): GoalsTree {
+  const q = query.toLowerCase()
+  
+  function filterNode(node: GoalNode): GoalNode | null {
+    // Check if node matches
+    const selfMatch = 
+      node.id.toLowerCase().includes(q) ||
+      node.title.toLowerCase().includes(q) ||
+      node.tags.some(t => 
+        `${t.kind}:${t.value}`.toLowerCase().includes(q)
+      )
+    
+    // Filter children
+    const filteredChildren = node.children
+      .map(filterNode)
+      .filter((n): n is GoalNode => n !== null)
+    
+    // Include node if self matches OR has matching descendants
+    if (selfMatch || filteredChildren.length > 0) {
+      return {
+        ...node,
+        children: filteredChildren,
+        expanded: true,  // Auto-expand if matches
+      }
+    }
+    
+    return null
+  }
+  
+  return {
+    roots: tree.roots
+      .map(filterNode)
+      .filter((n): n is GoalNode => n !== null),
+  }
+}
+```
+
+| Query | Matches |
+|---|---|
+| `Specs-G7` | Goal ID Specs-G7 |
+| `wiki` | Title or tag value contains "wiki" |
+| `module:wiki` | Tag with kind=module, value=wiki |
+| `team:ui` | Tag with kind=team, value=ui |
+
+- Search is fast (client-side filtering on pre-loaded tree)
+- No server round-trip for each keystroke
+- Auto-expansion ensures users see all matches
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-A3 Theme & Accent System Architecture
+**Status:** approved
+**Tags:** stack:frontend
+
+```mermaid
+graph LR
+    T[useTheme.ts] -->|localStorage| LS[vitepress-theme-appearance]
+    T -->|toggle| HTML[<html class="dark|light">]
+    A[useAccentColor.ts] -->|CSS vars| ROOT[:root]
+    ROOT -->|tailwind dark:| UI[All Vue components]
+```
+
+| Concern | Decision |
+|---------|----------|
+| Theme persistence | localStorage key `vitepress-theme-appearance` for compatibility |
+| Accent application | CSS custom properties (`--color-primary-500`, etc.) injected at runtime |
+| System preference | `matchMedia('(prefers-color-scheme: dark)')` with live listener |
+
+- No server involvement; purely client-side state
+- Both composables are singletons (module-level refs)
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

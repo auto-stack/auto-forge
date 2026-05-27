@@ -1,0 +1,34 @@
+# Goals
+
+## Wiki-G1 Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
+**Status:** done
+**Tags:** stack:both
+**Depends on:** Project-G1
+
+- [x] Wiki storage in `{project}/wiki/` directory with `_manifest.json` metadata
+- [x] Multi-level directory support (path-based slugs like `guide/getting-started`)
+- [x] Raw resource directory `{project}/raw/` for original documents (PDF, images, text)
+- [x] Tree API for both wiki/ and raw/ directory structures
+- [x] Multipart file upload to raw/ with drag-and-drop UI (DropZone)
+- [x] Raw file serving with MIME type detection and preview (image, PDF, markdown, text)
+- [x] Wiki tab with collapsible sidebar and BookOpen icon in navigation rail
+- [x] Dual-region sidebar: Raw (file tree + DropZone) and Wiki (page tree)
+- [x] View/Edit/Create modes with MarkdownContent and MarkdownEditor
+- [x] Agent wiki tools: `list_wiki`, `create_wiki_page`, `update_wiki_page`
+- [x] Full-text search via `searchWiki` API
+- [ ] Semantic vector indexing (RAG) for semantic retrieval
+- [ ] Version history with revert capability
+
+Wiki is AutoForge's **knowledge index & compression layer**. It stores objective, reusable reference material (chip manuals, technical specs, best practices) — separate from Specs which store project-specific engineering constraints. The `raw/` directory holds original documents; agents (Documenter) process raw content into structured wiki pages.
+---
+
+## Wiki-G2 Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search
+**Status:** proposed
+**Tags:** stack:both
+**Depends on:** Wiki-G1
+
+- [ ] Full-text search across wiki pages with relevance ranking
+- [ ] Hierarchical tag system with `kind:value` format
+- [ ] Tag cloud navigation for browsing by topic
+- [ ] Search indexing for raw file content (PDF text extraction)
+- [ ] Context-aware search scoped to current project

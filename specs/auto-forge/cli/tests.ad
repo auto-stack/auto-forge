@@ -1,0 +1,40 @@
+# Tests
+
+## Cli-T1 [G17] BringInTool validates target against handoff_to list
+**Status:** proposed
+**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:backend
+**Depends on:** Relay-G9, Chat-D3
+
+```rust
+let tool = BringInTool;
+// Valid: advisor is in assistant's handoff_to
+let valid = tool.execute(json!({"target": "advisor", "reason": "test"}));
+// Invalid: architect is NOT in assistant's handoff_to
+let invalid = tool.execute(json!({"target": "architect", "reason": "test"}));
+```
+
+1. Call `bring_in(target: "advisor")` with assistant as active profession
+2. Assert result is Ok with "Handed off to Isaac (advisor)"
+3. Call `bring_in(target: "architect")` with assistant as active profession
+4. Assert result is Err with "Cannot hand off to 'architect'"
+5. Call `bring_in(target: "advisor")` with advisor already active
+6. Assert result is Err with "Already talking to advisor"
+
+- Valid target succeeds.
+- Target not in `handoff_to` is rejected.
+- Target same as current profession is rejected.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

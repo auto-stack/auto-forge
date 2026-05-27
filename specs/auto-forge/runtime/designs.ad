@@ -1,0 +1,71 @@
+# Designs
+
+## Runtime-D1 Runtime Infrastructure
+**Status:** done
+**Module:** `backend/src/runtime/`
+**Tags:** stack:backend
+
+```rust
+// runtime/context.rs
+pub struct ContextManager {
+    max_tokens: u32,
+    keep_recent: usize,
+}
+
+impl ContextManager {
+    pub fn new() -> Self;
+    pub fn maybe_compact(&self, messages: &mut Vec<InputMessage>) -> bool;
+}
+
+// runtime/session.rs
+pub struct Session { path: PathBuf }
+
+impl Session {
+    pub fn new(project_path: &str) -> Self;
+    pub fn append(&self, message: &InputMessage) -> Result<()>;
+    pub fn load(&self) -> Result<Vec<InputMessage>>;
+}
+
+// runtime/permission.rs
+pub enum PermissionMode { Allow, Ask, ReadOnly }
+pub enum PermissionDecision { Allowed, AskUser, Denied }
+
+pub struct PermissionPolicy { mode: PermissionMode }
+
+impl PermissionPolicy {
+    pub fn check(&self, tool_name: &str, is_write: bool) -> PermissionDecision;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Allow: mode == Allow
+    [*] --> Ask: mode == Ask
+    [*] --> ReadOnly: mode == ReadOnly
+    ReadOnly --> Allowed: read-only tool
+    ReadOnly --> Denied: write tool
+    Ask --> Allowed: user approves
+    Ask --> Denied: user denies
+    Allow --> Allowed: any tool
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `max_tokens` | `u32` | Token threshold for compaction (default 100k) |
+| `keep_recent` | `usize` | Messages to preserve during compaction |
+| `path` | `PathBuf` | Session directory at ~/.autoforge/sessions/{hash}/ |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

@@ -1,0 +1,14 @@
+# Goals
+
+## AgentConfig-G1 Agent Identity System supports Soul, Profession, and Model configuration per agent
+**Status:** implemented
+**Tags:** stack:backend
+**Depends on:** Specs-G1
+
+- [x] Agents can be defined with a Soul (markdown character definition)
+- [x] Agents can be assigned a Profession that determines spec ownership, tools, and handoff rules
+- [x] Agents can be configured with a Model (provider, model name, temperature, max_tokens)
+- [x] Built-in professions exist: Assistant, Advisor, Architect, Planner, Coder, Tester, Reviewer, Documenter
+- [x] Custom professions can be added via `.autoforge/professions/` YAML files
+
+The Agent Identity separates *who the agent is* (Soul), *what it can do* (Profession), and *what cognitive substrate it uses* (Model). This enables fine-grained control over agent behavior and cost optimization through model tiering.

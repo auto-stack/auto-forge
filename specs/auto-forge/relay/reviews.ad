@@ -1,0 +1,14 @@
+# Reviews
+
+## Relay-V1 Post-Implementation Review — Relay Node-Graph Pipeline
+**Status:** draft
+**Tags:** stack:frontend
+
+| Criterion | Goal | Result | Evidence | Issue |
+|---|---|---|---|---|
+| C1 | Node graph renders 9-step chain | ✅ Pass | `AgentsView.vue` pipeline-flow with 9 steps | — |
+| C2 | Expanded cards show token burn | ✅ Pass | `expanded-step-card` shows tokens from `professionTokens` | — |
+| C3 | Retry loop visualized correctly | ✅ Pass | `step-retry` badge shows iteration count | — |
+| C4 | Layout engine is v3-DAG-ready | ⚠️ Partial | Linear flexbox; dagre upgrade path reserved per Relay-P8 risk | Future: dagre if v3 parallelism confirmed |
+
+---

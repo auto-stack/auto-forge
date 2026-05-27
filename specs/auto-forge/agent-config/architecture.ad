@@ -1,0 +1,51 @@
+# Architectures
+
+## AgentConfig-A1 Agent Instance Lifecycle
+**Status:** draft
+**Tags:** stack:backend
+**Depends on:** AgentConfig-G1, Relay-G1
+
+Long-lived agent processes would accumulate context and state, defeating the token-efficiency goal. By spawning fresh instances per step, each agent starts with a clean, minimal context window. This also simplifies crash recovery — no need to restore agent memory, only the checkpoint.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Spawning: Orchestrator starts step
+    Spawning --> ConfigResolving: Look up AgentConfig by profession
+    ConfigResolving --> Running: Soul + Specs + Handoff + resolved Model loaded
+    Running --> ToolCall: Agent invokes tool
+    ToolCall --> Running: Tool result appended
+    Running --> HandoffComplete: Agent calls handoff tool
+    Running --> BudgetExceeded: Token limit reached
+    Running --> Error: Panic / API failure
+    Error --> Fallback: Try fallback model from ApiSource
+    Fallback --> Running: Retry with fallback model
+    Fallback --> Failed: All fallbacks exhausted
+    HandoffComplete --> [*]: Instance dropped, checkpoint saved
+    BudgetExceeded --> [*]: Forced handoff, budget note added
+    Failed --> [*]: Run marked Failed, human notified
+```
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Ephemeral per-step instances | Minimal context, easy recovery, cheap | Agent cannot learn across turns within a step |
+| Long-lived instances with context window | Agent remembers earlier turns | Context grows, recovery harder, more tokens |
+| Persistent agent processes with memory | Cross-run learning possible | Complex state management, not needed for relay |
+
+- Positive: Maximum token efficiency.
+- Positive: Crash recovery is trivial — just re-spawn from checkpoint.
+- Negative: If an agent needs 5 turns to complete, each turn re-loads the same Soul + Specs. However, this is cheaper than maintaining a growing context.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

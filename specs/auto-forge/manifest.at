@@ -1,0 +1,15 @@
+project auto-forge
+
+module agent-config
+module api-sources
+module chat
+module cli
+module editor
+module errand
+module project
+module provider
+module relay
+module runtime
+module specs
+module ui-system
+module wiki

@@ -1,0 +1,14 @@
+# Reviews
+
+## Specs-V1 Post-Implementation Review — Specs Workspace & Traceability
+**Status:** draft
+**Tags:** stack:frontend
+
+| Criterion | Goal | Result | Evidence | Issue |
+|---|---|---|---|---|
+| C1 | All 7 categories render correctly | ✅ Pass | `categoryComponent` switch in `SpecsView.vue` | — |
+| C2 | Bidirectional jumping works across sections | ✅ Pass | `jumpToItem` + `findItemById` + flash animation | — |
+| C3 | GSD/Check mode toggle functions | ✅ Pass | `useForgeMode` composable + `showGatePanel` computed | — |
+| C4 | Responsive layout works on mobile | ✅ Pass | `@media (max-width: 768px)` in App + all views | — |
+
+---

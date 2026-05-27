@@ -1,0 +1,142 @@
+# Tests
+
+## UiSystem-T1 [G11] Mobile layout collapses Zone C to bottom sheet
+**Status:** done
+**Test File:** `packages/auto-forge-ui/tests/e2e/mobile-layout.spec.ts`
+**Tags:** stack:frontend
+**Depends on:** Relay-G3, UiSystem-D1
+
+1. Open Specs view
+2. Select an item with relations
+3. Assert RelationsPanel renders as bottom sheet, not sidebar
+4. Swipe down; assert sheet dismisses
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-T2 [G13] ApiSource CRUD operations persist and load correctly
+**Status:** proposed
+**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:frontend
+**Depends on:** ApiSources-G1, ApiSources-D1
+
+```rust
+let temp_dir = TempDir::new().unwrap();
+let config_dir = temp_dir.path().join("autoforge");
+```
+
+1. Create `ApiSource { id: "test-anthropic", provider: Anthropic, ... }`
+2. Call `save_api_sources(&[source])`
+3. Call `load_api_sources()`
+4. Assert loaded source matches original
+5. Update source name, call `save_api_sources()`
+6. Reload, assert name updated
+7. Delete by saving empty array, reload, assert empty
+
+- Save and load round-trips without data loss.
+- Multiple sources can be persisted.
+- Empty state loads as empty Vec.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-T3 [G13] Auto-detection discovers Anthropic key from ~/.claude/settings.json
+**Status:** proposed
+**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:frontend
+**Depends on:** ApiSources-G1, ApiSources-D1
+
+```rust
+// Set up mock ~/.claude/settings.json with ANTHROPIC_AUTH_TOKEN
+let temp_home = TempDir::new().unwrap();
+```
+
+1. Write `settings.json` with `env.ANTHROPIC_AUTH_TOKEN = "sk-test-key"`
+2. Call `detect_available_providers()`
+3. Assert one Anthropic source returned
+4. Assert source has 3 models (haiku, sonnet, opus) with correct tiers
+5. Assert `is_available == true`
+
+- Anthropic source detected with correct models.
+- All three tiers (Light/Mid/Heavy) populated.
+- Source is marked available.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## UiSystem-T4 [G13] API key resolution follows priority order
+**Status:** proposed
+**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
+**Tags:** stack:frontend
+**Depends on:** ApiSources-G1, ApiSources-D1
+
+```rust
+let source = ApiSource {
+    api_key_env: "TEST_API_KEY".into(),
+    api_key_stored: Some(base64_encode("stored-key")),
+    ...
+};
+```
+
+1. Set env var `TEST_API_KEY=env-key`; call `resolve_api_key()` → assert "env-key"
+2. Unset env var; call `resolve_api_key()` → assert "stored-key" (decoded from base64)
+3. Set `api_key_env = "settings:ANTHROPIC_API_KEY"` with mock settings → assert settings value
+4. Remove all sources → assert `None`
+
+- Env var takes priority over stored key.
+- Settings path works as fallback.
+- Returns None when no key is available.
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

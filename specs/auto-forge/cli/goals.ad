@@ -1,0 +1,8 @@
+# Goals
+
+## Cli-G1 CLI Mode provides interactive REPL chat as forge chat subcommand
+**Status:** draft
+**Tags:** stack:backend
+**Depends on:** Provider-G1
+
+CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-driven system — a CLI REPL is not part of its core workflow. The provider, runtime, and tool modules remain; only the CLI entry point and REPL loop were removed.

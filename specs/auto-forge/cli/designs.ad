@@ -1,0 +1,59 @@
+# Designs
+
+## Cli-D1 CLI REPL Interface
+**Status:** done
+**Module:** `backend/src/cli/`
+**Tags:** stack:backend
+
+```rust
+// cli/repl.rs
+pub async fn run_repl(
+    provider: Arc<ClaudeProvider>,
+    registry: &ToolRegistry,
+    system_prompt: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+
+// cli/settings.rs
+pub struct Settings {
+    pub env: HashMap<String, String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub permission: Option<String>,
+}
+pub fn load() -> Settings
+pub fn inject_env(settings: &Settings)
+pub fn ensure_template()
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Prompt
+    Prompt --> Processing: user input
+    Processing --> Streaming: chat_turn()
+    Streaming --> Compacting: response done
+    Compacting --> Prompt: context managed
+    Prompt --> [*]: :quit
+```
+
+| Command | Action |
+|---|---|
+| `:quit` / `:q` | Exit REPL |
+| `:help` | Show available commands |
+| `:reset` | Clear conversation history |
+| `:messages` | Show message count |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

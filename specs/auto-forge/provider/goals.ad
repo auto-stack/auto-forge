@@ -1,0 +1,16 @@
+# Goals
+
+## Provider-G1 Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming
+**Status:** done
+**Tags:** stack:backend
+**Depends on:** AgentConfig-G1
+
+- [x] Unified message types (ChatMessage, ContentBlock, StreamEvent, ToolChatEvent) in provider/types.rs
+- [x] Robust incremental SSE parser (SseParser) in provider/sse.rs handling both \r\n\r\n and \n\n delimiters
+- [x] Single ClaudeProvider with chat_stream() and chat_turn() methods replacing both ai.rs and forge/ai.rs
+- [x] ToolError enum (ExecutionFailed, InvalidInput, PermissionDenied) for structured tool error handling
+- [x] ContextManager with token estimation and automatic compaction
+- [x] Session persistence in JSONL format at ~/.autoforge/sessions/
+- [x] PermissionPolicy with Allow/Ask/ReadOnly modes
+
+The provider/ module is the unified AI communication layer, ported from auto-code-rs and merged with auto-forge's existing Claude integration. It replaces both the old ai.rs and forge/ai.rs modules, providing a single entry point for all LLM interactions with structured types and robust SSE parsing.
