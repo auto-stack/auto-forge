@@ -835,8 +835,8 @@ impl SpecsStore {
             let path = entry.path();
             if path.is_dir() {
                 let project_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                // Skip if already loaded in flat mode
-                if self.projects.contains_key(&project_name) {
+                // Skip backup directories and already loaded projects
+                if project_name.ends_with(".bak") || self.projects.contains_key(&project_name) {
                     continue;
                 }
                 if let Some(doc) = self.load_ad_format(&path, &project_name) {
@@ -906,6 +906,17 @@ impl SpecsStore {
                 self.data_dir.join(sanitize_filename(name))
             };
 
+            // Detect module format to skip auto-save (derive_statuses would rewrite module files)
+            let manifest_path = project_dir.join("manifest.at");
+            let is_module_format = if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                content.lines().any(|l| {
+                    let t = l.trim();
+                    t.starts_with("module ") && !t.starts_with("module = ")
+                })
+            } else {
+                false
+            };
+
             // Try .ad + manifest.at format
             if let Some(mut new_doc) = self.load_ad_format(&project_dir, name) {
                 Self::rebuild_relations(&mut new_doc);
@@ -913,11 +924,18 @@ impl SpecsStore {
 
                 if let Some(old_doc) = self.projects.get(name) {
                     if Self::doc_changed(old_doc, &new_doc) {
-                        tracing::info!(
-                            "Specs for '{}' changed on disk (or derived statuses drifted), reloading and persisting",
-                            name
-                        );
-                        self.save_ad_format(&new_doc, name);
+                        if is_module_format {
+                            tracing::info!(
+                                "Specs for '{}' changed on disk (module format), reloading without auto-save",
+                                name
+                            );
+                        } else {
+                            tracing::info!(
+                                "Specs for '{}' changed on disk (or derived statuses drifted), reloading and persisting",
+                                name
+                            );
+                            self.save_ad_format(&new_doc, name);
+                        }
                         self.projects.insert(name.clone(), new_doc);
                     }
                 }
@@ -929,38 +947,125 @@ impl SpecsStore {
         let manifest_path = project_dir.join("manifest.at");
         tracing::debug!("load_ad_format: manifest_path={}", manifest_path.display());
         let manifest_content = std::fs::read_to_string(&manifest_path).ok()?;
-        let manifest: ManifestAt = toml::from_str(&manifest_content).ok()?;
-        tracing::debug!("load_ad_format: parsed manifest with {} sections", manifest.sections.len());
 
-        let mut sections = Vec::new();
-        for msec in &manifest.sections {
-            let ad_path = project_dir.join(format!("{}.ad", msec.id));
-            tracing::debug!("load_ad_format: loading {} from {}", msec.id, ad_path.display());
-            if let Ok(ad_content) = std::fs::read_to_string(&ad_path) {
-                if let Some(section) = Self::parse_ad_file(&msec.id, &msec.section_type, &msec.title, &ad_content) {
-                    tracing::debug!("load_ad_format: {} parsed {} items", msec.id, section.items.len());
-                    sections.push(SpecsSection {
-                        id: msec.id.clone(),
-                        section_type: Self::parse_section_type(&msec.section_type),
-                        title: msec.title.clone(),
-                        items: section.items,
-                        status: Self::parse_status(&msec.status),
-                        content: section.content,
-                        depends_on: section.depends_on,
-                        last_modified: msec.last_modified,
-                        last_verified: msec.last_verified,
-                    });
+        // Detect new module-based format: contains "module <name>" lines
+        let is_module_format = manifest_content.lines().any(|l| {
+            let t = l.trim();
+            t.starts_with("module ") && !t.starts_with("module = ")
+        });
+
+        if is_module_format {
+            self.load_module_format(project_dir, project_name, &manifest_content)
+        } else {
+            // Legacy flat format: toml with [[section]] entries
+            let manifest: ManifestAt = toml::from_str(&manifest_content).ok()?;
+            tracing::debug!("load_ad_format: parsed legacy manifest with {} sections", manifest.sections.len());
+
+            let mut sections = Vec::new();
+            for msec in &manifest.sections {
+                let ad_path = project_dir.join(format!("{}.ad", msec.id));
+                tracing::debug!("load_ad_format: loading {} from {}", msec.id, ad_path.display());
+                if let Ok(ad_content) = std::fs::read_to_string(&ad_path) {
+                    if let Some(section) = Self::parse_ad_file(&msec.id, &msec.section_type, &msec.title, &ad_content) {
+                        tracing::debug!("load_ad_format: {} parsed {} items", msec.id, section.items.len());
+                        sections.push(SpecsSection {
+                            id: msec.id.clone(),
+                            section_type: Self::parse_section_type(&msec.section_type),
+                            title: msec.title.clone(),
+                            items: section.items,
+                            status: Self::parse_status(&msec.status),
+                            content: section.content,
+                            depends_on: section.depends_on,
+                            last_modified: msec.last_modified,
+                            last_verified: msec.last_verified,
+                        });
+                    } else {
+                        tracing::warn!("load_ad_format: {} parse_ad_file returned None", msec.id);
+                    }
                 } else {
-                    tracing::warn!("load_ad_format: {} parse_ad_file returned None", msec.id);
+                    tracing::warn!("load_ad_format: {} failed to read ad file", msec.id);
                 }
-            } else {
-                tracing::warn!("load_ad_format: {} failed to read ad file", msec.id);
+            }
+            tracing::info!("load_ad_format: loaded {} sections total", sections.len());
+            Some(SpecsDocument {
+                project: manifest.project,
+                version: manifest.version as u64,
+                sections,
+            })
+        }
+    }
+
+    fn load_module_format(&self, project_dir: &std::path::Path, project_name: &str, manifest_content: &str) -> Option<SpecsDocument> {
+        let mut project = project_name.to_string();
+        let mut modules: Vec<String> = Vec::new();
+
+        for line in manifest_content.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("project ") {
+                project = rest.to_string();
+            } else if let Some(rest) = trimmed.strip_prefix("module ") {
+                modules.push(rest.to_string());
             }
         }
-        tracing::info!("load_ad_format: loaded {} sections total", sections.len());
+
+        tracing::info!("load_module_format: project='{}' modules={:?}", project, modules);
+
+        let type_map: [(&str, &str, SectionType); 7] = [
+            ("goals", "Goals", SectionType::Goals),
+            ("architecture", "Architecture", SectionType::Architecture),
+            ("designs", "Designs", SectionType::Designs),
+            ("plans", "Plans", SectionType::Plans),
+            ("tests", "Tests", SectionType::Tests),
+            ("reviews", "Reviews", SectionType::Reviews),
+            ("reports", "Reports", SectionType::Reports),
+        ];
+
+        let mut section_items: std::collections::HashMap<String, Vec<SpecItem>> = std::collections::HashMap::new();
+        let mut section_titles: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
+        for module in &modules {
+            let module_dir = project_dir.join(module);
+            if !module_dir.is_dir() {
+                tracing::warn!("load_module_format: module dir not found: {}", module_dir.display());
+                continue;
+            }
+            for (filename, type_str, _) in &type_map {
+                let ad_path = module_dir.join(format!("{}.ad", filename));
+                if let Ok(content) = std::fs::read_to_string(&ad_path) {
+                    if let Some(section) = Self::parse_ad_file(filename, type_str, type_str, &content) {
+                        tracing::debug!(
+                            "load_module_format: {}/{}.ad parsed {} items",
+                            module, filename, section.items.len()
+                        );
+                        section_titles.insert(filename.to_string(), section.title);
+                        section_items.entry(filename.to_string()).or_default().extend(section.items);
+                    }
+                }
+            }
+        }
+
+        let mut sections = Vec::new();
+        let now = now_secs();
+        for (filename, type_str, section_type) in &type_map {
+            let items = section_items.remove(*filename).unwrap_or_default();
+            let title = section_titles.remove(*filename).unwrap_or_else(|| type_str.to_string());
+            sections.push(SpecsSection {
+                id: filename.to_string(),
+                section_type: section_type.clone(),
+                title,
+                status: Status::InProgress,
+                items,
+                content: String::new(),
+                depends_on: vec![],
+                last_modified: now,
+                last_verified: None,
+            });
+        }
+
+        tracing::info!("load_module_format: loaded {} sections total", sections.len());
         Some(SpecsDocument {
-            project: manifest.project,
-            version: manifest.version as u64,
+            project,
+            version: 2,
             sections,
         })
     }
@@ -1064,7 +1169,7 @@ impl SpecsStore {
         let mut in_section_content = true;
         let mut passed_separator = false;
 
-        let item_heading_re = Regex::new(r"^(?:##|###)\s+([GADPSVXI]\d+(?:\.\d+)?)\s+(.+)$").unwrap();
+        let item_heading_re = Regex::new(r"^(?:##|###)\s+((?:[A-Za-z]+-)?[GADPSVXTIR]\d+(?:\.\d+)?)\s+(.+)$").unwrap();
         let meta_re = Regex::new(r"^\*\*(.+?):\*\*\s*(.*)$").unwrap();
 
         for line in lines.iter().skip(1) {
@@ -1207,39 +1312,145 @@ impl SpecsStore {
         };
         let _ = std::fs::create_dir_all(&project_dir);
 
-        // Save manifest.at
-        let manifest = ManifestAt {
-            project: doc.project.clone(),
-            version: doc.version as u32,
-            sections: doc.sections.iter().map(|s| ManifestSection {
-                id: s.id.clone(),
-                section_type: match s.section_type {
-                    SectionType::Goals => "goals",
-                    SectionType::Architecture => "architecture",
-                    SectionType::Designs => "designs",
-                    SectionType::Plans => "plans",
-                    SectionType::Tests => "tests",
-                    SectionType::Reviews => "reviews",
-                    SectionType::Reports => "reports",
-
-                }.to_string(),
-                title: s.title.clone(),
-                status: Self::serialize_status(&s.status),
-                last_modified: s.last_modified,
-                last_verified: s.last_verified,
-            }).collect(),
-        };
         let manifest_path = project_dir.join("manifest.at");
-        if let Ok(toml_str) = toml::to_string_pretty(&manifest) {
-            let _ = std::fs::write(&manifest_path, toml_str);
+        let is_module_format = if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+            content.lines().any(|l| {
+                let t = l.trim();
+                t.starts_with("module ") && !t.starts_with("module = ")
+            })
+        } else {
+            false
+        };
+
+        if is_module_format {
+            self.save_module_format(doc, &project_dir);
+        } else {
+            // Legacy flat format
+            let manifest = ManifestAt {
+                project: doc.project.clone(),
+                version: doc.version as u32,
+                sections: doc.sections.iter().map(|s| ManifestSection {
+                    id: s.id.clone(),
+                    section_type: match s.section_type {
+                        SectionType::Goals => "goals",
+                        SectionType::Architecture => "architecture",
+                        SectionType::Designs => "designs",
+                        SectionType::Plans => "plans",
+                        SectionType::Tests => "tests",
+                        SectionType::Reviews => "reviews",
+                        SectionType::Reports => "reports",
+                    }.to_string(),
+                    title: s.title.clone(),
+                    status: Self::serialize_status(&s.status),
+                    last_modified: s.last_modified,
+                    last_verified: s.last_verified,
+                }).collect(),
+            };
+            if let Ok(toml_str) = toml::to_string_pretty(&manifest) {
+                let _ = std::fs::write(&manifest_path, toml_str);
+            }
+
+            for section in &doc.sections {
+                let ad_path = project_dir.join(format!("{}.ad", section.id));
+                let ad_content = Self::serialize_section_to_ad(section);
+                let _ = std::fs::write(&ad_path, ad_content);
+            }
+        }
+    }
+
+    fn save_module_format(&self, doc: &SpecsDocument, project_dir: &std::path::Path) {
+        let manifest_path = project_dir.join("manifest.at");
+        let manifest_content = std::fs::read_to_string(&manifest_path).unwrap_or_default();
+
+        let mut modules: Vec<String> = Vec::new();
+        for line in manifest_content.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("module ") {
+                modules.push(rest.to_string());
+            }
         }
 
-        // Save each section as .ad file
+        let type_map: [(&str, SectionType); 7] = [
+            ("goals", SectionType::Goals),
+            ("architecture", SectionType::Architecture),
+            ("designs", SectionType::Designs),
+            ("plans", SectionType::Plans),
+            ("tests", SectionType::Tests),
+            ("reviews", SectionType::Reviews),
+            ("reports", SectionType::Reports),
+        ];
+
+        // Group items by (module, type)
+        let mut grouped: std::collections::HashMap<(String, String), Vec<SpecItem>> = std::collections::HashMap::new();
+
         for section in &doc.sections {
-            let ad_path = project_dir.join(format!("{}.ad", section.id));
-            let ad_content = Self::serialize_section_to_ad(section);
-            let _ = std::fs::write(&ad_path, ad_content);
+            let type_name = match section.section_type {
+                SectionType::Goals => "goals",
+                SectionType::Architecture => "architecture",
+                SectionType::Designs => "designs",
+                SectionType::Plans => "plans",
+                SectionType::Tests => "tests",
+                SectionType::Reviews => "reviews",
+                SectionType::Reports => "reports",
+            };
+
+            for item in &section.items {
+                let module = Self::id_to_module(&item.id).unwrap_or_else(|| "general".to_string());
+                grouped.entry((module, type_name.to_string())).or_default().push(item.clone());
+            }
         }
+
+        for module in &modules {
+            let module_dir = project_dir.join(module);
+            let _ = std::fs::create_dir_all(&module_dir);
+
+            for (filename, section_type) in &type_map {
+                let items = grouped.get(&(module.clone(), filename.to_string())).cloned().unwrap_or_default();
+                let title = match *section_type {
+                    SectionType::Goals => "Goals",
+                    SectionType::Architecture => "Architecture",
+                    SectionType::Designs => "Designs",
+                    SectionType::Plans => "Plans",
+                    SectionType::Tests => "Tests",
+                    SectionType::Reviews => "Reviews",
+                    SectionType::Reports => "Reports",
+                };
+
+                let section = SpecsSection {
+                    id: filename.to_string(),
+                    section_type: section_type.clone(),
+                    title: title.to_string(),
+                    status: Status::InProgress,
+                    items,
+                    content: String::new(),
+                    depends_on: vec![],
+                    last_modified: now_secs(),
+                    last_verified: None,
+                };
+
+                let ad_path = module_dir.join(format!("{}.ad", filename));
+                let ad_content = Self::serialize_section_to_ad(&section);
+                let _ = std::fs::write(&ad_path, ad_content);
+            }
+        }
+    }
+
+    /// Extract module name from item id, e.g. "Relay-G1" -> "relay", "UiSystem-A1" -> "ui-system"
+    fn id_to_module(id: &str) -> Option<String> {
+        let prefix = id.split('-').next()?;
+        let mut result = String::new();
+        let chars: Vec<char> = prefix.chars().collect();
+        for (i, c) in chars.iter().enumerate() {
+            if c.is_uppercase() && i > 0 {
+                let prev_lower = chars.get(i - 1).map(|p| p.is_lowercase()).unwrap_or(false);
+                let next_lower = chars.get(i + 1).map(|n| n.is_lowercase()).unwrap_or(false);
+                if prev_lower || next_lower {
+                    result.push('-');
+                }
+            }
+            result.push(c.to_lowercase().next().unwrap());
+        }
+        if result.is_empty() { None } else { Some(result) }
     }
 
     pub(crate) fn get(&self, project: &str) -> Option<&SpecsDocument> {
@@ -1361,7 +1572,7 @@ impl SpecsStore {
     /// Scans `depends_on` and content text for ID references.
     fn rebuild_relations(doc: &mut SpecsDocument) {
         use regex::Regex;
-        let id_re = Regex::new(r"\b([GADPSVXI]\d+(?:\.\d+)?)\b").unwrap();
+        let id_re = Regex::new(r"\b((?:[A-Za-z]+-)?[GADPSVXTIR]\d+(?:\.\d+)?)\b").unwrap();
 
         // Collect all item IDs for validation
         let mut all_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -2696,6 +2907,31 @@ mod handlers {
         Ok(Json(updated))
     }
 
+    pub async fn get_specs_overview(Path(project): Path<String>) -> Json<serde_json::Value> {
+        let store = specs().lock().unwrap();
+        let project_dir = store.data_dir.join(&project);
+        let overview_path = project_dir.join("overview.ad");
+        if let Ok(content) = std::fs::read_to_string(&overview_path) {
+            Json(serde_json::json!({ "content": content, "exists": true }))
+        } else {
+            Json(serde_json::json!({ "content": "", "exists": false }))
+        }
+    }
+
+    pub async fn get_module_outline(
+        Path((project, module)): Path<(String, String)>,
+    ) -> Json<serde_json::Value> {
+        let store = specs().lock().unwrap();
+        let project_dir = store.data_dir.join(&project);
+        let module_dir = project_dir.join(sanitize_filename(&module));
+        let outline_path = module_dir.join("module.ad");
+        if let Ok(content) = std::fs::read_to_string(&outline_path) {
+            Json(serde_json::json!({ "content": content, "exists": true }))
+        } else {
+            Json(serde_json::json!({ "content": "", "exists": false }))
+        }
+    }
+
     pub async fn get_specs_section(
         Path((project, section_id)): Path<(String, String)>,
     ) -> Json<Option<SpecsSection>> {
@@ -3089,6 +3325,8 @@ where
         // Specs (more specific routes FIRST)
         .route("/api/forge/specs/{project}/drift-check", post(handlers::trigger_drift_check))
         .route("/api/forge/specs/{project}/rebuild-relations", post(handlers::rebuild_relations_endpoint))
+        .route("/api/forge/specs/{project}/overview", get(handlers::get_specs_overview))
+        .route("/api/forge/specs/{project}/module/{module}/outline", get(handlers::get_module_outline))
         .route("/api/forge/specs/{project}/related/{item_id}", get(handlers::get_related_items))
         .route("/api/forge/specs/{project}/{section_id}", get(handlers::get_specs_section).put(handlers::update_specs_section))
         .route("/api/forge/specs/{project}", get(handlers::get_specs).put(handlers::update_specs))

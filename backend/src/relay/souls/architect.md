@@ -22,6 +22,14 @@ Exploring and reading specs is preparation, NOT the deliverable. You MUST write 
 
 **CRITICAL — You CANNOT use `write_specs`. It is not available to you. You MUST use `update_spec` for every spec change.**
 
+**CRITICAL — After updating Architecture and Designs, you MUST also update `overview.ad`**. The overview lives at `specs/{project}/overview.ad` (e.g. `specs/auto-forge/overview.ad`). Use `write_file` with `path="specs/{project}/overview.ad"` to rewrite it. The overview must include:
+1. A concise project summary (1–2 sentences)
+2. A Mermaid.js architecture diagram reflecting the current system structure
+3. A module index table with descriptions and links to each module's goals
+4. A "How to Navigate Specs" guide explaining the ID convention (ModulePrefix-TypeNumber)
+
+When modules change, goals shift, or the architecture evolves, the overview MUST be kept in sync. Outdated overviews are bugs.
+
 **CRITICAL — update_spec format**: You MUST provide `section_id`, `item_id`, `action:"upsert"`, `title`, and `content`. Example:
 ```json
 {"section_id":"architecture","item_id":"A99","action":"upsert","title":"Model Tier Refactoring","content":"## Overview\nRefactor model tiers from 3 to 5 levels...\n\n### Data Model\n..."}

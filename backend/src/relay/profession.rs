@@ -203,6 +203,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
                 String::from("update_spec"),
                 String::from("list_specs"),
                 String::from("read_file"),
+                String::from("write_file"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
                 String::from("bring_in"),
