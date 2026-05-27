@@ -225,13 +225,11 @@
   width: 100%;
   border-collapse: collapse;
   margin: 0.75rem 0;
-  font-size: 0rem;
 }
 
 .autodown-editor-content .tableWrapper > table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0rem;
 }
 
 .autodown-editor-content .tableWrapper th,
@@ -243,6 +241,7 @@
   border: 1px solid var(--af-border);
   padding: 0.4rem 0.6rem;
   text-align: left;
+  font-size: 0.95rem;
 }
 
 .autodown-editor-content .tableWrapper th,
