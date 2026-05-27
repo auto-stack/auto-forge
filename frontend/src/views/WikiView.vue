@@ -112,7 +112,7 @@
           </div>
         </div>
 
-        <div class="content-scroll">
+        <div class="content-scroll" :class="{ 'is-editing': viewState === 'editing' || viewState === 'creating' }">
           <!-- Empty state -->
           <div v-if="viewState === 'empty'" class="content-empty">
             <BookOpen :size="32" />
@@ -691,6 +691,19 @@ watch(project, (val) => {
   flex-direction: column;
   overflow-y: auto;
   padding: 1rem;
+}
+
+.content-scroll.is-editing {
+  overflow: hidden;
+}
+
+.content-scroll.is-editing .content-body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.content-scroll.is-editing .autodown-editor {
+  min-height: 0;
 }
 
 .content-empty {
