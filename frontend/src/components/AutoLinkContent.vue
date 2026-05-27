@@ -27,7 +27,7 @@ defineEmits<{
   (e: 'jump', id: string): void
 }>()
 
-const SPEC_ID_REGEX = /\b([GRAPTVXIS]\d+(?:\.\d+)?)\b/g
+const SPEC_ID_REGEX = /\b((?:[A-Za-z]+-)?[GRAPTVXTIRS]\d+(?:\.\d+)?)\b/g
 
 interface TextPart {
   type: 'text' | 'link'

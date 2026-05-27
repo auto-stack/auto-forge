@@ -21,8 +21,8 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null)
 
-// ID reference regex: G1, G1.1, A1, D1, P1, S1.1, V1, X2026-05, I1
-const ID_RE = /\b([GADPSVXI]\d+(?:\.\d+)?)\b/g
+// ID reference regex: G1, G1.1, A1, D1, P1, S1.1, V1, T1, R1, Relay-G1, AgentConfig-D2
+const ID_RE = /\b((?:[A-Za-z]+-)?[GADPSVXTIR]\d+(?:\.\d+)?)\b/g
 
 function processLinks() {
   const container = containerRef.value

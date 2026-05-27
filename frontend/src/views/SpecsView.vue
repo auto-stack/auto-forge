@@ -13,27 +13,57 @@
             <PanelLeft :size="14" />
           </button>
         </div>
-        <!-- Category Drawer -->
-        <details class="filter-drawer" open>
-          <summary class="filter-drawer-title">Category</summary>
-          <div class="filter-drawer-body">
-            <div
-              v-for="section in filteredSections"
-              :key="section.id"
-              class="section-nav-item"
-              :class="{ active: activeSection === section.id }"
-              @click="activeSection = section.id"
-            >
-              <div class="section-top">
-                <span class="section-name">{{ section.title }}</span>
+        <!-- Top-level Overview -->
+        <div
+          class="overview-entry"
+          :class="{ active: showOverview }"
+          @click="selectOverview()"
+        >
+          <BookOpen :size="15" />
+          <span>Overview</span>
+        </div>
+
+        <!-- Module Accordion -->
+        <div class="module-accordion">
+          <details
+            v-for="mod in filteredModuleTree"
+            :key="mod.name"
+            class="filter-drawer module-drawer"
+            :open="expandedModules.has(mod.name)"
+          >
+            <summary class="filter-drawer-title module-summary" @click.prevent="toggleModuleExpand(mod.name)">
+              <span class="module-name">{{ mod.name }}</span>
+              <span class="module-count">{{ mod.total }}</span>
+            </summary>
+            <div class="filter-drawer-body module-types">
+              <!-- Module Outline -->
+              <div
+                class="section-nav-item type-nav-item outline-nav-item"
+                :class="{ active: activeModuleOutline === mod.name }"
+                @click="selectModuleOutline(mod.name)"
+              >
+                <div class="section-top">
+                  <FileText :size="14" />
+                  <span class="section-name">Outline</span>
+                </div>
               </div>
-              <div class="section-meta">
-                <span class="section-count">{{ section.items?.length || 0 }} items</span>
-                <StatusBadge :status="section.status" size="sm" />
+              <div
+                v-for="type in mod.types"
+                :key="type.id"
+                class="section-nav-item type-nav-item"
+                :class="{ active: activeModule === mod.name && activeSection === type.id && !activeModuleOutline }"
+                @click="selectModuleSection(mod.name, type.id)"
+              >
+                <div class="section-top">
+                  <span class="section-name">{{ type.title }}</span>
+                </div>
+                <div class="section-meta">
+                  <span class="section-count">{{ type.count }} items</span>
+                </div>
               </div>
             </div>
-          </div>
-        </details>
+          </details>
+        </div>
 
         <!-- Stack Drawer -->
         <details class="filter-drawer" open v-if="allStacks.length > 0">
@@ -53,46 +83,44 @@
             >{{ stack }}</button>
           </div>
         </details>
-
-        <!-- Module Drawer -->
-        <details class="filter-drawer" open v-if="allModules.length > 0">
-          <summary class="filter-drawer-title">Module</summary>
-          <div class="filter-drawer-body pills">
-            <button
-              class="filter-pill"
-              :class="{ active: selectedModules.length === 0 }"
-              @click="clearModules"
-            >All</button>
-            <button
-              v-for="mod in allModules"
-              :key="mod"
-              class="filter-pill"
-              :class="{ active: selectedModules.includes(mod) }"
-              @click="toggleModule(mod)"
-            >{{ mod }}</button>
-          </div>
-        </details>
       </div>
 
       <!-- Content pane -->
       <div class="section-editor">
         <div class="content-header">
-          <div class="header-title-row">
+          <div class="header-left">
             <button v-if="sectionNavCollapsed" class="section-nav-toggle-btn" @click="sectionNavCollapsed = false" title="Show sections">
               <PanelLeft :size="16" />
             </button>
-          </div>
-          <div class="header-center">
-            <div class="header-search">
-              <Search :size="13" />
-              <input
-                v-model="specSearch"
-                type="text"
-                class="search-input"
-                placeholder="Search sections..."
-              />
+            <div class="header-breadcrumb">
+              <span v-if="projectName" class="breadcrumb-project">{{ projectName }}</span>
+              <span v-if="projectName && (showOverview || activeModule || activeModuleOutline)" class="breadcrumb-sep">/</span>
+              <template v-if="showOverview">
+                <span class="breadcrumb-section">Overview</span>
+              </template>
+              <template v-else-if="activeModuleOutline">
+                <span class="breadcrumb-module">{{ activeModuleOutline }}</span>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-section">Outline</span>
+              </template>
+              <template v-else>
+                <span v-if="activeModule" class="breadcrumb-module">{{ activeModule }}</span>
+                <span v-if="activeModule && currentSection" class="breadcrumb-sep">/</span>
+                <span v-if="currentSection" class="breadcrumb-section">{{ currentSection.title }}</span>
+              </template>
             </div>
           </div>
+
+          <div class="header-search">
+            <Search :size="14" />
+            <input
+              v-model="specSearch"
+              type="text"
+              class="search-input"
+              placeholder="Search modules..."
+            />
+          </div>
+
           <div class="specs-actions">
             <button class="specs-btn" @click="triggerDriftCheck">
               <RefreshCw :size="14" />
@@ -106,7 +134,21 @@
         </div>
 
         <div class="editor-scroll">
-          <div v-if="currentSection" class="editor-pane">
+          <div v-if="showOverview && overviewExists" class="editor-pane">
+            <div class="editor-header">
+              <h3>Overview</h3>
+            </div>
+            <MarkdownContent :content="overviewContent" />
+          </div>
+
+          <div v-else-if="activeModuleOutline && moduleOutlineExists" class="editor-pane">
+            <div class="editor-header">
+              <h3>{{ activeModuleOutline }} — Outline</h3>
+            </div>
+            <MarkdownContent :content="moduleOutlineContent" />
+          </div>
+
+          <div v-else-if="currentSection" class="editor-pane">
             <!-- Active gate banner for this section -->
             <GateBanner
               v-if="sectionGate"
@@ -187,7 +229,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import {
-  RefreshCw, Search, PanelLeft, BookOpen, Plus, Link2
+  RefreshCw, Search, PanelLeft, BookOpen, Plus, Link2, FileText
 } from 'lucide-vue-next'
 import { useSpecs } from '@/composables/useSpecs'
 import { useGateInbox } from '@/composables/useGateInbox'
@@ -196,6 +238,7 @@ import type { SpecsSection, SpecItem, SectionType, Status } from '@/types/specs'
 import StatusBadge from '@/components/StatusBadge.vue'
 import GateBanner from '@/components/GateBanner.vue'
 import GoalDetailModal from '@/components/GoalDetailModal.vue'
+import MarkdownContent from '@/components/MarkdownContent.vue'
 import { ITEM_TEMPLATES, getDefaultStatus, getNextId } from '@/utils/itemTemplates'
 
 // Category components
@@ -207,13 +250,20 @@ import TestsCards from '@/components/category/TestsCards.vue'
 import ReviewCards from '@/components/category/ReviewCards.vue'
 import ReportCards from '@/components/category/ReportCards.vue'
 
-const { document, isLoading, error, loadDocument, saveDocument, findItemById, findSectionByItemId, rebuildRelations: apiRebuildRelations } = useSpecs()
+const { document, isLoading, error, loadDocument, loadOverview, loadModuleOutline, saveDocument, findItemById, findSectionByItemId, rebuildRelations: apiRebuildRelations } = useSpecs()
 const { gates: pendingGates, resolveGate: resolveGateInbox } = useGateInbox()
 const { projectName: activeProjectName } = useProject()
 
 const SPECS_SIDEBAR_KEY = 'autoforge-specs-sidebar-collapsed'
 
 const activeSection = ref<string>('goals')
+const activeModule = ref<string>('')
+const showOverview = ref(true)
+const overviewContent = ref('')
+const overviewExists = ref(false)
+const activeModuleOutline = ref<string | null>(null)
+const moduleOutlineContent = ref('')
+const moduleOutlineExists = ref(false)
 const activeItemId = ref<string | null>(null)
 const editingItemId = ref<string | null>(null)
 const detailItem = ref<SpecItem | null>(null)
@@ -223,7 +273,7 @@ const specSearch = ref('')
 const sectionNavCollapsed = ref(localStorage.getItem(SPECS_SIDEBAR_KEY) === 'true')
 const flashItemId = ref<string | null>(null)
 const selectedStacks = ref<string[]>([])
-const selectedModules = ref<string[]>([])
+const expandedModules = ref<Set<string>>(new Set())
 
 watch(sectionNavCollapsed, (v) => {
   localStorage.setItem(SPECS_SIDEBAR_KEY, String(v))
@@ -252,13 +302,62 @@ const sections = computed(() => {
   return DEFAULT_SECTIONS
 })
 
-const filteredSections = computed(() => {
+// Extract module name from item id, e.g. "AgentConfig-G1" -> "agent-config"
+function idToModule(id: string): string | null {
+  const prefix = id.split('-')[0]
+  if (!prefix) return null
+  let result = ''
+  for (let i = 0; i < prefix.length; i++) {
+    const c = prefix[i]
+    const isUpper = c >= 'A' && c <= 'Z'
+    if (isUpper && i > 0) {
+      const prev = prefix[i - 1]
+      const next = prefix[i + 1]
+      const prevLower = prev >= 'a' && prev <= 'z'
+      const nextLower = next >= 'a' && next <= 'z'
+      if (prevLower || nextLower) {
+        result += '-'
+      }
+    }
+    result += c.toLowerCase()
+  }
+  return result
+}
+
+const moduleTree = computed(() => {
+  const tree = new Map<string, Map<string, number>>()
+  for (const section of sections.value) {
+    for (const item of section.items) {
+      const mod = idToModule(item.id)
+      if (!mod) continue
+      if (!tree.has(mod)) tree.set(mod, new Map())
+      const typeMap = tree.get(mod)!
+      typeMap.set(section.id, (typeMap.get(section.id) || 0) + 1)
+    }
+  }
+  const typeOrder = ['goals', 'architecture', 'designs', 'plans', 'tests', 'reviews', 'reports']
+  const result = []
+  for (const [modName, typeMap] of tree) {
+    const types = []
+    for (const typeId of typeOrder) {
+      const count = typeMap.get(typeId)
+      if (count !== undefined) {
+        const section = sections.value.find(s => s.id === typeId)
+        types.push({ id: typeId, title: section?.title || typeId, count })
+      }
+    }
+    const total = Array.from(typeMap.values()).reduce((a, b) => a + b, 0)
+    result.push({ name: modName, types, total })
+  }
+  return result.sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const filteredModuleTree = computed(() => {
   const q = specSearch.value.trim().toLowerCase()
-  if (!q) return sections.value
-  return sections.value.filter((s) =>
-    s.title.toLowerCase().includes(q) ||
-    s.id.toLowerCase().includes(q) ||
-    s.content.toLowerCase().includes(q)
+  if (!q) return moduleTree.value
+  return moduleTree.value.filter(mod =>
+    mod.name.toLowerCase().includes(q) ||
+    mod.types.some(t => t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q))
   )
 })
 
@@ -319,34 +418,20 @@ const allStacks = computed(() => {
   return Array.from(set).sort()
 })
 
-const allModules = computed(() => {
-  const set = new Set<string>()
-  for (const section of sections.value) {
-    for (const item of section.items) {
-      item.tags?.forEach(tag => {
-        if (tag.startsWith('module:')) set.add(tag.replace('module:', ''))
-      })
-    }
-  }
-  return Array.from(set).sort()
-})
-
 const filteredItems = computed(() => {
   const section = currentSection.value
   if (!section) return []
   let items = section.items
 
+  // Module filter
+  if (activeModule.value) {
+    items = items.filter(item => idToModule(item.id) === activeModule.value)
+  }
+
   // Stack filter
   if (selectedStacks.value.length > 0) {
     items = items.filter(item =>
       selectedStacks.value.some(s => item.tags?.includes(`stack:${s}`))
-    )
-  }
-
-  // Module filter
-  if (selectedModules.value.length > 0) {
-    items = items.filter(item =>
-      selectedModules.value.some(m => item.tags?.includes(`module:${m}`))
     )
   }
 
@@ -362,22 +447,63 @@ function toggleStack(stack: string) {
   }
 }
 
-function toggleModule(mod: string) {
-  const idx = selectedModules.value.indexOf(mod)
-  if (idx >= 0) {
-    selectedModules.value.splice(idx, 1)
+function clearStacks() { selectedStacks.value = [] }
+
+function toggleModuleExpand(modName: string) {
+  const newSet = new Set(expandedModules.value)
+  if (newSet.has(modName)) {
+    newSet.delete(modName)
   } else {
-    selectedModules.value.push(mod)
+    newSet.add(modName)
   }
+  expandedModules.value = newSet
 }
 
-function clearStacks() { selectedStacks.value = [] }
-function clearModules() { selectedModules.value = [] }
+function selectModuleSection(modName: string, sectionId: string) {
+  showOverview.value = false
+  activeModuleOutline.value = null
+  activeModule.value = modName
+  activeSection.value = sectionId
+}
 
-watch(activeSection, () => {
+function selectModuleOutline(modName: string) {
+  showOverview.value = false
+  activeModuleOutline.value = modName
+  activeModule.value = modName
+  activeSection.value = ''
+  loadModuleOutlineContent(modName)
+}
+
+function selectOverview() {
+  showOverview.value = true
+  activeModuleOutline.value = null
+  activeModule.value = ''
+  activeSection.value = ''
+}
+
+watch([activeModule, activeSection], () => {
   selectedStacks.value = []
-  selectedModules.value = []
 })
+
+watch(moduleTree, (tree) => {
+  if (tree.length > 0 && !activeModule.value && !showOverview.value && !activeModuleOutline.value) {
+    activeModule.value = tree[0].name
+    activeSection.value = tree[0].types[0]?.id || 'goals'
+    expandedModules.value = new Set([tree[0].name])
+  }
+}, { immediate: true })
+
+async function fetchOverview() {
+  const result = await loadOverview(project.value)
+  overviewContent.value = result.content
+  overviewExists.value = result.exists
+}
+
+async function loadModuleOutlineContent(modName: string) {
+  const result = await loadModuleOutline(project.value, modName)
+  moduleOutlineContent.value = result.content
+  moduleOutlineExists.value = result.exists
+}
 
 // ─────────────────────────────────────────────────────────
 
@@ -564,12 +690,14 @@ async function rebuildRelations() {
 onMounted(() => {
   if (project.value && project.value !== 'unknown') {
     loadDocument(project.value)
+    fetchOverview()
   }
 })
 
 watch(project, (newVal) => {
   if (newVal && newVal !== 'unknown') {
     loadDocument(newVal)
+    fetchOverview()
   }
 })
 </script>
@@ -642,6 +770,29 @@ watch(project, (newVal) => {
   background: hsl(var(--muted-foreground) / 0.08);
 }
 
+.overview-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--af-fg);
+  transition: background 0.12s;
+  border-bottom: 1px solid var(--af-border);
+}
+
+.overview-entry:hover {
+  background: hsl(var(--muted-foreground) / 0.05);
+}
+
+.overview-entry.active {
+  background: hsl(var(--primary) / 0.06);
+  border-left-color: hsl(var(--primary));
+}
+
 .section-nav-item {
   padding: 0.6rem 1rem;
   cursor: pointer;
@@ -680,6 +831,90 @@ watch(project, (newVal) => {
 .section-count {
   font-size: 0.78rem;
   color: var(--af-muted);
+}
+
+/* ─── Module Accordion ────────────────────────────────────── */
+
+.outline-nav-item .section-top {
+  gap: 0.4rem;
+  justify-content: flex-start;
+}
+
+.outline-nav-item .section-top svg {
+  color: var(--af-muted);
+  flex-shrink: 0;
+}
+
+.module-accordion {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.module-drawer {
+  border-bottom: 1px solid var(--af-border);
+}
+
+.module-drawer:last-child {
+  border-bottom: none;
+}
+
+.module-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--af-fg);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: hsl(var(--muted-foreground) / 0.02);
+}
+
+.module-summary::-webkit-details-marker {
+  display: none;
+}
+
+.module-summary::before {
+  content: '▸';
+  font-size: 0.7rem;
+  color: var(--af-muted);
+  transition: transform 0.15s;
+  display: inline-block;
+  margin-right: 0.35rem;
+}
+
+.module-drawer[open] .module-summary::before {
+  transform: rotate(90deg);
+}
+
+.module-name {
+  flex: 1;
+  text-transform: capitalize;
+}
+
+.module-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--af-muted);
+  background: hsl(var(--muted-foreground) / 0.08);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.type-nav-item {
+  padding: 0.45rem 0.85rem 0.45rem 1.6rem;
+  border-left: 3px solid transparent;
+}
+
+.type-nav-item .section-name {
+  font-size: 0.82rem;
+  color: var(--af-fg);
+}
+
+.type-nav-item .section-count {
+  font-size: 0.72rem;
 }
 
 /* ─── Filter Drawers ──────────────────────────────────────── */
@@ -779,10 +1014,12 @@ watch(project, (newVal) => {
   position: relative;
 }
 
-.header-title-row {
+.header-left {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .section-nav-toggle-btn {
@@ -792,6 +1029,7 @@ watch(project, (newVal) => {
   cursor: pointer;
   padding: 0.3rem;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .section-nav-toggle-btn:hover {
@@ -799,21 +1037,34 @@ watch(project, (newVal) => {
   background: hsl(var(--muted-foreground) / 0.08);
 }
 
-.header-center {
+.header-breadcrumb {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  justify-content: center;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.header-project {
-  font-size: 0.88rem;
+  gap: 0.4rem;
+  font-size: 0.92rem;
   font-weight: 600;
   color: var(--af-fg);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumb-project {
+  color: var(--af-fg);
+}
+
+.breadcrumb-module {
+  color: hsl(var(--primary));
+  text-transform: capitalize;
+}
+
+.breadcrumb-sep {
+  color: var(--af-muted);
+  font-weight: 400;
+}
+
+.breadcrumb-section {
+  color: var(--af-fg);
 }
 
 .header-search {
@@ -821,13 +1072,14 @@ watch(project, (newVal) => {
   align-items: center;
   gap: 0.4rem;
   width: 100%;
-  max-width: 320px;
+  max-width: 240px;
   padding: 0.35rem 0.75rem;
   background: hsl(var(--muted-foreground) / 0.06);
   border: 1px solid hsl(var(--muted-foreground) / 0.12);
   border-radius: 6px;
   color: var(--af-muted);
   transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
 }
 
 .header-search:focus-within {

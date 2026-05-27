@@ -112,17 +112,25 @@ export function getDefaultStatus(sectionType: string): Status {
 export function getNextId(sectionType: string, existingIds: string[]): string {
   const prefixMap: Record<string, string> = {
     goals: 'G', architecture: 'A', designs: 'D', plans: 'P',
-    tests: 'S', reviews: 'V', reports: 'X',
+    tests: 'T', reviews: 'V', reports: 'R',
   }
   const prefix = prefixMap[sectionType] || sectionType.charAt(0).toUpperCase()
 
   // Find the maximum numeric suffix among existing IDs with this prefix
+  // Supports both old format (G1) and new format (ModulePrefix-G1)
   let maxNum = 0
-  const re = new RegExp(`^${prefix}\\d+$`)
+  const oldRe = new RegExp(`^${prefix}\\d+$`)
+  const newRe = new RegExp(`-[${prefix}]\\d+$`)
   for (const id of existingIds) {
-    if (re.test(id)) {
+    if (oldRe.test(id)) {
       const num = parseInt(id.slice(prefix.length), 10)
       if (!isNaN(num) && num > maxNum) maxNum = num
+    } else if (newRe.test(id)) {
+      const idx = id.lastIndexOf('-' + prefix)
+      if (idx >= 0) {
+        const num = parseInt(id.slice(idx + 1 + prefix.length), 10)
+        if (!isNaN(num) && num > maxNum) maxNum = num
+      }
     }
   }
   return `${prefix}${maxNum + 1}`

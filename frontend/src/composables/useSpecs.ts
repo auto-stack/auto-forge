@@ -28,6 +28,28 @@ export function useSpecs() {
     }
   }
 
+  async function loadOverview(project: string = 'auto-lang'): Promise<{ content: string; exists: boolean }> {
+    try {
+      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/overview`)
+      if (!resp.ok) throw new Error(`Failed to load overview: ${resp.status}`)
+      const data = await resp.json()
+      return { content: data.content || '', exists: data.exists || false }
+    } catch (e) {
+      return { content: '', exists: false }
+    }
+  }
+
+  async function loadModuleOutline(project: string, module: string): Promise<{ content: string; exists: boolean }> {
+    try {
+      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/module/${encodeURIComponent(module)}/outline`)
+      if (!resp.ok) throw new Error(`Failed to load module outline: ${resp.status}`)
+      const data = await resp.json()
+      return { content: data.content || '', exists: data.exists || false }
+    } catch (e) {
+      return { content: '', exists: false }
+    }
+  }
+
   async function saveSection(project: string, section: SpecsSection) {
     try {
       const resp = await fetch(
@@ -96,6 +118,8 @@ export function useSpecs() {
     isLoading,
     error,
     loadDocument,
+    loadOverview,
+    loadModuleOutline,
     saveSection,
     saveDocument,
     findItemById,
