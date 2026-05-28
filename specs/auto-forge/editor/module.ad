@@ -4,6 +4,25 @@
 
 AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
 
+## Goals
+
+- **G1** — AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
+- **G2** — Phase 1 — Markdown WYSIWYG Editor
+- **G3** — Phase 2 — AutoDown Extensions
+- **G4** — Phase 3 — Advanced Editing Features
+
+## Key Architecture Decisions
+
+- **A1** — AutoDown Editor — Tiptap-Based WYSIWYG Architecture
+
+## Key Designs
+
+- **D1** — AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
+
+## Module Dependencies
+
+Depends on: [wiki](wiki/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

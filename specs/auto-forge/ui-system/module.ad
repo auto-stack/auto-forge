@@ -4,13 +4,39 @@
 
 Responsive and Accessible Frontend
 
+## Goals
+
+- **G1** — Responsive and Accessible Frontend
+- **G2** — Layout adapts to desktop, tablet, and mobile breakpoints
+- **G3** — Keyboard shortcuts navigate between views without mouse
+- **G4** — Focus management guides users through gate approval flows
+- **G5** — Screen reader annotations describe node graph and relations
+- **G6** — Theme & Accent Color System
+- *...and 1 more*
+
+## Key Architecture Decisions
+
+- **A1** — Frontend Composable State Architecture
+- **A2** — Search & Filter Architecture
+- **A3** — Theme & Accent System Architecture
+
+## Key Designs
+
+- **D1** — Responsive 3-Zone Layout System
+- **D2** — Theme & Accent Component System
+- **D3** — SpecsView Layout Refactor
+
+## Module Dependencies
+
+Depends on: [api-sources](api-sources/module.ad), [chat](chat/module.ad), [project](project/module.ad), [relay](relay/module.ad), [specs](specs/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |
 |------|-------|------|
 | Goals | 7 | [goals.ad](goals.ad) |
 | Architecture | 3 | [architecture.ad](architecture.ad) |
-| Designs | 2 | [designs.ad](designs.ad) |
+| Designs | 3 | [designs.ad](designs.ad) |
 | Plans | 2 | [plans.ad](plans.ad) |
 | Tests | 4 | [tests.ad](tests.ad) |
 | Reviews | 1 | [reviews.ad](reviews.ad) |

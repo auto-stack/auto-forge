@@ -4,6 +4,24 @@
 
 Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss
 
+## Goals
+
+- **G1** — Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss
+- **G2** — Token Budgeting tracks and enforces per-step spend with cost analytics visible in Agents view
+- **G3** — Boss-first execution: GSD mode runs autonomously with optional Check mode for gate review
+
+## Key Architecture Decisions
+
+_No architecture decisions documented yet._
+
+## Key Designs
+
+- **D1** — Runtime Infrastructure
+
+## Module Dependencies
+
+Depends on: [cli](cli/module.ad), [provider](provider/module.ad), [relay](relay/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

@@ -4,6 +4,24 @@
 
 Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
 
+## Goals
+
+- **G1** — Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
+- **G2** — Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search
+
+## Key Architecture Decisions
+
+- **A1** — Wiki Knowledge Layer Architecture
+
+## Key Designs
+
+- **D1** — Wiki Knowledge Layer — Storage, Tree API, Raw Resources, and Agent Tools
+- **D2** — Wiki Frontend — Tree Navigation, Raw Import, and Tab Integration
+
+## Module Dependencies
+
+Depends on: [project](project/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

@@ -1,0 +1,428 @@
+# Core Flows
+
+This document describes cross-module execution flows that span multiple modules. For module-internal details, see each module's `architecture.ad` and `designs.ad`.
+
+---
+
+## Flow-1: Forge Chat Loop
+
+**Modules involved**: chat, provider, runtime, relay
+**Entry**: User sends message in ChatView
+**Exit**: SSE stream delivers assistant response; or Relay is spawned
+
+### Overview
+
+The Forge Chat Loop is the primary user interaction surface. It receives user messages, routes them through the Assistant agent (Isaac), executes any tool calls (including `spawn_relay`), and streams responses back via SSE.
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ChatView
+    participant useForge
+    participant Backend
+    participant ForgeSession
+    participant AgentInstance
+    participant ClaudeProvider
+    participant ToolRegistry
+    participant Relay
+
+    User->>ChatView: type message + send
+    ChatView->>useForge: sendMessage(content)
+    useForge->>Backend: POST /api/forge/session/{id}/message
+    Backend->>ForgeSession: process_message()
+    ForgeSession->>AgentInstance: turn(system_prompt, messages)
+    AgentInstance->>ClaudeProvider: chat_stream(messages, tools)
+    ClaudeProvider-->>AgentInstance: SSE stream (thinking + tool_call)
+    AgentInstance->>ToolRegistry: execute(tool_name, input)
+    ToolRegistry-->>AgentInstance: result
+
+    alt spawn_relay tool called
+        AgentInstance->>ForgeSession: spawn_relay(flow_spec)
+        ForgeSession->>Relay: start_pipeline()
+        Relay-->>ForgeSession: run_id
+    end
+
+    ClaudeProvider-->>AgentInstance: final response text
+    AgentInstance-->>ForgeSession: TurnResult
+    ForgeSession-->>Backend: SSE events (text, tool_call, tool_result, agent_handoff)
+    Backend-->>useForge: SSE stream
+    useForge->>ChatView: append message / render GateCard
+```
+
+### Key Steps
+
+#### Step 1: Message Intake
+**Trigger**: User presses Enter in ChatView
+**Processing**: `useForge.sendMessage()` builds JSON payload `{ content, session_id }`
+**Data Flow**: ChatView → `useForge` → Backend API
+
+#### Step 2: Session Processing
+**Trigger**: Backend receives POST to `/api/forge/session/{id}/message`
+**Processing**: `ForgeSession` loads session state, compiles message history, builds context
+**Data Flow**: HTTP request → `ForgeSession` → context compilation
+
+#### Step 3: Agent Turn
+**Trigger**: Context ready; AgentInstance spawned with profession config
+**Processing**: `AgentInstance.turn()` renders system prompt (soul + profession + tools + constraints), calls LLM via `ClaudeProvider.chat_stream()`
+**Data Flow**: `ForgeSession` → `AgentInstance` → `ClaudeProvider` → Anthropic API
+
+#### Step 4: Tool Execution
+**Trigger**: LLM returns a tool call
+**Processing**: `ToolRegistry.execute()` runs the tool with permission check; result returned to LLM for continued reasoning
+**Data Flow**: `ClaudeProvider` → `AgentInstance` → `ToolRegistry` → tool implementation → result
+
+#### Step 5: Relay Spawning (optional)
+**Trigger**: Agent calls `spawn_relay` tool
+**Processing**: `ForgeSession` creates a new `PipelineEngine` with the provided FlowSpec; runs in background
+**Data Flow**: `AgentInstance` → `ForgeSession` → `Relay::PipelineEngine`
+
+#### Step 6: Response Streaming
+**Trigger**: Final LLM response assembled (or tool results consumed)
+**Processing**: Backend emits SSE events: `Text`, `ToolCall`, `ToolResult`, `AgentHandoff`
+**Data Flow**: Backend → SSE → `useForge` → `ChatView`
+
+### Related Specs
+- `Chat-A1` — Ephemeral chrome architecture
+- `Chat-A2` — Chat-Turn Agent Handoff
+- `Chat-D3` — `BringInTool` JSON schema and handoff protocol
+- `Provider-A1` — Unified provider & runtime architecture
+- `Relay-A4` — Automatic Relay Mode
+
+---
+
+## Flow-2: Relay Pipeline Execution
+
+**Modules involved**: relay, provider, runtime, specs, chat
+**Entry**: FlowSpec loaded + pipeline started
+**Exit**: Pipeline reaches `Completed` or `Failed` state
+
+### Overview
+
+The Relay Pipeline executes a serial flow of agent turns, passing a baton (handoff document) between professions. A deterministic Rust state machine (`PipelineEngine`) orchestrates execution with zero token cost for routing decisions.
+
+### State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: create pipeline
+    Idle --> Running: start()
+    Running --> WaitingForHuman: gate triggered (Check mode)
+    Running --> Completed: all steps done
+    Running --> Failed: error / budget exceeded
+    WaitingForHuman --> Running: approve / reject with feedback
+    WaitingForHuman --> Failed: reject without retry
+    Running --> Paused: user pause
+    Paused --> Running: resume
+```
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant RelayPanel
+    participant PipelineEngine
+    participant FlowSpec
+    participant AgentInstance
+    participant HandoffManager
+    participant CheckpointManager
+    participant SpecsStore
+
+    User->>RelayPanel: click Start
+    RelayPanel->>PipelineEngine: POST /api/relay/{id}/start
+    PipelineEngine->>FlowSpec: parse steps
+    loop For each step
+        PipelineEngine->>AgentInstance: spawn(profession, handoff_doc)
+        AgentInstance->>ClaudeProvider: chat_turn()
+        ClaudeProvider-->>AgentInstance: TurnResult
+        AgentInstance-->>PipelineEngine: return handoff document
+        PipelineEngine->>HandoffManager: process_handoff()
+        HandoffManager->>SpecsStore: update specs (if requested)
+        PipelineEngine->>CheckpointManager: save checkpoint
+        alt Gate triggered (Check mode)
+            PipelineEngine-->>User: SSE: GatePause
+            User->>PipelineEngine: approve / reject
+        end
+    end
+    PipelineEngine-->>RelayPanel: SSE: Completed / Failed
+    RelayPanel->>User: show run report
+```
+
+### Key Steps
+
+#### Step 1: Flow Parsing
+**Trigger**: Pipeline created with FlowSpec YAML
+**Processing**: `FlowSpec Parser` reads YAML steps, resolves profession references, validates tool allowlists
+**Data Flow**: YAML file → `FlowSpec` struct → `PipelineEngine`
+
+#### Step 2: Step Execution Loop
+**Trigger**: `PipelineEngine.advance()` called
+**Processing**: Spawns `AgentInstance` for current step's profession, passes handoff document + scoped specs
+**Data Flow**: `PipelineEngine` → `AgentInstance` → LLM → handoff document
+
+#### Step 3: Handoff Processing
+**Trigger**: Agent turn completes
+**Processing**: `HandoffManager` extracts decisions, work products, spec updates, token usage from handoff document
+**Data Flow**: `AgentInstance` → handoff document → `HandoffManager` → `SpecsStore` (if spec updates)
+
+#### Step 4: Checkpoint Persistence
+**Trigger**: After each successful step
+**Processing**: `CheckpointManager` serializes pipeline state + file manifest + git commit
+**Data Flow**: `PipelineEngine` → `CheckpointManager` → JSON file + git snapshot
+
+#### Step 5: Gate Resolution
+**Trigger**: Step has `gate: true` (Check mode) or profession has `approval_gates`
+**Processing**: Pipeline pauses; user approves/rejects via GatePanel; rejection can include feedback for retry
+**Data Flow**: `PipelineEngine` → SSE `GatePause` → User → `resolve_gate()` → continue/fail
+
+### Related Specs
+- `Relay-A1` — Deterministic Rust orchestrator
+- `Relay-A2` — Checkpoint & State Persistence
+- `Relay-A3` — Boss-First Execution
+- `Relay-D1` — PipelineEngine state machine
+- `Relay-D2` — HandoffDocument generation
+- `Relay-D3` — Checkpoint serialization
+
+---
+
+## Flow-3: Agent Turn Execution
+
+**Modules involved**: agent-config, provider, runtime, relay
+**Entry**: `AgentInstance::turn()` called with system prompt + context
+**Exit**: `TurnResult` returned with response + tool calls + handoff document
+
+### Overview
+
+A single Agent Turn is the atomic unit of agent work. It takes a scoped context (system prompt + relevant specs + handoff history), streams through the LLM, executes any tool calls, and produces a structured result.
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant PipelineEngine
+    participant AgentInstance
+    participant Profession
+    participant Soul
+    participant ClaudeProvider
+    participant ContextManager
+    participant ToolRegistry
+
+    PipelineEngine->>AgentInstance: spawn(profession_config)
+    AgentInstance->>Profession: resolve config
+    AgentInstance->>Soul: render_system_prompt()
+    AgentInstance->>ContextManager: compile_context(scoped_specs)
+    AgentInstance->>ClaudeProvider: chat_stream(system_prompt, context, tools)
+
+    loop Tool call loop
+        ClaudeProvider-->>AgentInstance: tool_call request
+        AgentInstance->>ToolRegistry: execute_with_permission(tool, input)
+        ToolRegistry-->>AgentInstance: result
+        AgentInstance->>ClaudeProvider: submit tool_result
+    end
+
+    ClaudeProvider-->>AgentInstance: final text + stop_reason
+    AgentInstance->>AgentInstance: generate_handoff_document()
+    AgentInstance-->>PipelineEngine: TurnResult { text, tool_calls, handoff, tokens }
+```
+
+### Key Steps
+
+#### Step 1: Agent Spawning
+**Trigger**: `PipelineEngine` requests an agent for a step
+**Processing**: `AgentInstance` resolves profession (tools, sections, constraints) + soul (personality) + model (provider/tier)
+**Data Flow**: profession config → `AgentInstance` + `Soul` + `ModelConfig`
+
+#### Step 2: System Prompt Rendering
+**Trigger**: Agent instance ready
+**Processing**: Compose system prompt from: soul markdown + profession instructions + owned sections + allowed tools list + skill definitions + constraints
+**Data Flow**: `Soul` + `Profession` + `Skills` → system prompt string
+
+#### Step 3: Context Compilation
+**Trigger**: System prompt rendered
+**Processing**: `ContextManager` loads relevant specs (owned + readable sections), compacts if token budget exceeded
+**Data Flow**: `SpecsStore` → `ContextManager` → compacted context messages
+
+#### Step 4: LLM Streaming
+**Trigger**: Context ready
+**Processing**: `ClaudeProvider.chat_stream()` sends request to Anthropic/OpenAI/Ollama, parses SSE stream
+**Data Flow**: system prompt + context → API request → SSE stream → `StreamEvent` parsing
+
+#### Step 5: Tool Execution
+**Trigger**: LLM requests tool call
+**Processing**: `ToolRegistry.execute()` checks permission policy (`Allow`/`Ask`/`ReadOnly`), runs tool, returns result
+**Data Flow**: tool request → permission check → execution → result → back to LLM
+
+#### Step 6: Handoff Generation
+**Trigger**: LLM turn completes (stop reason = end_turn)
+**Processing**: Extract structured fields: decisions, work products, spec updates, open questions, token usage
+**Data Flow**: turn result → `HandoffDocument` → `PipelineEngine`
+
+### Related Specs
+- `AgentConfig-A1` — Agent Instance Lifecycle
+- `AgentConfig-D1` — `AgentInstance` / `SoulConfig` / `ModelConfig` structs
+- `Provider-A1` — Unified provider architecture
+- `Relay-D2` — HandoffDocument generation
+- `Runtime-D1` — `PermissionPolicy` and `ContextManager`
+
+---
+
+## Flow-4: Spec Document Lifecycle
+
+**Modules involved**: specs, forge (agent tools)
+**Entry**: Agent reads or writes a spec via `read_specs` / `update_spec`
+**Exit**: Spec persisted to `.ad` file with derived statuses and relations
+
+### Overview
+
+Specs are the single source of truth in AutoForge. They follow a strict pyramid (Goals → Architecture → Designs → Plans → Tests → Reviews → Reports) and are maintained by profession-specific agents through structured tools.
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Architect
+    participant read_specs
+    participant update_spec
+    participant SpecsStore
+    participant parse_ad_file
+    participant derive_statuses
+    participant rebuild_relations
+    participant Disk
+
+    Architect->>read_specs: read_specs(project="auto-forge", section="architecture")
+    read_specs->>SpecsStore: load_module_format()
+    SpecsStore->>Disk: read *.ad files
+    SpecsStore->>parse_ad_file: parse markdown → SpecItems
+    parse_ad_file-->>SpecsStore: structured items
+    SpecsStore-->>read_specs: return items
+    read_specs-->>Architect: architecture specs
+
+    Architect->>update_spec: update_spec(section="architecture", item_id="A99", ...)
+    update_spec->>SpecsStore: upsert item
+    SpecsStore->>derive_statuses: auto-update Goal statuses
+    SpecsStore->>rebuild_relations: scan depends_on / related
+    SpecsStore->>Disk: save_module_format()
+    Disk-->>SpecsStore: *.ad files written
+    SpecsStore-->>update_spec: success
+    update_spec-->>Architect: confirmation
+```
+
+### Key Steps
+
+#### Step 1: Loading
+**Trigger**: `read_specs` tool called
+**Processing**: `SpecsStore` reads module-format `.ad` files, parses markdown into `SpecItem` structs with metadata
+**Data Flow**: Disk → `parse_ad_file()` → `SpecItem` list → agent context
+
+#### Step 2: Editing
+**Trigger**: `update_spec` tool called
+**Processing**: `SpecsStore` upserts the item; if item ID has module prefix, routes to correct module directory
+**Data Flow**: agent → `update_spec` → `SpecsStore` → module directory
+
+#### Step 3: Status Derivation
+**Trigger**: After spec update
+**Processing**: `derive_statuses()` auto-updates Goal statuses based on related Plans/Tests/Reviews progress
+**Data Flow**: spec changes → `derive_statuses()` → updated statuses
+
+#### Step 4: Relation Rebuild
+**Trigger**: After status derivation
+**Processing**: `rebuild_relations()` scans `depends_on` fields and content text to build bidirectional `related` links
+**Data Flow**: all items → `rebuild_relations()` → relation graph
+
+#### Step 5: Persistence
+**Trigger**: After relation rebuild
+**Processing**: `save_module_format()` writes each module's specs back to its `.ad` files
+**Data Flow**: `SpecItem` list → `serialize_section_to_ad()` → Disk
+
+### Related Specs
+- `Specs-G1` — Spec pyramid taxonomy
+- `Specs-G2` — Bidirectional traceability
+- `Specs-A1` — Goals Hierarchy Architecture
+- `Specs-D1` — Category renderer polymorphism
+- `Specs-D8` — Architect-maintained `overview.ad`
+
+---
+
+## Flow-5: Gate Approval Flow
+
+**Modules involved**: relay, chat, ui-system
+**Entry**: Pipeline step has `gate: true` or profession requires approval
+**Exit**: User approves (continue) or rejects (fail/retry)
+
+### Overview
+
+Gates are human-in-the-loop approval points. They can operate in two modes: **GSD** (Gate-Skip-Default, boss-first) where the step auto-approves unless flagged, or **Check** where every flagged step pauses for explicit approval.
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant PipelineEngine
+    participant GatePanel
+    participant GateInbox
+    participant User
+    participant ChatView
+
+    PipelineEngine->>PipelineEngine: step has gate=true
+    PipelineEngine-->>GateInbox: SSE: GatePause {step, profession, summary}
+    GateInbox->>ChatView: render SecretaryMessage
+    GateInbox->>GatePanel: add to queue
+
+    alt User approves in Chat
+        User->>ChatView: click Approve
+        ChatView->>GateInbox: approve(gate_id)
+        GateInbox->>PipelineEngine: POST /resolve_gate
+        PipelineEngine->>PipelineEngine: advance to next step
+    else User approves in GatePanel
+        User->>GatePanel: click Approve
+        GatePanel->>GateInbox: approve(gate_id)
+        GateInbox->>PipelineEngine: POST /resolve_gate
+    else User rejects with feedback
+        User->>GatePanel: click Reject + comment
+        GatePanel->>GateInbox: reject(gate_id, feedback)
+        GateInbox->>PipelineEngine: POST /resolve_gate
+        PipelineEngine->>PipelineEngine: retry step with feedback
+    end
+```
+
+### Key Steps
+
+#### Step 1: Gate Trigger
+**Trigger**: Step config has `gate: true`, or profession has `approval_gates` containing the step type
+**Processing**: `PipelineEngine` pauses, emits `GatePause` SSE event with gate metadata
+**Data Flow**: `PipelineEngine` → SSE → `GateInbox`
+
+#### Step 2: Gate Rendering
+**Trigger**: `GateInbox` receives `GatePause` event
+**Processing**: `SecretaryMessage` rendered in ChatView; `GatePanel` adds item to queue; badge counter increments
+**Data Flow**: SSE → `useGateInbox` → `ChatView` + `GatePanel`
+
+#### Step 3: User Decision
+**Trigger**: User clicks Approve/Reject/Edit
+**Processing**: `GateInbox` sends resolution to backend; Chat input remains non-blocking
+**Data Flow**: User → UI → `useGateInbox` → Backend API
+
+#### Step 4: Pipeline Resolution
+**Trigger**: Backend receives gate resolution
+**Processing**: `PipelineEngine.resolve_gate()` either continues (approve), retries with feedback (reject + comment), or fails (reject without retry)
+**Data Flow**: Backend → `PipelineEngine` → next step / retry / fail
+
+### Related Specs
+- `Relay-A3` — Boss-First Execution (GSD vs Check)
+- `Relay-D5` — RelayMode & GSD Flow Control
+- `Relay-D6` — `useGateInbox` State Machine
+- `Relay-D9` — `GatePanel`
+- `Chat-G1` — Chat-First Gate Approval
+- `Chat-D1` — `GateCard` / `SecretaryMessage` props and state machine
+
+---
+
+## Document Navigation
+
+These flows complement the module-based specs:
+- **Flows are horizontal**: They show how data moves *across* modules.
+- **Specs are vertical**: They show how each module works *internally*.
+
+When reading a flow, follow the "Related Specs" links to dive into module-level details.

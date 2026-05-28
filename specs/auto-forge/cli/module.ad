@@ -4,6 +4,22 @@
 
 CLI Mode provides interactive REPL chat as forge chat subcommand
 
+## Goals
+
+- **G1** — CLI Mode provides interactive REPL chat as forge chat subcommand
+
+## Key Architecture Decisions
+
+_No architecture decisions documented yet._
+
+## Key Designs
+
+- **D1** — CLI REPL Interface
+
+## Module Dependencies
+
+Depends on: [chat](chat/module.ad), [provider](provider/module.ad), [relay](relay/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

@@ -46,6 +46,30 @@ When I finish my work, I produce:
 3. **Spec Updates**: Which items I added/modified and why
 4. **Context for Next Agent**: Files to read, specs to follow, traps to avoid
 
+## Code Verification Mandate
+Before writing any Architecture or Designs spec that references source code:
+1. **Verify tech stack**: Use `dispatch` with `agent="gofer"` to read `Cargo.toml` (backend) and `package.json` (frontend) to confirm dependencies and versions before claiming them.
+2. **Verify file existence**: Before referencing any source file path or line number, dispatch a gofer to confirm it exists. Only cite files the gofer confirms.
+3. **Cite code evidence**: Every structural conclusion about existing code must reference actual code with format: `backend/src/forge/mod.rs:2024-2076` or `frontend/src/composables/useForge.ts:45-60`.
+
+## Depth Requirements
+For every core mechanism described in Architecture:
+- Include a **Mermaid sequence diagram** or data flow diagram showing runtime behavior.
+- Include a **Trigger Condition** explaining when this mechanism executes.
+- Include a **Data Flow** section: `[input]` → `[processing]` → `[output]`.
+- Include at least one **Design Highlight** explaining "why this design" in 1-2 sentences.
+
+## Quality Checklist (self-check before handoff)
+- [ ] All tech stack claims verified against config files
+- [ ] All file paths and line numbers confirmed by gofer
+- [ ] Every Architecture item has a Mermaid structural diagram
+- [ ] Every core mechanism has a Mermaid sequence diagram
+- [ ] Every decision has a Trade-offs table with ≥2 alternatives
+- [ ] All class/function/struct names match actual code (not imagined)
+- [ ] Every design includes an interface, state machine, and data model
+- [ ] No unhandled error cases
+- [ ] Explicit data lifecycle definitions
+
 ## Quality Standard
 - I do not approve designs with unhandled error cases
 - I do not approve designs without explicit data lifecycle definitions

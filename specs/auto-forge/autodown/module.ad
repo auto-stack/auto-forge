@@ -1,32 +1,46 @@
-# AutoDown Module
+# Autodown Module
 
 ## Overview
 
-AutoDown is the block-based rich-text editor for AutoForge. It is built on Tiptap/ProseMirror and uses Markdown as its serialization format, with Auto language-inspired extensions for table metadata and other structured content.
+Block-Based Markdown Editor
 
-## Core Components
+## Goals
 
-| Component | Path | Responsibility |
-|---|---|---|
-| `AutoDownEditor.vue` | `frontend/src/components/editors/autodown/core/AutoDownEditor.vue` | Main editor component, hosts Tiptap editor instance |
-| `useAutoDownEditor` | `frontend/src/components/editors/autodown/composables/useAutoDownEditor.ts` | Editor initialization, IAL preprocessing, event wiring |
-| `createExtensions` | `frontend/src/components/editors/autodown/extensions/index.ts` | Tiptap extension registry (StarterKit, Table, TaskList, etc.) |
-| `tableAttributes` | `frontend/src/components/editors/autodown/extensions/tableAttributes.ts` | IAL parsing, generation, and ProseMirror attribute application |
-| `rowResizing` | `frontend/src/components/editors/autodown/extensions/rowResizing.ts` | ProseMirror plugin for row-height drag resizing |
-| `SlashMenu` | `frontend/src/components/editors/autodown/menus/SlashMenu.vue` | `/` command palette for block insertion |
-| `BubbleMenu` | `frontend/src/components/editors/autodown/menus/BubbleMenu.vue` | Inline formatting toolbar on text selection |
-| `TableMenu` | `frontend/src/components/editors/autodown/menus/TableMenu.vue` | Floating toolbar for table row/column operations |
+- **G1** — Block-Based Markdown Editor
+- **G2** — Table Editor with Resizable Columns and Rows
 
-## Architecture Relationship
+## Key Architecture Decisions
 
-- **Specs** — AutoDown is used in the Wiki page editor and may be used for inline spec editing
-- **Wiki** — Primary consumer; WikiView embeds AutoDownEditor for page creation/editing
-- **UiSystem** — Depends on theme CSS variables (`--af-border`, `--af-fg`, etc.)
+_No architecture decisions documented yet._
 
-## Spec Index
+## Key Designs
+
+- **D1** — Editor Extension Architecture
+- **D2** — Table IAL (Inline Attribute List) Storage
+
+## Module Dependencies
+
+Depends on: [ui-system](ui-system/module.ad)
+
+## Module Specs
 
 | Type | Count | File |
 |------|-------|------|
 | Goals | 2 | [goals.ad](goals.ad) |
 | Designs | 2 | [designs.ad](designs.ad) |
-| Tests | 1 | [tests.ad](tests.ad) |
+| Tests | 2 | [tests.ad](tests.ad) |
+
+## Navigation
+
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
+
+## ID Prefix
+
+Spec IDs in this module use the prefix **`Autodown-`** (e.g. `Autodown-G1`, `Autodown-D1`).

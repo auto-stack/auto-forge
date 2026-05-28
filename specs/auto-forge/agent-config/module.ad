@@ -4,6 +4,23 @@
 
 Agent Identity System supports Soul, Profession, and Model configuration per agent
 
+## Goals
+
+- **G1** — Agent Identity System supports Soul, Profession, and Model configuration per agent
+
+## Key Architecture Decisions
+
+- **A1** — Agent Instance Lifecycle
+
+## Key Designs
+
+- **D1** — AgentInstance & Soul Rendering
+- **D2** — Profession Registry (v2)
+
+## Module Dependencies
+
+Depends on: [relay](relay/module.ad), [specs](specs/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

@@ -4,6 +4,23 @@
 
 Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming
 
+## Goals
+
+- **G1** — Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming
+
+## Key Architecture Decisions
+
+- **A1** — Unified Provider & Runtime Architecture
+
+## Key Designs
+
+- **D1** — Multi-Provider AI Dispatch
+- **D2** — Unified Provider Layer
+
+## Module Dependencies
+
+Depends on: [agent-config](agent-config/module.ad), [api-sources](api-sources/module.ad), [cli](cli/module.ad), [runtime](runtime/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

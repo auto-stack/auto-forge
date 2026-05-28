@@ -4,6 +4,22 @@
 
 Errand Agent Dispatch enables any profession to offload research tasks without context pollution
 
+## Goals
+
+- **G1** — Errand Agent Dispatch enables any profession to offload research tasks without context pollution
+
+## Key Architecture Decisions
+
+- **A1** — Errand Dispatch Architecture
+
+## Key Designs
+
+- **D1** — Dispatch Tool & Gofer Profession
+
+## Module Dependencies
+
+Depends on: [agent-config](agent-config/module.ad), [api-sources](api-sources/module.ad), [chat](chat/module.ad), [relay](relay/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

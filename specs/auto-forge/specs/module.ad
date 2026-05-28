@@ -4,13 +4,42 @@
 
 Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category
 
+## Goals
+
+- **G1** — Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category
+- **G2** — Specs Workspace with Bidirectional Traceability
+- **G3** — Seven spec categories render with structured per-category editors
+- **G4** — RelationsPanel shows upstream parents and downstream children
+- **G5** — AutoLinkContent parses typed IDs into clickable hyperlinks
+- **G6** — Drift Check button compares code against specs on demand
+- *...and 5 more*
+
+## Key Architecture Decisions
+
+- **A1** — Goals Hierarchy Architecture
+
+## Key Designs
+
+- **D1** — Category Renderer Polymorphism
+- **D2** — RelationsPanel & AutoLinkContent
+- **D3** — GateBanner (Specs View)
+- **D4** — GoalsTable Tree View Component
+- **D5** — GoalDetailModal Component
+- **D6** — Spec Tag Display & Sidebar Filtering
+- **D7** — Backend Flat Mode Project Resolution
+- *...and 2 more*
+
+## Module Dependencies
+
+Depends on: [agent-config](agent-config/module.ad), [chat](chat/module.ad), [relay](relay/module.ad), [ui-system](ui-system/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |
 |------|-------|------|
-| Goals | 10 | [goals.ad](goals.ad) |
+| Goals | 11 | [goals.ad](goals.ad) |
 | Architecture | 1 | [architecture.ad](architecture.ad) |
-| Designs | 8 | [designs.ad](designs.ad) |
+| Designs | 9 | [designs.ad](designs.ad) |
 | Plans | 2 | [plans.ad](plans.ad) |
 | Tests | 7 | [tests.ad](tests.ad) |
 | Reviews | 1 | [reviews.ad](reviews.ad) |

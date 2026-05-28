@@ -4,6 +4,39 @@
 
 Relay Orchestrator executes serial agent flows with baton passing and gate enforcement
 
+## Goals
+
+- **G1** — Relay Orchestrator executes serial agent flows with baton passing and gate enforcement
+- **G2** — Handoff Protocol compresses context between agents, achieving ~5× token savings vs parallel multi-agent
+- **G3** — Live Relay Pipeline Visualization
+- **G4** — Node-graph renders connected dots with animated handoff lines
+- **G5** — Expanded node cards show real-time token burn and current action
+- **G6** — Tester→Coder retry loop visualizes as backward edge with counter
+- *...and 9 more*
+
+## Key Architecture Decisions
+
+- **A1** — Relay Orchestrator Architecture
+- **A2** — Checkpoint & State Persistence
+- **A3** — Boss-First Execution Architecture
+- **A4** — Automatic Relay Mode Architecture
+- **A5** — Cross-View Event Router Architecture
+
+## Key Designs
+
+- **D1** — PipelineEngine & Flow Execution
+- **D2** — HandoffDocument Generation
+- **D3** — Checkpoint Serialization
+- **D4** — TokenBudget Enforcement
+- **D5** — RelayMode & GSD Flow Control
+- **D6** — useGateInbox State Machine
+- **D7** — Relay PipelinePanel Node-Graph
+- *...and 5 more*
+
+## Module Dependencies
+
+Depends on: [agent-config](agent-config/module.ad), [chat](chat/module.ad), [errand](errand/module.ad), [runtime](runtime/module.ad), [specs](specs/module.ad), [ui-system](ui-system/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

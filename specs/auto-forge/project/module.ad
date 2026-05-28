@@ -4,6 +4,24 @@
 
 Project Concept enables VS Code–style folder opening with persistent workspace
 
+## Goals
+
+- **G1** — Project Concept enables VS Code–style folder opening with persistent workspace
+
+## Key Architecture Decisions
+
+- **A1** — Backend API Extensions
+- **A2** — Frontend Tree View Architecture
+- **A3** — Explorer Module Architecture
+
+## Key Designs
+
+- **D1** — Explorer View & Tree Component
+
+## Module Dependencies
+
+Depends on: [api-sources](api-sources/module.ad), [provider](provider/module.ad), [specs](specs/module.ad), [ui-system](ui-system/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |

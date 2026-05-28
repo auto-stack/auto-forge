@@ -4,6 +4,33 @@
 
 Chat-First Gate Approval with Smart Secretary
 
+## Goals
+
+- **G1** — Chat-First Gate Approval with Smart Secretary
+- **G2** — Inline GateCard renders diff view with Approve/Reject/Edit
+- **G3** — SecretaryMessage delivers cross-session gates without blocking input
+- **G4** — Gate queue enforces one-at-a-time delivery with snooze and dismiss
+- **G5** — Ambient progress indicators keep chat history free of status spam
+- **G6** — @Mention Agent Targeting directs chat messages to named agents with sticky profession routing
+- *...and 3 more*
+
+## Key Architecture Decisions
+
+- **A1** — Chat Ephemeral Chrome Architecture
+- **A2** — Chat-Turn Agent Handoff Architecture
+- **A3** — Streaming Content Renderer Architecture
+
+## Key Designs
+
+- **D1** — GateCard & SecretaryMessage Components
+- **D2** — ReportCard (Chat Terminal)
+- **D3** — bring_in Tool & Chat Handoff
+- **D4** — Streaming Content Renderer & Document Parser
+
+## Module Dependencies
+
+Depends on: [agent-config](agent-config/module.ad), [project](project/module.ad), [relay](relay/module.ad), [runtime](runtime/module.ad), [specs](specs/module.ad), [ui-system](ui-system/module.ad), [wiki](wiki/module.ad)
+
 ## Module Specs
 
 | Type | Count | File |
