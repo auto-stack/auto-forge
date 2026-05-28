@@ -16,6 +16,7 @@ Agent Identity System supports Soul, Profession, and Model configuration per age
 
 - **D1** — AgentInstance & Soul Rendering
 - **D2** — Profession Registry (v2)
+- **D3** — Architect Soul v2 — Code Verification & Quality Constraints
 
 ## Module Dependencies
 
@@ -27,7 +28,7 @@ Depends on: [relay](relay/module.ad), [specs](specs/module.ad)
 |------|-------|------|
 | Goals | 1 | [goals.ad](goals.ad) |
 | Architecture | 1 | [architecture.ad](architecture.ad) |
-| Designs | 2 | [designs.ad](designs.ad) |
+| Designs | 3 | [designs.ad](designs.ad) |
 | Tests | 3 | [tests.ad](tests.ad) |
 
 ## Navigation

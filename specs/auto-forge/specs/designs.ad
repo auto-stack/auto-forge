@@ -674,3 +674,221 @@ On first load (`watch(moduleTree, { immediate: true })`), if no module or overvi
 - `module:` tags are deprecated and no longer serialized; module membership is derived from ID prefix only
 - `module.ad` files are static documents; they are NOT loaded into `SpecsDocument` sections and are NOT overwritten by `save_module_format`
 - The module accordion tree is rebuilt dynamically from `document.sections` whenever specs are loaded or saved
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Specs-D10 Enriched Module Overview Generator
+**Status:** implemented
+**Module:** `scripts/generate_module_overviews.py`
+**Tags:** stack:both
+**Depends on:** Specs-G12, Specs-D8
+
+### Problem
+
+The original `generate_module_overviews.py` only extracted the first goal's title as a module description and counted specs per type. This produced `module.ad` files that were too thin to serve as effective module entry points — a developer reading `relay/module.ad` would see "Serial agent flows with baton passing and gate enforcement" plus a spec count table, but would have no idea what the key components, design decisions, or module dependencies were.
+
+### Solution
+
+Rewrite the script to perform structured extraction from all spec files within a module.
+
+#### Extraction Strategy
+
+| Source File | Extracted Info | Method |
+|-------------|---------------|--------|
+| `goals.ad` | All goal IDs and titles | Regex `^## (?:Prefix-)?(G\d+) (.*)$` |
+| `architecture.ad` | Architecture item IDs, titles, and Decision summaries | Regex headers + `**Decision:**` line extraction |
+| `designs.ad` | All design IDs and titles | Regex `^## (?:Prefix-)?(D\d+) (.*)$` |
+| All `.ad` files | Cross-module dependencies | Regex `**Depends on:**` → parse `ModulePrefix-XX` references |
+
+#### Generated `module.ad` Structure
+
+```markdown
+# {Module} Module
+
+## Overview
+{first goal title}
+
+## Goals
+- **G1** — {title}
+- **G2** — {title}
+...
+
+## Key Architecture Decisions
+- **A1** — {title}: *{decision summary}*
+...
+
+## Key Designs
+- **D1** — {title}
+...
+
+## Module Dependencies
+Depends on: [module-a](module-a/module.ad), [module-b](module-b/module.ad)
+
+## Module Specs
+| Type | Count | File |
+...
+```
+
+#### Dependency Resolution
+
+Dependencies are derived automatically by scanning all `**Depends on:**` lines in a module's spec files and resolving `ModulePrefix-TypeNumber` references back to module names:
+
+```python
+def extract_dependencies(module_dir, all_modules):
+    deps = set()
+    for spec_file in module_dir.glob("*.ad"):
+        content = spec_file.read_text()
+        depends_matches = re.findall(r'\*\*Depends on:\*\*\s*(.*?)(?:\n|$)', content)
+        for match in depends_matches:
+            refs = re.findall(r'([A-Z][a-zA-Z]*)-[A-Z]\d+', match)
+            for ref in refs:
+                for mod in all_modules:
+                    expected = "".join(w.capitalize() for w in mod.split("-"))
+                    if expected == ref and mod != module_dir.name:
+                        deps.add(mod)
+    return sorted(deps)
+```
+
+Examples:
+- `relay/` depends on `agent-config` (via `AgentConfig-G1` in `Depends on`)
+- `relay/` depends on `chat` (via `Chat-G1` in `Depends on`)
+- `relay/` depends on `runtime` (via `Runtime-G1` in `Depends on`)
+
+#### Truncation Rules
+
+To keep `module.ad` concise:
+- Goals: first 6, then "...and N more"
+- Architecture Decisions: first 5, then "...and N more"
+- Designs: first 7, then "...and N more"
+- Decision summaries truncated to 120 chars if too long
+
+### Requirements
+
+- Script runs idempotently: re-running produces the same output if specs haven't changed
+- All 14 modules regenerated in a single command: `python scripts/generate_module_overviews.py`
+- `module.ad` files remain static and are NOT loaded into `SpecsDocument`
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Specs-D11 Core Flows Document Format
+**Status:** implemented
+**Module:** `specs/auto-forge/flows.ad`
+**Tags:** stack:both
+**Depends on:** Specs-G13, Specs-A2
+
+### Purpose
+
+`flows.ad` provides a **horizontal perspective** on the system: it describes execution flows that cross module boundaries. This complements the **vertical perspective** of module-based specs ( Goals → Architecture → Designs within a single module).
+
+### Document Structure
+
+```markdown
+# Core Flows
+
+## Flow-N: {Flow Name}
+**Modules involved**: {comma-separated module list}
+**Entry**: {what triggers this flow}
+**Exit**: {what marks completion}
+
+### Overview
+{Brief description of the flow}
+
+### Sequence Diagram
+```mermaid
+sequenceDiagram
+    participant A
+    participant B
+    A->>B: message
+```
+
+### Key Steps
+
+#### Step N: {Step Name}
+**Trigger**: {when this step executes}
+**Processing**: {what happens}
+**Data Flow**: {input} → {processing} → {output}
+
+### Related Specs
+- `Module-A1` — links to architecture decisions
+- `Module-D3` — links to design specs
+```
+
+### Flow Catalog
+
+| Flow ID | Name | Modules | Span |
+|---------|------|---------|------|
+| Flow-1 | Forge Chat Loop | chat, provider, runtime, relay | User message → SSE response |
+| Flow-2 | Relay Pipeline Execution | relay, provider, runtime, specs, chat | FlowSpec → Completed/Failed |
+| Flow-3 | Agent Turn Execution | agent-config, provider, runtime, relay | Agent spawn → Handoff document |
+| Flow-4 | Spec Document Lifecycle | specs, forge | Read → Edit → Derive → Persist |
+| Flow-5 | Gate Approval Flow | relay, chat, ui-system | Gate trigger → User decision → Resume |
+
+### Conventions
+
+- Every flow MUST have a Mermaid `sequenceDiagram`
+- Every step MUST document Trigger, Processing, and Data Flow
+- Every flow MUST link to related spec IDs at the bottom
+- Flows do NOT replace module specs; they reference them
+- Flow IDs use `Flow-N` format (not tied to module prefix)
+
+### Relationship to Module Specs
+
+```mermaid
+graph LR
+    subgraph "Vertical: Module Specs"
+        MG[relay/goals.ad]
+        MA[relay/architecture.ad]
+        MD[relay/designs.ad]
+    end
+
+    subgraph "Horizontal: Flows"
+        F1[Flow-1 Chat Loop]
+        F2[Flow-2 Relay Pipeline]
+    end
+
+    F1 --> MA
+    F1 --> MD
+    F2 --> MA
+    F2 --> MD
+```
+
+- Module specs answer **"what is this component and how does it work?"**
+- Flow specs answer **"how does data move through the system?"**
+
+---

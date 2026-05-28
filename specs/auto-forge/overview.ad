@@ -53,13 +53,14 @@ graph TD
 ## How to Navigate Specs
 
 1. **Start with Overview** — Read this document and the [module.ad](relay/module.ad) of the module you are working on.
-2. **Read Goals** — Each module's `goals.ad` defines what the module aims to achieve.
-3. **Read Architecture** — `architecture.ad` describes the high-level design and component interactions.
-4. **Dive into Designs** — `designs.ad` contains detailed technical specifications and data structures.
-5. **Follow Plans** — `plans.ad` tracks implementation tasks, durations, and dependencies.
-6. **Verify with Tests** — `tests.ad` lists acceptance criteria and test scenarios.
-7. **Check Reviews** — `reviews.ad` captures post-implementation retrospectives.
-8. **Read Reports** — `reports.ad` contains implementation summaries and gap analyses.
+2. **Understand Core Flows** — Read [flows.ad](flows.ad) to see how data moves across modules (chat loop, relay pipeline, agent turns, spec lifecycle, gate approval).
+3. **Read Goals** — Each module's `goals.ad` defines what the module aims to achieve.
+4. **Read Architecture** — `architecture.ad` describes the high-level design and component interactions.
+5. **Dive into Designs** — `designs.ad` contains detailed technical specifications and data structures.
+6. **Follow Plans** — `plans.ad` tracks implementation tasks, durations, and dependencies.
+7. **Verify with Tests** — `tests.ad` lists acceptance criteria and test scenarios.
+8. **Check Reviews** — `reviews.ad` captures post-implementation retrospectives.
+9. **Read Reports** — `reports.ad` contains implementation summaries and gap analyses.
 
 ## ID Convention
 

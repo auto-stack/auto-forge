@@ -190,3 +190,31 @@ Specs are not flat documents — they form a live decision pyramid. Every Plan t
 - [x] Search box moved from sidebar to title bar for better space utilization
 - [x] Breadcrumb path (`Project / Module / Section`) displayed in title bar left side
 - [x] `module:` tags removed from spec items (redundant with directory structure and ID prefix)
+---
+
+## Specs-G12 Enriched Module Overviews with Structured Extraction
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** Specs-G10, Specs-G11
+
+- [x] `generate_module_overviews.py` extracts structured info from all spec files in a module
+- [x] `module.ad` includes Goals list (first 6 goals with IDs and titles)
+- [x] `module.ad` includes Key Architecture Decisions list (first 5 with Decision summaries)
+- [x] `module.ad` includes Key Designs list (first 7 designs with IDs and titles)
+- [x] `module.ad` includes Module Dependencies (auto-derived from `Depends on` cross-references)
+- [x] Dependencies link to other modules' `module.ad` files
+- [x] All 14 modules regenerated with enriched content
+---
+
+## Specs-G13 Cross-Module Core Flows Documentation
+**Status:** implemented
+**Tags:** stack:both
+**Depends on:** Specs-G1, Specs-G12
+
+- [x] New project-level document type: `flows.ad` at `specs/{project}/flows.ad`
+- [x] `flows.ad` describes execution flows that span multiple modules (horizontal perspective)
+- [x] Each flow includes: overview, Mermaid sequence diagram, key steps with trigger/processing/data-flow
+- [x] 5 core flows documented: Forge Chat Loop, Relay Pipeline Execution, Agent Turn Execution, Spec Document Lifecycle, Gate Approval Flow
+- [x] Each flow links back to related spec IDs (e.g. `Relay-A1`, `Chat-D3`)
+- [x] `flows.ad` complements the vertical module-based specs (Goals → Architecture → Designs)
+- [x] Navigation guide in `overview.ad` references `flows.ad`

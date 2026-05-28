@@ -12,11 +12,12 @@ Spec pyramid supports Goals → Architecture → Designs → Plans → Tests →
 - **G4** — RelationsPanel shows upstream parents and downstream children
 - **G5** — AutoLinkContent parses typed IDs into clickable hyperlinks
 - **G6** — Drift Check button compares code against specs on demand
-- *...and 5 more*
+- *...and 7 more*
 
 ## Key Architecture Decisions
 
 - **A1** — Goals Hierarchy Architecture
+- **A2** — Specs Document Types and Information Architecture
 
 ## Key Designs
 
@@ -27,7 +28,7 @@ Spec pyramid supports Goals → Architecture → Designs → Plans → Tests →
 - **D5** — GoalDetailModal Component
 - **D6** — Spec Tag Display & Sidebar Filtering
 - **D7** — Backend Flat Mode Project Resolution
-- *...and 2 more*
+- *...and 4 more*
 
 ## Module Dependencies
 
@@ -37,9 +38,9 @@ Depends on: [agent-config](agent-config/module.ad), [chat](chat/module.ad), [rel
 
 | Type | Count | File |
 |------|-------|------|
-| Goals | 11 | [goals.ad](goals.ad) |
-| Architecture | 1 | [architecture.ad](architecture.ad) |
-| Designs | 9 | [designs.ad](designs.ad) |
+| Goals | 13 | [goals.ad](goals.ad) |
+| Architecture | 2 | [architecture.ad](architecture.ad) |
+| Designs | 18 | [designs.ad](designs.ad) |
 | Plans | 2 | [plans.ad](plans.ad) |
 | Tests | 7 | [tests.ad](tests.ad) |
 | Reviews | 1 | [reviews.ad](reviews.ad) |

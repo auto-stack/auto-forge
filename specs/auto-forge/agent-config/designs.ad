@@ -156,3 +156,85 @@ pub struct Profession {
 ---
 
 ---
+
+---
+
+---
+
+## AgentConfig-D3 Architect Soul v2 — Code Verification & Quality Constraints
+**Status:** implemented
+**Module:** `backend/src/relay/souls/architect.md`
+**Tags:** stack:backend
+**Depends on:** AgentConfig-D1, AgentConfig-D2, Specs-D8
+
+### Problem
+
+The original Architect soul mandated reading existing specs and writing Architecture/Designs, but it lacked constraints on:
+- **Accuracy**: Architects could claim tech stacks or file paths without verification
+- **Depth**: Architecture items had structural diagrams but no runtime sequence diagrams
+- **Quality**: No self-checklist before handoff, leading to incomplete deliverables
+
+### Solution
+
+Enhance the Architect soul with three new constraint blocks: **Code Verification Mandate**, **Depth Requirements**, and **Quality Checklist**.
+
+#### 1. Code Verification Mandate
+
+Before writing any Architecture or Designs spec that references source code:
+
+| Rule | Enforcement |
+|------|-------------|
+| Verify tech stack | Dispatch gofer to read `Cargo.toml` and `package.json` before claiming dependencies |
+| Verify file existence | Dispatch gofer to confirm file paths and line numbers before citing them |
+| Cite code evidence | Every structural conclusion must reference actual code: `backend/src/forge/mod.rs:2024-2076` |
+
+#### 2. Depth Requirements
+
+For every core mechanism described in Architecture:
+
+| Requirement | Format |
+|-------------|--------|
+| Sequence Diagram | Mermaid `sequenceDiagram` showing runtime behavior |
+| Trigger Condition | "When X happens, this mechanism executes" |
+| Data Flow | `[input]` → `[processing]` → `[output]` |
+| Design Highlight | 1-2 sentences explaining "why this design" |
+
+#### 3. Quality Checklist (self-check before handoff)
+
+```markdown
+- [ ] All tech stack claims verified against config files
+- [ ] All file paths and line numbers confirmed by gofer
+- [ ] Every Architecture item has a Mermaid structural diagram
+- [ ] Every core mechanism has a Mermaid sequence diagram
+- [ ] Every decision has a Trade-offs table with ≥2 alternatives
+- [ ] All class/function/struct names match actual code (not imagined)
+- [ ] Every design includes an interface, state machine, and data model
+- [ ] No unhandled error cases
+- [ ] Explicit data lifecycle definitions
+```
+
+### Impact on Profession Configuration
+
+The Architect profession (`backend/src/relay/profession.rs`) already has:
+- `owned_sections: [Architecture, Designs]`
+- `allowed_tools: [read_specs, write_specs, update_spec, list_specs, read_file, write_file, query_wiki, list_wiki, bring_in, spawn_relay]`
+
+No tool changes are required — the soul constraints are enforced via prompt engineering, not tool gating. The `dispatch` tool (already available via `bring_in` / errand mechanism) is used to spawn gofers for code verification.
+
+### Related Skill Enhancements
+
+The `forge-write-architecture` skill was simultaneously enhanced to require:
+- `Sequence Diagram` section in ADR template
+- `Code Evidence` section with file path + line range
+- `Data Flow` section for runtime behavior
+- `Design Highlight` section explaining rationale
+
+### Requirements
+
+- Architect MUST verify tech stack before claiming frameworks
+- Architect MUST verify file paths before citing line numbers
+- Architect MUST include sequence diagrams for runtime mechanisms
+- Architect MUST complete Quality Checklist before handoff
+- Quality violations are treated as handoff blockers
+
+---
