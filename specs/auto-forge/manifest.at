@@ -14,3 +14,4 @@ module runtime
 module specs
 module ui-system
 module wiki
+module i18n

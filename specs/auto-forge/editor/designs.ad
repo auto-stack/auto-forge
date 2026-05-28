@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## Editor-D1 AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
 **Status:** draft
 **Module:** `frontend/src/components/editors/autodown/`

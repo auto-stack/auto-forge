@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## Project-T1 [G13] Multi-provider dispatch routes to correct API format
 **Status:** proposed
 **Test File:** `backend/src/ai.rs` (inline `#[cfg(test)]`)

@@ -3,11 +3,11 @@
     <!-- Session Sidebar -->
     <aside class="session-sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-header">
-        <span class="sidebar-title">Sessions</span>
-        <button class="sidebar-new-btn" @click="clearSession(projectPath ?? undefined)" title="New session">
+        <span class="sidebar-title">{{ t('chat.sessions') }}</span>
+        <button class="sidebar-new-btn" @click="clearSession(projectPath ?? undefined)" :title="t('chat.newSession')">
           <Plus :size="14" />
         </button>
-        <button class="sidebar-collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed" title="Toggle sidebar">
+        <button class="sidebar-collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed" :title="t('chat.toggleSidebar')">
           <PanelLeft :size="14" />
         </button>
       </div>
@@ -19,7 +19,7 @@
           :class="{ active: sessionId === s.id }"
           @click="switchSession(s.id)"
         >
-          <div v-if="editingSessionId !== s.id" class="session-preview">{{ s.name || s.preview || 'New session' }}</div>
+          <div v-if="editingSessionId !== s.id" class="session-preview">{{ s.name || s.preview || t('chat.newSession') }}</div>
           <input
             v-else
             :data-rename-input="s.id"
@@ -31,18 +31,18 @@
             @click.stop
           />
           <div class="session-meta">
-            <span class="session-count">{{ s.message_count }} msgs</span>
+            <span class="session-count">{{ t('chat.msgs', { count: s.message_count }) }}</span>
             <button
               v-if="editingSessionId !== s.id"
               class="session-rename-btn"
-              title="Rename session"
+              :title="t('chat.renameSession')"
               @click.stop="startRename(s)"
             >
               <Pencil :size="11" />
             </button>
             <button
               class="session-delete-btn"
-              title="Delete session"
+              :title="t('chat.deleteSession')"
               @click.stop="confirmDelete(s.id)"
             >
               <Trash2 :size="12" />
@@ -50,7 +50,7 @@
           </div>
         </div>
         <div v-if="sessionList.length === 0" class="session-empty">
-          No sessions yet
+          {{ t('chat.noSessions') }}
         </div>
       </div>
     </aside>
@@ -59,10 +59,10 @@
     <div class="chats-body">
       <div class="chats-header">
         <div class="header-title-row">
-          <button v-if="sidebarCollapsed" class="sidebar-toggle-btn" @click="sidebarCollapsed = false" title="Show sessions">
+          <button v-if="sidebarCollapsed" class="sidebar-toggle-btn" @click="sidebarCollapsed = false" :title="t('chat.showSessions')">
             <PanelLeft :size="16" />
           </button>
-          <h2>Chat</h2>
+          <h2>{{ t('chat.title') }}</h2>
         </div>
         <div class="header-center">
           <div class="header-search">
@@ -71,7 +71,7 @@
               v-model="chatSearch"
               type="text"
               class="search-input"
-              placeholder="Search messages..."
+              :placeholder="t('chat.searchPlaceholder')"
             />
           </div>
         </div>
@@ -81,42 +81,42 @@
             class="errand-toggle-btn relay-toggle-btn"
             @click="openRelayView"
           >
-            <span class="errand-toggle-label">Relay</span>
+            <span class="errand-toggle-label">{{ t('chat.relay') }}</span>
             <span class="errand-toggle-badge">{{ Object.keys(relayRuns).length }}</span>
           </button>
           <button
             v-if="Object.keys(errands).length > 0"
             class="errand-toggle-btn"
-            :title="allErrandsExpanded ? 'Collapse all errands' : 'Expand all errands'"
+            :title="allErrandsExpanded ? t('chat.collapseErrands') : t('chat.expandErrands')"
             @click="toggleAllErrands"
           >
-            <span class="errand-toggle-label">{{ allErrandsExpanded ? 'Collapse' : 'Expand' }}</span>
+            <span class="errand-toggle-label">{{ allErrandsExpanded ? t('chat.collapse') : t('chat.expand') }}</span>
             <span class="errand-toggle-badge">{{ Object.keys(errands).length }}</span>
           </button>
           <!-- Session info button -->
           <div class="session-info-wrapper">
             <button
               class="session-info-btn"
-              title="Session info"
+              :title="t('chat.sessionInfo')"
               @click="showSessionInfo = !showSessionInfo"
             >
               <Info :size="15" />
             </button>
             <div v-if="showSessionInfo" class="session-info-tooltip" @click.stop>
               <div class="session-info-row">
-                <span class="session-info-label">Chat ID</span>
+                <span class="session-info-label">{{ t('chat.chatId') }}</span>
                 <code class="session-info-value session-info-id">{{ sessionId }}</code>
-                <button class="session-info-copy" @click="copyChatId" title="Copy chat ID">
+                <button class="session-info-copy" @click="copyChatId" :title="t('chat.copyChatId')">
                   <CopyCheck v-if="copiedChatId" :size="12" />
                   <Copy v-else :size="12" />
                 </button>
               </div>
               <div class="session-info-row">
-                <span class="session-info-label">Messages</span>
+                <span class="session-info-label">{{ t('chat.messages') }}</span>
                 <span class="session-info-value">{{ messages.length }}</span>
               </div>
               <div class="session-info-row">
-                <span class="session-info-label">Token cost</span>
+                <span class="session-info-label">{{ t('chat.tokenCost') }}</span>
                 <span class="session-info-value">{{ sessionTokenCost }}</span>
               </div>
             </div>
@@ -178,7 +178,7 @@
               />
               <div v-else-if="msg.role === 'system'" class="system-welcome">
                 <span class="welcome-icon">👋</span>
-                <span>Hi! I'm <strong>{{ assistantName }}</strong>, your AI coding assistant. I'm glad to help you build your next great project!</span>
+                <span>{{ t('chat.welcomeText', { name: assistantName }) }}</span>
               </div>
               <div v-else-if="msg.content" class="user-text" v-html="renderMentions(msg.content)"></div>
             </div>
@@ -372,6 +372,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Send, ChevronDown, ChevronUp, Plus, PanelLeft,
   Check, X, Clipboard, RefreshCw, Search, Trash2, Pencil,
@@ -394,6 +395,8 @@ import type { ReportData } from '@/components/ReportCard.vue'
 import type { Question } from '@/components/QuestionnaireCard.vue'
 
 type AnswersMap = Record<string, string | string[]>
+
+const { t } = useI18n()
 
 const {
   session,

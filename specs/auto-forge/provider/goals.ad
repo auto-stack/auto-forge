@@ -1,5 +1,7 @@
 # Goals
 
+---
+
 ## Provider-G1 Unified Provider Layer consolidates AI communication from auto-code-rs into provider/ module with SSE streaming
 **Status:** done
 **Tags:** stack:backend

@@ -1,5 +1,7 @@
 # Goals
 
+---
+
 ## Cli-G1 CLI Mode provides interactive REPL chat as forge chat subcommand
 **Status:** draft
 **Tags:** stack:backend

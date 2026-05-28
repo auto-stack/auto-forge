@@ -18,11 +18,13 @@ export interface SessionLogEntry {
   id: string
   time: string
   profession_id: string
-  type: 'text' | 'tool_call' | 'tool_result' | 'complete' | 'error' | 'budget_warning' | 'budget_exceeded' | 'step_started' | 'step_completed' | 'gate_waiting' | 'run_completed' | 'run_failed'
+  step_id?: string
+  type: 'text' | 'tool_call' | 'tool_result' | 'tool' | 'complete' | 'error' | 'budget_warning' | 'budget_exceeded' | 'step_started' | 'step_completed' | 'gate_waiting' | 'run_completed' | 'run_failed'
   content: string
   tool_name?: string
   tool_id?: string
   arguments?: any
+  result?: string
   remaining?: number
 }
 
@@ -43,6 +45,7 @@ export interface RunSummary {
 
 export interface RunEventDto {
   type: string
+  timestamp?: number
   step_id?: string
   profession_id?: string
   handoff_summary?: string
@@ -65,6 +68,7 @@ export interface RunState {
   status: string
   current_step: number
   total_steps: number
+  current_profession: string | null
   steps: StepState[]
   step_history: StepRecord[]
   cumulative_tokens: number
@@ -181,10 +185,14 @@ export function useRelay() {
     }
   }
 
+  function formatTimestamp(ts: number): string {
+    return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
   function eventsToSessionLog(runId: string, events: RunEventDto[]): SessionLogEntry[] {
     const result: SessionLogEntry[] = []
     for (const ev of events) {
-      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      const time = ev.timestamp ? formatTimestamp(ev.timestamp) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       const prof = ev.profession_id || 'unknown'
       switch (ev.type) {
         case 'turn_delta':
@@ -197,9 +205,17 @@ export function useRelay() {
         case 'turn_tool_call':
           result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'tool_call', content: '', tool_name: ev.tool_name, tool_id: ev.tool_id, arguments: ev.arguments })
           break
-        case 'turn_tool_result':
-          result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'tool_result', content: ev.result || '', tool_id: ev.tool_id })
+        case 'turn_tool_result': {
+          const last = result[result.length - 1]
+          if (last && last.type === 'tool_call' && last.tool_id === ev.tool_id) {
+            // Merge into a single tool widget
+            last.type = 'tool'
+            last.result = ev.result || ''
+          } else {
+            result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'tool_result', content: ev.result || '', tool_id: ev.tool_id })
+          }
           break
+        }
         case 'turn_complete':
           result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'complete', content: 'Turn completed' })
           break
@@ -374,14 +390,20 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'turn_tool_result') {
-          _sessionLog.value.push({
-            id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            time,
-            profession_id: prof,
-            type: 'tool_result',
-            content: data.payload.result || '',
-            tool_id: data.payload.tool_id,
-          })
+          const last = _sessionLog.value[_sessionLog.value.length - 1]
+          if (last && last.type === 'tool_call' && last.tool_id === data.payload.tool_id) {
+            last.type = 'tool'
+            last.result = data.payload.result || ''
+          } else {
+            _sessionLog.value.push({
+              id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              time,
+              profession_id: prof,
+              type: 'tool_result',
+              content: data.payload.result || '',
+              tool_id: data.payload.tool_id,
+            })
+          }
         }
         if (data.event_type === 'turn_complete') {
           _sessionLog.value.push({

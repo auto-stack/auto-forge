@@ -275,7 +275,13 @@ pub fn standard_spec_flow() -> FlowSpec {
     );
     flow.add_step(
         FlowStep::new("review", "reviewer")
-            .with_validators(review_validators()),
+            .with_validators(review_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec!["write_specs".to_string(), "update_spec".to_string(), "write_file".to_string(), "edit_file".to_string()],
+                forbidden: vec!["dispatch".to_string()],
+                always_allowed: vec!["read_file".to_string(), "read_specs".to_string(), "list_specs".to_string(), "search".to_string(), "shell".to_string()],
+                ..ToolGuard::new()
+            }),
     );
     flow.add_step(
         FlowStep::new("report", "documenter")

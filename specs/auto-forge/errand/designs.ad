@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## Errand-D1 Dispatch Tool & Gofer Profession
 **Status:** implemented
 **Module:** `crates/auto-forge/src/forge/dispatch.rs`, `crates/auto-forge/src/relay/profession.rs`

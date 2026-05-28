@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## Specs-T1 [G8] useGateInbox snooze — snoozed gate reappears after timeout
 **Status:** done
 **Test File:** `packages/auto-forge-ui/tests/unit/useGateInbox.spec.ts`

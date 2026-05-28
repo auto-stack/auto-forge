@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## Specs-D1 Category Renderer Polymorphism
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/views/SpecsView.vue`

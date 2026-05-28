@@ -20,15 +20,22 @@ pub fn generate_title(task: &str) -> String {
     // Step 2: Remove leading filler words
     let task = strip_filler_words(task);
 
-    // Step 3: Extract first phrase (up to 6 words, prefer first 3)
+    // Step 3: Extract as many leading words as fit within MAX_TITLE_LEN
     let words: Vec<&str> = task.split_whitespace().collect();
-    let phrase = if words.len() >= 3 {
-        words[..=2].join(" ")
-    } else {
-        words.join(" ")
-    };
+    let mut phrase = String::new();
+    for (i, word) in words.iter().enumerate() {
+        let candidate = if i == 0 {
+            word.to_string()
+        } else {
+            format!("{} {}", phrase, word)
+        };
+        if candidate.len() > MAX_TITLE_LEN {
+            break;
+        }
+        phrase = candidate;
+    }
 
-    // Step 4: Truncate if too long
+    // Step 4: Truncate if still too long (single word overflow)
     let phrase = if phrase.len() > MAX_TITLE_LEN {
         format!("{}...", &phrase[..MAX_TITLE_LEN.saturating_sub(3)])
     } else {
@@ -104,8 +111,9 @@ mod tests {
     fn test_truncation() {
         let long = "Supercalifragilisticexpialidocious antidisestablishmentarianism pneumonoultramicroscopicsilicovolcanoconiosis mechanism";
         let result = generate_title(long);
-        assert!(result.len() <= MAX_TITLE_LEN + 3); // +3 for "..."
-        assert!(result.ends_with("..."));
+        assert!(result.len() <= MAX_TITLE_LEN);
+        // First word fits (34 chars), second would overflow, so only first is kept
+        assert_eq!(result, "Supercalifragilisticexpialidocious");
     }
 
     #[test]
@@ -123,11 +131,11 @@ mod tests {
     fn test_action_verb_stripping() {
         assert_eq!(
             generate_title("Implement caching layer for API responses"),
-            "Caching Layer For"
+            "Caching Layer For API Responses"
         );
         assert_eq!(
             generate_title("Fix authentication bug in login flow"),
-            "Authentication Bug In"
+            "Authentication Bug In Login Flow"
         );
     }
 
@@ -143,7 +151,7 @@ mod tests {
     fn test_relay_run_title() {
         assert_eq!(
             generate_title("Implement relay run title feature: auto-generate short titles from task descriptions"),
-            "Relay Run Title"
+            "Relay Run Title Feature: Auto-generate"
         );
     }
 }

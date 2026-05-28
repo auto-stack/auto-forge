@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## Project-D1 Explorer View & Tree Component
 **Status:** implemented
 **Module:** `frontend/src/views/ExplorerView.vue`, `components/TreeView.vue`

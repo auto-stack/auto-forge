@@ -4,11 +4,11 @@
       <!-- Sidebar -->
       <div class="section-nav" :class="{ collapsed: sectionNavCollapsed }">
         <div class="section-nav-header">
-          <span class="section-nav-title">Specs</span>
+          <span class="section-nav-title">{{ t('specs.title') }}</span>
           <button
             class="section-nav-collapse-btn"
             @click="sectionNavCollapsed = !sectionNavCollapsed"
-            title="Toggle sidebar"
+            :title="t('specs.toggleSidebar')"
           >
             <PanelLeft :size="14" />
           </button>
@@ -20,7 +20,7 @@
           @click="selectOverview()"
         >
           <BookOpen :size="15" />
-          <span>Overview</span>
+          <span>{{ t('specs.overview') }}</span>
         </div>
 
         <!-- Module Accordion -->
@@ -89,7 +89,7 @@
       <div class="section-editor">
         <div class="content-header">
           <div class="header-left">
-            <button v-if="sectionNavCollapsed" class="section-nav-toggle-btn" @click="sectionNavCollapsed = false" title="Show sections">
+            <button v-if="sectionNavCollapsed" class="section-nav-toggle-btn" @click="sectionNavCollapsed = false" :title="t('specs.showSections')">
               <PanelLeft :size="16" />
             </button>
             <div class="header-breadcrumb">
@@ -117,18 +117,18 @@
               v-model="specSearch"
               type="text"
               class="search-input"
-              placeholder="Search modules..."
+              :placeholder="t('specs.searchPlaceholder')"
             />
           </div>
 
           <div class="specs-actions">
             <button class="specs-btn" @click="triggerDriftCheck">
               <RefreshCw :size="14" />
-              Drift Check
+              {{ t('specs.driftCheck') }}
             </button>
             <button class="specs-btn" @click="rebuildRelations">
               <Link2 :size="14" />
-              Rebuild Links
+              {{ t('specs.rebuildLinks') }}
             </button>
           </div>
         </div>
@@ -171,7 +171,7 @@
             <div class="section-toolbar">
               <button class="add-btn" @click="addItem">
                 <Plus :size="14" />
-                Add {{ sectionTypeLabel }}
+                {{ t('specs.add', { type: sectionTypeLabel }) }}
               </button>
             </div>
 
@@ -214,11 +214,11 @@
           </div>
 
           <div v-else-if="isLoading" class="editor-empty">
-            <span class="loading">Loading Specs…</span>
+            <span class="loading">{{ t('specs.loading') }}</span>
           </div>
           <div v-else class="editor-empty">
             <BookOpen :size="32" />
-            <p>Select a section from the sidebar</p>
+            <p>{{ t('specs.selectSection') }}</p>
           </div>
         </div>
       </div>
@@ -231,6 +231,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import {
   RefreshCw, Search, PanelLeft, BookOpen, Plus, Link2, FileText
 } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { useSpecs } from '@/composables/useSpecs'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useProject } from '@/composables/useProject'
@@ -249,6 +250,8 @@ import PlanCards from '@/components/category/PlanCards.vue'
 import TestsCards from '@/components/category/TestsCards.vue'
 import ReviewCards from '@/components/category/ReviewCards.vue'
 import ReportCards from '@/components/category/ReportCards.vue'
+
+const { t } = useI18n()
 
 const { document, isLoading, error, loadDocument, loadOverview, loadModuleOutline, saveDocument, findItemById, findSectionByItemId, rebuildRelations: apiRebuildRelations } = useSpecs()
 const { gates: pendingGates, resolveGate: resolveGateInbox } = useGateInbox()

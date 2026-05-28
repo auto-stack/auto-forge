@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## Cli-D1 CLI REPL Interface
 **Status:** done
 **Module:** `backend/src/cli/`

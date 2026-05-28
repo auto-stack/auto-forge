@@ -8,7 +8,7 @@ use crate::forge::tools::{set_tool_context, ToolRegistry};
 use crate::provider::{ChatMessage, ClaudeProviderState};
 use crate::relay::agent::AgentInstance;
 use crate::relay::pipeline::{AdvanceResult, PipelineStatus};
-use crate::relay::store::{RunStore, advance_run, submit_handoff};
+use crate::relay::store::{RunStore, advance_run, submit_handoff, now_secs};
 use crate::relay::api::RunEventBroadcast;
 use tokio::sync::broadcast;
 use serde_json::json;
@@ -118,6 +118,7 @@ pub async fn drive_run(
                             if let Ok(mut map) = store.lock() {
                                 if let Some(entry) = map.get_mut(&run_id_fwd) {
                                     entry.events.push(crate::relay::store::RunEvent::TurnDelta {
+                                        timestamp: now_secs(),
                                         profession_id: profession_id_fwd.clone(),
                                         text,
                                     });
@@ -153,6 +154,7 @@ pub async fn drive_run(
                                         if let Ok(mut map) = run_store_fwd.lock() {
                                             if let Some(entry) = map.get_mut(&run_id_fwd) {
                                                 entry.events.push(crate::relay::store::RunEvent::TurnToolCall {
+                                                    timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                     tool_id: id,
                                                     tool_name: name,
@@ -176,6 +178,7 @@ pub async fn drive_run(
                                         if let Ok(mut map) = run_store_fwd.lock() {
                                             if let Some(entry) = map.get_mut(&run_id_fwd) {
                                                 entry.events.push(crate::relay::store::RunEvent::TurnToolResult {
+                                                    timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                     tool_id: id,
                                                     result: result.clone(),
@@ -196,6 +199,7 @@ pub async fn drive_run(
                                         if let Ok(mut map) = run_store_fwd.lock() {
                                             if let Some(entry) = map.get_mut(&run_id_fwd) {
                                                 entry.events.push(crate::relay::store::RunEvent::TurnComplete {
+                                                    timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                 });
                                                 crate::relay::store::save_run(entry);
@@ -215,6 +219,7 @@ pub async fn drive_run(
                                         if let Ok(mut map) = run_store_fwd.lock() {
                                             if let Some(entry) = map.get_mut(&run_id_fwd) {
                                                 entry.events.push(crate::relay::store::RunEvent::TurnError {
+                                                    timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                     message: message.clone(),
                                                 });
@@ -235,6 +240,7 @@ pub async fn drive_run(
                                         if let Ok(mut map) = run_store_fwd.lock() {
                                             if let Some(entry) = map.get_mut(&run_id_fwd) {
                                                 entry.events.push(crate::relay::store::RunEvent::TurnBudgetWarning {
+                                                    timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                     remaining,
                                                 });
@@ -254,6 +260,7 @@ pub async fn drive_run(
                                         if let Ok(mut map) = run_store_fwd.lock() {
                                             if let Some(entry) = map.get_mut(&run_id_fwd) {
                                                 entry.events.push(crate::relay::store::RunEvent::TurnBudgetExceeded {
+                                                    timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                 });
                                                 crate::relay::store::save_run(entry);

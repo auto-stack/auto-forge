@@ -270,8 +270,8 @@ impl PipelineEngine {
         let now = now_secs();
 
         // Record the completed step
-        let step_id = match &self.status {
-            PipelineStatus::Running { step_id, .. } => step_id.clone(),
+        let (step_id, started_at) = match &self.status {
+            PipelineStatus::Running { step_id, started_at, .. } => (step_id.clone(), *started_at),
             _ => {
                 self.status = PipelineStatus::Failed {
                     error: "submit_handoff called but no step is running".into(),
@@ -289,7 +289,7 @@ impl PipelineEngine {
             step_id: step_id.clone(),
             profession_id: profession_id.clone(),
             handoff: Some(handoff.clone()),
-            started_at: 0, // Would be captured in a real impl
+            started_at,
             completed_at: now,
             iteration: *self.loop_counters.get(&step_id).unwrap_or(&0),
         });

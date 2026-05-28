@@ -1,7 +1,7 @@
 <template>
   <div class="agents-view" data-testid="relay-view">
     <div class="agents-header">
-      <h2>Agents Relay</h2>
+      <h2>{{ t('relay.title') }}</h2>
       <div class="agents-actions">
         <button class="btn-secondary" @click="refresh">
           <RefreshCw :size="14" />
@@ -11,10 +11,10 @@
           class="btn-secondary btn-danger-outline"
           @click="onDeleteFinishedRuns"
           :disabled="loading"
-          :title="`Delete all ${finishedRunCount} completed/failed runs`"
+          :title="t('relay.deleteAllTitle', { count: finishedRunCount })"
         >
           <Trash2 :size="14" />
-          Clear Finished ({{ finishedRunCount }})
+          {{ t('relay.clearFinished', { count: finishedRunCount }) }}
         </button>
       </div>
     </div>
@@ -54,7 +54,7 @@
           </div>
           <button
             class="btn-icon btn-delete"
-            title="Delete run"
+            :title="t('relay.deleteRun')"
             @click.stop="onDeleteRun(run.run_id)"
           >
             <Trash2 :size="12" />
@@ -65,7 +65,7 @@
       <!-- Center: Pipeline visualization -->
       <div class="pipeline-panel" data-testid="pipeline-panel">
         <div v-if="!currentRun" class="empty-state">
-          Select a run to view details
+          {{ t('relay.selectRun') }}
         </div>
 
         <template v-else>
@@ -82,7 +82,7 @@
               </span>
               <span class="stat-badge">
                 <Zap :size="12" />
-                {{ Math.round(currentRun.savings_ratio * 100) }}% saved
+                {{ t('relay.saved', { percent: Math.round(currentRun.savings_ratio * 100) }) }}
               </span>
             </div>
           </div>
@@ -137,20 +137,20 @@
                 </div>
                 <div class="expanded-metrics">
                   <div class="metric">
-                    <span class="metric-label">Gate</span>
+                    <span class="metric-label">{{ t('relay.gate') }}</span>
                     <span class="metric-value">{{ step.gate }}</span>
                   </div>
                   <div class="metric">
-                    <span class="metric-label">Iterations</span>
+                    <span class="metric-label">{{ t('relay.iterations') }}</span>
                     <span class="metric-value">{{ stepIteration(step.id) }}</span>
                   </div>
                   <div class="metric">
-                    <span class="metric-label">Tokens</span>
+                    <span class="metric-label">{{ t('relay.tokens') }}</span>
                     <span class="metric-value">{{ formatTokens(stepTokens(step.id)) }}</span>
                   </div>
                 </div>
                 <div class="expanded-actions">
-                  <span class="expanded-hint">Click step to collapse</span>
+                  <span class="expanded-hint">{{ t('relay.clickToCollapse') }}</span>
                 </div>
               </div>
 
@@ -160,142 +160,198 @@
             </template>
           </div>
 
-          <!-- Session Log -->
+          <!-- Session Log with Step Timeline Navigator -->
           <div class="session-log-panel">
             <div class="panel-title">Session Log</div>
-            <div v-if="sessionLog.length === 0" class="empty-state">
-              Start a run to see agent activity
-            </div>
-            <div v-else ref="sessionLogRef" class="session-log-list">
-              <div
-                v-for="entry in sessionLog"
-                :key="entry.id"
-                class="session-entry"
-                :class="`type-${entry.type}`"
-              >
-                <div class="session-entry-header">
-                  <AgentAvatar :profession-id="entry.profession_id" size="xs" />
-                  <span class="session-profession">{{ entry.profession_id }}</span>
-                  <span class="session-time">{{ entry.time }}</span>
+            <div class="session-log-body">
+              <!-- Left: Log entries -->
+              <div ref="sessionLogRef" class="session-log-main">
+                <div v-if="sessionLog.length === 0" class="empty-state">
+                  Start a run to see agent activity
                 </div>
+                <div v-else class="session-log-list">
+                  <div
+                    v-for="entry in sessionLog"
+                    :key="entry.id"
+                    :data-step-id="entry.step_id || ''"
+                    class="session-entry"
+                    :class="`type-${entry.type}`"
+                  >
+                    <div class="session-entry-header">
+                      <AgentAvatar :profession-id="entry.profession_id" size="xs" />
+                      <span class="session-profession">{{ entry.profession_id }}</span>
+                      <span class="session-time">{{ entry.time }}</span>
+                    </div>
 
-                <!-- Text content -->
-                <div v-if="entry.type === 'text'" class="session-text">
-                  <pre>{{ entry.content }}</pre>
-                </div>
+                    <!-- Text content -->
+                    <div v-if="entry.type === 'text'" class="session-text">
+                      <pre>{{ entry.content }}</pre>
+                    </div>
 
-                <!-- Tool call -->
-                <div v-else-if="entry.type === 'tool_call'" class="session-tool">
-                  <div class="tool-header">
-                    <Wrench :size="12" />
-                    <span>{{ entry.tool_name }}</span>
+                    <!-- Unified Tool Widget -->
+                    <div v-else-if="entry.type === 'tool'" class="session-tool unified">
+                      <div class="tool-header">
+                        <Wrench :size="12" />
+                        <span>{{ entry.tool_name }}</span>
+                        <span class="tool-badge">tool</span>
+                      </div>
+                      <div class="tool-body">
+                        <details class="tool-details">
+                          <summary>Arguments</summary>
+                          <pre>{{ JSON.stringify(entry.arguments, null, 2) }}</pre>
+                        </details>
+                        <details class="tool-details result">
+                          <summary>Result</summary>
+                          <pre>{{ entry.result }}</pre>
+                        </details>
+                      </div>
+                    </div>
+
+                    <!-- Tool call (orphan, no matching result yet) -->
+                    <div v-else-if="entry.type === 'tool_call'" class="session-tool">
+                      <div class="tool-header">
+                        <Wrench :size="12" />
+                        <span>{{ entry.tool_name }}</span>
+                        <span class="tool-badge pending">pending</span>
+                      </div>
+                      <details class="tool-details">
+                        <summary>Arguments</summary>
+                        <pre>{{ JSON.stringify(entry.arguments, null, 2) }}</pre>
+                      </details>
+                    </div>
+
+                    <!-- Tool result (orphan, no matching call) -->
+                    <div v-else-if="entry.type === 'tool_result'" class="session-tool result">
+                      <div class="tool-header">
+                        <CheckCircle :size="12" />
+                        <span>Result</span>
+                      </div>
+                      <details class="tool-details">
+                        <summary>Output</summary>
+                        <pre>{{ entry.content }}</pre>
+                      </details>
+                    </div>
+
+                    <!-- Complete -->
+                    <div v-else-if="entry.type === 'complete'" class="session-complete">
+                      <CheckCircle :size="12" />
+                      <span>Turn completed</span>
+                    </div>
+
+                    <!-- Error -->
+                    <div v-else-if="entry.type === 'error'" class="session-error">
+                      <AlertCircle :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
+
+                    <!-- Budget warning -->
+                    <div v-else-if="entry.type === 'budget_warning'" class="session-warning">
+                      <AlertTriangle :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
+
+                    <!-- Budget exceeded -->
+                    <div v-else-if="entry.type === 'budget_exceeded'" class="session-error">
+                      <AlertCircle :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
+
+                    <!-- Step started -->
+                    <div v-else-if="entry.type === 'step_started'" :id="`step-${entry.step_id}`" class="session-step">
+                      <Play :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
+
+                    <!-- Step completed -->
+                    <div v-else-if="entry.type === 'step_completed'" class="session-step completed">
+                      <CheckCircle :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
+
+                    <!-- Gate waiting -->
+                    <div v-else-if="entry.type === 'gate_waiting'" class="session-warning">
+                      <AlertTriangle :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
+
+                    <!-- Run completed -->
+                    <div v-else-if="entry.type === 'run_completed'" class="session-step completed">
+                      <CheckCircle :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
+
+                    <!-- Run failed -->
+                    <div v-else-if="entry.type === 'run_failed'" class="session-error">
+                      <AlertCircle :size="12" />
+                      <span>{{ entry.content }}</span>
+                    </div>
                   </div>
-                  <details class="tool-details">
-                    <summary>Arguments</summary>
-                    <pre>{{ JSON.stringify(entry.arguments, null, 2) }}</pre>
-                  </details>
                 </div>
+              </div>
 
-                <!-- Tool result -->
-                <div v-else-if="entry.type === 'tool_result'" class="session-tool result">
-                  <div class="tool-header">
-                    <CheckCircle :size="12" />
-                    <span>Result</span>
+              <!-- Right: Vertical step timeline -->
+              <div v-if="stepTimeline.length > 0" class="step-timeline">
+                <div
+                  v-for="(record, idx) in stepTimeline"
+                  :key="record.step_id + record.started_at + record.iteration"
+                  class="step-timeline-item"
+                  :class="{ active: activeStepNav === idx }"
+                  @click="scrollToStep(idx)"
+                >
+                  <div class="step-timeline-dot" />
+                  <div class="step-timeline-content">
+                    <span class="step-timeline-agent">
+                      <AgentAvatar :profession-id="record.profession_id" size="xs" />
+                      <span>{{ record.profession_id }} x{{ record.iteration + 1 }}</span>
+                    </span>
+                    <span class="step-timeline-time">{{ formatTime(record.started_at) }}</span>
                   </div>
-                  <details class="tool-details">
-                    <summary>Output</summary>
-                    <pre>{{ entry.content }}</pre>
-                  </details>
-                </div>
-
-                <!-- Complete -->
-                <div v-else-if="entry.type === 'complete'" class="session-complete">
-                  <CheckCircle :size="12" />
-                  <span>Turn completed</span>
-                </div>
-
-                <!-- Error -->
-                <div v-else-if="entry.type === 'error'" class="session-error">
-                  <AlertCircle :size="12" />
-                  <span>{{ entry.content }}</span>
-                </div>
-
-                <!-- Budget warning -->
-                <div v-else-if="entry.type === 'budget_warning'" class="session-warning">
-                  <AlertTriangle :size="12" />
-                  <span>{{ entry.content }}</span>
-                </div>
-
-                <!-- Budget exceeded -->
-                <div v-else-if="entry.type === 'budget_exceeded'" class="session-error">
-                  <AlertCircle :size="12" />
-                  <span>{{ entry.content }}</span>
-                </div>
-
-                <!-- Step started -->
-                <div v-else-if="entry.type === 'step_started'" class="session-step">
-                  <Play :size="12" />
-                  <span>{{ entry.content }}</span>
-                </div>
-
-                <!-- Step completed -->
-                <div v-else-if="entry.type === 'step_completed'" class="session-step completed">
-                  <CheckCircle :size="12" />
-                  <span>{{ entry.content }}</span>
-                </div>
-
-                <!-- Gate waiting -->
-                <div v-else-if="entry.type === 'gate_waiting'" class="session-warning">
-                  <AlertTriangle :size="12" />
-                  <span>{{ entry.content }}</span>
-                </div>
-
-                <!-- Run completed -->
-                <div v-else-if="entry.type === 'run_completed'" class="session-step completed">
-                  <CheckCircle :size="12" />
-                  <span>{{ entry.content }}</span>
-                </div>
-
-                <!-- Run failed -->
-                <div v-else-if="entry.type === 'run_failed'" class="session-error">
-                  <AlertCircle :size="12" />
-                  <span>{{ entry.content }}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Cost Breakdown -->
+          <!-- Cost Breakdown with Pie Chart -->
           <div class="cost-panel">
             <div class="panel-title">Cost Breakdown</div>
             <div v-if="!currentRun" class="empty-state">—</div>
-            <div v-else class="cost-bars">
-              <div class="cost-bar-row">
-                <span class="cost-label">Total</span>
-                <div class="cost-bar-bg">
-                  <div
-                    class="cost-bar-fill"
-                    :style="{ width: '100%' }"
-                  />
-                </div>
-                <span class="cost-value">{{ formatTokens(currentRun.cumulative_tokens) }}</span>
+            <div v-else class="cost-chart">
+              <div v-if="pieSlices.length > 0" class="pie-chart-container">
+                <svg viewBox="0 0 100 100" class="pie-chart">
+                  <g transform="translate(50,50) rotate(-90)">
+                    <circle
+                      v-for="(slice, i) in pieSlices"
+                      :key="i"
+                      r="25"
+                      fill="transparent"
+                      :stroke="slice.color"
+                      :stroke-width="slice.profession === currentRun?.current_profession ? 22 : 18"
+                      :stroke-dasharray="`${slice.length} ${slice.gap}`"
+                      :stroke-dashoffset="slice.offset"
+                      :class="{ 'pie-slice-active': slice.profession === currentRun?.current_profession }"
+                    />
+                  </g>
+                  <g transform="translate(50,50)">
+                    <text y="1" text-anchor="middle" dominant-baseline="middle" class="pie-total">
+                      {{ formatTokens(currentRun.cumulative_tokens) }}
+                    </text>
+                  </g>
+                </svg>
               </div>
-              <div
-                v-for="(tokens, prof) in professionTokens"
-                :key="prof"
-                class="cost-bar-row"
-              >
-                <span class="cost-label">{{ prof }}</span>
-                <div class="cost-bar-bg">
-                  <div
-                    class="cost-bar-fill profession"
-                    :style="{ width: Math.min(100, (tokens / Math.max(currentRun.cumulative_tokens, 1)) * 100) + '%' }"
-                  />
-                </div>
-                <span class="cost-value">{{ formatTokens(tokens) }}</span>
-              </div>
-              <div v-if="Object.keys(professionTokens).length === 0" class="empty-state">
+              <div v-else class="empty-state" style="flex:1;text-align:left;padding:0;">
                 Per-profession data will appear as steps run
+              </div>
+              <div v-if="pieSlices.length > 0" class="pie-legend">
+                <div
+                  v-for="(slice, i) in pieSlices"
+                  :key="i"
+                  class="pie-legend-item"
+                  :class="{ active: slice.profession === currentRun?.current_profession }"
+                >
+                  <span class="pie-dot" :style="{ background: slice.color }" />
+                  <span class="pie-prof">{{ slice.profession }}</span>
+                  <span class="pie-val">{{ formatTokens(slice.tokens) }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -310,20 +366,6 @@
             @reject="onReject"
             @review-in-specs="onReviewInSpecs"
           />
-
-          <!-- Step history -->
-          <div class="history-panel">
-            <div class="panel-title">Step History</div>
-            <div v-if="currentRun.step_history.length === 0" class="empty-state">No steps completed yet</div>
-            <div
-              v-for="record in currentRun.step_history"
-              :key="record.step_id + record.started_at"
-              class="history-row"
-            >
-              <span class="history-profession">{{ record.profession_id }}</span>
-              <span class="history-time">{{ formatTime(record.completed_at) }}</span>
-            </div>
-          </div>
         </template>
       </div>
 
@@ -338,6 +380,7 @@ import {
   Play, RefreshCw, Coins, Zap, ChevronRight,
   Trash2, Wrench, CheckCircle, AlertCircle, AlertTriangle,
 } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { useRelay } from '@/composables/useRelay'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useForgeMode } from '@/composables/useForgeMode'
@@ -352,11 +395,14 @@ const {
   resolveGate, subscribeToRun, deleteRun,
 } = useRelay()
 
+const { t } = useI18n()
+
 const gateInbox = useGateInbox()
 const { shouldPauseGate } = useForgeMode()
 
 const expandedStepId = ref<string | null>(null)
 const sessionLogRef = ref<HTMLElement | null>(null)
+const activeStepNav = ref<number>(-1)
 
 // Auto-scroll session log to bottom when new entries arrive
 import { watch, nextTick } from 'vue'
@@ -366,6 +412,87 @@ watch(() => sessionLog.value.length, async () => {
     sessionLogRef.value.scrollTop = sessionLogRef.value.scrollHeight
   }
 })
+
+// Profession color palette for pie chart
+const professionColors: Record<string, string> = {
+  assistant: 'hsl(220 70% 60%)',
+  advisor: 'hsl(280 60% 60%)',
+  planner: 'hsl(200 80% 55%)',
+  architect: 'hsl(160 60% 45%)',
+  coder: 'hsl(35 90% 55%)',
+  tester: 'hsl(50 80% 50%)',
+  reviewer: 'hsl(340 70% 55%)',
+  documenter: 'hsl(260 55% 60%)',
+  gofer: 'hsl(180 50% 50%)',
+  manager: 'hsl(30 60% 50%)',
+}
+
+const pieSlices = computed(() => {
+  if (!currentRun.value) return []
+  const entries = Object.entries(professionTokens.value)
+  if (entries.length === 0) return []
+  const total = currentRun.value.cumulative_tokens || 1
+  const circumference = 2 * Math.PI * 25 // r=25
+  let accumulated = 0
+  return entries.map(([profession, tokens]) => {
+    const ratio = tokens / total
+    const length = ratio * circumference
+    const gap = circumference - length
+    const offset = -accumulated // start from top
+    accumulated += length
+    return {
+      profession,
+      tokens,
+      color: professionColors[profession] ?? `hsl(${profession.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 360} 60% 55%)`,
+      length,
+      gap,
+      offset,
+    }
+  })
+})
+
+const stepTimeline = computed(() => {
+  if (!currentRun.value) return []
+  const items = [...currentRun.value.step_history]
+
+  // If a step is currently running, append an in-progress record
+  if (currentRun.value.status === 'running' && currentRun.value.current_step_started_at) {
+    const currentStep = currentRun.value.steps[currentRun.value.current_step]
+    if (currentStep) {
+      const iteration = items.filter(h => h.step_id === currentStep.id).length
+      items.push({
+        step_id: currentStep.id,
+        profession_id: currentStep.profession_id,
+        started_at: currentRun.value.current_step_started_at,
+        completed_at: 0,
+        iteration,
+      })
+    }
+  }
+
+  return items
+})
+
+function scrollToStep(timelineIndex: number) {
+  activeStepNav.value = timelineIndex
+  const record = stepTimeline.value[timelineIndex]
+  if (!record || !sessionLogRef.value) return
+
+  const entries = sessionLogRef.value.querySelectorAll('.session-entry.type-step_started')
+  let matchCount = 0
+  for (const el of entries) {
+    if (el.getAttribute('data-step-id') === record.step_id) {
+      if (matchCount === record.iteration) {
+        sessionLogRef.value.scrollTo({
+          top: (el as HTMLElement).offsetTop - 10,
+          behavior: 'smooth',
+        })
+        return
+      }
+      matchCount++
+    }
+  }
+}
 
 function toggleStep(stepId: string) {
   expandedStepId.value = expandedStepId.value === stepId ? null : stepId
@@ -847,25 +974,111 @@ function professionIcon(id: string): string {
   gap: 0.4rem;
 }
 
-/* History */
-.history-panel {
-  border: 1px solid var(--af-border);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-}
-
-.history-row {
+/* Session Log layout */
+.session-log-body {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid var(--af-border);
-  font-size: 0.88rem;
+  flex: 1;
+  overflow: hidden;
+  gap: 0.75rem;
 }
 
-.history-row:last-child { border-bottom: none; }
-.history-profession { font-weight: 500; color: var(--af-fg); }
-.history-time { color: var(--af-muted); font-family: monospace; font-size: 0.83rem; }
+.session-log-main {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* Step timeline (right side) */
+.step-timeline {
+  width: 130px;
+  flex-shrink: 0;
+  border-left: 2px solid hsl(var(--muted-foreground) / 0.15);
+  padding-left: 0.5rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.step-timeline-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.step-timeline-item:hover {
+  background: hsl(var(--muted-foreground) / 0.05);
+}
+
+.step-timeline-item.active .step-timeline-dot {
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.2);
+}
+
+.step-timeline-item.active .step-timeline-agent {
+  color: hsl(var(--primary));
+  font-weight: 600;
+}
+
+.step-timeline-dot {
+  position: absolute;
+  left: -7px;
+  top: 0.55rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(var(--muted-foreground) / 0.3);
+  border: 2px solid var(--af-bg);
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.step-timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  padding-left: 0.15rem;
+}
+
+.step-timeline-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  color: var(--af-fg);
+  font-weight: 500;
+  text-transform: capitalize;
+  min-width: 0;
+}
+
+.step-timeline-agent span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-timeline-time {
+  font-size: 0.68rem;
+  color: var(--af-muted);
+  font-family: monospace;
+}
+
+.step-timeline-retry {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: hsl(38 80% 45%);
+  background: hsl(38 80% 45% / 0.1);
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  margin-left: 0.15rem;
+}
 
 /* Expanded step card */
 .expanded-step-card {
@@ -944,14 +1157,13 @@ function professionIcon(id: string): string {
   margin-bottom: 1rem;
   display: flex;
   flex-direction: column;
-  max-height: 380px;
+  max-height: 570px;
 }
 
 .session-log-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  overflow-y: auto;
   padding-right: 0.25rem;
 }
 
@@ -1007,6 +1219,32 @@ function professionIcon(id: string): string {
 .session-tool.result {
   border-color: hsl(150 60% 45% / 0.3);
   background: hsl(150 60% 45% / 0.06);
+}
+
+.session-tool.unified {
+  border-color: hsl(var(--primary) / 0.3);
+  background: hsl(var(--primary) / 0.06);
+}
+
+.session-tool.unified .tool-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.tool-badge {
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  margin-left: auto;
+}
+
+.tool-badge.pending {
+  background: hsl(38 80% 50% / 0.12);
+  color: hsl(38 80% 35%);
 }
 
 .tool-header {
@@ -1101,50 +1339,77 @@ function professionIcon(id: string): string {
   margin-bottom: 1rem;
 }
 
-.cost-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.cost-bar-row {
+.cost-chart {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.83rem;
+  gap: 1rem;
 }
 
-.cost-label {
-  width: 50px;
-  color: var(--af-muted);
+.pie-chart-container {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+}
+
+.pie-chart {
+  width: 100%;
+  height: 100%;
+}
+
+.pie-total {
+  font-size: 5px;
+  font-weight: 600;
+  fill: var(--af-fg);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pie-slice-active {
+  filter: drop-shadow(0 0 2px hsl(var(--primary) / 0.4));
+}
+
+.pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.pie-legend-item.active {
+  background: hsl(var(--muted-foreground) / 0.06);
+}
+
+.pie-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
-.cost-bar-bg {
+.pie-prof {
   flex: 1;
-  height: 6px;
-  background: hsl(var(--muted-foreground) / 0.08);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.cost-bar-fill {
-  height: 100%;
-  background: var(--af-primary);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.cost-bar-fill.budget {
-  background: hsl(var(--af-success));
-}
-
-.cost-value {
-  width: 40px;
-  text-align: right;
   color: var(--af-fg);
   font-weight: 500;
-  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pie-val {
+  color: var(--af-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
 }
 
 /* ─── Mobile Responsive ───────────────────────────────────────────────────── */

@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## Chat-T1 [G8] GateCard approval flow — approve triggers pipeline advance
 **Status:** done
 **Test File:** `packages/auto-forge-ui/tests/integration/GateCard.spec.ts`

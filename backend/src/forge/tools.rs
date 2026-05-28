@@ -1218,7 +1218,8 @@ impl Tool for ReadSpecsTool {
 
     fn description(&self) -> &'static str {
         "Read the content and status of a Specs section. \
-         Use this to examine the current project specification during Intake or SpecDraft."
+         Use this to examine the current project specification during Intake or SpecDraft. \
+         You can filter by module (e.g. 'chat', 'ui-system') and/or request specific items by ID."
     }
 
     fn input_schema(&self) -> Value {
@@ -1228,6 +1229,17 @@ impl Tool for ReadSpecsTool {
                 "section_id": {
                     "type": "string",
                     "description": "The section ID to read (e.g., 'goals', 'architecture', 'plans', 'tests')"
+                },
+                "module": {
+                    "type": "string",
+                    "description": "Optional module filter. When provided, only items belonging to this module are returned (e.g., 'chat', 'ui-system', 'i18n')."
+                },
+                "item_ids": {
+                    "oneOf": [
+                        { "type": "string", "description": "Single spec item ID to fetch (e.g., 'I18n-G1', 'Chat-D1')" },
+                        { "type": "array", "items": { "type": "string" }, "description": "Multiple spec item IDs to fetch" }
+                    ],
+                    "description": "Optional item ID(s) to fetch. When provided, only the matching items are returned."
                 }
             },
             "required": ["section_id"]
@@ -1241,6 +1253,18 @@ impl Tool for ReadSpecsTool {
             .get("section_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidInput("Missing 'section_id' argument".into()))?;
+
+        let module_filter = args.get("module").and_then(|v| v.as_str());
+
+        let item_ids_filter: Option<Vec<String>> = args.get("item_ids").map(|v| {
+            if let Some(arr) = v.as_array() {
+                arr.iter().filter_map(|x| x.as_str().map(String::from)).collect()
+            } else if let Some(s) = v.as_str() {
+                vec![s.to_string()]
+            } else {
+                vec![]
+            }
+        });
 
         if project.is_empty() {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
@@ -1275,8 +1299,8 @@ impl Tool for ReadSpecsTool {
                 .and_then(|doc| doc.sections.iter().find(|s| s.id == section_id))
             {
                 Some(sec) => {
-                    let full = super::SpecsStore::serialize_section_to_ad(sec);
-                    (full, sec.status.as_str().to_string())
+                    let filtered = Self::filter_and_serialize_items(sec, module_filter, item_ids_filter.as_deref());
+                    (filtered, sec.status.as_str().to_string())
                 }
                 None => return Err(ToolError::ExecutionFailed(format!("Section '{}' not found in project '{}'", section_id, project_name))),
             }
@@ -1289,6 +1313,67 @@ impl Tool for ReadSpecsTool {
     }
 
     fn is_read_only(&self) -> bool { true }
+}
+
+impl ReadSpecsTool {
+    /// Filter items by module and/or item IDs, then serialize matching items.
+    /// If no filters are applied, returns the full section serialized.
+    fn filter_and_serialize_items(
+        section: &super::SpecsSection,
+        module_filter: Option<&str>,
+        item_ids_filter: Option<&[String]>,
+    ) -> String {
+        let id_set: Option<std::collections::HashSet<&str>> = item_ids_filter.map(|ids| {
+            ids.iter().map(|s| s.as_str()).collect()
+        });
+
+        let items_to_render: Vec<&super::SpecItem> = section.items.iter()
+            .filter(|item| {
+                let module_match = module_filter.map_or(true, |m| {
+                    item.module.as_deref() == Some(m)
+                });
+                let id_match = id_set.as_ref().map_or(true, |set| {
+                    set.contains(item.id.as_str())
+                });
+                module_match && id_match
+            })
+            .collect();
+
+        // Preserve original order
+        if items_to_render.is_empty() {
+            return "(No matching items found)\n".to_string();
+        }
+
+        let mut lines: Vec<String> = Vec::new();
+        if item_ids_filter.is_some() && items_to_render.len() == 1 {
+            // Single item requested — compact format without section header
+            Self::serialize_item_to_lines(&mut lines, items_to_render[0]);
+        } else {
+            // Multiple items or no ID filter — list format
+            for item in items_to_render {
+                Self::serialize_item_to_lines(&mut lines, item);
+                lines.push(String::new());
+            }
+        }
+        lines.join("\n")
+    }
+
+    fn serialize_item_to_lines(lines: &mut Vec<String>, item: &super::SpecItem) {
+        lines.push(format!("## {} {}", item.id, item.title));
+        lines.push(format!("**Status:** {}", super::SpecsStore::serialize_status(&item.status)));
+        if let Some(ref p) = item.priority { lines.push(format!("**Priority:** {}", p)); }
+        if let Some(ref a) = item.assignee { lines.push(format!("**Assignee:** {}", a)); }
+        if let Some(ref t) = item.test_file { lines.push(format!("**Test File:** {}", t)); }
+        if let Some(ref f) = item.file { lines.push(format!("**File:** {}", f)); }
+        if let Some(ref m) = item.milestone { lines.push(format!("**Milestone:** {}", m)); }
+        if let Some(ref m) = item.module { lines.push(format!("**Module:** {}", m)); }
+        if !item.tags.is_empty() { lines.push(format!("**Tags:** {}", item.tags.join(", "))); }
+        if !item.depends_on.is_empty() { lines.push(format!("**Depends on:** {}", item.depends_on.join(", "))); }
+        if !item.content.trim().is_empty() {
+            lines.push(String::new());
+            lines.push(item.content.trim().to_string());
+        }
+    }
 }
 
 /// List all Specs sections.

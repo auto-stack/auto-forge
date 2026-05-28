@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## Wiki-T1 [G18] Wiki RAG semantic retrieval
 **Status:** proposed
 **Test File:** `backend/tests/wiki_rag.rs`

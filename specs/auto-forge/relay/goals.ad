@@ -1,5 +1,7 @@
 # Goals
 
+---
+
 ## Relay-G1 Relay Orchestrator executes serial agent flows with baton passing and gate enforcement
 **Status:** implemented
 **Tags:** stack:backend

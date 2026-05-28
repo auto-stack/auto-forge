@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## Runtime-T1 [G15] CLI settings serialize and deserialize correctly
 **Status:** done
 **Test File:** `backend/src/cli/settings.rs` (inline `#[cfg(test)]`)

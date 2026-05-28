@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## UiSystem-D1 Responsive 3-Zone Layout System
 **Status:** implemented
 **Module:** `packages/auto-forge-ui/src/App.vue`
@@ -104,7 +106,6 @@ Refactor the layout into a three-zone information architecture:
 
 #### 1. Sidebar Zone (220px, scrollable)
 
-**Before:**
 ```
 [Search input]
 [Overview tab]
@@ -113,7 +114,6 @@ Refactor the layout into a three-zone information architecture:
 [Module filter]
 ```
 
-**After:**
 ```
 [Overview — flat top-level item]
 [Module accordion tree]
@@ -134,12 +134,10 @@ Changes:
 
 #### 2. Title Bar Zone (48px, fixed)
 
-**Before:**
 ```
 [Toggle]        [Breadcrumb — centered]        [Drift] [Links]
 ```
 
-**After:**
 ```
 [Toggle] [Breadcrumb — left-aligned] [Search] [Drift] [Links]
 ```
@@ -198,3 +196,1760 @@ Removed styles:
 - Module accordion must expand at least the first module by default (if no overview is active)
 - Search must filter both module names and category type titles
 - Active state must be visually distinct for all three view paths (blue left border)
+
+## UiSystem-D4 i18n Integration Design for 6 Vue Views
+**Status:** draft
+**Module:** ui-system
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A4
+
+## UiSystem-D4 i18n Integration Design for 6 Vue Views
+**Status:** draft
+**Module:** `frontend/src/views/`, `frontend/src/i18n/`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A4
+
+### Overview
+
+Mechanical replacement of all hardcoded English strings in 6 Vue views with `t()` calls. Two categories: **completion** (ChatsView, WikiView — partially done) and **new integration** (AgentsConfigView, ProfessionsView, SkillsView, ApiSourcesView — fully hardcoded).
+
+### Implementation Pattern
+
+Every view follows the same 3-step pattern:
+
+```vue
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+// ...existing composable imports...
+</script>
+
+<template>
+  <!-- Before: -->
+  <h2>Agent Forge</h2>
+  <p>Loading agents...</p>
+
+  <!-- After: -->
+  <h2>{{ t('agents.title') }}</h2>
+  <p>{{ t('agents.loading') }}</p>
+</template>
+```
+
+### State Machine (per view)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Audit: identify hardcoded strings
+    Audit --> AddKeys: add keys to en.json/zh.json
+    AddKeys --> ReplaceTemplate: replace strings in template
+    ReplaceTemplate --> ReplaceScript: replace strings in script
+    ReplaceScript --> Verify: run dev server
+    Verify --> [*]: all strings translated
+```
+
+### Data Flow
+
+```
+[en.json / zh.json] → [vue-i18n plugin] → [useI18n().t()] → [template renders]
+```
+
+### Per-View Changes
+
+---
+
+#### 1. ChatsView.vue — Completion (1 string)
+
+**File**: `frontend/src/views/ChatsView.vue` (2566 lines)
+
+Only 1 remaining hardcoded string — the system welcome message:
+
+```vue
+<!-- BEFORE: -->
+<span>Hi! I'm <strong>{{ assistantName }}</strong>, your AI coding assistant. I'm glad to help you build your next great project!</span>
+
+<!-- AFTER: -->
+<span v-html="t('chat.welcome', { name: assistantName })" />
+```
+
+Note: Must use `v-html` because the English string contains `<strong>` tags. The `assistantName` is trusted (derived from AgentConfig), so `v-html` is safe here.
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `chat.welcome` | `"Hi! I'm <strong>{name}</strong>, your AI coding assistant. I'm glad to help you build your next great project!"` | `"嗨！我是 <strong>{name}</strong>，您的 AI 编程助手。很高兴帮助您构建下一个伟大的项目！"` |
+
+---
+
+#### 2. WikiView.vue — Completion (~20 strings)
+
+**File**: `frontend/src/views/WikiView.vue` (864 lines)
+
+Already uses `t('wiki.title')`, `t('wiki.raw')`, `t('wiki.newPage')`, `t('wiki.newFolder')` in sidebar. Remaining hardcoded strings in content area:
+
+```vue
+<!-- BEFORE: -->
+<button title="Toggle sidebar">
+<button title="Show sidebar">
+<h3>Editing: {{ activePage?.title }}</h3>
+<h3>New Page</h3>
+<h3>New Folder</h3>
+<input placeholder="Search pages..." />
+<button title="Edit page">Edit</button>
+<button title="Delete page">
+<button title="Delete file">
+<p>Select a page or file from the sidebar</p>
+<span class="loading">Loading...</span>
+<span>No pages yet</span>
+<label>Path</label> / <label>Title</label> / <label>Source Type</label>
+<option value="manual">Manual</option> / <option value="guide">Guide</option>
+
+<!-- AFTER: -->
+<button :title="t('wiki.toggleSidebar')">
+<button :title="t('wiki.showSidebar')">
+<h3>{{ t('wiki.editing') }} {{ activePage?.title }}</h3>
+<h3>{{ t('wiki.newPageTitle') }}</h3>
+<h3>{{ t('wiki.newFolderTitle') }}</h3>
+<input :placeholder="t('wiki.searchPlaceholder')" />
+<button :title="t('wiki.editPage')">{{ t('common.edit') }}</button>
+<button :title="t('wiki.deletePage')">
+<button :title="t('wiki.deleteFile')">
+<p>{{ t('wiki.emptyState') }}</p>
+<span class="loading">{{ t('common.loading') }}</span>
+<span>{{ t('wiki.noPages') }}</span>
+<label>{{ t('wiki.path') }}</label> / <label>{{ t('wiki.pageTitle') }}</label>
+<option value="manual">{{ t('wiki.sourceManual') }}</option>
+```
+
+**Translation keys to add** (~23 keys):
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `wiki.toggleSidebar` | `"Toggle sidebar"` | `"切换侧边栏"` |
+| `wiki.showSidebar` | `"Show sidebar"` | `"显示侧边栏"` |
+| `wiki.editing` | `"Editing:"` | `"编辑："` |
+| `wiki.newPageTitle` | `"New Page"` | `"新建页面"` |
+| `wiki.newFolderTitle` | `"New Folder"` | `"新建文件夹"` |
+| `wiki.viewingFile` | `"{name}"` | `"{name}"` |
+| `wiki.searchPlaceholder` | `"Search pages..."` | `"搜索页面..."` |
+| `wiki.editPage` | `"Edit page"` | `"编辑页面"` |
+| `wiki.deletePage` | `"Delete page"` | `"删除页面"` |
+| `wiki.deleteFile` | `"Delete file"` | `"删除文件"` |
+| `wiki.emptyState` | `"Select a page or file from the sidebar"` | `"从侧边栏选择页面或文件"` |
+| `wiki.noPages` | `"No pages yet"` | `"暂无页面"` |
+| `wiki.path` | `"Path"` | `"路径"` |
+| `wiki.pageTitle` | `"Title"` | `"标题"` |
+| `wiki.sourceType` | `"Source Type"` | `"来源类型"` |
+| `wiki.tagsLabel` | `"Tags (comma-separated)"` | `"标签（逗号分隔）"` |
+| `wiki.sourceManual` | `"Manual"` | `"手动"` |
+| `wiki.sourceGuide` | `"Guide"` | `"指南"` |
+| `wiki.sourceApiRef` | `"API Reference"` | `"API 参考"` |
+| `wiki.sourceCustom` | `"Custom"` | `"自定义"` |
+| `wiki.pathPlaceholder` | `"guide/getting-started"` | `"guide/getting-started"` |
+| `wiki.titlePlaceholder` | `"Getting Started"` | `"入门指南"` |
+| `wiki.tagsPlaceholder` | `"tag1, tag2"` | `"标签1, 标签2"` |
+
+---
+
+#### 3. AgentsConfigView.vue — New Integration (~30 strings)
+
+**File**: `frontend/src/views/AgentsConfigView.vue` (902 lines)
+
+Already has `useI18n` imported with partial `t()` calls for `agents.createAgent`, `common.default`, `common.edit`, `common.upload`, `common.generate`, `common.generating`, `common.remove`, `agents.agentName`, `agents.agentNamePlaceholder`, `agents.profession`, `agents.soul`, `agents.soulPlaceholder`, `agents.soulHint`, `agents.apiSource`, `agents.modelTier`, `agents.equippedSkills`. Remaining hardcoded:
+
+```vue
+<!-- BEFORE: -->
+<h2>Agent Forge</h2>
+<button @click="handleResetDefaults">Reset Defaults</button>
+<button @click="startCreate"><Plus :size="14" /> Create Agent</button>
+<div class="agents-empty">Loading agents...</div>
+<p>No agents configured. Reset defaults to get started.</p>
+<summary>Advanced Settings</summary>
+<label>Temperature ({{ editing.temperature.toFixed(1) }})</label>
+<label>Max Tokens</label>
+<label>Reasoning Budget</label>
+<span>Thinking Mode</span>
+<div class="form-hint">Enable Claude extended thinking for deeper reasoning.</div>
+<label>Thinking Budget ({{ editing.thinking_budget ?? 0 }})</label>
+```
+
+**Script changes** — replace `alert()` and `confirm()`:
+
+```typescript
+// BEFORE:
+alert('ID and Name are required')
+confirm('Delete this agent?')
+confirm('Reset to default agents? Custom agents will be lost.')
+
+// AFTER:
+alert(t('agents.idNameRequired'))
+confirm(t('agents.deleteConfirm'))
+confirm(t('agents.resetConfirm'))
+```
+
+**Translation keys to add** (~13 keys):
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `agents.title` | `"Agent Forge"` | `"智能体工坊"` |
+| `agents.loading` | `"Loading agents..."` | `"加载智能体..."` |
+| `agents.empty` | `"No agents configured. Reset defaults to get started."` | `"尚未配置智能体。重置默认值以开始使用。"` |
+| `agents.advancedSettings` | `"Advanced Settings"` | `"高级设置"` |
+| `agents.temperature` | `"Temperature ({value})"` | `"温度 ({value})"` |
+| `agents.maxTokens` | `"Max Tokens"` | `"最大 Token 数"` |
+| `agents.reasoningBudget` | `"Reasoning Budget"` | `"推理预算"` |
+| `agents.thinkingMode` | `"Thinking Mode"` | `"思考模式"` |
+| `agents.thinkingHint` | `"Enable Claude extended thinking for deeper reasoning."` | `"启用 Claude 扩展思考以获得更深层的推理。"` |
+| `agents.thinkingBudget` | `"Thinking Budget ({value})"` | `"思考预算 ({value})"` |
+| `agents.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `agents.deleteConfirm` | `"Delete this agent?"` | `"删除此智能体？"` |
+| `agents.resetConfirm` | `"Reset to default agents? Custom agents will be lost."` | `"重置为默认智能体？自定义智能体将丢失。"` |
+
+---
+
+#### 4. ProfessionsView.vue — New Integration (~35 strings)
+
+**File**: `frontend/src/views/ProfessionsView.vue` (605 lines)
+
+Must add `import { useI18n } from 'vue-i18n'` and `const { t } = useI18n()`.
+
+All UI strings are hardcoded. Template changes:
+
+```vue
+<!-- BEFORE: -->
+<h2>Professions</h2>
+<button @click="handleResetDefaults">Reset Defaults</button>
+<button @click="startCreate"><Plus :size="14" /> Add Profession</button>
+<div class="professions-empty">Loading professions...</div>
+<p>No professions defined. Reset defaults to get started.</p>
+<span class="stat">{{ prof.allowed_tools.length }} tools</span>
+<span class="stat">{{ prof.max_turns }} turns</span>
+<span class="stat">{{ (prof.token_budget / 1000).toFixed(0) }}k budget</span>
+<button @click.stop="startEdit(prof)">Edit</button>
+<h3>{{ isNew ? 'Create Profession' : editing.name }}</h3>
+<label>ID</label> / <label>Name</label> / <label>Phase</label>
+<label>Max Turns</label> / <label>Token Budget</label>
+<label>Owned Sections</label> / <label>Readable Sections</label>
+<label>Allowed Tools</label>
+<label>Handoff To</label> / <label>Approval Gates</label>
+<label>Dispatchable To</label> / <label>Base Skills</label>
+<button @click="handleSave">{{ saving ? 'Saving...' : 'Save' }}</button>
+<button @click="cancelEdit">Cancel</button>
+<span>Add Profession</span>
+
+<!-- AFTER: -->
+<h2>{{ t('professions.title') }}</h2>
+<button @click="handleResetDefaults">{{ t('common.resetDefaults') }}</button>
+<button @click="startCreate"><Plus :size="14" /> {{ t('professions.addProfession') }}</button>
+<div class="professions-empty">{{ t('professions.loading') }}</div>
+<p>{{ t('professions.empty') }}</p>
+<span class="stat">{{ t('professions.tools', { count: prof.allowed_tools.length }) }}</span>
+<span class="stat">{{ t('professions.turns', { count: prof.max_turns }) }}</span>
+<span class="stat">{{ t('professions.budget', { count: (prof.token_budget / 1000).toFixed(0) }) }}</span>
+<button @click.stop="startEdit(prof)">{{ t('common.edit') }}</button>
+<h3>{{ isNew ? t('professions.createProfession') : editing.name }}</h3>
+<label>{{ t('professions.idLabel') }}</label> / <label>{{ t('professions.nameLabel') }}</label>
+<!-- ...etc... -->
+```
+
+**Script changes**:
+
+```typescript
+// BEFORE:
+alert('ID and Name are required')
+confirm('Delete this profession?')
+confirm('Reset to default professions? Custom professions will be lost.')
+
+// AFTER:
+alert(t('professions.idNameRequired'))
+confirm(t('professions.deleteConfirm'))
+confirm(t('professions.resetConfirm'))
+```
+
+**Translation keys to add** (~29 keys):
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `professions.title` | `"Professions"` | `"职业"` |
+| `professions.addProfession` | `"Add Profession"` | `"添加职业"` |
+| `professions.createProfession` | `"Create Profession"` | `"创建职业"` |
+| `professions.loading` | `"Loading professions..."` | `"加载职业..."` |
+| `professions.empty` | `"No professions defined. Reset defaults to get started."` | `"尚未定义职业。重置默认值以开始使用。"` |
+| `professions.tools` | `"{count} tools"` | `"{count} 个工具"` |
+| `professions.turns` | `"{count} turns"` | `"{count} 回合"` |
+| `professions.budget` | `"{count}k budget"` | `"{count}k 预算"` |
+| `professions.idLabel` | `"ID"` | `"ID"` |
+| `professions.nameLabel` | `"Name"` | `"名称"` |
+| `professions.phase` | `"Phase"` | `"阶段"` |
+| `professions.maxTurns` | `"Max Turns"` | `"最大回合数"` |
+| `professions.tokenBudget` | `"Token Budget"` | `"Token 预算"` |
+| `professions.ownedSections` | `"Owned Sections"` | `"拥有章节"` |
+| `professions.readableSections` | `"Readable Sections"` | `"可读章节"` |
+| `professions.allowedTools` | `"Allowed Tools"` | `"允许的工具"` |
+| `professions.handoffTo` | `"Handoff To"` | `"交接至"` |
+| `professions.approvalGates` | `"Approval Gates"` | `"审批关卡"` |
+| `professions.dispatchableTo` | `"Dispatchable To"` | `"可派发至"` |
+| `professions.baseSkills` | `"Base Skills"` | `"基础技能"` |
+| `professions.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `professions.deleteConfirm` | `"Delete this profession?"` | `"删除此职业？"` |
+| `professions.resetConfirm` | `"Reset to default professions? Custom professions will be lost."` | `"重置为默认职业？自定义职业将丢失。"` |
+| `professions.placeholderId` | `"unique-id"` | `"唯一标识"` |
+| `professions.placeholderName` | `"Profession name"` | `"职业名称"` |
+| `professions.placeholderSection` | `"Add section and press Enter..."` | `"添加章节后按回车..."` |
+| `professions.placeholderTool` | `"Add tool name and press Enter..."` | `"添加工具名后按回车..."` |
+| `professions.placeholderProfession` | `"profession ids..."` | `"职业 ID..."` |
+
+---
+
+#### 5. SkillsView.vue — New Integration (~25 strings)
+
+**File**: `frontend/src/views/SkillsView.vue` (514 lines)
+
+Must add `import { useI18n } from 'vue-i18n'` and `const { t } = useI18n()`.
+
+```vue
+<!-- BEFORE: -->
+<h2>Skills</h2>
+<button @click="handleResetDefaults">Reset Defaults</button>
+<button @click="startCreate"><Plus :size="14" /> Add Skill</button>
+<div class="skills-empty">Loading skills...</div>
+<p>No skills defined yet. Add one or reset defaults to get started.</p>
+<span class="badge tool-badge">{{ skill.granted_tools.length }} tools</span>
+<span class="badge extra-badge">+{{ skill.extra_turns }} turns</span>
+<button @click.stop="startEdit(skill)">Edit</button>
+<h3>{{ isNew ? 'Create Skill' : editing.name }}</h3>
+<label>ID</label> / <label>Name</label> / <label>Description</label>
+<label>Granted Tools</label> / <label>Prompt Fragment</label>
+<label>Extra Turns</label> / <label>Extra Token Budget</label>
+<button @click="handleSave">{{ saving ? 'Saving...' : 'Save' }}</button>
+<button @click="cancelEdit">Cancel</button>
+<span>Add Skill</span>
+
+<!-- AFTER: -->
+<h2>{{ t('skills.title') }}</h2>
+<button @click="handleResetDefaults">{{ t('common.resetDefaults') }}</button>
+<button @click="startCreate"><Plus :size="14" /> {{ t('skills.addSkill') }}</button>
+<div class="skills-empty">{{ t('skills.loading') }}</div>
+<p>{{ t('skills.empty') }}</p>
+<span class="badge tool-badge">{{ t('skills.tools', { count: skill.granted_tools.length }) }}</span>
+<span class="badge extra-badge">{{ t('skills.turns', { count: skill.extra_turns }) }}</span>
+<button @click.stop="startEdit(skill)">{{ t('common.edit') }}</button>
+<h3>{{ isNew ? t('skills.createSkill') : editing.name }}</h3>
+<label>{{ t('skills.idLabel') }}</label> / <label>{{ t('skills.nameLabel') }}</label>
+<!-- ...etc... -->
+```
+
+**Script changes**:
+
+```typescript
+alert(t('skills.idNameRequired'))
+confirm(t('skills.deleteConfirm'))
+confirm(t('skills.resetConfirm'))
+```
+
+**Translation keys to add** (~19 keys):
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `skills.title` | `"Skills"` | `"技能"` |
+| `skills.addSkill` | `"Add Skill"` | `"添加技能"` |
+| `skills.createSkill` | `"Create Skill"` | `"创建技能"` |
+| `skills.loading` | `"Loading skills..."` | `"加载技能..."` |
+| `skills.empty` | `"No skills defined yet. Add one or reset defaults to get started."` | `"尚未定义技能。添加一个或重置默认值以开始使用。"` |
+| `skills.tools` | `"{count} tools"` | `"{count} 个工具"` |
+| `skills.turns` | `"+{count} turns"` | `"+{count} 回合"` |
+| `skills.idLabel` | `"ID"` | `"ID"` |
+| `skills.nameLabel` | `"Name"` | `"名称"` |
+| `skills.description` | `"Description"` | `"描述"` |
+| `skills.grantedTools` | `"Granted Tools"` | `"授予的工具"` |
+| `skills.promptFragment` | `"Prompt Fragment"` | `"提示词片段"` |
+| `skills.extraTurns` | `"Extra Turns"` | `"额外回合"` |
+| `skills.extraTokenBudget` | `"Extra Token Budget"` | `"额外 Token 预算"` |
+| `skills.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `skills.deleteConfirm` | `"Delete this skill?"` | `"删除此技能？"` |
+| `skills.resetConfirm` | `"Reset to default skills? Custom skills will be lost."` | `"重置为默认技能？自定义技能将丢失。"` |
+| `skills.toolsHint` | `"Tools this skill unlocks for equipped agents."` | `"此技能为已装备智能体解锁的工具。"` |
+| `skills.promptHint` | `"Markdown instructions added to the agent's system prompt."` | `"添加到智能体系统提示中的 Markdown 指令。"` |
+
+---
+
+#### 6. ApiSourcesView.vue — New Integration (~40 strings)
+
+**File**: `frontend/src/views/ApiSourcesView.vue` (887 lines)
+
+Must add `import { useI18n } from 'vue-i18n'` and `const { t } = useI18n()`.
+
+```vue
+<!-- BEFORE: -->
+<h2>API Sources</h2>
+<button title="Add API Source">
+<div class="sidebar-empty">Loading...</div>
+<p>No API sources configured.</p>
+<button>Scan for Configs</button>
+<button>Add Manually</button>
+<div class="source-name">{{ source.name || '(New Source)' }}</div>
+{{ source.models.length }} models
+<h3>{{ isNew ? 'New API Source' : editing.name }}</h3>
+<button>Test Connection</button>
+<button>Save</button> / <button>Cancel</button>
+<label>Provider</label> / <label>Name</label> / <label>API Key</label>
+<option>Anthropic (Claude)</option> / <option>OpenAI (GPT)</option> / <option>Local / Ollama</option>
+<label>API Key Env Var <span class="optional">(optional)</span></label>
+<label>Base URL</label>
+<label>Models</label>
+<span class="col-id">Model ID</span> / <span class="col-name">Display Name</span> / <span class="col-tier">Tier</span>
+<button>Add Model</button>
+<span>Missing tier(s): {{ missingTiers.join(', ') }}</span>
+<h3>Import API Sources</h3>
+<p>Found existing configurations on your system...</p>
+<div>{{ candidate.models.length }} models detected</div>
+<button>Import Selected</button>
+<p>Select an API source or add a new one</p>
+
+<!-- AFTER: -->
+<h2>{{ t('apiSources.title') }}</h2>
+<button :title="t('apiSources.addSource')">
+<div class="sidebar-empty">{{ t('common.loading') }}</div>
+<p>{{ t('apiSources.empty') }}</p>
+<button>{{ scanning ? t('apiSources.scanning') : t('apiSources.scanForConfigs') }}</button>
+<button>{{ t('apiSources.addManually') }}</button>
+<div class="source-name">{{ source.name || t('apiSources.newSource') }}</div>
+{{ t('apiSources.models', { count: source.models.length }) }}
+<h3>{{ isNew ? t('apiSources.newApiSource') : editing.name }}</h3>
+<button>{{ testing ? t('apiSources.testing') : t('apiSources.testConnection') }}</button>
+<button>{{ saving ? t('common.saving') : t('common.save') }}</button>
+<button>{{ t('common.cancel') }}</button>
+<label>{{ t('apiSources.provider') }}</label> / <label>{{ t('apiSources.sourceName') }}</label>
+<option value="anthropic">{{ t('apiSources.providerAnthropic') }}</option>
+<!-- ...etc... -->
+```
+
+**Script changes**:
+
+```typescript
+confirm(t('apiSources.deleteConfirm'))
+```
+
+**Translation keys to add** (~42 keys):
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `apiSources.title` | `"API Sources"` | `"API 来源"` |
+| `apiSources.addSource` | `"Add API Source"` | `"添加 API 来源"` |
+| `apiSources.empty` | `"No API sources configured."` | `"尚未配置 API 来源。"` |
+| `apiSources.scanForConfigs` | `"Scan for Configs"` | `"扫描配置"` |
+| `apiSources.scanning` | `"Scanning..."` | `"扫描中..."` |
+| `apiSources.addManually` | `"Add Manually"` | `"手动添加"` |
+| `apiSources.newSource` | `"(New Source)"` | `"（新来源）"` |
+| `apiSources.models` | `"{count} models"` | `"{count} 个模型"` |
+| `apiSources.newApiSource` | `"New API Source"` | `"新建 API 来源"` |
+| `apiSources.testConnection` | `"Test Connection"` | `"测试连接"` |
+| `apiSources.testing` | `"Testing..."` | `"测试中..."` |
+| `apiSources.provider` | `"Provider"` | `"提供商"` |
+| `apiSources.providerAnthropic` | `"Anthropic (Claude)"` | `"Anthropic (Claude)"` |
+| `apiSources.providerOpenai` | `"OpenAI (GPT)"` | `"OpenAI (GPT)"` |
+| `apiSources.providerLocal` | `"Local / Ollama"` | `"本地 / Ollama"` |
+| `apiSources.sourceName` | `"Name"` | `"名称"` |
+| `apiSources.apiKey` | `"API Key"` | `"API 密钥"` |
+| `apiSources.apiKeyPlaceholder` | `"Enter API key"` | `"输入 API 密钥"` |
+| `apiSources.toggleVisibility` | `"Toggle visibility"` | `"切换可见性"` |
+| `apiSources.keyHint` | `"Key is stored locally (base64-encoded). You can also use env vars."` | `"密钥本地存储（Base64 编码）。您也可以使用环境变量。"` |
+| `apiSources.apiKeyEnvVar` | `"API Key Env Var"` | `"API 密钥环境变量"` |
+| `apiSources.optional` | `"(optional)"` | `"（可选）"` |
+| `apiSources.baseUrl` | `"Base URL"` | `"基础 URL"` |
+| `apiSources.modelsLabel` | `"Models"` | `"模型"` |
+| `apiSources.modelId` | `"Model ID"` | `"模型 ID"` |
+| `apiSources.displayName` | `"Display Name"` | `"显示名称"` |
+| `apiSources.tier` | `"Tier"` | `"层级"` |
+| `apiSources.addModel` | `"Add Model"` | `"添加模型"` |
+| `apiSources.missingTiers` | `"Missing tier(s): {tiers}"` | `"缺少层级：{tiers}"` |
+| `apiSources.importTitle` | `"Import API Sources"` | `"导入 API 来源"` |
+| `apiSources.importHint` | `"Found existing configurations on your system. Select which to import."` | `"在您的系统上找到现有配置。选择要导入的项目。"` |
+| `apiSources.modelsDetected` | `"{count} models detected"` | `"检测到 {count} 个模型"` |
+| `apiSources.importSelected` | `"Import Selected"` | `"导入所选"` |
+| `apiSources.importing` | `"Importing..."` | `"导入中..."` |
+| `apiSources.connected` | `"Connected to {model} ({latency}ms)"` | `"已连接到 {model}（{latency}ms）"` |
+| `apiSources.detailEmpty` | `"Select an API source or add a new one"` | `"选择一个 API 来源或添加新来源"` |
+| `apiSources.deleteConfirm` | `"Delete this API source?"` | `"删除此 API 来源？"` |
+| `apiSources.sourceNamePlaceholder` | `"My API Source"` | `"我的 API 来源"` |
+| `apiSources.modelIdPlaceholder` | `"model-id"` | `"模型 ID"` |
+| `apiSources.displayNamePlaceholder` | `"Display Name"` | `"显示名称"` |
+| `apiSources.keyEnvPlaceholder` | `"ANTHROPIC_API_KEY or settings:KEY"` | `"ANTHROPIC_API_KEY 或 settings:KEY"` |
+| `apiSources.baseUrlPlaceholder` | `"http://localhost:11434"` | `"http://localhost:11434"` |
+
+---
+
+#### 7. Test File Fix
+
+**Problem**: Tests using `localStorage` fail because jsdom mock conflicts with vue-i18n's locale persistence.
+
+**Fix Pattern**:
+
+```typescript
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { createI18n } from 'vue-i18n'
+import en from '../i18n/en.json'
+import zh from '../i18n/zh.json'
+
+describe('i18n', () => {
+  beforeEach(() => {
+    // Use vi.spyOn on Storage.prototype instead of replacing localStorage entirely.
+    // jsdom provides a working Storage implementation; spying on it avoids
+    // breaking vue-i18n's internal locale persistence.
+    const store: Record<string, string> = {}
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => store[key] ?? null)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => { store[key] = value })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key: string) => { delete store[key] })
+  })
+
+  it('en.json has all required sections', () => {
+    const sections = ['chat', 'wiki', 'agents', 'professions', 'skills', 'apiSources', 'common']
+    for (const s of sections) {
+      expect(en[s]).toBeDefined()
+    }
+  })
+
+  it('zh.json mirrors en.json keys', () => {
+    function getKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+      return Object.entries(obj).flatMap(([k, v]) =>
+        typeof v === 'object' && v !== null
+          ? getKeys(v as Record<string, unknown>, `${prefix}${k}.`)
+          : [`${prefix}${k}`]
+      )
+    }
+    expect(getKeys(zh).sort()).toEqual(getKeys(en).sort())
+  })
+
+  it('creates i18n instance without errors', () => {
+    const i18n = createI18n({
+      legacy: false,
+      locale: 'en',
+      fallbackLocale: 'en',
+      messages: { en, zh },
+    })
+    expect(i18n.global.locale.value).toBe('en')
+  })
+})
+```
+
+### Common Keys to Add/Verify
+
+These `common.*` keys may already exist in en.json; verify and add any missing:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `common.loading` | `"Loading..."` | `"加载中..."` |
+| `common.saving` | `"Saving..."` | `"保存中..."` |
+| `common.save` | `"Save"` | `"保存"` |
+| `common.cancel` | `"Cancel"` | `"取消"` |
+| `common.resetDefaults` | `"Reset Defaults"` | `"重置默认值"` |
+
+### Quality Checklist
+
+- [ ] Every `<h2>`, `<h3>`, `<label>`, `<button>`, `<p>`, `<span>` with visible text uses `t()`
+- [ ] Every `title="..."` attribute uses `:title="t(...)"`
+- [ ] Every `placeholder="..."` uses `:placeholder="t(...)"`
+- [ ] `alert()` and `confirm()` calls use `t()` for messages
+- [ ] en.json and zh.json have identical key structures
+- [ ] No view crashes when locale switches
+- [ ] Test file passes with fixed localStorage mock
+- [ ] No regressions in already-i18n-ized ChatsView strings
+
+## UiSystem-D4 i18n Integration Design for 6 Vue Views
+**Status:** draft
+**Module:** `frontend/src/views/`, `frontend/src/i18n/`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A4
+
+### Overview
+
+Mechanical replacement of all hardcoded English strings in 6 Vue views with `t()` calls. Two categories: **completion** (ChatsView, WikiView — partially done) and **new integration** (AgentsConfigView, ProfessionsView, SkillsView, ApiSourcesView — fully hardcoded).
+
+### Implementation Pattern
+
+Every view follows the same 3-step pattern:
+
+```vue
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+// ...existing composable imports...
+</script>
+
+<template>
+  <!-- Before: -->
+  <h2>Agent Forge</h2>
+  <p>Loading agents...</p>
+
+  <!-- After: -->
+  <h2>{{ t('agents.title') }}</h2>
+  <p>{{ t('agents.loading') }}</p>
+</template>
+```
+
+### State Machine (per view)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Audit: identify hardcoded strings
+    Audit --> AddKeys: add keys to en.json/zh.json
+    AddKeys --> ReplaceTemplate: replace strings in template
+    ReplaceTemplate --> ReplaceScript: replace strings in script
+    ReplaceScript --> Verify: run dev server
+    Verify --> [*]: all strings translated
+```
+
+### Data Flow
+
+```
+[en.json / zh.json] → [vue-i18n plugin] → [useI18n().t()] → [template renders]
+```
+
+### Per-View Changes
+
+---
+
+#### 1. ChatsView.vue — Completion (1 string)
+
+**File**: `frontend/src/views/ChatsView.vue`
+
+Only 1 remaining hardcoded string — the system welcome message:
+
+```vue
+<!-- BEFORE: -->
+<span>Hi! I'm <strong>{{ assistantName }}</strong>, your AI coding assistant. I'm glad to help you build your next great project!</span>
+
+<!-- AFTER: -->
+<span v-html="t('chat.welcome', { name: assistantName })" />
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `chat.welcome` | `"Hi! I'm &lt;strong&gt;{name}&lt;/strong&gt;, your AI coding assistant. I'm glad to help you build your next great project!"` | `"嗨！我是 &lt;strong&gt;{name}&lt;/strong&gt;，您的 AI 编程助手。很高兴帮助您构建下一个伟大的项目！"` |
+
+Note: The welcome message contains HTML (`<strong>`), so `v-html` is required instead of `{{ }}` interpolation.
+
+---
+
+#### 2. WikiView.vue — Completion (~20 strings)
+
+**File**: `frontend/src/views/WikiView.vue`
+
+Already uses `t('wiki.title')`, `t('wiki.raw')`, `t('wiki.newPage')`, `t('wiki.newFolder')` in sidebar. Remaining hardcoded strings in content area:
+
+```vue
+<!-- BEFORE → AFTER examples: -->
+<button title="Toggle sidebar">       → <button :title="t('wiki.toggleSidebar')">
+<button title="Show sidebar">          → <button :title="t('wiki.showSidebar')">
+<h3>Editing: {{ activePage?.title }}</h3> → <h3>{{ t('wiki.editing') }} {{ activePage?.title }}</h3>
+<h3>New Page</h3>                      → <h3>{{ t('wiki.newPageTitle') }}</h3>
+<h3>New Folder</h3>                    → <h3>{{ t('wiki.newFolderTitle') }}</h3>
+<input placeholder="Search pages..." /> → <input :placeholder="t('wiki.searchPlaceholder')" />
+<button title="Edit page">Edit</button> → <button :title="t('wiki.editPage')">{{ t('common.edit') }}</button>
+<p>Select a page or file from the sidebar</p> → <p>{{ t('wiki.emptyState') }}</p>
+<span class="loading">Loading...</span> → <span class="loading">{{ t('common.loading') }}</span>
+<span>No pages yet</span>               → <span>{{ t('wiki.noPages') }}</span>
+<label>Path</label>                    → <label>{{ t('wiki.path') }}</label>
+<option value="manual">Manual</option> → <option value="manual">{{ t('wiki.sourceManual') }}</option>
+```
+
+**Translation keys to add** (en.json / zh.json):
+
+| Key | en | zh |
+|-----|----|----|
+| `wiki.toggleSidebar` | `"Toggle sidebar"` | `"切换侧边栏"` |
+| `wiki.showSidebar` | `"Show sidebar"` | `"显示侧边栏"` |
+| `wiki.editing` | `"Editing:"` | `"编辑："` |
+| `wiki.newPageTitle` | `"New Page"` | `"新建页面"` |
+| `wiki.newFolderTitle` | `"New Folder"` | `"新建文件夹"` |
+| `wiki.searchPlaceholder` | `"Search pages..."` | `"搜索页面..."` |
+| `wiki.editPage` | `"Edit page"` | `"编辑页面"` |
+| `wiki.deletePage` | `"Delete page"` | `"删除页面"` |
+| `wiki.deleteFile` | `"Delete file"` | `"删除文件"` |
+| `wiki.emptyState` | `"Select a page or file from the sidebar"` | `"从侧边栏选择页面或文件"` |
+| `wiki.noPages` | `"No pages yet"` | `"暂无页面"` |
+| `wiki.path` | `"Path"` | `"路径"` |
+| `wiki.pageTitle` | `"Title"` | `"标题"` |
+| `wiki.sourceType` | `"Source Type"` | `"来源类型"` |
+| `wiki.tagsLabel` | `"Tags (comma-separated)"` | `"标签（逗号分隔）"` |
+| `wiki.sourceManual` | `"Manual"` | `"手动"` |
+| `wiki.sourceGuide` | `"Guide"` | `"指南"` |
+| `wiki.sourceApiRef` | `"API Reference"` | `"API 参考"` |
+| `wiki.sourceCustom` | `"Custom"` | `"自定义"` |
+| `wiki.pathPlaceholder` | `"guide/getting-started"` | `"guide/getting-started"` |
+| `wiki.titlePlaceholder` | `"Getting Started"` | `"入门指南"` |
+| `wiki.tagsPlaceholder` | `"tag1, tag2"` | `"标签1, 标签2"` |
+| `wiki.viewingFile` | `"Viewing: {name}"` | `"查看：{name}"` |
+
+---
+
+#### 3. AgentsConfigView.vue — New Integration (~30 strings)
+
+**File**: `frontend/src/views/AgentsConfigView.vue`
+
+Already has `useI18n` imported and some `t()` calls. Remaining hardcoded strings:
+
+```vue
+<!-- Template replacements: -->
+<h2>Agent Forge</h2>                  → <h2>{{ t('agents.title') }}</h2>
+<button>Reset Defaults</button>        → <button>{{ t('common.resetDefaults') }}</button>
+<button><Plus /> Create Agent</button> → <button><Plus /> {{ t('agents.createAgent') }}</button>
+<div>Loading agents...</div>           → <div>{{ t('agents.loading') }}</div>
+<p>No agents configured...</p>         → <p>{{ t('agents.empty') }}</p>
+<summary>Advanced Settings</summary>   → <summary>{{ t('agents.advancedSettings') }}</summary>
+```
+
+**Script replacements** — `alert()`/`confirm()` calls:
+
+```typescript
+// BEFORE → AFTER:
+alert('ID and Name are required')          → alert(t('agents.idNameRequired'))
+confirm('Delete this agent?')              → confirm(t('agents.deleteConfirm'))
+confirm('Reset to default agents? ...')    → confirm(t('agents.resetConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en | zh |
+|-----|----|----|
+| `agents.title` | `"Agent Forge"` | `"智能体工坊"` |
+| `agents.loading` | `"Loading agents..."` | `"加载智能体..."` |
+| `agents.empty` | `"No agents configured. Reset defaults to get started."` | `"尚未配置智能体。重置默认值以开始使用。"` |
+| `agents.advancedSettings` | `"Advanced Settings"` | `"高级设置"` |
+| `agents.temperature` | `"Temperature ({value})"` | `"温度 ({value})"` |
+| `agents.maxTokens` | `"Max Tokens"` | `"最大 Token 数"` |
+| `agents.reasoningBudget` | `"Reasoning Budget"` | `"推理预算"` |
+| `agents.thinkingMode` | `"Thinking Mode"` | `"思考模式"` |
+| `agents.thinkingHint` | `"Enable Claude extended thinking for deeper reasoning."` | `"启用 Claude 扩展思考以获得更深层的推理。"` |
+| `agents.thinkingBudget` | `"Thinking Budget ({value})"` | `"思考预算 ({value})"` |
+| `agents.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `agents.deleteConfirm` | `"Delete this agent?"` | `"删除此智能体？"` |
+| `agents.resetConfirm` | `"Reset to default agents? Custom agents will be lost."` | `"重置为默认智能体？自定义智能体将丢失。"` |
+
+---
+
+#### 4. ProfessionsView.vue — New Integration (~35 strings)
+
+**File**: `frontend/src/views/ProfessionsView.vue`
+
+Must add `import { useI18n } from 'vue-i18n'` and `const { t } = useI18n()`.
+
+
+```vue
+<h2>Professions</h2>                  → <h2>{{ t('professions.title') }}</h2>
+<button>Reset Defaults</button>        → <button>{{ t('common.resetDefaults') }}</button>
+<button><Plus /> Add Profession</button> → <button><Plus /> {{ t('professions.addProfession') }}</button>
+<div>Loading professions...</div>       → <div>{{ t('professions.loading') }}</div>
+<p>No professions defined...</p>        → <p>{{ t('professions.empty') }}</p>
+<span>{{ prof.allowed_tools.length }} tools</span> → <span>{{ t('professions.tools', { count: prof.allowed_tools.length }) }}</span>
+<span>{{ prof.max_turns }} turns</span> → <span>{{ t('professions.turns', { count: prof.max_turns }) }}</span>
+<span>{{ (prof.token_budget/1000).toFixed(0) }}k budget</span> → <span>{{ t('professions.budget', { count: (prof.token_budget/1000).toFixed(0) }) }}</span>
+<button>Edit</button>                  → <button>{{ t('common.edit') }}</button>
+<h3>Create Profession</h3>            → <h3>{{ t('professions.createProfession') }}</h3>
+```
+
+
+```typescript
+alert('ID and Name are required')          → alert(t('professions.idNameRequired'))
+confirm('Delete this profession?')          → confirm(t('professions.deleteConfirm'))
+confirm('Reset to default professions? ...') → confirm(t('professions.resetConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en | zh |
+|-----|----|----|
+| `professions.title` | `"Professions"` | `"职业"` |
+| `professions.addProfession` | `"Add Profession"` | `"添加职业"` |
+| `professions.createProfession` | `"Create Profession"` | `"创建职业"` |
+| `professions.loading` | `"Loading professions..."` | `"加载职业..."` |
+| `professions.empty` | `"No professions defined. Reset defaults to get started."` | `"尚未定义职业。重置默认值以开始使用。"` |
+| `professions.tools` | `"{count} tools"` | `"{count} 个工具"` |
+| `professions.turns` | `"{count} turns"` | `"{count} 回合"` |
+| `professions.budget` | `"{count}k budget"` | `"{count}k 预算"` |
+| `professions.idLabel` | `"ID"` | `"ID"` |
+| `professions.nameLabel` | `"Name"` | `"名称"` |
+| `professions.phase` | `"Phase"` | `"阶段"` |
+| `professions.maxTurns` | `"Max Turns"` | `"最大回合数"` |
+| `professions.tokenBudget` | `"Token Budget"` | `"Token 预算"` |
+| `professions.ownedSections` | `"Owned Sections"` | `"拥有章节"` |
+| `professions.readableSections` | `"Readable Sections"` | `"可读章节"` |
+| `professions.allowedTools` | `"Allowed Tools"` | `"允许的工具"` |
+| `professions.handoffTo` | `"Handoff To"` | `"交接至"` |
+| `professions.approvalGates` | `"Approval Gates"` | `"审批关卡"` |
+| `professions.dispatchableTo` | `"Dispatchable To"` | `"可派发至"` |
+| `professions.baseSkills` | `"Base Skills"` | `"基础技能"` |
+| `professions.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `professions.deleteConfirm` | `"Delete this profession?"` | `"删除此职业？"` |
+| `professions.resetConfirm` | `"Reset to default professions? Custom professions will be lost."` | `"重置为默认职业？自定义职业将丢失。"` |
+| `professions.placeholderId` | `"unique-id"` | `"唯一标识"` |
+| `professions.placeholderName` | `"Profession name"` | `"职业名称"` |
+| `professions.placeholderSection` | `"Add section and press Enter..."` | `"添加章节后按回车..."` |
+| `professions.placeholderTool` | `"Add tool name and press Enter..."` | `"添加工具名后按回车..."` |
+| `professions.placeholderProfession` | `"profession ids..."` | `"职业 ID..."` |
+
+---
+
+#### 5. SkillsView.vue — New Integration (~25 strings)
+
+**File**: `frontend/src/views/SkillsView.vue`
+
+Must add `import { useI18n } from 'vue-i18n'` and `const { t } = useI18n()`.
+
+
+```vue
+<h2>Skills</h2>                       → <h2>{{ t('skills.title') }}</h2>
+<button>Reset Defaults</button>        → <button>{{ t('common.resetDefaults') }}</button>
+<button><Plus /> Add Skill</button>    → <button><Plus /> {{ t('skills.addSkill') }}</button>
+<div>Loading skills...</div>           → <div>{{ t('skills.loading') }}</div>
+<p>No skills defined yet...</p>        → <p>{{ t('skills.empty') }}</p>
+<span>{{ skill.granted_tools.length }} tools</span> → <span>{{ t('skills.tools', { count: skill.granted_tools.length }) }}</span>
+<button>Edit</button>                  → <button>{{ t('common.edit') }}</button>
+<h3>Create Skill</h3>                 → <h3>{{ t('skills.createSkill') }}</h3>
+<span>Add Skill</span>                → <span>{{ t('skills.addSkill') }}</span>
+```
+
+
+```typescript
+alert('ID and Name are required')          → alert(t('skills.idNameRequired'))
+confirm('Delete this skill?')              → confirm(t('skills.deleteConfirm'))
+confirm('Reset to default skills? ...')    → confirm(t('skills.resetConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en | zh |
+|-----|----|----|
+| `skills.title` | `"Skills"` | `"技能"` |
+| `skills.addSkill` | `"Add Skill"` | `"添加技能"` |
+| `skills.createSkill` | `"Create Skill"` | `"创建技能"` |
+| `skills.loading` | `"Loading skills..."` | `"加载技能..."` |
+| `skills.empty` | `"No skills defined yet. Add one or reset defaults to get started."` | `"尚未定义技能。添加一个或重置默认值以开始使用。"` |
+| `skills.tools` | `"{count} tools"` | `"{count} 个工具"` |
+| `skills.turns` | `"+{count} turns"` | `"+{count} 回合"` |
+| `skills.idLabel` | `"ID"` | `"ID"` |
+| `skills.nameLabel` | `"Name"` | `"名称"` |
+| `skills.description` | `"Description"` | `"描述"` |
+| `skills.grantedTools` | `"Granted Tools"` | `"授予的工具"` |
+| `skills.promptFragment` | `"Prompt Fragment"` | `"提示词片段"` |
+| `skills.extraTurns` | `"Extra Turns"` | `"额外回合"` |
+| `skills.extraTokenBudget` | `"Extra Token Budget"` | `"额外 Token 预算"` |
+| `skills.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `skills.deleteConfirm` | `"Delete this skill?"` | `"删除此技能？"` |
+| `skills.resetConfirm` | `"Reset to default skills? Custom skills will be lost."` | `"重置为默认技能？自定义技能将丢失。"` |
+| `skills.toolsHint` | `"Tools this skill unlocks for equipped agents."` | `"此技能为已装备智能体解锁的工具。"` |
+| `skills.promptHint` | `"Markdown instructions added to the agent's system prompt."` | `"添加到智能体系统提示中的 Markdown 指令。"` |
+
+---
+
+#### 6. ApiSourcesView.vue — New Integration (~40 strings)
+
+**File**: `frontend/src/views/ApiSourcesView.vue`
+
+Must add `import { useI18n } from 'vue-i18n'` and `const { t } = useI18n()`.
+
+
+```vue
+<h2>API Sources</h2>                  → <h2>{{ t('apiSources.title') }}</h2>
+<button title="Add API Source">        → <button :title="t('apiSources.addSource')">
+<div>Loading...</div>                  → <div>{{ t('common.loading') }}</div>
+<p>No API sources configured.</p>      → <p>{{ t('apiSources.empty') }}</p>
+{{ scanning ? 'Scanning...' : 'Scan for Configs' }} → {{ scanning ? t('apiSources.scanning') : t('apiSources.scanForConfigs') }}
+<h3>New API Source</h3>               → <h3>{{ t('apiSources.newApiSource') }}</h3>
+{{ testing ? 'Testing...' : 'Test Connection' }} → {{ testing ? t('apiSources.testing') : t('apiSources.testConnection') }}
+{{ saving ? 'Saving...' : 'Save' }}   → {{ saving ? t('common.saving') : t('common.save') }}
+<option>Anthropic (Claude)</option>    → <option>{{ t('apiSources.providerAnthropic') }}</option>
+<span>Missing tier(s): ...</span>      → <span>{{ t('apiSources.missingTiers', { tiers: missingTiers.join(', ') }) }}</span>
+<p>Select an API source or add a new one</p> → <p>{{ t('apiSources.detailEmpty') }}</p>
+```
+
+
+```typescript
+confirm('Delete this API source?')     → confirm(t('apiSources.deleteConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en | zh |
+|-----|----|----|
+| `apiSources.title` | `"API Sources"` | `"API 来源"` |
+| `apiSources.addSource` | `"Add API Source"` | `"添加 API 来源"` |
+| `apiSources.empty` | `"No API sources configured."` | `"尚未配置 API 来源。"` |
+| `apiSources.scanForConfigs` | `"Scan for Configs"` | `"扫描配置"` |
+| `apiSources.scanning` | `"Scanning..."` | `"扫描中..."` |
+| `apiSources.addManually` | `"Add Manually"` | `"手动添加"` |
+| `apiSources.newSource` | `"(New Source)"` | `"（新来源）"` |
+| `apiSources.models` | `"{count} models"` | `"{count} 个模型"` |
+| `apiSources.newApiSource` | `"New API Source"` | `"新建 API 来源"` |
+| `apiSources.testConnection` | `"Test Connection"` | `"测试连接"` |
+| `apiSources.testing` | `"Testing..."` | `"测试中..."` |
+| `apiSources.provider` | `"Provider"` | `"提供商"` |
+| `apiSources.providerAnthropic` | `"Anthropic (Claude)"` | `"Anthropic (Claude)"` |
+| `apiSources.providerOpenai` | `"OpenAI (GPT)"` | `"OpenAI (GPT)"` |
+| `apiSources.providerLocal` | `"Local / Ollama"` | `"本地 / Ollama"` |
+| `apiSources.sourceName` | `"Name"` | `"名称"` |
+| `apiSources.apiKey` | `"API Key"` | `"API 密钥"` |
+| `apiSources.apiKeyPlaceholder` | `"Enter API key"` | `"输入 API 密钥"` |
+| `apiSources.toggleVisibility` | `"Toggle visibility"` | `"切换可见性"` |
+| `apiSources.keyHint` | `"Key is stored locally (base64-encoded). You can also use env vars."` | `"密钥本地存储（Base64 编码）。您也可以使用环境变量。"` |
+| `apiSources.apiKeyEnvVar` | `"API Key Env Var"` | `"API 密钥环境变量"` |
+| `apiSources.optional` | `"(optional)"` | `"（可选）"` |
+| `apiSources.baseUrl` | `"Base URL"` | `"基础 URL"` |
+| `apiSources.modelsLabel` | `"Models"` | `"模型"` |
+| `apiSources.modelId` | `"Model ID"` | `"模型 ID"` |
+| `apiSources.displayName` | `"Display Name"` | `"显示名称"` |
+| `apiSources.tier` | `"Tier"` | `"层级"` |
+| `apiSources.addModel` | `"Add Model"` | `"添加模型"` |
+| `apiSources.missingTiers` | `"Missing tier(s): {tiers}"` | `"缺少层级：{tiers}"` |
+| `apiSources.importTitle` | `"Import API Sources"` | `"导入 API 来源"` |
+| `apiSources.importHint` | `"Found existing configurations on your system. Select which to import."` | `"在您的系统上找到现有配置。选择要导入的项目。"` |
+| `apiSources.modelsDetected` | `"{count} models detected"` | `"检测到 {count} 个模型"` |
+| `apiSources.importSelected` | `"Import Selected"` | `"导入所选"` |
+| `apiSources.importing` | `"Importing..."` | `"导入中..."` |
+| `apiSources.connected` | `"Connected to {model} ({latency}ms)"` | `"已连接到 {model}（{latency}ms）"` |
+| `apiSources.detailEmpty` | `"Select an API source or add a new one"` | `"选择一个 API 来源或添加新来源"` |
+| `apiSources.deleteConfirm` | `"Delete this API source?"` | `"删除此 API 来源？"` |
+| `apiSources.sourceNamePlaceholder` | `"My API Source"` | `"我的 API 来源"` |
+| `apiSources.modelIdPlaceholder` | `"model-id"` | `"模型 ID"` |
+| `apiSources.displayNamePlaceholder` | `"Display Name"` | `"显示名称"` |
+| `apiSources.keyEnvPlaceholder` | `"ANTHROPIC_API_KEY or settings:KEY"` | `"ANTHROPIC_API_KEY 或 settings:KEY"` |
+| `apiSources.baseUrlPlaceholder` | `"http://localhost:11434"` | `"http://localhost:11434"` |
+
+---
+
+#### 7. Test File Fix
+
+**Problem**: Tests using `localStorage` fail because jsdom doesn't fully implement the Storage API, or because the mock leaks between tests.
+
+**Fix pattern**:
+
+```typescript
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import en from '../i18n/en.json'
+import zh from '../i18n/zh.json'
+
+describe('i18n', () => {
+  beforeEach(() => {
+    // Use vi.spyOn instead of vi.stubGlobal to avoid jsdom conflicts
+    const store: Record<string, string> = {}
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => store[key] ?? null)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => { store[key] = value })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key: string) => { delete store[key] })
+  })
+
+  it('en.json has all required view sections', () => {
+    const requiredSections = ['chat', 'wiki', 'agents', 'professions', 'skills', 'apiSources', 'common']
+    for (const section of requiredSections) {
+      expect(en[section]).toBeDefined()
+    }
+  })
+
+  it('zh.json mirrors en.json key structure', () => {
+    function getKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+      return Object.entries(obj).flatMap(([k, v]) =>
+        typeof v === 'object' && v !== null
+          ? getKeys(v as Record<string, unknown>, `${prefix}${k}.`)
+          : [`${prefix}${k}`]
+      )
+    }
+    const enKeys = getKeys(en).sort()
+    const zhKeys = getKeys(zh).sort()
+    expect(zhKeys).toEqual(enKeys)
+  })
+})
+```
+
+### Common Keys to Add/Verify
+
+These `common.*` keys may already exist; verify and add missing:
+
+| Key | en | zh |
+|-----|----|----|
+| `common.loading` | `"Loading..."` | `"加载中..."` |
+| `common.saving` | `"Saving..."` | `"保存中..."` |
+| `common.save` | `"Save"` | `"保存"` |
+| `common.cancel` | `"Cancel"` | `"取消"` |
+| `common.resetDefaults` | `"Reset Defaults"` | `"重置默认值"` |
+
+### Quality Checklist
+
+- [ ] Every `<h2>`, `<h3>`, `<label>`, `<button>`, `<p>`, `<span>` with visible text uses `t()`
+- [ ] Every `title="..."` attribute uses `:title="t(...)"`
+- [ ] Every `placeholder="..."` uses `:placeholder="t(...)"`
+- [ ] `alert()` and `confirm()` calls use `t()` for messages
+- [ ] en.json and zh.json have identical key structures
+- [ ] No view crashes when locale switches
+- [ ] Test file passes with fixed localStorage mock
+- [ ] No regressions in already-i18n-ized ChatsView strings
+
+## UiSystem-D4 i18n Integration Design for 6 Vue Views
+**Status:** draft
+**Module:** `frontend/src/views/`, `frontend/src/i18n/`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A4
+
+### Overview
+
+Mechanical replacement of all hardcoded English strings in 6 Vue views with `t()` calls. Two categories: **completion** (ChatsView, WikiView — partially done) and **new integration** (AgentsConfigView, ProfessionsView, SkillsView, ApiSourcesView — fully hardcoded).
+
+### Implementation Pattern
+
+Every view follows the same 3-step pattern:
+
+```vue
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+// ...existing composable imports...
+</script>
+
+<template>
+  <!-- Before: -->
+  <h2>Agent Forge</h2>
+  <p>Loading agents...</p>
+
+  <!-- After: -->
+  <h2>{{ t('agents.title') }}</h2>
+  <p>{{ t('agents.loading') }}</p>
+</template>
+```
+
+### State Machine (per view)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Audit: identify hardcoded strings
+    Audit --> AddKeys: add keys to en.json/zh.json
+    AddKeys --> ReplaceTemplate: replace strings in template
+    ReplaceTemplate --> ReplaceScript: replace strings in script
+    ReplaceScript --> Verify: run dev server
+    Verify --> [*]: all strings translated
+```
+
+### Data Flow
+
+```
+[en.json / zh.json] → [vue-i18n plugin] → [useI18n().t()] → [template renders]
+```
+
+### Per-View Changes
+
+---
+
+#### 1. ChatsView.vue — Completion (1 string)
+
+**File**: `frontend/src/views/ChatsView.vue` (2566 lines)
+
+Only 1 remaining hardcoded string — the system welcome message at ~line 95:
+
+```vue
+<!-- BEFORE: -->
+<span>Hi! I'm <strong>{{ assistantName }}</strong>, your AI coding assistant...</span>
+
+<!-- AFTER: -->
+<span>{{ t('chat.welcome', { name: assistantName }) }}</span>
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `chat.welcome` | `"Hi! I'm <strong>{name}</strong>, your AI coding assistant. I'm glad to help you build your next great project!"` | `"嗨！我是 <strong>{name}</strong>，您的 AI 编程助手。很高兴帮助您构建下一个伟大的项目！"` |
+
+---
+
+#### 2. WikiView.vue — Completion (~20 strings)
+
+**File**: `frontend/src/views/WikiView.vue` (864 lines)
+
+Already uses `t('wiki.title')`, `t('wiki.raw')`, `t('wiki.newPage')`, `t('wiki.newFolder')` in sidebar. Remaining hardcoded strings in content area:
+
+```vue
+<!-- BEFORE: -->
+<button title="Toggle sidebar">
+<button title="Show sidebar">
+<h3>Editing: {{ activePage?.title }}</h3>
+<h3>New Page</h3>
+<h3>New Folder</h3>
+<input placeholder="Search pages..." />
+<button title="Edit page">Edit</button>
+<button title="Delete page">
+<button title="Delete file">
+<p>Select a page or file from the sidebar</p>
+<span class="loading">Loading...</span>
+<span>No pages yet</span>
+<label>Path</label> / <label>Title</label> / <label>Source Type</label>
+<option value="manual">Manual</option> / <option value="guide">Guide</option>
+
+<!-- AFTER: -->
+<button :title="t('wiki.toggleSidebar')">
+<button :title="t('wiki.showSidebar')">
+<h3>{{ t('wiki.editing') }} {{ activePage?.title }}</h3>
+<h3>{{ t('wiki.newPageTitle') }}</h3>
+<h3>{{ t('wiki.newFolderTitle') }}</h3>
+<input :placeholder="t('wiki.searchPlaceholder')" />
+<button :title="t('wiki.editPage')">{{ t('common.edit') }}</button>
+<button :title="t('wiki.deletePage')">
+<button :title="t('wiki.deleteFile')">
+<p>{{ t('wiki.emptyState') }}</p>
+<span class="loading">{{ t('common.loading') }}</span>
+<span>{{ t('wiki.noPages') }}</span>
+<label>{{ t('wiki.path') }}</label> / <label>{{ t('wiki.pageTitle') }}</label>
+<option value="manual">{{ t('wiki.sourceManual') }}</option>
+```
+
+**Translation keys to add**: `wiki.toggleSidebar`, `wiki.showSidebar`, `wiki.editing`, `wiki.newPageTitle`, `wiki.newFolderTitle`, `wiki.viewingFile`, `wiki.searchPlaceholder`, `wiki.editPage`, `wiki.deletePage`, `wiki.deleteFile`, `wiki.emptyState`, `wiki.noPages`, `wiki.path`, `wiki.pageTitle`, `wiki.sourceType`, `wiki.tagsLabel`, `wiki.sourceManual`, `wiki.sourceGuide`, `wiki.sourceApiRef`, `wiki.sourceCustom`, `wiki.pathPlaceholder`, `wiki.titlePlaceholder`, `wiki.tagsPlaceholder` (~23 keys)
+
+---
+
+#### 3. AgentsConfigView.vue — New Integration (~30 strings)
+
+**File**: `frontend/src/views/AgentsConfigView.vue` (902 lines)
+
+Already has `useI18n` imported with partial `t()` calls. Remaining hardcoded:
+
+```vue
+<!-- BEFORE: -->
+<h2>Agent Forge</h2>
+<button>Reset Defaults</button>
+<button>Create Agent</button>
+<div>Loading agents...</div>
+<p>No agents configured. Reset defaults to get started.</p>
+<summary>Advanced Settings</summary>
+<label>Temperature ({{ editing.temperature.toFixed(1) }})</label>
+<label>Max Tokens</label>
+<label>Reasoning Budget</label>
+<span>Thinking Mode</span>
+```
+
+**Script changes** — replace `alert()` and `confirm()`:
+```typescript
+alert(t('agents.idNameRequired'))
+confirm(t('agents.deleteConfirm'))
+confirm(t('agents.resetConfirm'))
+```
+
+**Keys**: `agents.title`, `agents.loading`, `agents.empty`, `agents.advancedSettings`, `agents.temperature`, `agents.maxTokens`, `agents.reasoningBudget`, `agents.thinkingMode`, `agents.thinkingHint`, `agents.thinkingBudget`, `agents.idNameRequired`, `agents.deleteConfirm`, `agents.resetConfirm` (~13 keys)
+
+---
+
+#### 4. ProfessionsView.vue — New Integration (~35 strings)
+
+**File**: `frontend/src/views/ProfessionsView.vue` (605 lines)
+
+Must add `import { useI18n } from 'vue-i18n'` and `const { t } = useI18n()`.
+
+All UI strings are hardcoded: `"Professions"`, `"Reset Defaults"`, `"Add Profession"`, `"Loading professions..."`, form labels, stats text, placeholders, confirm dialogs.
+
+**Keys**: `professions.title`, `professions.addProfession`, `professions.createProfession`, `professions.loading`, `professions.empty`, `professions.tools`, `professions.turns`, `professions.budget`, `professions.idLabel`, `professions.nameLabel`, `professions.phase`, `professions.maxTurns`, `professions.tokenBudget`, `professions.ownedSections`, `professions.readableSections`, `professions.allowedTools`, `professions.handoffTo`, `professions.approvalGates`, `professions.dispatchableTo`, `professions.baseSkills`, `professions.idNameRequired`, `professions.deleteConfirm`, `professions.resetConfirm`, `professions.placeholderId`, `professions.placeholderName`, `professions.placeholderSection`, `professions.placeholderTool`, `professions.placeholderProfession` (~29 keys)
+
+---
+
+#### 5. SkillsView.vue — New Integration (~25 strings)
+
+**File**: `frontend/src/views/SkillsView.vue` (514 lines)
+
+Must add `useI18n` import. All UI strings hardcoded: `"Skills"`, `"Reset Defaults"`, `"Add Skill"`, `"Loading skills..."`, form labels, hints, confirm dialogs.
+
+**Keys**: `skills.title`, `skills.addSkill`, `skills.createSkill`, `skills.loading`, `skills.empty`, `skills.tools`, `skills.turns`, `skills.idLabel`, `skills.nameLabel`, `skills.description`, `skills.grantedTools`, `skills.promptFragment`, `skills.extraTurns`, `skills.extraTokenBudget`, `skills.idNameRequired`, `skills.deleteConfirm`, `skills.resetConfirm`, `skills.toolsHint`, `skills.promptHint` (~19 keys)
+
+---
+
+#### 6. ApiSourcesView.vue — New Integration (~40 strings)
+
+**File**: `frontend/src/views/ApiSourcesView.vue` (887 lines)
+
+Must add `useI18n` import. All UI strings hardcoded: `"API Sources"`, `"Add API Source"`, `"Loading..."`, `"No API sources configured."`, `"Scan for Configs"`, `"Test Connection"`, form labels, provider options, model table headers, import UI, confirm dialog.
+
+**Keys**: `apiSources.title`, `apiSources.addSource`, `apiSources.empty`, `apiSources.scanForConfigs`, `apiSources.scanning`, `apiSources.addManually`, `apiSources.newSource`, `apiSources.models`, `apiSources.newApiSource`, `apiSources.testConnection`, `apiSources.testing`, `apiSources.provider`, `apiSources.providerAnthropic`, `apiSources.providerOpenai`, `apiSources.providerLocal`, `apiSources.sourceName`, `apiSources.apiKey`, `apiSources.apiKeyPlaceholder`, `apiSources.toggleVisibility`, `apiSources.keyHint`, `apiSources.apiKeyEnvVar`, `apiSources.optional`, `apiSources.baseUrl`, `apiSources.modelsLabel`, `apiSources.modelId`, `apiSources.displayName`, `apiSources.tier`, `apiSources.addModel`, `apiSources.missingTiers`, `apiSources.importTitle`, `apiSources.importHint`, `apiSources.modelsDetected`, `apiSources.importSelected`, `apiSources.importing`, `apiSources.connected`, `apiSources.detailEmpty`, `apiSources.deleteConfirm`, `apiSources.sourceNamePlaceholder`, `apiSources.modelIdPlaceholder`, `apiSources.keyEnvPlaceholder`, `apiSources.baseUrlPlaceholder` (~42 keys)
+
+---
+
+#### 7. Test File Fix
+
+**Problem**: Tests using `localStorage` fail because jsdom mock conflicts with vue-i18n's locale persistence.
+
+**Fix Pattern**:
+
+```typescript
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { createI18n } from 'vue-i18n'
+import en from '../i18n/en.json'
+import zh from '../i18n/zh.json'
+
+describe('i18n', () => {
+  beforeEach(() => {
+    const store: Record<string, string> = {}
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => store[key] ?? null)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => { store[key] = value })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key: string) => { delete store[key] })
+  })
+
+  it('en.json has all required sections', () => {
+    const sections = ['chat', 'wiki', 'agents', 'professions', 'skills', 'apiSources', 'common']
+    for (const s of sections) {
+      expect(en[s]).toBeDefined()
+    }
+  })
+
+  it('zh.json mirrors en.json keys', () => {
+    function getKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+      return Object.entries(obj).flatMap(([k, v]) =>
+        typeof v === 'object' && v !== null
+          ? getKeys(v as Record<string, unknown>, `${prefix}${k}.`)
+          : [`${prefix}${k}`]
+      )
+    }
+    expect(getKeys(zh).sort()).toEqual(getKeys(en).sort())
+  })
+
+  it('creates i18n instance without errors', () => {
+    const i18n = createI18n({ legacy: false, locale: 'en', fallbackLocale: 'en', messages: { en, zh } })
+    expect(i18n.global.locale.value).toBe('en')
+  })
+})
+```
+
+### Common Keys to Add/Verify
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `common.loading` | `"Loading..."` | `"加载中..."` |
+| `common.saving` | `"Saving..."` | `"保存中..."` |
+| `common.save` | `"Save"` | `"保存"` |
+| `common.cancel` | `"Cancel"` | `"取消"` |
+| `common.resetDefaults` | `"Reset Defaults"` | `"重置默认值"` |
+
+### Quality Checklist
+
+- [ ] Every `<h2>`, `<h3>`, `<label>`, `<button>`, `<p>`, `<span>` with visible text uses `t()`
+- [ ] Every `title="..."` attribute uses `:title="t(...)"`
+- [ ] Every `placeholder="..."` uses `:placeholder="t(...)"`
+- [ ] `alert()` and `confirm()` calls use `t()` for messages
+- [ ] en.json and zh.json have identical key structures
+- [ ] No view crashes when locale switches
+- [ ] Test file passes with fixed localStorage mock
+- [ ] No regressions in already-i18n-ized ChatsView strings
+
+## UiSystem-D4 i18n Integration Design for 6 Vue Views
+**Status:** draft
+**Module:** `frontend/src/views/`, `frontend/src/i18n/`
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A4
+
+### Overview
+
+Mechanical replacement of all hardcoded English strings in 6 Vue views with `t()` calls. Two categories: **completion** (ChatsView, WikiView — partially done) and **new integration** (AgentsConfigView, ProfessionsView, SkillsView, ApiSourcesView — fully hardcoded).
+
+### Implementation Pattern
+
+Every view follows the same 3-step pattern:
+
+```vue
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+// ...existing composable imports...
+</script>
+
+<template>
+  <!-- Before: -->
+  <h2>Agent Forge</h2>
+  <p>Loading agents...</p>
+
+  <!-- After: -->
+  <h2>{{ t('agents.title') }}</h2>
+  <p>{{ t('agents.loading') }}</p>
+</template>
+```
+
+### State Machine (per view)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Audit: identify hardcoded strings
+    Audit --> AddKeys: add keys to en.json/zh.json
+    AddKeys --> ReplaceTemplate: replace strings in template
+    ReplaceTemplate --> ReplaceScript: replace strings in script
+    ReplaceScript --> Verify: run dev server
+    Verify --> [*]: all strings translated
+```
+
+### Data Flow
+
+```
+[en.json / zh.json] → [vue-i18n plugin] → [useI18n().t()] → [template renders]
+```
+
+### Per-View Changes
+
+---
+
+#### 1. ChatsView.vue — Completion (1 string)
+
+**File**: `frontend/src/views/ChatsView.vue`
+
+Only 1 remaining hardcoded string:
+
+```vue
+<!-- BEFORE (line ~95): -->
+<span>Hi! I'm <strong>{{ assistantName }}</strong>, your AI coding assistant. I'm glad to help you build your next great project!</span>
+
+<!-- AFTER: -->
+<span>{{ t('chat.welcome', { name: assistantName }) }}</span>
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `chat.welcome` | `"Hi! I'm <strong>{name}</strong>, your AI coding assistant. I'm glad to help you build your next great project!"` | `"嗨！我是 <strong>{name}</strong>，您的 AI 编程助手。很高兴帮助您构建下一个伟大的项目！"` |
+
+---
+
+#### 2. WikiView.vue — Completion (~20 strings)
+
+**File**: `frontend/src/views/WikiView.vue`
+
+Already uses `t('wiki.title')`, `t('wiki.raw')`, `t('wiki.newPage')`, `t('wiki.newFolder')` in sidebar. Remaining hardcoded strings in content area:
+
+```vue
+<!-- BEFORE: -->
+<button title="Toggle sidebar">
+<button v-if="sidebarCollapsed" title="Show sidebar">
+<h3 class="page-heading">Editing: {{ activePage?.title }}</h3>
+<h3 class="page-heading">New Page</h3>
+<h3 class="page-heading">New Folder</h3>
+<h3 class="page-heading">{{ activeRawFile }}</h3> <!-- viewing-raw -->
+<input placeholder="Search pages..." />
+<button title="Edit page">Edit</button>
+<button title="Delete page">
+<button title="Delete file">
+<p>Select a page or file from the sidebar</p>
+<span class="loading">Loading...</span>
+<span>No pages yet</span>
+<label>Path</label> / <label>Title</label> / <label>Source Type</label> / <label>Tags (comma-separated)</label>
+<option value="manual">Manual</option> / <option value="guide">Guide</option> / etc.
+<input placeholder="guide/getting-started" /> / <input placeholder="Getting Started" />
+
+<!-- AFTER: -->
+<button :title="t('wiki.toggleSidebar')">
+<button :title="t('wiki.showSidebar')">
+<h3 class="page-heading">{{ t('wiki.editing') }} {{ activePage?.title }}</h3>
+<h3 class="page-heading">{{ t('wiki.newPageTitle') }}</h3>
+<h3 class="page-heading">{{ t('wiki.newFolderTitle') }}</h3>
+<h3 class="page-heading">{{ t('wiki.viewingFile', { name: activeRawFile }) }}</h3>
+<input :placeholder="t('wiki.searchPlaceholder')" />
+<button :title="t('wiki.editPage')">{{ t('common.edit') }}</button>
+<button :title="t('wiki.deletePage')">
+<button :title="t('wiki.deleteFile')">
+<p>{{ t('wiki.emptyState') }}</p>
+<span class="loading">{{ t('common.loading') }}</span>
+<span>{{ t('wiki.noPages') }}</span>
+<label>{{ t('wiki.path') }}</label> / <label>{{ t('wiki.pageTitle') }}</label> / <label>{{ t('wiki.sourceType') }}</label> / <label>{{ t('wiki.tagsLabel') }}</label>
+<option value="manual">{{ t('wiki.sourceManual') }}</option> / etc.
+<input :placeholder="t('wiki.pathPlaceholder')" /> / <input :placeholder="t('wiki.titlePlaceholder')" />
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `wiki.toggleSidebar` | `"Toggle sidebar"` | `"切换侧边栏"` |
+| `wiki.showSidebar` | `"Show sidebar"` | `"显示侧边栏"` |
+| `wiki.editing` | `"Editing:"` | `"编辑："` |
+| `wiki.newPageTitle` | `"New Page"` | `"新建页面"` |
+| `wiki.newFolderTitle` | `"New Folder"` | `"新建文件夹"` |
+| `wiki.viewingFile` | `"{name}"` | `"{name}"` |
+| `wiki.searchPlaceholder` | `"Search pages..."` | `"搜索页面..."` |
+| `wiki.editPage` | `"Edit page"` | `"编辑页面"` |
+| `wiki.deletePage` | `"Delete page"` | `"删除页面"` |
+| `wiki.deleteFile` | `"Delete file"` | `"删除文件"` |
+| `wiki.emptyState` | `"Select a page or file from the sidebar"` | `"从侧边栏选择页面或文件"` |
+| `wiki.noPages` | `"No pages yet"` | `"暂无页面"` |
+| `wiki.path` | `"Path"` | `"路径"` |
+| `wiki.pageTitle` | `"Title"` | `"标题"` |
+| `wiki.sourceType` | `"Source Type"` | `"来源类型"` |
+| `wiki.tagsLabel` | `"Tags (comma-separated)"` | `"标签（逗号分隔）"` |
+| `wiki.sourceManual` | `"Manual"` | `"手动"` |
+| `wiki.sourceGuide` | `"Guide"` | `"指南"` |
+| `wiki.sourceApiRef` | `"API Reference"` | `"API 参考"` |
+| `wiki.sourceCustom` | `"Custom"` | `"自定义"` |
+| `wiki.pathPlaceholder` | `"guide/getting-started"` | `"guide/getting-started"` |
+| `wiki.titlePlaceholder` | `"Getting Started"` | `"入门指南"` |
+| `wiki.tagsPlaceholder` | `"tag1, tag2"` | `"标签1, 标签2"` |
+
+---
+
+#### 3. AgentsConfigView.vue — New Integration (~30 strings)
+
+**File**: `frontend/src/views/AgentsConfigView.vue`
+
+Already has `useI18n` imported. Has partial `t()` calls for some `agents.*` and `common.*` keys. Remaining:
+
+```vue
+<!-- BEFORE: -->
+<h2>Agent Forge</h2>
+<button @click="handleResetDefaults">Reset Defaults</button>
+<button @click="startCreate"><Plus :size="14" /> Create Agent</button>
+<div class="agents-empty">Loading agents...</div>
+<p>No agents configured. Reset defaults to get started.</p>
+<h3>{{ isNew ? t('agents.createAgent') : editing.name }}</h3>
+<summary>Advanced Settings</summary>
+<label>Temperature ({{ editing.temperature.toFixed(1) }})</label>
+<label>Max Tokens</label>
+<label>Reasoning Budget</label>
+<span>Thinking Mode</span>
+<div class="form-hint">Enable Claude extended thinking for deeper reasoning.</div>
+<label>Thinking Budget ({{ editing.thinking_budget ?? 0 }})</label>
+```
+
+**Script changes** — replace `alert()` and `confirm()` calls:
+
+```typescript
+// BEFORE:
+alert('ID and Name are required')
+confirm('Delete this agent?')
+confirm('Reset to default agents? Custom agents will be lost.')
+
+// AFTER:
+alert(t('agents.idNameRequired'))
+confirm(t('agents.deleteConfirm'))
+confirm(t('agents.resetConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `agents.title` | `"Agent Forge"` | `"智能体工坊"` |
+| `agents.loading` | `"Loading agents..."` | `"加载智能体..."` |
+| `agents.empty` | `"No agents configured. Reset defaults to get started."` | `"尚未配置智能体。重置默认值以开始使用。"` |
+| `agents.advancedSettings` | `"Advanced Settings"` | `"高级设置"` |
+| `agents.temperature` | `"Temperature ({value})"` | `"温度 ({value})"` |
+| `agents.maxTokens` | `"Max Tokens"` | `"最大 Token 数"` |
+| `agents.reasoningBudget` | `"Reasoning Budget"` | `"推理预算"` |
+| `agents.thinkingMode` | `"Thinking Mode"` | `"思考模式"` |
+| `agents.thinkingHint` | `"Enable Claude extended thinking for deeper reasoning."` | `"启用 Claude 扩展思考以获得更深层的推理。"` |
+| `agents.thinkingBudget` | `"Thinking Budget ({value})"` | `"思考预算 ({value})"` |
+| `agents.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `agents.deleteConfirm` | `"Delete this agent?"` | `"删除此智能体？"` |
+| `agents.resetConfirm` | `"Reset to default agents? Custom agents will be lost."` | `"重置为默认智能体？自定义智能体将丢失。"` |
+
+---
+
+#### 4. ProfessionsView.vue — New Integration (~35 strings)
+
+**File**: `frontend/src/views/ProfessionsView.vue`
+
+Must add `useI18n` import and `const { t } = useI18n()`.
+
+```vue
+<!-- BEFORE: -->
+<h2>Professions</h2>
+<button @click="handleResetDefaults">Reset Defaults</button>
+<button @click="startCreate"><Plus :size="14" /> Add Profession</button>
+<div class="professions-empty">Loading professions...</div>
+<p>No professions defined. Reset defaults to get started.</p>
+<span class="stat">{{ prof.allowed_tools.length }} tools</span>
+<span class="stat">{{ prof.max_turns }} turns</span>
+<span class="stat">{{ (prof.token_budget / 1000).toFixed(0) }}k budget</span>
+<button @click.stop="startEdit(prof)">Edit</button>
+<h3>{{ isNew ? 'Create Profession' : editing.name }}</h3>
+<label>ID</label> / <label>Name</label> / <label>Phase</label>
+<label>Max Turns</label> / <label>Token Budget</label>
+<label>Owned Sections</label> / <label>Readable Sections</label>
+<label>Allowed Tools</label>
+<label>Handoff To</label> / <label>Approval Gates</label>
+<label>Dispatchable To</label> / <label>Base Skills</label>
+<button @click="handleSave">{{ saving ? 'Saving...' : 'Save' }}</button>
+<button @click="cancelEdit">Cancel</button>
+<span>Add Profession</span>
+```
+
+**Script changes**:
+
+```typescript
+// BEFORE:
+alert('ID and Name are required')
+confirm('Delete this profession?')
+confirm('Reset to default professions? Custom professions will be lost.')
+
+// AFTER:
+alert(t('professions.idNameRequired'))
+confirm(t('professions.deleteConfirm'))
+confirm(t('professions.resetConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `professions.title` | `"Professions"` | `"职业"` |
+| `professions.addProfession` | `"Add Profession"` | `"添加职业"` |
+| `professions.createProfession` | `"Create Profession"` | `"创建职业"` |
+| `professions.loading` | `"Loading professions..."` | `"加载职业..."` |
+| `professions.empty` | `"No professions defined. Reset defaults to get started."` | `"尚未定义职业。重置默认值以开始使用。"` |
+| `professions.tools` | `"{count} tools"` | `"{count} 个工具"` |
+| `professions.turns` | `"{count} turns"` | `"{count} 回合"` |
+| `professions.budget` | `"{count}k budget"` | `"{count}k 预算"` |
+| `professions.idLabel` | `"ID"` | `"ID"` |
+| `professions.nameLabel` | `"Name"` | `"名称"` |
+| `professions.phase` | `"Phase"` | `"阶段"` |
+| `professions.maxTurns` | `"Max Turns"` | `"最大回合数"` |
+| `professions.tokenBudget` | `"Token Budget"` | `"Token 预算"` |
+| `professions.ownedSections` | `"Owned Sections"` | `"拥有章节"` |
+| `professions.readableSections` | `"Readable Sections"` | `"可读章节"` |
+| `professions.allowedTools` | `"Allowed Tools"` | `"允许的工具"` |
+| `professions.handoffTo` | `"Handoff To"` | `"交接至"` |
+| `professions.approvalGates` | `"Approval Gates"` | `"审批关卡"` |
+| `professions.dispatchableTo` | `"Dispatchable To"` | `"可派发至"` |
+| `professions.baseSkills` | `"Base Skills"` | `"基础技能"` |
+| `professions.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `professions.deleteConfirm` | `"Delete this profession?"` | `"删除此职业？"` |
+| `professions.resetConfirm` | `"Reset to default professions? Custom professions will be lost."` | `"重置为默认职业？自定义职业将丢失。"` |
+| `professions.placeholderId` | `"unique-id"` | `"唯一标识"` |
+| `professions.placeholderName` | `"Profession name"` | `"职业名称"` |
+| `professions.placeholderSection` | `"Add section and press Enter..."` | `"添加章节后按回车..."` |
+| `professions.placeholderTool` | `"Add tool name and press Enter..."` | `"添加工具名后按回车..."` |
+| `professions.placeholderProfession` | `"profession ids..."` | `"职业 ID..."` |
+
+---
+
+#### 5. SkillsView.vue — New Integration (~25 strings)
+
+**File**: `frontend/src/views/SkillsView.vue`
+
+Must add `useI18n` import.
+
+```vue
+<!-- BEFORE: -->
+<h2>Skills</h2>
+<button @click="handleResetDefaults">Reset Defaults</button>
+<button @click="startCreate"><Plus :size="14" /> Add Skill</button>
+<div class="skills-empty">Loading skills...</div>
+<p>No skills defined yet. Add one or reset defaults to get started.</p>
+<span class="badge tool-badge">{{ skill.granted_tools.length }} tools</span>
+<span class="badge extra-badge">+{{ skill.extra_turns }} turns</span>
+<button @click.stop="startEdit(skill)">Edit</button>
+<h3>{{ isNew ? 'Create Skill' : editing.name }}</h3>
+<label>ID</label> / <label>Name</label> / <label>Description</label>
+<label>Granted Tools</label> / <label>Prompt Fragment</label>
+<label>Extra Turns</label> / <label>Extra Token Budget</label>
+<button @click="handleSave">{{ saving ? 'Saving...' : 'Save' }}</button>
+<button @click="cancelEdit">Cancel</button>
+<span>Add Skill</span>
+```
+
+**Script changes**:
+
+```typescript
+// BEFORE:
+alert('ID and Name are required')
+confirm('Delete this skill?')
+confirm('Reset to default skills? Custom skills will be lost.')
+
+// AFTER:
+alert(t('skills.idNameRequired'))
+confirm(t('skills.deleteConfirm'))
+confirm(t('skills.resetConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `skills.title` | `"Skills"` | `"技能"` |
+| `skills.addSkill` | `"Add Skill"` | `"添加技能"` |
+| `skills.createSkill` | `"Create Skill"` | `"创建技能"` |
+| `skills.loading` | `"Loading skills..."` | `"加载技能..."` |
+| `skills.empty` | `"No skills defined yet. Add one or reset defaults to get started."` | `"尚未定义技能。添加一个或重置默认值以开始使用。"` |
+| `skills.tools` | `"{count} tools"` | `"{count} 个工具"` |
+| `skills.turns` | `"+{count} turns"` | `"+{count} 回合"` |
+| `skills.idLabel` | `"ID"` | `"ID"` |
+| `skills.nameLabel` | `"Name"` | `"名称"` |
+| `skills.description` | `"Description"` | `"描述"` |
+| `skills.grantedTools` | `"Granted Tools"` | `"授予的工具"` |
+| `skills.promptFragment` | `"Prompt Fragment"` | `"提示词片段"` |
+| `skills.extraTurns` | `"Extra Turns"` | `"额外回合"` |
+| `skills.extraTokenBudget` | `"Extra Token Budget"` | `"额外 Token 预算"` |
+| `skills.idNameRequired` | `"ID and Name are required"` | `"ID 和名称为必填项"` |
+| `skills.deleteConfirm` | `"Delete this skill?"` | `"删除此技能？"` |
+| `skills.resetConfirm` | `"Reset to default skills? Custom skills will be lost."` | `"重置为默认技能？自定义技能将丢失。"` |
+| `skills.toolsHint` | `"Tools this skill unlocks for equipped agents."` | `"此技能为已装备智能体解锁的工具。"` |
+| `skills.promptHint` | `"Markdown instructions added to the agent's system prompt."` | `"添加到智能体系统提示中的 Markdown 指令。"` |
+
+---
+
+#### 6. ApiSourcesView.vue — New Integration (~40 strings)
+
+**File**: `frontend/src/views/ApiSourcesView.vue`
+
+Must add `useI18n` import.
+
+```vue
+<!-- BEFORE: -->
+<h2>API Sources</h2>
+<button title="Add API Source">
+<div class="sidebar-empty">Loading...</div>
+<p>No API sources configured.</p>
+<button>Scan for Configs</button>  <!-- static text -->
+<button>Add Manually</button>
+<div class="source-name">{{ source.name || '(New Source)' }}</div>
+{{ source.models.length }} models
+<h3>{{ isNew ? 'New API Source' : editing.name }}</h3>
+<button>Test Connection</button>
+<button>Save</button> / <button>Cancel</button>
+<label>Provider</label> / <label>Name</label> / <label>API Key</label>
+<option>Anthropic (Claude)</option> / <option>OpenAI (GPT)</option> / <option>Local / Ollama</option>
+<label>API Key Env Var <span class="optional">(optional)</span></label>
+<label>Base URL</label>
+<label>Models</label>
+<span class="col-id">Model ID</span> / <span class="col-name">Display Name</span> / <span class="col-tier">Tier</span>
+<button>Add Model</button>
+<span>Missing tier(s): {{ missingTiers.join(', ') }}</span>
+<h3>Import API Sources</h3>
+<p>Found existing configurations on your system...</p>
+<div>{{ candidate.models.length }} models detected</div>
+<button>Import Selected</button>
+<p>Select an API source or add a new one</p>
+```
+
+**Script changes**:
+
+```typescript
+// BEFORE:
+confirm('Delete this API source?')
+
+// AFTER:
+confirm(t('apiSources.deleteConfirm'))
+```
+
+**Translation keys to add**:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `apiSources.title` | `"API Sources"` | `"API 来源"` |
+| `apiSources.addSource` | `"Add API Source"` | `"添加 API 来源"` |
+| `apiSources.empty` | `"No API sources configured."` | `"尚未配置 API 来源。"` |
+| `apiSources.scanForConfigs` | `"Scan for Configs"` | `"扫描配置"` |
+| `apiSources.scanning` | `"Scanning..."` | `"扫描中..."` |
+| `apiSources.addManually` | `"Add Manually"` | `"手动添加"` |
+| `apiSources.newSource` | `"(New Source)"` | `"（新来源）"` |
+| `apiSources.models` | `"{count} models"` | `"{count} 个模型"` |
+| `apiSources.newApiSource` | `"New API Source"` | `"新建 API 来源"` |
+| `apiSources.testConnection` | `"Test Connection"` | `"测试连接"` |
+| `apiSources.testing` | `"Testing..."` | `"测试中..."` |
+| `apiSources.provider` | `"Provider"` | `"提供商"` |
+| `apiSources.providerAnthropic` | `"Anthropic (Claude)"` | `"Anthropic (Claude)"` |
+| `apiSources.providerOpenai` | `"OpenAI (GPT)"` | `"OpenAI (GPT)"` |
+| `apiSources.providerLocal` | `"Local / Ollama"` | `"本地 / Ollama"` |
+| `apiSources.sourceName` | `"Name"` | `"名称"` |
+| `apiSources.apiKey` | `"API Key"` | `"API 密钥"` |
+| `apiSources.apiKeyPlaceholder` | `"Enter API key"` | `"输入 API 密钥"` |
+| `apiSources.toggleVisibility` | `"Toggle visibility"` | `"切换可见性"` |
+| `apiSources.keyHint` | `"Key is stored locally (base64-encoded). You can also use env vars."` | `"密钥本地存储（Base64 编码）。您也可以使用环境变量。"` |
+| `apiSources.apiKeyEnvVar` | `"API Key Env Var"` | `"API 密钥环境变量"` |
+| `apiSources.optional` | `"(optional)"` | `"（可选）"` |
+| `apiSources.baseUrl` | `"Base URL"` | `"基础 URL"` |
+| `apiSources.modelsLabel` | `"Models"` | `"模型"` |
+| `apiSources.modelId` | `"Model ID"` | `"模型 ID"` |
+| `apiSources.displayName` | `"Display Name"` | `"显示名称"` |
+| `apiSources.tier` | `"Tier"` | `"层级"` |
+| `apiSources.addModel` | `"Add Model"` | `"添加模型"` |
+| `apiSources.missingTiers` | `"Missing tier(s): {tiers}"` | `"缺少层级：{tiers}"` |
+| `apiSources.importTitle` | `"Import API Sources"` | `"导入 API 来源"` |
+| `apiSources.importHint` | `"Found existing configurations on your system. Select which to import."` | `"在您的系统上找到现有配置。选择要导入的项目。"` |
+| `apiSources.modelsDetected` | `"{count} models detected"` | `"检测到 {count} 个模型"` |
+| `apiSources.importSelected` | `"Import Selected"` | `"导入所选"` |
+| `apiSources.importing` | `"Importing..."` | `"导入中..."` |
+| `apiSources.connected` | `"Connected to {model} ({latency}ms)"` | `"已连接到 {model}（{latency}ms）"` |
+| `apiSources.detailEmpty` | `"Select an API source or add a new one"` | `"选择一个 API 来源或添加新来源"` |
+| `apiSources.deleteConfirm` | `"Delete this API source?"` | `"删除此 API 来源？"` |
+| `apiSources.sourceNamePlaceholder` | `"My API Source"` | `"我的 API 来源"` |
+| `apiSources.modelIdPlaceholder` | `"model-id"` | `"模型 ID"` |
+| `apiSources.displayNamePlaceholder` | `"Display Name"` | `"显示名称"` |
+| `apiSources.keyEnvPlaceholder` | `"ANTHROPIC_API_KEY or settings:KEY"` | `"ANTHROPIC_API_KEY 或 settings:KEY"` |
+| `apiSources.baseUrlPlaceholder` | `"http://localhost:11434"` | `"http://localhost:11434"` |
+
+---
+
+#### 7. Test File Fix
+
+**File**: `frontend/src/__tests__/i18n.test.ts` (or similar path — needs gofer verification)
+
+**Problem**: Tests using `localStorage` fail because jsdom doesn't fully implement the Storage API, or because the mock leaks between tests.
+
+**Fix**:
+
+```typescript
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { createI18n } from 'vue-i18n'
+import en from '../i18n/en.json'
+import zh from '../i18n/zh.json'
+
+describe('i18n', () => {
+  beforeEach(() => {
+    // Reset localStorage mock before each test
+    const store: Record<string, string> = {}
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => store[key] ?? null)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key: string, value: string) => { store[key] = value })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation((key: string) => { delete store[key] })
+  })
+
+  it('en.json has all required keys', () => {
+    const requiredSections = ['chat', 'wiki', 'agents', 'professions', 'skills', 'apiSources', 'common']
+    for (const section of requiredSections) {
+      expect(en[section]).toBeDefined()
+    }
+  })
+
+  it('zh.json mirrors en.json keys', () => {
+    function getKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+      return Object.entries(obj).flatMap(([k, v]) =>
+        typeof v === 'object' && v !== null
+          ? getKeys(v as Record<string, unknown>, `${prefix}${k}.`)
+          : [`${prefix}${k}`]
+      )
+    }
+    const enKeys = getKeys(en).sort()
+    const zhKeys = getKeys(zh).sort()
+    expect(zhKeys).toEqual(enKeys)
+  })
+
+  it('creates i18n instance without errors', () => {
+    const i18n = createI18n({
+      legacy: false,
+      locale: 'en',
+      fallbackLocale: 'en',
+      messages: { en, zh },
+    })
+    expect(i18n.global.locale.value).toBe('en')
+  })
+})
+```
+
+### Common Keys to Add/Verify
+
+These `common.*` keys may already exist; verify and add missing:
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `common.loading` | `"Loading..."` | `"加载中..."` |
+| `common.saving` | `"Saving..."` | `"保存中..."` |
+| `common.save` | `"Save"` | `"保存"` |
+| `common.cancel` | `"Cancel"` | `"取消"` |
+| `common.resetDefaults` | `"Reset Defaults"` | `"重置默认值"` |
+
+### Quality Checklist
+
+- [ ] Every `<h2>`, `<h3>`, `<label>`, `<button>`, `<p>`, `<span>` with visible text uses `t()`
+- [ ] Every `title="..."` attribute uses `:title="t(...)"`
+- [ ] Every `placeholder="..."` uses `:placeholder="t(...)"`
+- [ ] `alert()` and `confirm()` calls use `t()` for messages
+- [ ] en.json and zh.json have identical key structures
+- [ ] No view crashes when locale switches
+- [ ] Test file passes with fixed localStorage mock
+- [ ] No regressions in already-i18n-ized ChatsView strings

@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## Provider-D1 Multi-Provider AI Dispatch
 **Status:** draft
 **Module:** `backend/src/ai.rs`

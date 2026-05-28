@@ -1,5 +1,7 @@
 # Goals
 
+---
+
 ## Runtime-G1 Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss
 **Status:** implemented
 **Tags:** stack:backend

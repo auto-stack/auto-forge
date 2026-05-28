@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## Relay-T1 [G2] PipelineEngine executes flow steps in order
 **Status:** done
 **Test File:** `crates/auto-forge/src/relay/pipeline.rs` (inline `#[cfg(test)]`)
@@ -659,6 +661,8 @@ let store = new_run_store();
 ---
 
 ## Relay-T19 Relay Run Completion Notification in Chat
+**Status:** draft
+
 **Priority**: P0  
 **Status**: Draft  
 **Stakeholder**: UI Team, Core Team  
@@ -680,7 +684,6 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 
 #### Scenario 1: Successful Completion without Report
 
-**Steps:**
 1. Relay Run spawns from chat via `spawn_relay` tool
 2. Run progresses through all steps (advisor → architect → planner → coder → tester)
 3. Pipeline status changes from `Running` to `Completed`
@@ -688,7 +691,6 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 5. Chat SSE stream receives `relay_complete` event
 6. Frontend renders system message bubble
 
-**Expected Result:**
 ```json
 {
   "type": "relay_complete",
@@ -701,7 +703,6 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 }
 ```
 
-**Verification:**
 - [ ] Chat UI displays a system message bubble with distinct styling (gray background, info icon)
 - [ ] Message includes run title (auto-generated) and truncated run ID
 - [ ] No "View Report" button is shown
@@ -711,14 +712,12 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 
 #### Scenario 2: Successful Completion with Report
 
-**Steps:**
 1. Relay Run includes `documenter` as final step
 2. Documenter agent writes report via `write_specs` tool
 3. Report saved to `specs/reports.ad` section with ID `R1`
 4. Pipeline completes successfully
 5. Notification includes report link
 
-**Expected Result:**
 ```json
 {
   "type": "relay_complete",
@@ -735,7 +734,6 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 }
 ```
 
-**Verification:**
 - [ ] "View Report" button appears in notification
 - [ ] Button is clickable and styled as primary action
 - [ ] Clicking link navigates to Specs view at Reports section
@@ -746,12 +744,10 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 
 #### Scenario 3: Failed Relay Run
 
-**Steps:**
 1. Relay Run encounters error (e.g., budget exceeded)
 2. Pipeline status changes to `Failed`
 3. Error details captured in `RunEvent::RunFailed`
 
-**Expected Result:**
 ```json
 {
   "type": "relay_complete",
@@ -769,7 +765,6 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 }
 ```
 
-**Verification:**
 - [ ] Chat UI displays error notification with red/warning styling
 - [ ] Error message is user-friendly (no raw stack traces)
 - [ ] No report link is shown (failed runs don't produce reports)
@@ -778,12 +773,10 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 
 #### Scenario 4: Multiple Concurrent Runs
 
-**Steps:**
 1. User spawns Run A from chat
 2. User spawns Run B from same chat
 3. Run A completes, then Run B completes
 
-**Expected Result:**
 - [ ] Each run sends its own `relay_complete` event
 - [ ] Two separate notification messages appear in chat
 - [ ] Messages appear in completion order (A then B)
@@ -792,13 +785,11 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 
 #### Scenario 5: SSE Reconnection After Completion
 
-**Steps:**
 1. Relay Run is executing
 2. SSE connection temporarily disconnects
 3. Run completes while disconnected
 4. Client reconnects to SSE stream
 
-**Expected Result:**
 - [ ] `relay_complete` event is replayed from `RunEntry.events` log
 - [ ] Notification appears upon reconnection
 - [ ] No events are lost
@@ -836,19 +827,16 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 
 ### Test Data
 
-**Successful Run Event:**
 ```rust
 RunEvent::RunCompleted
 ```
 
-**Failed Run Event:**
 ```rust
 RunEvent::RunFailed { 
     error: "Budget exceeded: 5000 tokens spent vs 1000 limit".to_string() 
 }
 ```
 
-**Report-Generating Handoff:**
 ```rust
 HandoffDocument {
     from: "documenter",
@@ -859,7 +847,6 @@ HandoffDocument {
 }
 ```
 
-**Run Metadata (NEW):**
 ```rust
 pub struct RunMetadata {
     pub originating_chat_session: Option<String>, // Chat that spawned this run

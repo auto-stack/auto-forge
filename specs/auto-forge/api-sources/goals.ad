@@ -1,5 +1,7 @@
 # Goals
 
+---
+
 ## ApiSources-G1 API Source Configuration supports multi-provider LLM management with auto-detection and model tiers
 **Status:** proposed
 **Tags:** stack:backend

@@ -1,4 +1,6 @@
-# Architectures
+# Architecture
+
+---
 
 ## UiSystem-A1 Frontend Composable State Architecture
 **Status:** implemented
@@ -166,3 +168,309 @@ graph LR
 ---
 
 ---
+
+## UiSystem-A4 i18n Integration Architecture for Remaining Views
+**Status:** approved
+**Tags:** stack:frontend
+**Depends on:** UiSystem-A1
+
+## Overview
+
+Six Vue views still contain hardcoded English strings that bypass the i18n system. This creates a mono-lingual UX and prevents localization. The i18n integration replaces all hardcoded strings with `t()` calls keyed to the existing `vue-i18n` translation system (en.json / zh.json). Additionally, the i18n test file has localStorage mocking issues that prevent reliable test execution.
+
+## Scope
+
+| View | File | Current State | Hardcoded Strings (approx) |
+|------|------|---------------|---------------------------|
+| ChatsView | `frontend/src/views/ChatsView.vue` | Partially i18n-ized | ~3 strings remaining |
+| WikiView | `frontend/src/views/WikiView.vue` | Partially i18n-ized | ~25 strings remaining |
+| AgentsConfigView | `frontend/src/views/AgentsConfigView.vue` | Sparse i18n | ~45 strings remaining |
+| ProfessionsView | `frontend/src/views/ProfessionsView.vue` | No i18n | ~40 strings remaining |
+| SkillsView | `frontend/src/views/SkillsView.vue` | No i18n | ~35 strings remaining |
+| ApiSourcesView | `frontend/src/views/ApiSourcesView.vue` | No i18n | ~55 strings remaining |
+
+## Translation Key Namespace Convention
+
+Each view gets a top-level namespace matching its composableView domain:
+
+| Namespace | Keys | Example |
+|-----------|------|---------|
+| `chat.*` | Chat sidebar, messages, session info | `chat.sessions`, `chat.searchPlaceholder` |
+| `wiki.*` | Wiki sidebar, pages, raw files | `wiki.title`, `wiki.newPage`, `wiki.editing` |
+| `agents.*` | Agent config cards, edit form | `agents.agentForge`, `agents.createAgent` |
+| `professions.*` | Profession cards, edit form | `professions.title`, `professions.addProfession` |
+| `skills.*` | Skill cards, edit form | `skills.title`, `skills.addSkill` |
+| `apiSources.*` | API source sidebar, detail, scan | `apiSources.title`, `apiSources.testConnection` |
+| `common.*` | Shared across views (already exists) | `common.save`, `common.cancel`, `common.delete` |
+
+## Data Flow
+
+```
+[User selects locale]
+    → vue-i18n switches active locale
+    → All t() calls re-evaluate reactively
+    → Views render translated strings
+    → No page refresh needed
+```
+
+```mermaid
+graph LR
+    subgraph "Translation Files"
+        EN[en.json]
+        ZH[zh.json]
+    end
+    subgraph "vue-i18n"
+        VI[createI18n]
+    end
+    subgraph "Views"
+        CV[ChatsView]
+        WV[WikiView]
+        AV[AgentsConfigView]
+        PV[ProfessionsView]
+        SV[SkillsView]
+        ASV[ApiSourcesView]
+    end
+
+    EN --> VI
+    ZH --> VI
+    VI -->|t\(\)| CV
+    VI -->|t\(\)| WV
+    VI -->|t\(\)| AV
+    VI -->|t\(\)| PV
+    VI -->|t\(\)| SV
+    VI -->|t\(\)| ASV
+```
+
+## Trigger Condition
+
+Every view mount and every template re-render triggers `t()` evaluation. The i18n plugin is already installed; this work only adds missing `t()` calls and translation keys.
+
+## Design Highlight
+
+The views that already have partial i18n (ChatsView, WikiView) follow the same pattern — the remaining views simply adopt the established convention. No new infrastructure needed.
+
+### Trade-offs
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Per-view namespaces (chosen) | Clear ownership, easy to find keys, no collisions | Slightly more keys than flat namespace |
+| Flat key namespace | Fewer total keys | Hard to find which view owns a key, collision risk |
+| Per-component namespaces | Maximum granularity | Over-engineered for 6 views |
+
+## Test File Fix
+
+The i18n test file has `localStorage` mocking issues under Vitest/jsdom. The fix pattern:
+
+```typescript
+// BEFORE (broken): direct localStorage mock conflicts with jsdom
+vi.stubGlobal('localStorage', { ... })
+
+// AFTER (working): use vi.spyOn on window.localStorage
+const getItemSpy = vi.spyOn(Storage.prototype, 'getItem')
+const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+getItemSpy.mockReturnValue('dark')
+```
+
+This avoids replacing the entire Storage object and works correctly with vue-i18n's internal locale persistence.
+
+## UiSystem-A4 i18n View Integration Architecture
+**Status:** approved
+**Tags:** stack:frontend
+**Depends on:** UiSystem-G1
+
+Six Vue views contain hardcoded English strings that prevent localization. ChatsView and WikiView are partially i18n-ized (some `t()` calls exist), while AgentsConfigView, ProfessionsView, SkillsView, and ApiSourcesView are fully hardcoded. The fix is mechanical: replace every hardcoded string with `t('namespace.key')` using the existing vue-i18n setup.
+
+```mermaid
+graph TB
+    subgraph "Translation Layer"
+        EN[en.json]
+        ZH[zh.json]
+        I18N[useI18n composable]
+    end
+
+    subgraph "Views — Partially Done"
+        CV[ChatsView.vue]
+        WV[WikiView.vue]
+    end
+
+    subgraph "Views — Fully Hardcoded"
+        AC[AgentsConfigView.vue]
+        PV[ProfessionsView.vue]
+        SV[SkillsView.vue]
+        AS[ApiSourcesView.vue]
+    end
+
+    EN -->|keys| I18N
+    ZH -->|keys| I18N
+    I18N -->|t&#40;&#41;| CV
+    I18N -->|t&#40;&#41;| WV
+    I18N -->|t&#40;&#41;| AC
+    I18N -->|t&#40;&#41;| PV
+    I18N -->|t&#40;&#41;| SV
+    I18N -->|t&#40;&#41;| AS
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Translation key namespace | Per-view prefix (`agents.`, `professions.`, `skills.`, `apiSources.`, `wiki.`, `chat.`) | Matches existing convention in ChatsView/WikiView |
+| Existing `t()` calls | No changes | ChatsView and WikiView already use correct keys; only fill gaps |
+| Shared keys | Reuse `common.*` for Edit, Save, Cancel, Delete, Loading, etc. | DRY; these already exist |
+| Dynamic strings | Template interpolation `t('key', { count: N })` | vue-i18n built-in; already used for `chat.msgs` |
+| Test fix | Correct `localStorage` mock in vi.beforeEach | Standard vitest pattern |
+
+### String Inventory Per View
+
+#### ChatsView.vue (1 hardcoded string)
+| Context | Current | Key |
+|---------|---------|-----|
+| System welcome | `"Hi! I'm <strong>{{ assistantName }}</strong>..."` | `chat.welcome` |
+
+#### WikiView.vue (~20 hardcoded strings)
+| Context | Current | Key |
+|---------|---------|-----|
+| Sidebar toggle | `"Toggle sidebar"` | `wiki.toggleSidebar` |
+| Edit heading | `"Editing: "` | `wiki.editing` |
+| New page heading | `"New Page"` | `wiki.newPageTitle` |
+| New folder heading | `"New Folder"` | `wiki.newFolderTitle` |
+| Search placeholder | `"Search pages..."` | `wiki.searchPlaceholder` |
+| Edit button | `"Edit"` | `common.edit` |
+| Delete title | `"Delete page"` | `wiki.deletePage` |
+| Delete raw | `"Delete file"` | `wiki.deleteFile` |
+| Empty state | `"Select a page or file from the sidebar"` | `wiki.emptyState` |
+| Loading | `"Loading..."` | `common.loading` |
+| No pages | `"No pages yet"` | `wiki.noPages` |
+| Viewing raw heading | Uses `activeRawFile` | `wiki.viewingFile` |
+| Create form labels | `"Path"`, `"Title"`, `"Source Type"`, `"Tags (comma-separated)"` | `wiki.path`, `wiki.pageTitle`, `wiki.sourceType`, `wiki.tagsLabel` |
+| Source type options | `"Manual"`, `"Guide"`, `"API Reference"`, `"Custom"` | `wiki.sourceManual`, `wiki.sourceGuide`, `wiki.sourceApiRef`, `wiki.sourceCustom` |
+| Create placeholders | `"guide/getting-started"`, `"Getting Started"`, `"tag1, tag2"` | `wiki.pathPlaceholder`, `wiki.titlePlaceholder`, `wiki.tagsPlaceholder` |
+| New folder | `"New Folder"` in `new-folder` viewState | `wiki.newFolderTitle` |
+| Show sidebar | `"Show sidebar"` | `wiki.showSidebar` |
+| Edit page title | `"Edit page"` title attr | `wiki.editPage` |
+
+#### AgentsConfigView.vue (~30 hardcoded strings)
+| Context | Current | Key |
+|---------|---------|-----|
+| Header | `"Agent Forge"` | `agents.title` |
+| Reset button | `"Reset Defaults"` | `common.resetDefaults` |
+| Create button | `"Create Agent"` | `agents.createAgent` |
+| Loading | `"Loading agents..."` | `agents.loading` |
+| Empty state | `"No agents configured. Reset defaults to get started."` | `agents.empty` |
+| Advanced | `"Advanced Settings"` | `agents.advancedSettings` |
+| Temperature label | `"Temperature (X.X)"` | `agents.temperature` |
+| Max tokens | `"Max Tokens"` | `agents.maxTokens` |
+| Reasoning budget | `"Reasoning Budget"` | `agents.reasoningBudget` |
+| Thinking toggle | `"Thinking Mode"` / hint | `agents.thinkingMode` / `agents.thinkingHint` |
+| Thinking budget | `"Thinking Budget (N)"` | `agents.thinkingBudget` |
+| Form labels | Various | `agents.*` |
+| Edit panel title | `isNew ? t('agents.createAgent') : editing.name` | Partially done |
+| Delete confirm | Uses `confirm()` | `agents.deleteConfirm` |
+| Reset confirm | Uses `confirm()` | `agents.resetConfirm` |
+
+#### ProfessionsView.vue (~35 hardcoded strings)
+| Context | Current | Key |
+|---------|---------|-----|
+| Header | `"Professions"` | `professions.title` |
+| Reset button | `"Reset Defaults"` | `common.resetDefaults` |
+| Create button | `"Add Profession"` | `professions.addProfession` |
+| Loading | `"Loading professions..."` | `professions.loading` |
+| Empty state | `"No professions defined. Reset defaults to get started."` | `professions.empty` |
+| Stats | `"tools"`, `"turns"`, `"budget"` | `professions.tools`, `professions.turns`, `professions.budget` |
+| Edit button | `"Edit"` | `common.edit` |
+| Create heading | `"Create Profession"` | `professions.createProfession` |
+| Form labels | `"ID"`, `"Name"`, `"Phase"`, `"Max Turns"`, `"Token Budget"`, etc. | `professions.*` |
+| TagInput placeholders | `"Add section..."`, `"Add tool name..."`, etc. | `professions.placeholderSection`, etc. |
+| Save/Cancel | `"Saving..."`, `"Save"`, `"Cancel"` | `common.saving`, `common.save`, `common.cancel` |
+| Delete confirm | Uses `confirm()` | `professions.deleteConfirm` |
+| Reset confirm | Uses `confirm()` | `professions.resetConfirm` |
+| Add card | `"Add Profession"` | `professions.addProfession` |
+
+#### SkillsView.vue (~25 hardcoded strings)
+| Context | Current | Key |
+|---------|---------|-----|
+| Header | `"Skills"` | `skills.title` |
+| Reset button | `"Reset Defaults"` | `common.resetDefaults` |
+| Create button | `"Add Skill"` | `skills.addSkill` |
+| Loading | `"Loading skills..."` | `skills.loading` |
+| Empty state | `"No skills defined yet..."` | `skills.empty` |
+| Badge text | `"tools"`, `"turns"` | `skills.tools`, `skills.turns` |
+| Edit button | `"Edit"` | `common.edit` |
+| Create heading | `"Create Skill"` | `skills.createSkill` |
+| Form labels | `"ID"`, `"Name"`, `"Description"`, `"Granted Tools"`, etc. | `skills.*` |
+| Save/Cancel | `"Saving..."`, `"Save"`, `"Cancel"` | `common.saving`, `common.save`, `common.cancel` |
+| Delete confirm | Uses `confirm()` | `skills.deleteConfirm` |
+| Reset confirm | Uses `confirm()` | `skills.resetConfirm` |
+| Hint text | Various | `skills.*` |
+
+#### ApiSourcesView.vue (~40 hardcoded strings)
+| Context | Current | Key |
+|---------|---------|-----|
+| Header | `"API Sources"` | `apiSources.title` |
+| Add button | `"Add API Source"` | `apiSources.addSource` |
+| Loading | `"Loading..."` | `common.loading` |
+| Empty state | `"No API sources configured."` | `apiSources.empty` |
+| Scan button | `"Scan for Configs"` / `"Scanning..."` | `apiSources.scanForConfigs` / `apiSources.scanning` |
+| Add manually | `"Add Manually"` | `apiSources.addManually` |
+| New source | `"(New Source)"` | `apiSources.newSource` |
+| Models count | `"models"` | `apiSources.models` |
+| Test button | `"Test Connection"` / `"Testing..."` | `apiSources.testConnection` / `apiSources.testing` |
+| Save/Cancel/Delete | Various | `common.*` |
+| New heading | `"New API Source"` | `apiSources.newApiSource` |
+| Form labels | `"Provider"`, `"Name"`, `"API Key"`, etc. | `apiSources.*` |
+| Provider options | `"Anthropic (Claude)"`, `"OpenAI (GPT)"`, `"Local / Ollama"` | `apiSources.providerAnthropic`, etc. |
+| Model table headers | `"Model ID"`, `"Display Name"`, `"Tier"` | `apiSources.modelId`, etc. |
+| Add model | `"Add Model"` | `apiSources.addModel` |
+| Missing tiers | `"Missing tier(s):"` | `apiSources.missingTiers` |
+| Import heading | `"Import API Sources"` | `apiSources.importTitle` |
+| Import hint | `"Found existing configurations..."` | `apiSources.importHint` |
+| Import actions | `"Import Selected"` / `"Importing..."` | `apiSources.importSelected` / `apiSources.importing` |
+| Connected | `"Connected to"` | `apiSources.connected` |
+| Detail empty | `"Select an API source or add a new one"` | `apiSources.detailEmpty` |
+| Scan results | `"models detected"` | `apiSources.modelsDetected` |
+| Key hint | `"Key is stored locally..."` | `apiSources.keyHint` |
+| Form hints | Various | `apiSources.*` |
+| Delete confirm | Uses `confirm()` | `apiSources.deleteConfirm` |
+
+### Test File Fix
+
+The i18n test file has a `localStorage` mocking issue. The standard vitest fix:
+
+```typescript
+// Before each test:
+beforeEach(() => {
+  vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null)
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {})
+})
+```
+
+Or use `@vue/test-utils` config to stub `localStorage` globally.
+
+### Shared `common.*` Keys
+
+| Key | English | Used In |
+|-----|---------|---------|
+| `common.loading` | `"Loading..."` | Wiki, API Sources |
+| `common.saving` | `"Saving..."` | Professions, Skills, API Sources |
+| `common.save` | `"Save"` | Professions, Skills, API Sources |
+| `common.cancel` | `"Cancel"` | Professions, Skills, API Sources |
+| `common.edit` | `"Edit"` | Wiki, Agents (already exists) |
+| `common.delete` | `"Delete"` | All views |
+| `common.default` | `"Default"` | Agents (already exists) |
+| `common.resetDefaults` | `"Reset Defaults"` | Agents, Professions, Skills |
+| `common.upload` | `"Upload"` | Agents (already exists) |
+| `common.generate` | `"Generate"` | Agents (already exists) |
+| `common.generating` | `"Generating..."` | Agents (already exists) |
+| `common.remove` | `"Remove"` | Agents (already exists) |
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Per-view namespace keys (chosen) | Organized, no key collisions, easy to audit | More keys to manage |
+| Flat keys (`"loading"`, `"save"`) | Fewer keys | Collisions, unclear scope |
+| Inline string extraction tool | Automated, no manual audit | Tooling overhead, may miss context |
+
+- Positive: Mechanical change — no logic changes, only string replacement
+- Positive: All 6 views follow the same pattern as existing i18n views
+- Positive: `common.*` keys reduce duplication across views
+- Negative: ~150 new translation keys to add to both en.json and zh.json
+- Mitigation: Keys follow a predictable `viewName.elementName` pattern

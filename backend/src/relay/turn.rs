@@ -241,7 +241,7 @@ impl AgentTurn {
                             result: exec_result.clone(),
                         });
 
-                        tracing::info!("AgentTurn tool call: name={}, profession={}, result={}", name, self.agent.profession.id, exec_result.chars().take(100).collect::<String>());
+                        tracing::info!("AgentTurn tool call: id={}, name={}, profession={}, result={}", id, name, self.agent.profession.id, exec_result.chars().take(100).collect::<String>());
                         // Track special tools
                         if name == "handoff" || name == "bring_in" || name == "spawn_relay" {
                             result.handoff_requested = true;

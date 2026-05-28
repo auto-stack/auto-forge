@@ -4,26 +4,26 @@
       <!-- Sidebar -->
       <div class="explorer-nav" :class="{ collapsed: sidebarCollapsed }">
         <div class="explorer-nav-header">
-          <span class="explorer-nav-title">Explorer</span>
+          <span class="explorer-nav-title">{{ t('explorer.title') }}</span>
           <div class="explorer-nav-actions">
-            <button class="nav-icon-btn" @click="refreshTree" title="Refresh">
+            <button class="nav-icon-btn" @click="refreshTree" :title="t('explorer.refresh')">
               <RefreshCw :size="14" />
             </button>
-            <button class="nav-icon-btn" @click="sidebarCollapsed = !sidebarCollapsed" title="Toggle sidebar">
+            <button class="nav-icon-btn" @click="sidebarCollapsed = !sidebarCollapsed" :title="t('explorer.toggleSidebar')">
               <PanelLeft :size="14" />
             </button>
-            <button class="nav-icon-btn" @click="closeProject" title="Close project">
+            <button class="nav-icon-btn" @click="closeProject" :title="t('explorer.closeProject')">
               <X :size="14" />
             </button>
           </div>
         </div>
         <div class="explorer-nav-list">
           <div v-if="treeLoading" class="tree-empty">
-            <span class="loading">Loading…</span>
+            <span class="loading">{{ t('explorer.loading') }}</span>
           </div>
           <div v-else-if="tree.length === 0" class="tree-empty">
             <FolderOpen :size="14" />
-            <span>No files</span>
+            <span>{{ t('explorer.noFiles') }}</span>
           </div>
           <TreeView
             v-for="node in filteredTree"
@@ -40,7 +40,7 @@
       <div class="explorer-content">
         <div class="content-header">
           <div class="header-left">
-            <button v-if="sidebarCollapsed" class="nav-icon-btn" @click="sidebarCollapsed = false" title="Show sidebar">
+            <button v-if="sidebarCollapsed" class="nav-icon-btn" @click="sidebarCollapsed = false" :title="t('explorer.showSidebar')">
               <PanelLeft :size="16" />
             </button>
             <h3 v-if="activeFile" class="page-heading">{{ activeFileName }}</h3>
@@ -52,7 +52,7 @@
                 v-model="explorerSearch"
                 type="text"
                 class="search-input"
-                placeholder="Search files..."
+                :placeholder="t('explorer.searchPlaceholder')"
               />
             </div>
           </div>
@@ -62,12 +62,12 @@
           <!-- Empty state -->
           <div v-if="!activeFile" class="content-empty">
             <Files :size="32" />
-            <p>Select a file from the sidebar</p>
+            <p>{{ t('explorer.selectFile') }}</p>
           </div>
 
           <!-- Loading -->
           <div v-else-if="fileLoading" class="content-empty">
-            <span class="loading">Loading…</span>
+            <span class="loading">{{ t('explorer.loading') }}</span>
           </div>
 
           <!-- Image -->
@@ -88,8 +88,8 @@
           <!-- Other -->
           <div v-else class="content-empty">
             <File :size="24" />
-            <p>Preview not available</p>
-            <a v-if="fileDataUrl" :href="fileDataUrl" download class="download-link">Download {{ activeFileName }}</a>
+            <p>{{ t('explorer.previewNotAvailable') }}</p>
+            <a v-if="fileDataUrl" :href="fileDataUrl" download class="download-link">{{ t('explorer.download', { name: activeFileName }) }}</a>
           </div>
         </div>
       </div>
@@ -99,6 +99,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   PanelLeft, RefreshCw, FolderOpen, Files, File, X, Search,
 } from 'lucide-vue-next'
@@ -106,6 +107,7 @@ import { useProject } from '@/composables/useProject'
 import TreeView from '@/components/TreeView.vue'
 import type { TreeNode } from '@/types/wiki'
 
+const { t } = useI18n()
 const { projectName, projectPath, closeProject } = useProject()
 
 const EXPLORER_SIDEBAR_KEY = 'autoforge-explorer-sidebar-collapsed'

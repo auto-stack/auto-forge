@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## Provider-T1 [G14] Read-only tools correctly report is_read_only()
 **Status:** done
 **Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)

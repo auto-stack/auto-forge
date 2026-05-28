@@ -235,7 +235,7 @@ onMounted(() => {
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 1rem auto 0;
   align-items: stretch;
 }
 

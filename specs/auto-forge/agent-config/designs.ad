@@ -1,5 +1,7 @@
 # Designs
 
+---
+
 ## AgentConfig-D1 AgentInstance & Soul Rendering
 **Status:** implemented
 **Module:** `crates/auto-forge/src/relay/agent.rs`

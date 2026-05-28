@@ -1,20 +1,20 @@
 <template>
   <div class="professions-view">
     <div class="professions-header">
-      <h2>Professions</h2>
+      <h2>{{ t('professions.title') }}</h2>
       <div class="header-actions">
-        <button class="btn-secondary" @click="handleResetDefaults">Reset Defaults</button>
+        <button class="btn-secondary" @click="handleResetDefaults">{{ t('common.reset') }}</button>
         <button class="btn-primary" @click="startCreate">
-          <Plus :size="14" /> Add Profession
+          <Plus :size="14" /> {{ t('professions.addProfession') }}
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="professions-empty">Loading professions...</div>
+    <div v-if="loading" class="professions-empty">{{ t('professions.loading') }}</div>
 
     <div v-else-if="!professions.length" class="professions-empty">
       <Briefcase :size="48" />
-      <p>No professions defined. Reset defaults to get started.</p>
+      <p>{{ t('professions.noProfessions') }}</p>
     </div>
 
     <div v-else class="professions-grid">
@@ -31,15 +31,15 @@
           <span class="phase-badge">{{ prof.phase }}</span>
         </div>
         <div class="profession-stats">
-          <span class="stat">{{ prof.allowed_tools.length }} tools</span>
-          <span class="stat">{{ prof.max_turns }} turns</span>
-          <span class="stat">{{ (prof.token_budget / 1000).toFixed(0) }}k budget</span>
+          <span class="stat">{{ t('common.tools', { count: prof.allowed_tools.length }) }}</span>
+          <span class="stat">{{ t('common.turns', { count: prof.max_turns }) }}</span>
+          <span class="stat">{{ t('common.budget', { budget: (prof.token_budget / 1000).toFixed(0) }) }}</span>
         </div>
         <div v-if="prof.base_skills?.length" class="profession-skills">
           <span v-for="sid in prof.base_skills" :key="sid" class="skill-chip">{{ skillName(sid) }}</span>
         </div>
         <div class="card-actions">
-          <button class="btn-small" @click.stop="startEdit(prof)">Edit</button>
+          <button class="btn-small" @click.stop="startEdit(prof)">{{ t('common.edit') }}</button>
           <button class="btn-small btn-danger" @click.stop="handleDelete(prof.id)">
             <Trash2 :size="12" />
           </button>
@@ -48,7 +48,7 @@
 
       <div class="profession-card add-card" @click="startCreate">
         <Plus :size="24" class="add-icon" />
-        <span>Add Profession</span>
+        <span>{{ t('professions.addProfession') }}</span>
       </div>
     </div>
 
@@ -56,72 +56,72 @@
     <div v-if="editing" class="edit-overlay" @click.self="cancelEdit">
       <div class="edit-panel">
         <div class="edit-header">
-          <h3>{{ isNew ? 'Create Profession' : editing.name }}</h3>
+          <h3>{{ isNew ? t('professions.createProfession') : editing.name }}</h3>
           <button class="btn-close" @click="cancelEdit"><X :size="16" /></button>
         </div>
 
         <div class="edit-form">
           <div class="form-row">
             <div class="form-group">
-              <label>ID</label>
-              <input v-model="editing.id" class="form-input" placeholder="unique-id" :disabled="!isNew" />
+              <label>{{ t('professions.idPlaceholder') }}</label>
+              <input v-model="editing.id" class="form-input" :placeholder="t('professions.idPlaceholder')" :disabled="!isNew" />
             </div>
             <div class="form-group">
-              <label>Name</label>
-              <input v-model="editing.name" class="form-input" placeholder="Profession name" />
+              <label>{{ t('professions.professionName') }}</label>
+              <input v-model="editing.name" class="form-input" :placeholder="t('professions.namePlaceholder')" />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label>Phase</label>
+              <label>{{ t('professions.phase') }}</label>
               <select v-model="editing.phase" class="form-select">
                 <option v-for="ph in phases" :key="ph" :value="ph">{{ ph }}</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Max Turns</label>
+              <label>{{ t('professions.maxTurns') }}</label>
               <input v-model.number="editing.max_turns" type="number" class="form-input" min="1" />
             </div>
             <div class="form-group">
-              <label>Token Budget</label>
+              <label>{{ t('professions.tokenBudget') }}</label>
               <input v-model.number="editing.token_budget" type="number" class="form-input" min="0" step="1000" />
             </div>
           </div>
 
           <div class="form-group">
-            <label>Owned Sections</label>
-            <TagInput v-model="editing.owned_sections" placeholder="Add section and press Enter..." />
+            <label>{{ t('professions.ownedSections') }}</label>
+            <TagInput v-model="editing.owned_sections" :placeholder="t('professions.ownedSectionsPlaceholder')" />
           </div>
 
           <div class="form-group">
-            <label>Readable Sections</label>
-            <TagInput v-model="editing.readable_sections" placeholder="Add section and press Enter..." />
+            <label>{{ t('professions.readableSections') }}</label>
+            <TagInput v-model="editing.readable_sections" :placeholder="t('professions.readableSectionsPlaceholder')" />
           </div>
 
           <div class="form-group">
-            <label>Allowed Tools</label>
-            <TagInput v-model="editing.allowed_tools" placeholder="Add tool name and press Enter..." />
+            <label>{{ t('professions.allowedTools') }}</label>
+            <TagInput v-model="editing.allowed_tools" :placeholder="t('professions.allowedToolsPlaceholder')" />
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label>Handoff To</label>
-              <TagInput v-model="editing.handoff_to" placeholder="profession ids..." />
+              <label>{{ t('professions.handoffTo') }}</label>
+              <TagInput v-model="editing.handoff_to" :placeholder="t('professions.handoffToPlaceholder')" />
             </div>
             <div class="form-group">
-              <label>Approval Gates</label>
-              <TagInput v-model="editing.approval_gates" placeholder="profession ids..." />
+              <label>{{ t('professions.approvalGates') }}</label>
+              <TagInput v-model="editing.approval_gates" :placeholder="t('professions.approvalGatesPlaceholder')" />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label>Dispatchable To</label>
-              <TagInput v-model="editing.dispatchable_to" placeholder="profession ids..." />
+              <label>{{ t('professions.dispatchableTo') }}</label>
+              <TagInput v-model="editing.dispatchable_to" :placeholder="t('professions.dispatchableToPlaceholder')" />
             </div>
             <div class="form-group">
-              <label>Base Skills</label>
+              <label>{{ t('professions.baseSkills') }}</label>
               <div class="skills-selector">
                 <label
                   v-for="skill in skills"
@@ -142,9 +142,9 @@
 
           <div class="edit-footer">
             <button class="btn-primary" @click="handleSave" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save' }}
+              {{ saving ? t('common.saving') : t('common.save') }}
             </button>
-            <button class="btn-secondary" @click="cancelEdit">Cancel</button>
+            <button class="btn-secondary" @click="cancelEdit">{{ t('common.cancel') }}</button>
           </div>
         </div>
       </div>
@@ -154,10 +154,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Plus, X, Trash2, Briefcase } from 'lucide-vue-next'
 import { useProfessions, type ProfessionDto } from '@/composables/useProfessions'
 import { useSkills } from '@/composables/useSkills'
 import TagInput from '@/components/editors/TagInput.vue'
+
+const { t } = useI18n()
 
 const {
   professions, loading, error,
@@ -228,7 +231,7 @@ function toggleBaseSkill(skillId: string) {
 async function handleSave() {
   if (!editing.value) return
   if (!editing.value.id.trim() || !editing.value.name.trim()) {
-    alert('ID and Name are required')
+    alert(t('professions.idNameRequired'))
     return
   }
   saving.value = true
@@ -243,12 +246,12 @@ async function handleSave() {
 }
 
 async function handleDelete(id: string) {
-  if (!confirm('Delete this profession?')) return
+  if (!confirm(t('professions.deleteConfirm'))) return
   await deleteProfession(id)
 }
 
 async function handleResetDefaults() {
-  if (!confirm('Reset to 9 default professions? Custom professions will be lost.')) return
+  if (!confirm(t('professions.resetConfirm'))) return
   await resetDefaults()
 }
 
@@ -307,7 +310,7 @@ onMounted(() => {
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 1rem auto 0;
   align-items: stretch;
 }
 

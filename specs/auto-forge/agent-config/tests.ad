@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## AgentConfig-T1 [G1] Agent profession registry loads built-in professions
 **Status:** done
 **Test File:** `crates/auto-forge/src/relay/profession.rs` (inline `#[cfg(test)]`)

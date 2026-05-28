@@ -4,24 +4,24 @@
       <div class="welcome-logo">
         <Flame :size="64" />
       </div>
-      <h1 class="welcome-title">AutoForge</h1>
-      <p class="welcome-subtitle">Spec-driven, serial-agent AI coding assistant</p>
+      <h1 class="welcome-title">{{ t('welcome.title') }}</h1>
+      <p class="welcome-subtitle">{{ t('welcome.subtitle') }}</p>
 
       <div class="open-section">
         <div class="path-input-row">
-          <button class="btn-browse" @click="handleBrowse" title="Browse for folder">
+          <button class="btn-browse" @click="handleBrowse" :title="t('welcome.browseTitle')">
             <FolderOpen :size="14" />
           </button>
           <input
             v-model="projectPath"
             type="text"
             class="path-input"
-            placeholder="Enter project directory path..."
+            :placeholder="t('welcome.pathPlaceholder')"
             @keydown.enter="handleOpen"
           />
           <button class="btn-open" :disabled="!projectPath.trim() || isLoading" @click="handleOpen">
             <FolderOpen :size="14" />
-            <span>{{ isLoading ? 'Opening...' : 'Open Folder' }}</span>
+            <span>{{ isLoading ? t('welcome.opening') : t('welcome.openButton') }}</span>
           </button>
         </div>
         <div v-if="browseEntries.length > 0" class="browse-list">
@@ -39,7 +39,7 @@
       </div>
 
       <div v-if="recentProjects.length > 0" class="recent-section">
-        <h3 class="recent-title">Recent Projects</h3>
+        <h3 class="recent-title">{{ t('welcome.recentProjects') }}</h3>
         <button
           v-for="rp in recentProjects"
           :key="rp.path"
@@ -59,9 +59,11 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Flame, FolderOpen, Folder } from 'lucide-vue-next'
 import { useProject } from '@/composables/useProject'
 
+const { t } = useI18n()
 const { openProject, isLoading, error, recentProjects, fetchRecentProjects, browseDirectory } = useProject()
 
 const projectPath = ref('')
@@ -90,14 +92,11 @@ watch(projectPath, (val) => {
     browseEntries.value = []
     return
   }
-  // Debounced browse — treat input as parent directory
   browseTimer = setTimeout(async () => {
     try {
-      // Use the parent of the current input as browse target
       const lastSep = Math.max(val.lastIndexOf('/'), val.lastIndexOf('\\'))
       const parentDir = lastSep > 0 ? val.substring(0, lastSep) : val
       const entries = await browseDirectory(parentDir)
-      // Filter to entries whose name starts with the last segment
       const lastSeg = val.substring(lastSep + 1).toLowerCase()
       browseEntries.value = lastSeg
         ? entries.filter(e => e.name.toLowerCase().startsWith(lastSeg))

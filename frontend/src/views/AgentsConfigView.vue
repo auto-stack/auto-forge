@@ -1,20 +1,20 @@
 <template>
   <div class="agents-config-view">
     <div class="agents-header">
-      <h2>Agent Forge</h2>
+      <h2>{{ t('agents.title') }}</h2>
       <div class="header-actions">
-        <button class="btn-secondary" @click="handleResetDefaults">Reset Defaults</button>
+        <button class="btn-secondary" @click="handleResetDefaults">{{ t('common.reset') }}</button>
         <button class="btn-primary" @click="startCreate">
-          <Plus :size="14" /> Create Agent
+          <Plus :size="14" /> {{ t('agents.createAgent') }}
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="agents-empty">Loading agents...</div>
+    <div v-if="loading" class="agents-empty">{{ t('agents.loading') }}</div>
 
     <div v-else-if="!configs.length" class="agents-empty">
       <Users :size="48" />
-      <p>No agents configured. Reset defaults to get started.</p>
+      <p>{{ t('agents.noAgents') }}</p>
     </div>
 
     <div v-else class="agents-grid">
@@ -30,7 +30,7 @@
         <div class="card-badges">
           <span class="badge profession-badge">{{ agent.profession_id }}</span>
           <span class="badge tier-badge" :class="agent.model_tier">{{ tierLabel(agent.model_tier) }}</span>
-          <span v-if="agent.is_default" class="badge default-badge">Default</span>
+          <span v-if="agent.is_default" class="badge default-badge">{{ t('common.default') }}</span>
         </div>
         <div v-if="agent.equipped_skills?.length" class="card-skills">
           <span v-for="sid in agent.equipped_skills" :key="sid" class="skill-chip">{{ skillName(sid) }}</span>
@@ -39,7 +39,7 @@
           {{ getSoulPreview(agent.soul_id) }}
         </div>
         <div class="card-actions">
-          <button class="btn-small" @click.stop="startEdit(agent)">Edit</button>
+          <button class="btn-small" @click.stop="startEdit(agent)">{{ t('common.edit') }}</button>
           <button v-if="!agent.is_default" class="btn-small btn-small" @click.stop="handleDelete(agent.id)">
             <Trash2 :size="12" />
           </button>
@@ -51,7 +51,7 @@
     <div v-if="editing" class="edit-overlay" @click.self="cancelEdit">
       <div class="edit-panel">
         <div class="edit-header">
-          <h3>{{ isNew ? 'Create Agent' : editing.name }}</h3>
+          <h3>{{ isNew ? t('agents.createAgent') : editing.name }}</h3>
           <button class="btn-close" @click="cancelEdit"><X :size="16" /></button>
         </div>
 
@@ -74,24 +74,24 @@
                 @change="handleAvatarUpload"
               />
               <button class="btn-small" @click="avatarInput?.click()">
-                <Upload :size="12" /> Upload
+                <Upload :size="12" /> {{ t('common.upload') }}
               </button>
               <button class="btn-small" :disabled="generatingAvatar" @click="handleAvatarGenerate">
-                <Sparkles :size="12" /> {{ generatingAvatar ? 'Generating...' : 'Generate' }}
+                <Sparkles :size="12" /> {{ generatingAvatar ? t('common.generating') : t('common.generate') }}
               </button>
               <button v-if="editing.avatar_url" class="btn-small btn-danger" @click="handleAvatarRemove">
-                <Trash2 :size="12" /> Remove
+                <Trash2 :size="12" /> {{ t('common.remove') }}
               </button>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label>Name</label>
-              <input v-model="editing.name" class="form-input" placeholder="Agent name" />
+              <label>{{ t('agents.agentName') }}</label>
+              <input v-model="editing.name" class="form-input" :placeholder="t('agents.agentNamePlaceholder')" />
             </div>
             <div class="form-group">
-              <label>Profession</label>
+              <label>{{ t('agents.profession') }}</label>
               <select v-model="editing.profession_id" class="form-select" :disabled="!isNew">
                 <option v-for="p in professions" :key="p.id" :value="p.id">
                   {{ professionEmoji(p.id) }} {{ p.name }}
@@ -101,14 +101,14 @@
           </div>
 
           <div class="form-group">
-            <label>Soul</label>
-            <textarea v-model="soulMarkdown" class="form-textarea" rows="6" placeholder="Soul markdown..." />
-            <div class="form-hint">Defines the agent's personality, values, and working style.</div>
+            <label>{{ t('agents.soul') }}</label>
+            <textarea v-model="soulMarkdown" class="form-textarea" rows="6" :placeholder="t('agents.soulPlaceholder')" />
+            <div class="form-hint">{{ t('agents.soulHint') }}</div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label>API Source</label>
+              <label>{{ t('agents.apiSource') }}</label>
               <select v-model="editing.api_source_id" class="form-select">
                 <option v-for="s in apiSources" :key="s.id" :value="s.id">
                   {{ s.name }}
@@ -116,7 +116,7 @@
               </select>
             </div>
             <div class="form-group">
-              <label>Model Tier</label>
+              <label>{{ t('agents.modelTier') }}</label>
               <div class="tier-selector">
                 <button
                   v-for="t in tiers"
@@ -135,7 +135,7 @@
           </div>
 
           <div class="form-group">
-            <label>Equipped Skills</label>
+            <label>{{ t('agents.equippedSkills') }}</label>
             <div class="skills-selector">
               <label
                 v-for="skill in skills"
@@ -155,18 +155,18 @@
           </div>
 
           <details class="advanced-section">
-            <summary>Advanced Settings</summary>
+            <summary>{{ t('common.advanced') }}</summary>
             <div class="form-row">
               <div class="form-group">
-                <label>Temperature ({{ editing.temperature.toFixed(1) }})</label>
+                <label>{{ t('agents.temperature', { value: editing.temperature.toFixed(1) }) }}</label>
                 <input v-model.number="editing.temperature" type="range" min="0" max="1" step="0.1" class="form-range" />
               </div>
               <div class="form-group">
-                <label>Max Tokens</label>
+                <label>{{ t('agents.maxTokens') }}</label>
                 <input v-model.number="editing.max_tokens" type="number" class="form-input" min="256" max="32768" step="256" />
               </div>
               <div v-if="editing.model_tier === 'pro' || editing.model_tier === 'max'" class="form-group">
-                <label>Reasoning Budget</label>
+                <label>{{ t('agents.reasoningBudget') }}</label>
                 <input v-model.number="editing.reasoning_budget" type="number" class="form-input" min="0" max="16384" step="512" />
               </div>
             </div>
@@ -174,12 +174,12 @@
               <div class="form-group">
                 <label class="toggle-label">
                   <input v-model="editing.thinking_enabled" type="checkbox" />
-                  <span>Thinking Mode</span>
+                  <span>{{ t('agents.thinkingMode') }}</span>
                 </label>
-                <div class="form-hint">Enable Claude extended thinking for deeper reasoning.</div>
+                <div class="form-hint">{{ t('agents.thinkingHint') }}</div>
               </div>
               <div v-if="editing.thinking_enabled" class="form-group">
-                <label>Thinking Budget ({{ editing.thinking_budget ?? 0 }})</label>
+                <label>{{ t('agents.thinkingBudget', { value: editing.thinking_budget ?? 0 }) }}</label>
                 <input
                   v-model.number="editing.thinking_budget"
                   type="range"
@@ -194,9 +194,9 @@
 
           <div class="edit-footer">
             <button class="btn-primary" @click="handleSave" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save' }}
+              {{ saving ? t('common.saving') : t('common.save') }}
             </button>
-            <button class="btn-secondary" @click="cancelEdit">Cancel</button>
+            <button class="btn-secondary" @click="cancelEdit">{{ t('common.cancel') }}</button>
           </div>
         </div>
       </div>
@@ -205,6 +205,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { ref, onMounted, computed, watch } from 'vue'
 import { Plus, X, Trash2, Users, Upload, Sparkles } from 'lucide-vue-next'
 import { useAgentConfigs, type AgentConfigDto } from '@/composables/useAgentConfigs'
@@ -213,6 +214,7 @@ import { useApiSources, type ApiSource } from '@/composables/useApiSources'
 import { useSouls } from '@/composables/useSouls'
 import { useSkills } from '@/composables/useSkills'
 
+const { t } = useI18n()
 const {
   configs, loading, error,
   loadConfigs, createConfig, updateConfig, deleteConfig, resetDefaults,

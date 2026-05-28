@@ -1,5 +1,7 @@
 # Tests
 
+---
+
 ## ApiSources-T1 [G13] Test connection endpoint validates API credentials
 **Status:** proposed
 **Test File:** `backend/src/relay/api.rs` (integration test)

@@ -11,7 +11,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use futures::stream::{self, Stream};
+use futures::{FutureExt, stream::{self, Stream}};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::convert::Infallible;
@@ -416,6 +416,10 @@ impl SessionStore {
 
     fn push_message(&mut self, sid: &str, msg: ForgeMessage) {
         let Some(session) = self.sessions.get_mut(sid) else { return };
+        tracing::info!(
+            "ForgeMessage pushed: sid={}, msg_id={}, role={}, content_len={}",
+            sid, msg.id, msg.role, msg.content.len()
+        );
         session.messages.push(msg);
         let session_clone = session.clone();
         self.save(&session_clone);
@@ -1124,7 +1128,7 @@ impl SpecsStore {
         }
     }
 
-    fn serialize_status(status: &Status) -> String {
+    pub(crate) fn serialize_status(status: &Status) -> String {
         match status {
             Status::Empty => "empty",
             Status::Proposed => "proposed",
@@ -2131,7 +2135,11 @@ mod handlers {
             tokio::sync::mpsc::unbounded_channel::<Result<Event, Infallible>>();
 
         tokio::spawn(async move {
-            let registry = ToolRegistry::new();
+            use futures::FutureExt;
+            let sid_for_panic = sid.clone();
+            let event_tx_for_panic = event_tx.clone();
+            let result = std::panic::AssertUnwindSafe(async move {
+                let registry = ToolRegistry::new();
             let ai_for_turns = ai.clone();
             let _provider = ai.clone();
 
@@ -2586,14 +2594,16 @@ mod handlers {
                                                                 if let Some(ref result) = tc.result {
                                                                     match tc.name.as_str() {
                                                                         "read_file" | "search_code" | "dispatch" => {
-                                                                            let snippet = if result.len() > 600 {
-                                                                                format!("{}... (truncated)", &result[..600])
+                                                                            let snippet = if result.chars().count() > 600 {
+                                                                                let end = result.char_indices().nth(600).map(|(i, _)| i).unwrap_or(result.len());
+                                                                                format!("{}... (truncated)", &result[..end])
                                                                             } else {
                                                                                 result.clone()
                                                                             };
                                                                             let args_preview = tc.arguments.to_string();
-                                                                            let args_short = if args_preview.len() > 120 {
-                                                                                format!("{}...", &args_preview[..120])
+                                                                            let args_short = if args_preview.chars().count() > 120 {
+                                                                                let end = args_preview.char_indices().nth(120).map(|(i, _)| i).unwrap_or(args_preview.len());
+                                                                                format!("{}...", &args_preview[..end])
                                                                             } else {
                                                                                 args_preview
                                                                             };
@@ -2774,6 +2784,27 @@ mod handlers {
                 serde_json::to_string(&ForgeStreamEvent::Done).unwrap(),
             );
             let _ = event_tx.send(Ok(event));
+            }).catch_unwind().await;
+
+            if let Err(panic_payload) = result {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "Unknown internal server error".to_string()
+                };
+                let event = Event::default().data(
+                    serde_json::to_string(&ForgeStreamEvent::Error { message: format!("Server panic: {}", msg) }).unwrap(),
+                );
+                let _ = event_tx_for_panic.send(Ok(event));
+                let event = Event::default().data(
+                    serde_json::to_string(&ForgeStreamEvent::Done).unwrap(),
+                );
+                let _ = event_tx_for_panic.send(Ok(event));
+                let mut store = forge_sessions().lock().unwrap();
+                store.update_status(&sid_for_panic, ForgeStatus::Idle);
+            }
         });
 
         let sse_stream = stream::unfold(event_rx, |mut rx| async move {

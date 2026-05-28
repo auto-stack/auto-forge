@@ -44,13 +44,13 @@ pub struct RunMetadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RunEvent {
-    StepStarted { step_id: String, profession_id: String },
-    StepCompleted { step_id: String, handoff_summary: String },
-    GateWaiting { step_id: String, gate: String },
-    GateResolved { step_id: String, decision: String },
-    RunCompleted,
-    RunFailed { error: String },
-    TokenSpend { cumulative: u64, step_tokens: u64 },
+    StepStarted { #[serde(default)] timestamp: u64, step_id: String, profession_id: String },
+    StepCompleted { #[serde(default)] timestamp: u64, step_id: String, handoff_summary: String },
+    GateWaiting { #[serde(default)] timestamp: u64, step_id: String, gate: String },
+    GateResolved { #[serde(default)] timestamp: u64, step_id: String, decision: String },
+    RunCompleted { #[serde(default)] timestamp: u64 },
+    RunFailed { #[serde(default)] timestamp: u64, error: String },
+    TokenSpend { #[serde(default)] timestamp: u64, cumulative: u64, step_tokens: u64 },
     RelayCompleteNotification {
         run_id: String,
         status: String,
@@ -60,13 +60,13 @@ pub enum RunEvent {
         timestamp: u64,
     },
     // ─── Turn events (for session log persistence) ───
-    TurnDelta { profession_id: String, text: String },
-    TurnToolCall { profession_id: String, tool_id: String, tool_name: String, arguments: serde_json::Value },
-    TurnToolResult { profession_id: String, tool_id: String, result: String },
-    TurnComplete { profession_id: String },
-    TurnError { profession_id: String, message: String },
-    TurnBudgetWarning { profession_id: String, remaining: u64 },
-    TurnBudgetExceeded { profession_id: String },
+    TurnDelta { #[serde(default)] timestamp: u64, profession_id: String, text: String },
+    TurnToolCall { #[serde(default)] timestamp: u64, profession_id: String, tool_id: String, tool_name: String, arguments: serde_json::Value },
+    TurnToolResult { #[serde(default)] timestamp: u64, profession_id: String, tool_id: String, result: String },
+    TurnComplete { #[serde(default)] timestamp: u64, profession_id: String },
+    TurnError { #[serde(default)] timestamp: u64, profession_id: String, message: String },
+    TurnBudgetWarning { #[serde(default)] timestamp: u64, profession_id: String, remaining: u64 },
+    TurnBudgetExceeded { #[serde(default)] timestamp: u64, profession_id: String },
 }
 
 /// Summary of a run for listing.
@@ -103,6 +103,8 @@ pub struct RunState {
     pub events: Vec<RunEvent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_step_started_at: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -242,21 +244,23 @@ pub fn advance_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
     match &result {
         AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
             entry.events.push(RunEvent::StepStarted {
+                timestamp: now_secs(),
                 step_id: step_id.clone(),
                 profession_id: profession_id.clone(),
             });
         }
         AdvanceResult::WaitForHuman { step_id, .. } => {
             entry.events.push(RunEvent::GateWaiting {
+                timestamp: now_secs(),
                 step_id: step_id.clone(),
                 gate: "human".into(),
             });
         }
         AdvanceResult::Completed => {
-            entry.events.push(RunEvent::RunCompleted);
+            entry.events.push(RunEvent::RunCompleted { timestamp: now_secs() });
         }
         AdvanceResult::Failed { error } => {
-            entry.events.push(RunEvent::RunFailed { error: error.clone() });
+            entry.events.push(RunEvent::RunFailed { timestamp: now_secs(), error: error.clone() });
         }
     }
 
@@ -273,6 +277,7 @@ pub fn submit_handoff(store: &RunStore, run_id: &str, handoff: HandoffDocument) 
 
     let step_tokens = handoff.token_usage.step_input + handoff.token_usage.step_output;
     entry.events.push(RunEvent::TokenSpend {
+        timestamp: now_secs(),
         cumulative: entry.engine.cumulative_tokens,
         step_tokens,
     });
@@ -280,15 +285,16 @@ pub fn submit_handoff(store: &RunStore, run_id: &str, handoff: HandoffDocument) 
     match &result {
         AdvanceResult::ExecuteStep { step_id, .. } => {
             entry.events.push(RunEvent::StepCompleted {
+                timestamp: now_secs(),
                 step_id: step_id.clone(),
                 handoff_summary: handoff.summary.clone(),
             });
         }
         AdvanceResult::Completed => {
-            entry.events.push(RunEvent::RunCompleted);
+            entry.events.push(RunEvent::RunCompleted { timestamp: now_secs() });
         }
         AdvanceResult::Failed { error } => {
-            entry.events.push(RunEvent::RunFailed { error: error.clone() });
+            entry.events.push(RunEvent::RunFailed { timestamp: now_secs(), error: error.clone() });
         }
         _ => {}
     }
@@ -324,6 +330,7 @@ pub fn resolve_gate(store: &RunStore, run_id: &str, decision: GateDecision) -> O
 
     if let Some(step_id) = entry.engine.current_step_id() {
         entry.events.push(RunEvent::GateResolved {
+            timestamp: now_secs(),
             step_id: step_id.to_string(),
             decision: decision_str.into(),
         });
@@ -373,6 +380,11 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         3,    // rounds heuristic
     );
 
+    let current_step_started_at = match &engine.status {
+        PipelineStatus::Running { started_at, .. } => Some(*started_at),
+        _ => None,
+    };
+
     RunState {
         run_id: entry.run_id.clone(),
         status: engine.status.to_status_str(),
@@ -389,10 +401,11 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         savings_ratio,
         events: entry.events.clone(),
         title: entry.metadata.title.clone(),
+        current_step_started_at,
     }
 }
 
-fn now_secs() -> u64 {
+pub fn now_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

@@ -4,12 +4,12 @@
       <!-- Sidebar -->
       <div class="wiki-nav" :class="{ collapsed: sidebarCollapsed }">
         <div class="wiki-nav-header">
-          <span class="wiki-nav-title">Wiki</span>
+          <span class="wiki-nav-title">{{ t('wiki.title') }}</span>
           <div class="wiki-nav-actions">
-            <button class="nav-icon-btn" @click="startCreate" title="New page">
+            <button class="nav-icon-btn" @click="startCreate" :title="t('wiki.newPage')">
               <Plus :size="14" />
             </button>
-            <button class="nav-icon-btn" @click="sidebarCollapsed = !sidebarCollapsed" title="Toggle sidebar">
+            <button class="nav-icon-btn" @click="sidebarCollapsed = !sidebarCollapsed" :title="t('wiki.toggleSidebar')">
               <PanelLeft :size="14" />
             </button>
           </div>
@@ -21,8 +21,8 @@
             <div class="tree-section-header" @click="rawExpanded = !rawExpanded">
               <component :is="rawExpanded ? ChevronDown : ChevronRight" :size="12" />
               <FolderInput :size="13" />
-              <span class="tree-section-title">Raw</span>
-              <button class="section-btn" @click.stop="startNewFolder('raw')" title="New folder">
+              <span class="tree-section-title">{{ t('wiki.raw') }}</span>
+              <button class="section-btn" @click.stop="startNewFolder('raw')" :title="t('wiki.newFolder')">
                 <FolderPlus :size="11" />
               </button>
             </div>
@@ -43,7 +43,7 @@
             <div class="tree-section-header" @click="wikiExpanded = !wikiExpanded">
               <component :is="wikiExpanded ? ChevronDown : ChevronRight" :size="12" />
               <BookOpen :size="13" />
-              <span class="tree-section-title">Wiki</span>
+              <span class="tree-section-title">{{ t('wiki.title') }}</span>
             </div>
             <div v-if="wikiExpanded" class="tree-section-body">
               <TreeView
@@ -55,7 +55,7 @@
               />
               <div v-if="wikiTree.length === 0" class="tree-empty">
                 <FileText :size="14" />
-                <span>No pages yet</span>
+                <span>{{ t('wiki.noPages') }}</span>
               </div>
             </div>
           </div>
@@ -66,23 +66,23 @@
       <div class="wiki-content">
         <div class="content-header">
           <div class="header-left">
-            <button v-if="sidebarCollapsed" class="nav-icon-btn" @click="sidebarCollapsed = false" title="Show sidebar">
+            <button v-if="sidebarCollapsed" class="nav-icon-btn" @click="sidebarCollapsed = false" :title="t('wiki.showSidebar')">
               <PanelLeft :size="16" />
             </button>
             <template v-if="viewState === 'viewing' && activePage">
               <h3 class="page-heading">{{ activePage.title }}</h3>
             </template>
             <template v-else-if="viewState === 'editing'">
-              <h3 class="page-heading">Editing: {{ activePage?.title }}</h3>
+              <h3 class="page-heading">{{ t('wiki.editing', { title: activePage?.title }) }}</h3>
             </template>
             <template v-else-if="viewState === 'creating'">
-              <h3 class="page-heading">New Page</h3>
+              <h3 class="page-heading">{{ t('wiki.newPageTitle') }}</h3>
             </template>
             <template v-else-if="viewState === 'viewing-raw'">
               <h3 class="page-heading">{{ activeRawFile }}</h3>
             </template>
             <template v-else-if="viewState === 'new-folder'">
-              <h3 class="page-heading">New Folder</h3>
+              <h3 class="page-heading">{{ t('wiki.newFolderTitle') }}</h3>
             </template>
           </div>
           <div class="header-center">
@@ -92,21 +92,21 @@
                 v-model="wikiSearch"
                 type="text"
                 class="search-input"
-                placeholder="Search pages..."
+                :placeholder="t('wiki.searchPlaceholder')"
               />
             </div>
           </div>
           <div v-if="viewState === 'viewing' && activePage" class="header-actions">
-            <button class="action-btn" @click="viewState = 'editing'" title="Edit page">
+            <button class="action-btn" @click="viewState = 'editing'" :title="t('wiki.editPage')">
               <Pencil :size="14" />
-              Edit
+              {{ t('common.edit') }}
             </button>
-            <button class="action-btn danger" @click="handleDelete" title="Delete page">
+            <button class="action-btn danger" @click="handleDelete" :title="t('wiki.deletePage')">
               <Trash2 :size="14" />
             </button>
           </div>
           <div v-if="viewState === 'viewing-raw' && activeRawFile" class="header-actions">
-            <button class="action-btn danger" @click="handleDeleteRaw" title="Delete file">
+            <button class="action-btn danger" @click="handleDeleteRaw" :title="t('wiki.deleteFile')">
               <Trash2 :size="14" />
             </button>
           </div>
@@ -116,12 +116,12 @@
           <!-- Empty state -->
           <div v-if="viewState === 'empty'" class="content-empty">
             <BookOpen :size="32" />
-            <p>Select a page or file from the sidebar</p>
+            <p>{{ t('wiki.selectPage') }}</p>
           </div>
 
           <!-- Loading -->
           <div v-else-if="isLoading" class="content-empty">
-            <span class="loading">Loading...</span>
+            <span class="loading">{{ t('common.loading') }}</span>
           </div>
 
           <!-- Viewing wiki page -->
@@ -197,9 +197,9 @@
               <div class="form-actions">
                 <button class="action-btn primary" @click="createFolder">
                   <Check :size="13" />
-                  Create
+                  {{ t('common.create') }}
                 </button>
-                <button class="action-btn" @click="viewState = 'empty'">Cancel</button>
+                <button class="action-btn" @click="viewState = 'empty'">{{ t('common.cancel') }}</button>
               </div>
             </div>
           </div>
@@ -211,6 +211,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   BookOpen, PanelLeft, Plus, Pencil, Trash2, FileText, File,
   ChevronRight, ChevronDown, FolderInput, FolderPlus, Check, Search,
@@ -228,6 +229,8 @@ const {
   loadPages, loadPage, createPage, updatePage, deletePage,
   loadWikiTree, loadRawTree, uploadRawFiles, deleteRawFile, createRawFolder, rawFileUrl,
 } = useWiki()
+const { t } = useI18n()
+
 const { projectName } = useProject()
 
 const WIKI_SIDEBAR_KEY = 'autoforge-wiki-sidebar-collapsed'
