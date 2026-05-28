@@ -2,6 +2,40 @@
 
 AutoForge is an AI-native software engineering platform that orchestrates multiple specialized agents through a serial pipeline to design, implement, and verify software projects. It combines a chat-first interface, a structured specification system, and a relay pipeline that routes tasks between profession-specific agents.
 
+## Technology Stack
+
+### Backend
+
+| Technology | Version | Source | Purpose |
+|------------|---------|--------|---------|
+| **Rust** | 1.80+ | `Cargo.toml` | Systems programming, memory safety |
+| **Axum** | 0.8 | `Cargo.toml` | Web framework (REST + WebSocket + SSE) |
+| **Tokio** | 1.x | `Cargo.toml` | Async runtime |
+| **Reqwest** | 0.12 | `Cargo.toml` | HTTP client for LLM APIs |
+| **Serde** | 1.x | `Cargo.toml` | Serialization |
+| **Tower-HTTP** | 0.6 | `Cargo.toml` | CORS, static file serving |
+| **Tracing** | 0.1 | `Cargo.toml` | Observability |
+| **UUID** | 1.x | `Cargo.toml` | Session identifiers |
+
+### Frontend
+
+| Technology | Version | Source | Purpose |
+|------------|---------|--------|---------|
+| **Vue 3** | 3.5+ | `package.json` | UI framework (Composition API) |
+| **Vite** | 6.x | `package.json` | Build tool + dev server |
+| **TypeScript** | 5.8+ | `package.json` | Type safety |
+| **TipTap** | 3.23+ | `package.json` | ProseMirror-based block editor |
+| **Mermaid** | 11.15+ | `package.json` | Diagram rendering in specs |
+| **Markstream** | 0.0.14-beta.8 | `package.json` | Streaming Markdown renderer |
+
+### AI Providers
+
+| Provider | Models | Configuration |
+|----------|--------|---------------|
+| **Anthropic** | Claude 3.5 Opus / Sonnet / Haiku | `ANTHROPIC_API_KEY` env or `~/.claude/settings.json` |
+| **OpenAI** | GPT-4o | `OPENAI_API_KEY` env |
+| **Local** | Ollama / custom | Local URL in API Sources config |
+
 ## System Architecture
 
 ```mermaid
@@ -15,10 +49,13 @@ graph TD
 
     subgraph Orchestrator["Agent Orchestrator"]
         Assistant[Assistant<br/>Intake]
+        Advisor[Advisor<br/>Discovery]
         Architect[Architect<br/>Design]
         Planner[Planner<br/>Plan]
         Coder[Coder<br/>Code]
         Tester[Tester<br/>Verify]
+        Reviewer[Reviewer<br/>Validation]
+        Documenter[Documenter<br/>Report]
     end
 
     subgraph Core["Core Services"]
@@ -26,41 +63,69 @@ graph TD
         Tools[Tools<br/>FS / Shell]
         ProjectMgr[Project<br/>Workspace]
         Checkpoint[Checkpoint<br/>Durability]
+        SpecsStore[Specs Store<br/>AD / AT]
     end
 
     UI --> Orchestrator
     Orchestrator --> Core
 ```
 
+## Core Concepts
+
+| Concept | Definition | Lives In |
+|---------|------------|----------|
+| **Soul** | Markdown personality definition for an agent (values, style, rituals) | `agent-config` |
+| **Profession** | Capability contract: owned specs, readable specs, allowed tools, handoff targets | `agent-config` |
+| **Relay** | Serial agent pipeline with baton-passing handoff documents | `relay` |
+| **Gate** | Human-in-the-loop approval point (GSD auto-approve vs Check explicit) | `relay` / `chat` |
+| **Handoff** | Compressed context document passed between agents (~5× token savings) | `relay` |
+| **Spec** | Structured decision record in `.ad` format (Goals → Architecture → Designs → Plans → Tests → Reviews → Reports) | `specs` |
+| **Checkpoint** | JSON + git snapshot for crash recovery without chat history | `runtime` |
+| **Errand** | Fire-and-forget research task in isolated context | `errand` |
+
+## Core Flows
+
+Five execution flows span multiple modules. See [flows.ad](flows.ad) for full sequence diagrams and step-by-step breakdowns.
+
+| Flow | Entry | Exit | Key Modules |
+|------|-------|------|-------------|
+| **Forge Chat Loop** | User sends message | SSE delivers response | chat, provider, runtime, relay |
+| **Relay Pipeline** | FlowSpec loaded | Completed / Failed / Paused | relay, provider, runtime, specs |
+| **Agent Turn** | Agent spawned with profession | Handoff document returned | agent-config, provider, runtime |
+| **Spec Lifecycle** | Agent reads/writes spec | Persisted to `.ad` with derived statuses | specs, forge |
+| **Gate Approval** | Step has `gate: true` | User approves/rejects | relay, chat, ui-system |
+
 ## Module Index
 
-| Module | Description | Specs |
-|--------|-------------|-------|
-| **agent-config** | Agent Identity System — Soul, Profession, and Model configuration per agent | [module](agent-config/module.ad) · [goals](agent-config/goals.ad) · [architecture](agent-config/architecture.ad) · [designs](agent-config/designs.ad) · [tests](agent-config/tests.ad) |
-| **api-sources** | Multi-provider LLM management with auto-detection and model tiers | [module](api-sources/module.ad) · [goals](api-sources/goals.ad) · [architecture](api-sources/architecture.ad) · [designs](api-sources/designs.ad) · [plans](api-sources/plans.ad) · [tests](api-sources/tests.ad) |
-| **chat** | Chat-First Gate Approval with Smart Secretary and agent handoff | [module](chat/module.ad) · [goals](chat/goals.ad) · [architecture](chat/architecture.ad) · [designs](chat/designs.ad) · [plans](chat/plans.ad) · [reviews](chat/reviews.ad) · [tests](chat/tests.ad) |
-| **cli** | Interactive REPL chat as `forge chat` subcommand | [module](cli/module.ad) · [goals](cli/goals.ad) · [designs](cli/designs.ad) · [tests](cli/tests.ad) |
-| **editor** | WYSIWYG block-based editing with Markdown/AutoDown serialization | [module](editor/module.ad) · [goals](editor/goals.ad) · [architecture](editor/architecture.ad) · [designs](editor/designs.ad) · [plans](editor/plans.ad) |
-| **errand** | Offload research tasks to any profession without context pollution | [module](errand/module.ad) · [goals](errand/goals.ad) · [architecture](errand/architecture.ad) · [designs](errand/designs.ad) · [plans](errand/plans.ad) |
-| **project** | VS Code–style folder opening with persistent workspace | [module](project/module.ad) · [goals](project/goals.ad) · [architecture](project/architecture.ad) · [designs](project/designs.ad) · [plans](project/plans.ad) · [tests](project/tests.ad) |
-| **provider** | Unified AI communication layer with SSE streaming | [module](provider/module.ad) · [goals](provider/goals.ad) · [architecture](provider/architecture.ad) · [designs](provider/designs.ad) · [plans](provider/plans.ad) · [tests](provider/tests.ad) |
-| **relay** | Serial agent flows with baton passing and gate enforcement | [module](relay/module.ad) · [goals](relay/goals.ad) · [architecture](relay/architecture.ad) · [designs](relay/designs.ad) · [plans](relay/plans.ad) · [reviews](relay/reviews.ad) · [reports](relay/reports.ad) · [tests](relay/tests.ad) |
-| **runtime** | Long-running flow checkpoint and crash recovery | [module](runtime/module.ad) · [goals](runtime/goals.ad) · [designs](runtime/designs.ad) · [tests](runtime/tests.ad) |
-| **specs** | Spec pyramid: Goals → Architecture → Designs → Plans → Tests → Reviews → Reports | [module](specs/module.ad) · [goals](specs/goals.ad) · [architecture](specs/architecture.ad) · [designs](specs/designs.ad) · [plans](specs/plans.ad) · [reviews](specs/reviews.ad) · [reports](specs/reports.ad) · [tests](specs/tests.ad) |
-| **ui-system** | Responsive and accessible frontend component system | [module](ui-system/module.ad) · [goals](ui-system/goals.ad) · [architecture](ui-system/architecture.ad) · [designs](ui-system/designs.ad) · [plans](ui-system/plans.ad) · [reviews](ui-system/reviews.ad) · [reports](ui-system/reports.ad) · [tests](ui-system/tests.ad) |
-| **wiki** | Project-scoped knowledge base with directory tree and markdown editing | [module](wiki/module.ad) · [goals](wiki/goals.ad) · [architecture](wiki/architecture.ad) · [designs](wiki/designs.ad) · [plans](wiki/plans.ad) · [tests](wiki/tests.ad) |
+| Module | Description | Key Components | Dependencies | Specs |
+|--------|-------------|----------------|--------------|-------|
+| **agent-config** | Agent Identity System — Soul, Profession, Model | `AgentInstance`, `SoulConfig`, `Profession`, `ModelConfig` | relay, specs | [module](agent-config/module.ad) · [goals](agent-config/goals.ad) · [architecture](agent-config/architecture.ad) · [designs](agent-config/designs.ad) · [tests](agent-config/tests.ad) |
+| **api-sources** | Multi-provider LLM management | `ApiSource`, `ModelDefinition`, `ModelTier` | — | [module](api-sources/module.ad) · [goals](api-sources/goals.ad) · [architecture](api-sources/architecture.ad) · [designs](api-sources/designs.ad) · [plans](api-sources/plans.ad) · [tests](api-sources/tests.ad) |
+| **autodown** | Block-based Markdown editor with IAL table storage | `AutoDownEditor`, `useAutoDownEditor`, `tableAttributes`, `rowResizing` | ui-system | [module](autodown/module.ad) · [goals](autodown/goals.ad) · [designs](autodown/designs.ad) · [tests](autodown/tests.ad) |
+| **chat** | Chat-First Gate Approval with Smart Secretary | `GateCard`, `SecretaryMessage`, `BringInTool`, `StreamingRenderer` | relay, provider, ui-system | [module](chat/module.ad) · [goals](chat/goals.ad) · [architecture](chat/architecture.ad) · [designs](chat/designs.ad) · [plans](chat/plans.ad) · [reviews](chat/reviews.ad) · [tests](chat/tests.ad) |
+| **cli** | Interactive REPL (legacy) | `run_repl()`, `Settings` | — | [module](cli/module.ad) · [goals](cli/goals.ad) · [designs](cli/designs.ad) · [tests](cli/tests.ad) |
+| **editor** | WYSIWYG block-based editing | `AutoDownEditor.vue`, extension factory, slash menu | ui-system | [module](editor/module.ad) · [goals](editor/goals.ad) · [architecture](editor/architecture.ad) · [designs](editor/designs.ad) · [plans](editor/plans.ad) |
+| **errand** | Fire-and-forget research tasks | `DispatchTool`, `gofer` profession, `ErrandSession` | chat, provider | [module](errand/module.ad) · [goals](errand/goals.ad) · [architecture](errand/architecture.ad) · [designs](errand/designs.ad) · [plans](errand/plans.ad) |
+| **project** | VS Code–style workspace | `ExplorerView`, `TreeView`, `GoalsTree` | ui-system | [module](project/module.ad) · [goals](project/goals.ad) · [architecture](project/architecture.ad) · [designs](project/designs.ad) · [plans](project/plans.ad) · [tests](project/tests.ad) |
+| **provider** | Unified AI communication layer | `ClaudeProvider`, `SseParser`, `dispatch_chat()` | api-sources | [module](provider/module.ad) · [goals](provider/goals.ad) · [architecture](provider/architecture.ad) · [designs](provider/designs.ad) · [plans](provider/plans.ad) · [tests](provider/tests.ad) |
+| **relay** | Serial agent flows with baton passing | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [module](relay/module.ad) · [goals](relay/goals.ad) · [architecture](relay/architecture.ad) · [designs](relay/designs.ad) · [plans](relay/plans.ad) · [reviews](relay/reviews.ad) · [reports](relay/reports.ad) · [tests](relay/tests.ad) |
+| **runtime** | Checkpoint & crash recovery | `ContextManager`, `Session`, `PermissionPolicy` | provider | [module](runtime/module.ad) · [goals](runtime/goals.ad) · [designs](runtime/designs.ad) · [tests](runtime/tests.ad) |
+| **specs** | Spec pyramid and workspace | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [module](specs/module.ad) · [goals](specs/goals.ad) · [architecture](specs/architecture.ad) · [designs](specs/designs.ad) · [plans](specs/plans.ad) · [reviews](specs/reviews.ad) · [reports](specs/reports.ad) · [tests](specs/tests.ad) |
+| **ui-system** | Responsive accessible frontend | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [module](ui-system/module.ad) · [goals](ui-system/goals.ad) · [architecture](ui-system/architecture.ad) · [designs](ui-system/designs.ad) · [plans](ui-system/plans.ad) · [reviews](ui-system/reviews.ad) · [reports](ui-system/reports.ad) · [tests](ui-system/tests.ad) |
+| **wiki** | Project-scoped knowledge base | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [module](wiki/module.ad) · [goals](wiki/goals.ad) · [architecture](wiki/architecture.ad) · [designs](wiki/designs.ad) · [plans](wiki/plans.ad) · [tests](wiki/tests.ad) |
 
 ## How to Navigate Specs
 
-1. **Start with Overview** — Read this document and the [module.ad](relay/module.ad) of the module you are working on.
-2. **Understand Core Flows** — Read [flows.ad](flows.ad) to see how data moves across modules (chat loop, relay pipeline, agent turns, spec lifecycle, gate approval).
-3. **Read Goals** — Each module's `goals.ad` defines what the module aims to achieve.
-4. **Read Architecture** — `architecture.ad` describes the high-level design and component interactions.
-5. **Dive into Designs** — `designs.ad` contains detailed technical specifications and data structures.
-6. **Follow Plans** — `plans.ad` tracks implementation tasks, durations, and dependencies.
-7. **Verify with Tests** — `tests.ad` lists acceptance criteria and test scenarios.
-8. **Check Reviews** — `reviews.ad` captures post-implementation retrospectives.
-9. **Read Reports** — `reports.ad` contains implementation summaries and gap analyses.
+1. **Start with Overview** — Read this document for system-wide context.
+2. **Understand Core Flows** — Read [flows.ad](flows.ad) to see how data moves across modules.
+3. **Pick a Module** — Read its `module.ad` for a quick tour (goals, decisions, designs, dependencies).
+4. **Read Goals** — Each module's `goals.ad` defines what the module aims to achieve.
+5. **Read Architecture** — `architecture.ad` describes high-level design, trade-offs, and component interactions.
+6. **Dive into Designs** — `designs.ad` contains detailed technical specs, interfaces, and data models.
+7. **Follow Plans** — `plans.ad` tracks implementation tasks, durations, and dependencies.
+8. **Verify with Tests** — `tests.ad` lists acceptance criteria and test scenarios.
+9. **Check Reviews** — `reviews.ad` captures post-implementation retrospectives.
+10. **Read Reports** — `reports.ad` contains implementation summaries and gap analyses.
 
 ## ID Convention
 
@@ -70,3 +135,30 @@ Spec IDs follow the format `ModulePrefix-TypeNumber`, e.g.:
 - `AgentConfig-T2` — Agent Config module, Test #2
 
 Type prefixes: **G**oals, **A**rchitecture, **D**esigns, **P**lans, **T**ests, **V**iews (Reviews), **R**eports.
+
+## Project Layout
+
+```
+auto-forge/
+├── backend/          # Rust (Axum) — REST API, WebSocket, SSE, Relay engine
+│   ├── src/forge/    # Chat loop, spec store, tools
+│   ├── src/relay/    # Pipeline engine, agent spawning, handoffs
+│   ├── src/provider/ # LLM provider abstraction (Claude, OpenAI, Local)
+│   └── Cargo.toml
+├── frontend/         # Vue 3 (Vite) — Chat, Specs, Wiki, Relay panels
+│   ├── src/components/
+│   ├── src/composables/
+│   └── package.json
+├── specs/            # Structured specs (this directory)
+│   └── auto-forge/   # Project specs
+├── wiki/             # Knowledge base (processed markdown)
+├── raw/              # Original imported documents
+└── scripts/          # Python helpers (regenerate_specs, generate_module_overviews)
+```
+
+## Deployment
+
+| Mode | Backend | Frontend | Command |
+|------|---------|----------|---------|
+| Development | `:3031` | `:5173` (Vite dev) | `cargo run` + `npm run dev` |
+| Production | `:3031` | served by backend from `frontend/dist/` | `cargo run --release` |
