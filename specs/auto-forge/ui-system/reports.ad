@@ -9,7 +9,7 @@
 All identified gaps from Specs-R1 have been implemented and verified. The frontend now supports the complete Smart Secretary pattern, live pipeline visualization, specs workspace depth, mode-aware gate filtering, and mobile-responsive accessibility.
 
 | Gap | Status | Evidence |
-|---|---|---|
+|---||---|
 | Chat-P1: ReportCard trigger | ✅ Closed | `setEventCallbacks({ onReport })` in `ChatsView.vue` |
 | Relay-P8: Live Log data | ✅ Closed | `_liveLog` populated from SSE in `useRelay.ts` |
 | Relay-P8: Per-profession Cost Breakdown | ✅ Closed | `professionTokens` ref + bars in `AgentsView.vue` |

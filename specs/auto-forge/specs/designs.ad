@@ -894,3 +894,285 @@ graph LR
 - Flow specs answer **"how does data move through the system?"**
 
 ---
+
+---
+
+## Specs-D12 Spec View Mode Switcher (List / Card / Kanban)
+**Status:** draft
+**Module:** `frontend/src/views/SpecsView.vue`, `frontend/src/components/view-mode/`
+**Tags:** stack:frontend
+**Depends on:** Specs-D1, UiSystem-D1
+
+### Problem
+
+The current Specs view renders every section type with a single hardcoded layout:
+- Goals → tree table
+- Architecture → cards
+- Designs → cards
+- Plans → timeline
+- Tests → cards
+- Reviews → cards
+- Reports → dashboard
+
+Users cannot switch between layouts. This is especially limiting for Goals and Plans, where a Kanban board would provide much better workflow visibility than a flat list or timeline.
+
+### Solution
+
+Decouple **section type** from **view mode**. Introduce a per-section view-mode registry.
+
+#### 1. View Mode Registry
+
+```typescript
+type SpecViewMode = 'list' | 'card' | 'kanban'
+
+const availableModes: Record<SectionType, SpecViewMode[]> = {
+  goals:        ['list', 'card', 'kanban'],
+  architecture: ['list', 'card'],
+  designs:      ['list', 'card'],
+  plans:        ['list', 'card', 'kanban'],
+  tests:        ['list', 'card'],
+  reviews:      ['list', 'card'],
+  reports:      ['list', 'card'],
+}
+```
+
+
+#### 2. Component Mapping
+
+Replace the old `categoryComponents` (one component per type) with a two-level registry:
+
+```typescript
+const categoryRenderers: Record<SectionType, Partial<Record<SpecViewMode, Component>>> = {
+  goals: {
+    list:   GoalsTable,     // existing tree table
+    card:   GoalsCards,     // new: card grid with priority badges
+    kanban: GoalsKanban,    // new: status columns
+  },
+  plans: {
+    list:   PlansList,      // new: simple list (replaces timeline as default)
+    card:   PlansCards,     // new: card grid
+    kanban: PlansKanban,    // new: status columns
+  },
+  architecture: {
+    list:   ArchitectureList,  // new: compact list
+    card:   ArchitectureCards, // existing
+  },
+  // ... etc
+}
+```
+
+#### 3. View Toggle UI
+
+Placed in the **title bar**, right of the breadcrumb and left of search/actions:
+
+```
+┌─ Title Bar ─────────────────────────────────────────────────────┐
+│ Project / relay / 🎯 Goals    [列表] [卡片] | [看板]   [Search] │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- **List** (`≡`): dense rows, sortable columns, optimal for scanning IDs and titles
+- **Card** (`▦`): larger cards with 2–3 lines of content preview, tags, and status badge
+- **Kanban** (`⊞`): only for Goals/Plans; columnar board (see Specs-D13)
+
+Visual style: icon-only toggle buttons, active state uses primary color fill.
+
+#### 4. State & Persistence
+
+```typescript
+const currentViewMode = ref<SpecViewMode>('list')
+
+// Persist per section type
+function saveViewMode(section: SectionType, mode: SpecViewMode) {
+  const key = `specs-view-mode-${section}`
+  localStorage.setItem(key, mode)
+}
+
+function loadViewMode(section: SectionType): SpecViewMode {
+  const key = `specs-view-mode-${section}`
+  const saved = localStorage.getItem(key) as SpecViewMode | null
+  const allowed = availableModes[section]
+  return saved && allowed.includes(saved) ? saved : allowed[0]
+}
+```
+
+When switching sections, `currentViewMode` is restored from `localStorage`.
+
+#### 5. Filtering Integration
+
+All three view modes share the same `filteredItems` computed (module + stack + text filters). The view mode only affects **rendering**, not **data**.
+
+### Requirements
+
+- View toggle must be hidden when `filteredItems.length === 0` (empty state takes priority)
+- Kanban option must be visually disabled (not hidden) for non-Goals/Plans sections, with a tooltip: "Kanban is available for Goals and Plans only"
+- Card view must show at most 2 lines of content preview; overflow ellipsis
+- List view must retain existing sortable column headers
+- View mode transition must be animated (fade, 150ms)
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Specs-D13 Kanban Board for Goals & Plans
+**Status:** draft
+**Module:** `frontend/src/components/kanban/`
+**Tags:** stack:frontend
+**Depends on:** Specs-D12, Specs-G7
+
+### Overview
+
+A drag-and-drop Kanban board for Goals and Plans. Columns represent status states; cards represent individual spec items. Moving a card to a new column updates its `status` field via the existing `update_spec` API.
+
+### Column Definitions
+
+#### Goals Kanban
+
+| Column | Maps to `status` | Color |
+|---|---|---|
+| **Backlog** | `backlog` | `hsl(var(--muted-foreground))` |
+| **In Progress** | `in_progress` | `hsl(var(--primary))` |
+| **Completed** | `completed` | `hsl(142 70% 45%)` |
+| **Cancelled** | `cancelled` | `hsl(0 70% 50%)` |
+
+#### Plans Kanban
+
+| Column | Maps to `status` | Color |
+|---|---|---|
+| **Planned** | `planned` | `hsl(var(--muted-foreground))` |
+| **In Progress** | `in_progress` | `hsl(var(--primary))` |
+| **Done** | `done` | `hsl(142 70% 45%)` |
+| **Blocked** | `blocked` | `hsl(38 90% 50%)` |
+
+> **Note:** If a spec item has a `status` value not in the column mapping, it is placed in the first column (default/fallback) with a warning indicator.
+
+### Card Design
+
+```
+┌─ Kanban Card (220px min-width) ─────────────────┐
+│ [ID badge]  [Priority chip]  [tag chips...]     │
+│ Title text (1–2 lines, ellipsis)                │
+│ ─────────────────────────────────────────────── │
+│ 👤 owner-tag  📎 N deps                         │
+└─────────────────────────────────────────────────┘
+```
+
+- **ID badge**: e.g. `G-12`, `P-3` — JetBrains Mono, 0.72rem
+- **Priority**: `critical` | `high` | `medium` | `low` — color-coded chip
+- **Tags**: max 2 visible, `+N` overflow
+- **Dependencies**: count of `depends_on` entries; click opens RelationsPanel
+- **Hover**: subtle shadow lift (`translateY(-2px)`), 150ms transition
+
+### Drag & Drop Interaction
+
+```typescript
+// Native HTML5 Drag and Drop (no external library)
+interface DragState {
+  itemId: string
+  fromColumn: string
+}
+
+function onDragStart(item: SpecItem, column: string) {
+  dragState.value = { itemId: item.id, fromColumn: column }
+}
+
+function onDrop(targetColumn: string) {
+  if (!dragState.value) return
+  const { itemId, fromColumn } = dragState.value
+  if (fromColumn === targetColumn) return
+
+  // Optimistic UI update
+  moveItem(itemId, fromColumn, targetColumn)
+
+  // Persist to backend
+  updateSpecItem(itemId, { status: columnToStatus(targetColumn) })
+}
+```
+
+- Column header highlights when a draggable item hovers over it
+- Column background changes to `hsl(var(--primary) / 0.03)` on drag-over
+- Invalid drops (e.g., dropping a Goal onto a Plan column) are rejected with `cursor: not-allowed`
+
+### Column Header
+
+```
+┌─ Column Header ─────────────────────────┐
+│ ● Column Name                    (N)    │
+│ [──────── progress bar ────────]        │
+└─────────────────────────────────────────┘
+```
+
+- **Dot**: column color indicator
+- **Count**: number of cards in the column
+- **Progress bar** (optional): for Goals, shows `% completed` based on sub-goal status
+
+### Filtering Within Kanban
+
+The same sidebar filters (module, stack, text search) apply to Kanban. When filters change:
+- Cards that no longer match are removed from columns with a fade-out
+- Cards that newly match are added with a fade-in
+- Empty columns show a ghost placeholder: "No items match current filters"
+
+### API Integration
+
+Kanban uses the **existing** `update_spec` tool (no new backend endpoints):
+
+```typescript
+async function updateSpecItem(itemId: string, patch: Partial<SpecItem>) {
+  await fetch(`/api/forge/specs/${project}/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      section: currentSection.value,  // "goals" or "plans"
+      item_id: itemId,
+      changes: patch,                 // { status: "in_progress" }
+    }),
+  })
+}
+```
+
+### Mobile Considerations
+
+On screens `< 768px`:
+- Columns become horizontally swipeable (CSS `overflow-x: auto; scroll-snap-type: x mandatory`)
+- Cards remain full-width within the snapped column
+- Drag-and-drop is disabled; status changes via a bottom action sheet (tap card → select new status)
+
+### Requirements
+
+- Kanban must respect `readOnly` mode (no drag when user lacks edit permissions)
+- Status transitions must be validated: some transitions may be invalid (e.g., `completed` → `backlog` is allowed, but `cancelled` → `in_progress` may require confirmation)
+- Keyboard accessibility: `Tab` navigates cards, `Space` grabs/releases, arrow keys move between columns
+- When a card is moved, a toast notification confirms: "G-12 moved to In Progress"
+
+---

@@ -137,6 +137,12 @@ export function useApiSources() {
     return source.models.filter(m => m.tier === tier)
   }
 
+  /// Get all models for a specific API source by ID.
+  function getModelsForSource(sourceId: string): ModelDefinition[] {
+    const source = _sources.value.find(s => s.id === sourceId)
+    return source?.models ?? []
+  }
+
   async function scanSources(): Promise<ApiSource[]> {
     _error.value = null
     try {
@@ -194,6 +200,7 @@ export function useApiSources() {
     removeDraft,
     testConnection,
     getTierModels,
+    getModelsForSource,
     scanSources,
     importSources,
   }

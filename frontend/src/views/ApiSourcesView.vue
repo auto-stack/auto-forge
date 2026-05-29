@@ -37,7 +37,7 @@
             <div class="source-meta">
               <span class="status-dot" :class="source.is_available ? 'ok' : 'err'" />
               {{ source.models.length }} models
-              <span v-if="!hasAllTiers(source)" class="tier-missing-dot" title="Missing tiers">!</span>
+
             </div>
           </div>
         </button>
@@ -140,10 +140,7 @@
                 <Plus :size="12" /> Add Model
               </button>
             </div>
-            <div v-if="missingTiers.length" class="tier-warning">
-              <AlertTriangle :size="14" />
-              <span>Missing tier(s): {{ missingTiers.join(', ') }}</span>
-            </div>
+
           </div>
         </div>
       </template>
@@ -216,11 +213,6 @@ const providerIcon = (provider: string) => {
   }
 }
 
-function hasAllTiers(source: ApiSource): boolean {
-  const present = new Set(source.models.map(m => m.tier))
-  return ALL_TIERS.every(t => present.has(t))
-}
-
 function selectSource(id: string) {
   selectedId.value = id
   const source = sources.value.find(s => s.id === id)
@@ -264,21 +256,8 @@ function cancelEdit() {
   selectedId.value = null
 }
 
-const ALL_TIERS: ModelTier[] = ['min', 'lite', 'mid', 'pro', 'max']
-
-const missingTiers = computed(() => {
-  if (!editing.value) return []
-  const present = new Set(editing.value.models.map(m => m.tier))
-  return ALL_TIERS.filter(t => !present.has(t))
-})
-
 async function handleSave() {
   if (!editing.value) return
-
-  if (missingTiers.value.length) {
-    alert(`Please add at least one model for each tier. Missing: ${missingTiers.value.join(', ')}`)
-    return
-  }
 
   saving.value = true
   const source = { ...editing.value }

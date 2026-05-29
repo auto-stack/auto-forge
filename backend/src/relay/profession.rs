@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::forge::SectionType;
+use crate::relay::config::ModelTier;
 
 /// A profession defines an agent's role, scope, and constraints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +42,12 @@ pub struct Profession {
     /// Base skills that all agents of this profession receive.
     #[serde(default)]
     pub base_skills: Vec<String>,
+    /// Minimum model tier this profession can use.
+    #[serde(default)]
+    pub min_tier: ModelTier,
+    /// Maximum model tier this profession can use.
+    #[serde(default)]
+    pub max_tier: ModelTier,
 }
 
 /// Lifecycle phase of the spec-driven workflow.
@@ -152,6 +159,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: false,
             thinking_budget: 0,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Min,
+            max_tier: ModelTier::Mid,
         },
         Profession {
             id: String::from("advisor"),
@@ -183,6 +192,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: true,
             thinking_budget: 1024,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Max,
         },
         Profession {
             id: String::from("architect"),
@@ -217,6 +228,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: true,
             thinking_budget: 2048,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Max,
         },
         Profession {
             id: String::from("planner"),
@@ -248,6 +261,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: true,
             thinking_budget: 1024,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Pro,
         },
         Profession {
             id: String::from("tester"),
@@ -278,6 +293,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: true,
             thinking_budget: 1024,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Min,
+            max_tier: ModelTier::Mid,
         },
         Profession {
             id: String::from("coder"),
@@ -314,6 +331,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: true,
             thinking_budget: 2048,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Max,
         },
         Profession {
             id: String::from("reviewer"),
@@ -347,6 +366,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: true,
             thinking_budget: 1024,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Max,
         },
         Profession {
             id: String::from("documenter"),
@@ -380,6 +401,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: false,
             thinking_budget: 0,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Min,
+            max_tier: ModelTier::Mid,
         },
         Profession {
             id: String::from("gofer"),
@@ -410,6 +433,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
             thinking_enabled: false,
             thinking_budget: 0,
             base_skills: Vec::new(),
+            min_tier: ModelTier::Min,
+            max_tier: ModelTier::Lite,
         },
     ]
 }
@@ -444,6 +469,14 @@ pub fn load_or_generate_professions() -> Vec<Profession> {
             }
             if merged[idx].thinking_budget != default.thinking_budget {
                 merged[idx].thinking_budget = default.thinking_budget;
+                changed = true;
+            }
+            if merged[idx].min_tier != default.min_tier {
+                merged[idx].min_tier = default.min_tier;
+                changed = true;
+            }
+            if merged[idx].max_tier != default.max_tier {
+                merged[idx].max_tier = default.max_tier;
                 changed = true;
             }
         } else {

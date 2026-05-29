@@ -2,150 +2,1369 @@
 
 ---
 
-## ApiSources-D1 API Source Configuration
-**Status:** draft
+## ApiSources-D1 ApiSources-D1 Model-First Agent Configuration Design
+**Status:** approved
 **Module:** `backend/src/relay/config.rs`
 **Tags:** stack:both
 **Depends on:** ApiSources-G1
 
+## ApiSources-D1 Model-First Agent Configuration Design
+**Status:** approved
+**Module:** `backend/src/relay/config.rs`, `frontend/src/composables/useAgentConfigs.ts`, `frontend/src/views/AgentsConfigView.vue`
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-A3, ApiSources-G3
+
+### Overview
+
+Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
+
+### 1. Backend Data Model Changes
+
+**File: `backend/src/relay/config.rs`**
+
+#### AgentConfig (current lines 379–397)
+
+Replace `model_tier: ModelTier` with `model_id: String`, keep `model_tier` as deprecated for migration:
+
 ```rust
-pub struct ApiSource {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
     pub id: String,
     pub name: String,
-    pub provider: Provider,
-    pub api_key_env: String,
-    pub api_key_stored: Option<String>,
-    pub base_url: Option<String>,
-    pub is_available: bool,
-    pub models: Vec<ModelDefinition>,
+    pub profession_id: String,
+    pub soul_id: String,
+    pub api_source_id: String,
+    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
+    #[serde(default)]
+    pub model_id: String,
+    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
+    #[serde(default)]
+    pub model_tier: ModelTier,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default = "default_temperature")]
+    pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+    #[serde(default)]
+    pub reasoning_budget: Option<u32>,
+    #[serde(default)]
+    pub thinking_enabled: bool,
+    #[serde(default)]
+    pub thinking_budget: Option<u32>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub equipped_skills: Vec<String>,
 }
-
-pub struct ModelDefinition {
-    pub id: String,
-    pub name: String,
-    pub tier: ModelTier,
-}
-
-pub enum ModelTier { Light, Mid, Heavy }
-
-// CRUD + detection
-pub fn load_api_sources() -> Vec<ApiSource>
-pub fn save_api_sources(sources: &[ApiSource]) -> Result<(), ConfigError>
-pub fn detect_available_providers() -> Vec<ApiSource>
-
-// Per-source operations
-pub fn resolve_api_key(source: &ApiSource) -> Option<String>
-pub async fn test_connection(source: &ApiSource, model: &str) -> Result<ConnectionTestResult, ConfigError>
 ```
+
+**Key**: Both fields use `#[serde(default)]` so existing JSON files with only `model_tier` deserialize without error (model_id defaults to ""), and new files with only `model_id` also work (model_tier defaults to Min).
+
+#### ModelDefinition (lines 32–36) — unchanged
+
+```rust
+pub struct ModelDefinition {
+    pub id: String,       // e.g., "claude-sonnet-4-20250514"
+    pub name: String,     // e.g., "Claude Sonnet 4"
+    pub tier: ModelTier,  // Display tag only: Min/Lite/Mid/Pro/Max
+}
+```
+
+#### resolve_model() (current lines 548–586) — simplified
+
+Replace the entire tier downgrade walk with a direct model_id lookup:
+
+```rust
+pub fn resolve_model(
+    config: &AgentConfig,
+    api_sources: &[ApiSource],
+) -> Option<crate::relay::agent::ModelConfig> {
+    // 1. Find the ApiSource
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
+
+    // 2. Find the specific model by ID
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            log::warn!(
+                "model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id
+            );
+            source.models.first()
+        })?;
+
+    Some(crate::relay::agent::ModelConfig {
+        provider: source.provider.clone(),
+        model: model_def.id.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        reasoning_budget: config.reasoning_budget,
+        fallback_chain: Vec::new(),
+    })
+}
+```
+
+#### generate_default_agents_with_source() (current lines 449–490) — updated
+
+Pick concrete model_id by preferred tier:
+
+```rust
+pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
+    // Note: api_sources are loaded separately; this function is called
+    // from load_or_generate_agent_configs() which has access to them.
+    // We generate with empty model_id; load_or_generate_agent_configs
+    // will call assign_model_ids() to fill it.
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),
+        ("architect", "Vera", "architect", ModelTier::Pro),
+        ("planner", "Felix", "planner", ModelTier::Mid),
+        ("tester", "Quinn", "tester", ModelTier::Lite),
+        ("coder", "Ash", "coder", ModelTier::Mid),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
+        ("documenter", "Luna", "documenter", ModelTier::Lite),
+        ("gofer", "Gus", "gofer", ModelTier::Lite),
+    ];
+
+    defaults
+        .map(|(profession, name, soul, preferred_tier)| AgentConfig {
+            id: format!("default-{}", profession),
+            name: name.to_string(),
+            profession_id: profession.to_string(),
+            soul_id: soul.to_string(),
+            api_source_id: api_source_id.to_string(),
+            model_id: String::new(), // filled by migration
+            model_tier: preferred_tier,
+            is_default: true,
+            temperature: 0.3,
+            max_tokens: if preferred_tier == ModelTier::Lite { 4096 } else { 8192 },
+            reasoning_budget: if preferred_tier == ModelTier::Pro { Some(4096) } else { None },
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_budget: match profession {
+                "architect" | "coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                _ => None,
+            },
+            avatar_url: None,
+            equipped_skills: Vec::new(),
+        })
+        .to_vec()
+}
+```
+
+A new `assign_model_ids()` function fills model_id after generation:
+
+```rust
+/// For each config with empty model_id, find the best matching model
+/// from its ApiSource by preferred tier, then fallback to first model.
+pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) {
+    for config in configs.iter_mut() {
+        if config.model_id.is_empty() {
+            let source = api_sources.iter()
+                .find(|s| s.id == config.api_source_id)
+                .or_else(|| api_sources.first());
+            config.model_id = source
+                .and_then(|s| {
+                    s.models.iter().find(|m| m.tier == config.model_tier)
+                        .or_else(|| s.models.first())
+                })
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+        }
+    }
+}
+```
+
+#### Migration — in load_or_generate_agent_configs() (current lines 498–527)
+
+Insert `assign_model_ids()` call after loading existing configs:
+
+```rust
+pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
+    let existing = load_agent_configs();
+    let defaults = generate_default_agents_with_source(
+        api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
+    );
+
+    let mut merged = if existing.is_empty() {
+        defaults
+    } else {
+        // Fix empty api_source_id
+        let first_source_id = api_sources.first().map(|s| s.id.as_str()).unwrap_or("");
+        let mut merged: Vec<AgentConfig> = existing.into_iter().map(|mut c| {
+            if c.api_source_id.is_empty() && !first_source_id.is_empty() {
+                c.api_source_id = first_source_id.to_string();
+            }
+            c
+        }).collect();
+
+        // Add missing defaults
+        for default in &defaults {
+            if !merged.iter().any(|c| c.id == default.id) {
+                merged.push(default.clone());
+            }
+        }
+        merged
+    };
+
+    // MIGRATION: Fill model_id for configs that only have model_tier
+    assign_model_ids(&mut merged, api_sources);
+
+    let _ = save_agent_configs(&merged);
+    merged
+}
+```
+
+### 2. Frontend Changes
+
+**File: `frontend/src/composables/useAgentConfigs.ts`**
+
+```typescript
+export interface AgentConfigDto {
+  id: string
+  name: string
+  profession_id: string
+  soul_id: string
+  api_source_id: string
+  model_id: string             // ← NEW: direct model reference (was model_tier)
+  model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // ← kept for display
+  is_default: boolean
+  temperature: number
+  max_tokens: number
+  reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
+  avatar_url?: string
+  equipped_skills?: string[]
+}
+```
+
+**File: `frontend/src/composables/useApiSources.ts`** — add helper
+
+```typescript
+/// Get models for a specific API source
+function getModelsForSource(sourceId: string): ModelDefinition[] {
+  const source = _sources.value.find(s => s.id === sourceId)
+  return source?.models ?? []
+}
+```
+
+**File: `frontend/src/views/AgentsConfigView.vue`**
+
+Replace tier dropdown with model selector:
+
+```
+┌─────────────────────────────────────────────┐
+│ Agent: Isaac (advisor)                       │
+├─────────────────────────────────────────────┤
+│ API Source: [Anthropic Claude ▾]            │
+│                                              │
+│ Model: [Claude Sonnet 4 (Mid) ▾]            │
+│        ┌──────────────────────────────┐      │
+│        │ ● Claude Haiku 3.5    (Min)  │      │
+│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
+│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
+│        │ ○ Claude Opus 4      (Pro)   │      │
+│        └──────────────────────────────┘      │
+│                                              │
+│ Temperature: [0.3]  Max Tokens: [8192]      │
+└─────────────────────────────────────────────┘
+```
+
+1. When `api_source_id` changes → refresh model list, auto-select first model
+2. Model list shows: display name + tier badge (color-coded)
+3. Selected model's tier badge shown in collapsed selector
+4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
+
+#### Tier Badge CSS Classes
+
+```css
+.tier-badge.min { background: #9ca3af; color: white; }  /* gray */
+.tier-badge.lite { background: #22c55e; color: white; }  /* green */
+.tier-badge.mid { background: #3b82f6; color: white; }   /* blue */
+.tier-badge.pro { background: #a855f7; color: white; }   /* purple */
+.tier-badge.max { background: #f59e0b; color: white; }   /* amber */
+```
+
+### 3. State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unconfigured: First startup
-    Unconfigured --> Detecting: auto-detect triggered
-    Detecting --> Detected: keys/env found
-    Detecting --> Empty: nothing found
-    Detected --> Configured: user saves
-    Empty --> Configured: user adds source manually
-    Configured --> Testing: test_connection()
-    Testing --> Available: connection OK
-    Testing --> Unavailable: connection failed
-    Available --> Configured: edit
-    Unavailable --> Configured: fix and retry
-    Configured --> [*]
+    [*] --> Idle: AgentConfig loaded
+    Idle --> SourceChanged: User changes api_source_id
+    SourceChanged --> ModelListLoaded: Fetch models for new source
+    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
+    ModelSelected --> Saved: User saves config
+    ModelSelected --> SourceChanged: User changes source again
+    Saved --> [*]
+
+    Idle --> ModelSelected: User changes model_id (same source)
+    ModelListLoaded --> SourceChanged: User changes source before selecting
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `String` | Unique identifier (e.g., "anthropic-primary") |
-| `name` | `String` | Human-readable display name |
-| `provider` | `Provider` | Anthropic, OpenAI, or Local{url} |
-| `api_key_env` | `String` | Env var name or "settings:KEY" for ~/.claude |
-| `api_key_stored` | `Option<String>` | Base64-obfuscated key |
-| `base_url` | `Option<String>` | Custom endpoint (proxies, local) |
-| `is_available` | `bool` | Startup detection result |
-| `models` | `Vec<ModelDefinition>` | Available models with tier labels |
+### 4. Error Handling
+
+| Error Case | Handling |
+|------------|----------|
+| `model_id` not found in ApiSource | Fallback to first model in source, log warning via `log::warn!` |
+| `api_source_id` not found | Fallback to first ApiSource + first model |
+| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
+| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load via `assign_model_ids()`: tier → first matching model |
+| ApiSource deleted while agents reference it | `resolve_model()` falls back to first ApiSource; UI shows "Source not found" |
+
+### 5. Files Modified
+
+| File | Change |
+|------|--------|
+| `backend/src/relay/config.rs` | Add `model_id: String` to AgentConfig; simplify `resolve_model()` to direct lookup; add `assign_model_ids()` for migration; update `generate_default_agents_with_source()` |
+| `backend/src/relay/mod.rs` | No logic change — `RelayRegistry` already uses `resolve_model()` for all model resolution |
+| `frontend/src/composables/useAgentConfigs.ts` | Add `model_id` to `AgentConfigDto`; keep `model_tier` for display |
+| `frontend/src/composables/useApiSources.ts` | Add `getModelsForSource(sourceId)` helper |
+| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector listing models from selected ApiSource with tier badges |
+| `frontend/src/locales/en.json` | Add `agents.model` key |
+| `frontend/src/locales/zh.json` | Add `agents.model` key |
+
+### 6. Data Lifecycle
 
 ```
-fn detect_available_providers():
-    sources = []
+[Default Generation]
+  api_sources loaded → generate_default_agents_with_source() → model_id left empty
+  → assign_model_ids() fills model_id from preferred tier match
+  → saved to agent_configs.json
 
-    // 1. Check ~/.claude/settings.json for Anthropic key
-    if settings.env has ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY:
-        sources.push(ApiSource {
-            provider: Anthropic,
-            models: [
-                ModelDefinition { id: "claude-3-5-haiku-20241022", tier: Light },
-                ModelDefinition { id: "claude-3-5-sonnet-20241022", tier: Mid },
-                ModelDefinition { id: "claude-3-opus-20240229", tier: Heavy },
-            ],
-            is_available: true,
+[User Edit]
+  User opens AgentConfig → UI shows model list for selected ApiSource
+  → User picks model → model_id saved; model_tier updated from selected model's tier
+
+[Agent Spawn]
+  Orchestrator → resolve_model(config, api_sources)
+  → find ModelDefinition by model_id (direct lookup, no tier walk)
+  → return ModelConfig(provider, model_id, params)
+  → AgentInstance spawned with resolved model
+
+[ApiSource Model Change]
+  If referenced model_id removed from ApiSource
+  → resolve_model falls back to first model + log warning
+  → UI shows "Model not found" indicator on AgentConfig card
+
+[Legacy Config Migration]
+  Load agent_configs.json → model_id is empty, model_tier present
+  → assign_model_ids() converts tier → first matching model in ApiSource
+  → Saved back with model_id populated
+```
+
+### 7. Verified Code Evidence
+
+| What | File:Lines |
+|------|-----------|
+| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs:379-397` |
+| `resolve_model()` with tier downgrade walk | `backend/src/relay/config.rs:548-586` |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs:449-490` |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs:498-527` |
+| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts:8-21` |
+| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts:6-10` |
+| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue:47` |
+| `tierLabel()` helper usage | `frontend/src/views/AgentsConfigView.vue:47` |
+| `RelayRegistry` uses `resolve_model()` | `backend/src/relay/mod.rs:48-53` |
+
+## ApiSources-D1 Model-First Agent Configuration Design
+**Status:** approved
+**Module:** `backend/src/relay/config.rs`, `frontend/src/composables/useAgentConfigs.ts`, `frontend/src/views/AgentsConfigView.vue`
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-A3, ApiSources-G3
+
+### Overview
+
+Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
+
+### 1. Backend Data Model Changes
+
+**File: `backend/src/relay/config.rs`**
+
+#### AgentConfig (current lines ~370–397)
+
+Add `model_id: String` and keep `model_tier` as deprecated for migration:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub id: String,
+    pub name: String,
+    pub profession_id: String,
+    pub soul_id: String,
+    pub api_source_id: String,
+    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
+    #[serde(default)]
+    pub model_id: String,
+    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
+    #[serde(default)]
+    pub model_tier: ModelTier,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default = "default_temperature")]
+    pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+    #[serde(default)]
+    pub reasoning_budget: Option<u32>,
+    #[serde(default)]
+    pub thinking_enabled: bool,
+    #[serde(default)]
+    pub thinking_budget: Option<u32>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub equipped_skills: Vec<String>,
+}
+```
+
+**Key**: Both fields use `#[serde(default)]` so existing JSON files with only `model_tier` deserialize without error (model_id defaults to ""), and new files with only `model_id` also work (model_tier defaults to Min).
+
+#### ModelDefinition (lines ~32–36) — unchanged
+
+```rust
+pub struct ModelDefinition {
+    pub id: String,       // e.g., "claude-sonnet-4-20250514"
+    pub name: String,     // e.g., "Claude Sonnet 4"
+    pub tier: ModelTier,  // Display tag only: Min/Lite/Mid/Pro/Max
+}
+```
+
+#### resolve_model() (current lines ~548–586) — simplified
+
+Replace the entire tier downgrade walk with a direct model_id lookup:
+
+```rust
+pub fn resolve_model(
+    config: &AgentConfig,
+    api_sources: &[ApiSource],
+) -> Option<crate::relay::agent::ModelConfig> {
+    // 1. Find the ApiSource
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
+
+    // 2. Find the specific model by ID (direct lookup, no tier walk)
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            log::warn!(
+                "model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id
+            );
+            source.models.first()
+        })?;
+
+    Some(crate::relay::agent::ModelConfig {
+        provider: source.provider.clone(),
+        model: model_def.id.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        reasoning_budget: config.reasoning_budget,
+        fallback_chain: Vec::new(),
+    })
+}
+```
+
+#### generate_default_agents_with_source() (current lines ~449–490) — updated
+
+Generate with empty model_id; migration fills it:
+
+```rust
+pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),
+        ("architect", "Vera", "architect", ModelTier::Pro),
+        ("planner", "Felix", "planner", ModelTier::Mid),
+        ("tester", "Quinn", "tester", ModelTier::Lite),
+        ("coder", "Ash", "coder", ModelTier::Mid),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
+        ("documenter", "Luna", "documenter", ModelTier::Lite),
+        ("gofer", "Gus", "gofer", ModelTier::Lite),
+    ];
+
+    defaults
+        .map(|(profession, name, soul, preferred_tier)| AgentConfig {
+            id: format!("default-{}", profession),
+            name: name.to_string(),
+            profession_id: profession.to_string(),
+            soul_id: soul.to_string(),
+            api_source_id: api_source_id.to_string(),
+            model_id: String::new(), // filled by assign_model_ids()
+            model_tier: preferred_tier,
+            is_default: true,
+            temperature: 0.3,
+            max_tokens: if preferred_tier == ModelTier::Lite { 4096 } else { 8192 },
+            reasoning_budget: if preferred_tier == ModelTier::Pro { Some(4096) } else { None },
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_budget: match profession {
+                "architect" | "coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                _ => None,
+            },
+            avatar_url: None,
+            equipped_skills: Vec::new(),
         })
+        .to_vec()
+}
+```
 
-    // 2. Check OPENAI_API_KEY env var
-    if env has OPENAI_API_KEY:
-        sources.push(ApiSource {
-            provider: OpenAI,
-            models: [
-                ModelDefinition { id: "gpt-4o-mini", tier: Light },
-                ModelDefinition { id: "gpt-4o", tier: Mid },
-                ModelDefinition { id: "o1", tier: Heavy },
-            ],
-            is_available: true,
+#### New: assign_model_ids() — migration helper
+
+```rust
+/// For each config with empty model_id, find the best matching model
+/// from its ApiSource by preferred tier, then fallback to first model.
+pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) {
+    for config in configs.iter_mut() {
+        if config.model_id.is_empty() {
+            let source = api_sources.iter()
+                .find(|s| s.id == config.api_source_id)
+                .or_else(|| api_sources.first());
+            config.model_id = source
+                .and_then(|s| {
+                    s.models.iter().find(|m| m.tier == config.model_tier)
+                        .or_else(|| s.models.first())
+                })
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+
+            if !config.model_id.is_empty() {
+                log::info!(
+                    "Migrated AgentConfig '{}': tier {:?} → model_id '{}'",
+                    config.id, config.model_tier, config.model_id
+                );
+            }
+        }
+    }
+}
+```
+
+#### load_or_generate_agent_configs() (current lines ~498–527) — add migration call
+
+Insert `assign_model_ids()` call after loading/merging configs:
+
+```rust
+pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
+    let existing = load_agent_configs();
+    let defaults = generate_default_agents_with_source(
+        api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
+    );
+
+    let mut merged = if existing.is_empty() {
+        defaults
+    } else {
+        let first_source_id = api_sources.first().map(|s| s.id.as_str()).unwrap_or("");
+        let mut merged: Vec<AgentConfig> = existing.into_iter().map(|mut c| {
+            if c.api_source_id.is_empty() && !first_source_id.is_empty() {
+                c.api_source_id = first_source_id.to_string();
+            }
+            c
+        }).collect();
+
+        for default in &defaults {
+            if !merged.iter().any(|c| c.id == default.id) {
+                merged.push(default.clone());
+            }
+        }
+        merged
+    };
+
+    // MIGRATION: Fill model_id for configs that only have model_tier
+    assign_model_ids(&mut merged, api_sources);
+
+    let _ = save_agent_configs(&merged);
+    merged
+}
+```
+
+### 2. Frontend Changes
+
+**File: `frontend/src/composables/useAgentConfigs.ts`**
+
+```typescript
+export interface AgentConfigDto {
+  id: string
+  name: string
+  profession_id: string
+  soul_id: string
+  api_source_id: string
+  model_id: string             // ← NEW: direct model reference
+  model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // ← kept for display
+  is_default: boolean
+  temperature: number
+  max_tokens: number
+  reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
+  avatar_url?: string
+  equipped_skills?: string[]
+}
+```
+
+**File: `frontend/src/composables/useApiSources.ts`** — add helper
+
+```typescript
+/// Get models for a specific API source by ID
+function getModelsForSource(sourceId: string): ModelDefinition[] {
+  const source = _sources.value.find(s => s.id === sourceId)
+  return source?.models ?? []
+}
+```
+
+**File: `frontend/src/views/AgentsConfigView.vue`**
+
+Replace tier dropdown with model selector:
+
+```
+┌─────────────────────────────────────────────┐
+│ Agent: Isaac (advisor)                       │
+├─────────────────────────────────────────────┤
+│ API Source: [Anthropic Claude ▾]            │
+│                                              │
+│ Model: [Claude Sonnet 4 (Mid) ▾]            │
+│        ┌──────────────────────────────┐      │
+│        │ ● Claude Haiku 3.5    (Min)  │      │
+│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
+│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
+│        │ ○ Claude Opus 4      (Pro)   │      │
+│        └──────────────────────────────┘      │
+│                                              │
+│ Temperature: [0.3]  Max Tokens: [8192]      │
+└─────────────────────────────────────────────┘
+```
+
+1. When `api_source_id` changes → refresh model list, auto-select first model
+2. Model list shows: display name + tier badge (color-coded)
+3. Selected model's tier badge shown in collapsed selector
+4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
+
+#### Tier Badge CSS Classes
+
+```css
+.tier-badge.min { background: #9ca3af; color: white; }
+.tier-badge.lite { background: #22c55e; color: white; }
+.tier-badge.mid { background: #3b82f6; color: white; }
+.tier-badge.pro { background: #a855f7; color: white; }
+.tier-badge.max { background: #f59e0b; color: white; }
+```
+
+### 3. State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: AgentConfig loaded
+    Idle --> SourceChanged: User changes api_source_id
+    SourceChanged --> ModelListLoaded: Fetch models for new source
+    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
+    ModelSelected --> Saved: User saves config
+    ModelSelected --> SourceChanged: User changes source again
+    Saved --> [*]
+
+    Idle --> ModelSelected: User changes model_id (same source)
+    ModelListLoaded --> SourceChanged: User changes source before selecting
+```
+
+### 4. Error Handling
+
+| Error Case | Handling |
+|------------|----------|
+| `model_id` not found in ApiSource | Fallback to first model, log warning via `log::warn!` |
+| `api_source_id` not found | Fallback to first ApiSource + first model |
+| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
+| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load via `assign_model_ids()`: tier → first matching model |
+| ApiSource deleted while agents reference it | `resolve_model()` falls back to first ApiSource; UI shows source not found |
+
+### 5. Files Modified
+
+| File | Change |
+|------|--------|
+| `backend/src/relay/config.rs` | Add `model_id: String` to AgentConfig; simplify `resolve_model()` to direct lookup; add `assign_model_ids()` for migration; update `generate_default_agents_with_source()` |
+| `backend/src/relay/mod.rs` | No logic change — `RelayRegistry` already uses `resolve_model()` for all model resolution |
+| `frontend/src/composables/useAgentConfigs.ts` | Add `model_id` to `AgentConfigDto`; keep `model_tier` for display |
+| `frontend/src/composables/useApiSources.ts` | Add `getModelsForSource(sourceId)` helper |
+| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector listing models from selected ApiSource with tier badges |
+| `frontend/src/locales/en.json` | Add `agents.model` key |
+| `frontend/src/locales/zh.json` | Add `agents.model` key |
+
+### 6. Data Lifecycle
+
+```
+[Default Generation]
+  api_sources loaded → generate_default_agents_with_source() → model_id left empty
+  → assign_model_ids() fills model_id from preferred tier match
+  → saved to agent_configs.json
+
+[User Edit]
+  User opens AgentConfig → UI shows model list for selected ApiSource
+  → User picks model → model_id saved; model_tier updated from selected model's tier
+
+[Agent Spawn]
+  Orchestrator → resolve_model(config, api_sources)
+  → find ModelDefinition by model_id (direct lookup, no tier walk)
+  → return ModelConfig(provider, model_id, params)
+  → AgentInstance spawned with resolved model
+
+[ApiSource Model Change]
+  If referenced model_id removed from ApiSource
+  → resolve_model falls back to first model + log warning
+  → UI shows "Model not found" indicator on AgentConfig card
+
+[Legacy Config Migration]
+  Load agent_configs.json → model_id is empty, model_tier present
+  → assign_model_ids() converts tier → first matching model in ApiSource
+  → Saved back with model_id populated
+```
+
+### 7. Verified Code Evidence
+
+| What | File | Lines |
+|------|------|-------|
+| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs` | ~370-400 |
+| `resolve_model()` with tier downgrade walk | `backend/src/relay/config.rs` | ~548-586 |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs` | ~449-490 |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs` | ~498-527 |
+| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts` | ~8-22 |
+| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts` | ~6-10 |
+| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue` | ~47 |
+| `tierLabel()` helper usage | `frontend/src/views/AgentsConfigView.vue` | ~47 |
+| `RelayRegistry` uses `resolve_model()` | `backend/src/relay/mod.rs` | ~48-58 |
+
+## ApiSources-D1 Model-First Agent Configuration Design
+**Status:** approved
+**Module:** `backend/src/relay/config.rs`, `frontend/src/composables/useAgentConfigs.ts`, `frontend/src/views/AgentsConfigView.vue`
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-A3, ApiSources-G3
+
+### Overview
+
+Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
+
+### 1. Backend Data Model Changes
+
+**File: `backend/src/relay/config.rs`**
+
+#### AgentConfig (current lines 379–397)
+
+Replace `model_tier: ModelTier` with `model_id: String`, keep `model_tier` as deprecated for migration:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub id: String,
+    pub name: String,
+    pub profession_id: String,
+    pub soul_id: String,
+    pub api_source_id: String,
+    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
+    #[serde(default)]
+    pub model_id: String,
+    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
+    #[serde(default)]
+    pub model_tier: ModelTier,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default = "default_temperature")]
+    pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+    #[serde(default)]
+    pub reasoning_budget: Option<u32>,
+    #[serde(default)]
+    pub thinking_enabled: bool,
+    #[serde(default)]
+    pub thinking_budget: Option<u32>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub equipped_skills: Vec<String>,
+}
+```
+
+**Key**: Both fields use `#[serde(default)]` so existing JSON files with only `model_tier` deserialize without error (model_id defaults to ""), and new files with only `model_id` also work (model_tier defaults to Min).
+
+#### ModelDefinition (lines 32–36) — unchanged
+
+```rust
+pub struct ModelDefinition {
+    pub id: String,       // e.g., "claude-sonnet-4-20250514"
+    pub name: String,     // e.g., "Claude Sonnet 4"
+    pub tier: ModelTier,  // Display tag only: Min/Lite/Mid/Pro/Max
+}
+```
+
+#### resolve_model() (current lines 548–586) — simplified
+
+Replace the entire tier downgrade walk with a direct model_id lookup:
+
+```rust
+pub fn resolve_model(
+    config: &AgentConfig,
+    api_sources: &[ApiSource],
+) -> Option<crate::relay::agent::ModelConfig> {
+    // 1. Find the ApiSource
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
+
+    // 2. Find the specific model by ID
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            log::warn!(
+                "model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id
+            );
+            source.models.first()
+        })?;
+
+    Some(crate::relay::agent::ModelConfig {
+        provider: source.provider.clone(),
+        model: model_def.id.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        reasoning_budget: config.reasoning_budget,
+        fallback_chain: Vec::new(),
+    })
+}
+```
+
+#### generate_default_agents_with_source() (current lines 449–490) — updated
+
+Pick concrete model_id by preferred tier:
+
+```rust
+pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
+    // Note: api_sources are loaded separately; this function is called
+    // from load_or_generate_agent_configs() which has access to them.
+    // We generate with empty model_id; load_or_generate_agent_configs
+    // will call migrate_agent_config() to fill it.
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),
+        ("architect", "Vera", "architect", ModelTier::Pro),
+        ("planner", "Felix", "planner", ModelTier::Mid),
+        ("tester", "Quinn", "tester", ModelTier::Lite),
+        ("coder", "Ash", "coder", ModelTier::Mid),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
+        ("documenter", "Luna", "documenter", ModelTier::Lite),
+        ("gofer", "Gus", "gofer", ModelTier::Lite),
+    ];
+
+    defaults
+        .map(|(profession, name, soul, preferred_tier)| AgentConfig {
+            id: format!("default-{}", profession),
+            name: name.to_string(),
+            profession_id: profession.to_string(),
+            soul_id: soul.to_string(),
+            api_source_id: api_source_id.to_string(),
+            model_id: String::new(), // filled by migration
+            model_tier: preferred_tier,
+            is_default: true,
+            temperature: 0.3,
+            max_tokens: if preferred_tier == ModelTier::Lite { 4096 } else { 8192 },
+            reasoning_budget: if preferred_tier == ModelTier::Pro { Some(4096) } else { None },
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_budget: match profession {
+                "architect" | "coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                _ => None,
+            },
+            avatar_url: None,
+            equipped_skills: Vec::new(),
         })
+        .to_vec()
+}
+```
 
-    // 3. Check localhost:11434 for Ollama
-    if http://localhost:11434/api/tags responds:
-        sources.push(ApiSource {
-            provider: Local { url: "http://localhost:11434" },
-            models: fetch from /api/tags,
-            is_available: true,
-        })
+A new `assign_model_ids()` function fills model_id after generation:
 
-    return sources
+```rust
+/// For each config with empty model_id, find the best matching model
+/// from its ApiSource by preferred tier, then fallback to first model.
+pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) {
+    for config in configs.iter_mut() {
+        if config.model_id.is_empty() {
+            let source = api_sources.iter()
+                .find(|s| s.id == config.api_source_id)
+                .or_else(|| api_sources.first());
+            config.model_id = source
+                .and_then(|s| {
+                    s.models.iter().find(|m| m.tier == config.model_tier)
+                        .or_else(|| s.models.first())
+                })
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+        }
+    }
+}
+```
 
-fn resolve_api_key(source):
-    if source.api_key_env starts with "settings:":
-        return read ~/.claude/settings.json -> env[key]
-    if env has source.api_key_env:
-        return env[source.api_key_env]
-    if source.api_key_stored is Some:
-        return base64_decode(source.api_key_stored)
-    return None
+#### Migration — in load_or_generate_agent_configs() (current lines 498–527)
+
+Insert `assign_model_ids()` call after loading existing configs:
+
+```rust
+pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
+    let existing = load_agent_configs();
+    let defaults = generate_default_agents_with_source(
+        api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
+    );
+
+    let mut merged = if existing.is_empty() {
+        defaults
+    } else {
+        // Fix empty api_source_id
+        let first_source_id = api_sources.first().map(|s| s.id.as_str()).unwrap_or("");
+        let mut merged: Vec<AgentConfig> = existing.into_iter().map(|mut c| {
+            if c.api_source_id.is_empty() && !first_source_id.is_empty() {
+                c.api_source_id = first_source_id.to_string();
+            }
+            c
+        }).collect();
+
+        // Add missing defaults
+        for default in &defaults {
+            if !merged.iter().any(|c| c.id == default.id) {
+                merged.push(default.clone());
+            }
+        }
+        merged
+    };
+
+    // MIGRATION: Fill model_id for configs that only have model_tier
+    assign_model_ids(&mut merged, api_sources);
+
+    let _ = save_agent_configs(&merged);
+    merged
+}
+```
+
+### 2. Frontend Changes
+
+**File: `frontend/src/composables/useAgentConfigs.ts`**
+
+```typescript
+export interface AgentConfigDto {
+  id: string
+  name: string
+  profession_id: string
+  soul_id: string
+  api_source_id: string
+  model_id: string             // ← NEW: direct model reference (was model_tier)
+  model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // ← kept for display
+  is_default: boolean
+  temperature: number
+  max_tokens: number
+  reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
+  avatar_url?: string
+  equipped_skills?: string[]
+}
+```
+
+**File: `frontend/src/composables/useApiSources.ts`** — add helper
+
+```typescript
+/// Get models for a specific API source
+function getModelsForSource(sourceId: string): ModelDefinition[] {
+  const source = _sources.value.find(s => s.id === sourceId)
+  return source?.models ?? []
+}
+```
+
+**File: `frontend/src/views/AgentsConfigView.vue`**
+
+Replace tier dropdown with model selector:
+
+```
+┌─────────────────────────────────────────────┐
+│ Agent: Isaac (advisor)                       │
+├─────────────────────────────────────────────┤
+│ API Source: [Anthropic Claude ▾]            │
+│                                              │
+│ Model: [Claude Sonnet 4 (Mid) ▾]            │
+│        ┌──────────────────────────────┐      │
+│        │ ● Claude Haiku 3.5    (Min)  │      │
+│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
+│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
+│        │ ○ Claude Opus 4      (Pro)   │      │
+│        └──────────────────────────────┘      │
+│                                              │
+│ Temperature: [0.3]  Max Tokens: [8192]      │
+└─────────────────────────────────────────────┘
+```
+
+1. When `api_source_id` changes → refresh model list, auto-select first model
+2. Model list shows: display name + tier badge (color-coded)
+3. Selected model's tier badge shown in collapsed selector
+4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
+
+#### Tier Badge CSS Classes
+
+```css
+.tier-badge.min { background: #9ca3af; color: white; }  /* gray */
+.tier-badge.lite { background: #22c55e; color: white; }  /* green */
+.tier-badge.mid { background: #3b82f6; color: white; }   /* blue */
+.tier-badge.pro { background: #a855f7; color: white; }   /* purple */
+.tier-badge.max { background: #f59e0b; color: white; }   /* amber */
+```
+
+### 3. State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: AgentConfig loaded
+    Idle --> SourceChanged: User changes api_source_id
+    SourceChanged --> ModelListLoaded: Fetch models for new source
+    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
+    ModelSelected --> Saved: User saves config
+    ModelSelected --> SourceChanged: User changes source again
+    Saved --> [*]
+
+    Idle --> ModelSelected: User changes model_id (same source)
+    ModelListLoaded --> SourceChanged: User changes source before selecting
+```
+
+### 4. Error Handling
+
+| Error Case | Handling |
+|------------|----------|
+| `model_id` not found in ApiSource | Fallback to first model in source, log warning via `log::warn!` |
+| `api_source_id` not found | Fallback to first ApiSource + first model |
+| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
+| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load via `assign_model_ids()`: tier → first matching model |
+| ApiSource deleted while agents reference it | `resolve_model()` falls back to first ApiSource; UI shows "Source not found" |
+
+### 5. Files Modified
+
+| File | Change |
+|------|--------|
+| `backend/src/relay/config.rs` | Add `model_id: String` to AgentConfig; simplify `resolve_model()` to direct lookup; add `assign_model_ids()` for migration; update `generate_default_agents_with_source()` |
+| `backend/src/relay/mod.rs` | No logic change — `RelayRegistry` already uses `resolve_model()` for all model resolution |
+| `frontend/src/composables/useAgentConfigs.ts` | Add `model_id` to `AgentConfigDto`; keep `model_tier` for display |
+| `frontend/src/composables/useApiSources.ts` | Add `getModelsForSource(sourceId)` helper |
+| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector listing models from selected ApiSource with tier badges |
+| `frontend/src/locales/en.json` | Add `agents.model` key |
+| `frontend/src/locales/zh.json` | Add `agents.model` key |
+
+### 6. Data Lifecycle
+
+```
+[Default Generation]
+  api_sources loaded → generate_default_agents_with_source() → model_id left empty
+  → assign_model_ids() fills model_id from preferred tier match
+  → saved to agent_configs.json
+
+[User Edit]
+  User opens AgentConfig → UI shows model list for selected ApiSource
+  → User picks model → model_id saved; model_tier updated from selected model's tier
+
+[Agent Spawn]
+  Orchestrator → resolve_model(config, api_sources)
+  → find ModelDefinition by model_id (direct lookup, no tier walk)
+  → return ModelConfig(provider, model_id, params)
+  → AgentInstance spawned with resolved model
+
+[ApiSource Model Change]
+  If referenced model_id removed from ApiSource
+  → resolve_model falls back to first model + log warning
+  → UI shows "Model not found" indicator on AgentConfig card
+
+[Legacy Config Migration]
+  Load agent_configs.json → model_id is empty, model_tier present
+  → assign_model_ids() converts tier → first matching model in ApiSource
+  → Saved back with model_id populated
+```
+
+### 7. Verified Code Evidence
+
+| What | File:Lines |
+|------|-----------|
+| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs:379-397` |
+| `resolve_model()` with tier downgrade walk | `backend/src/relay/config.rs:548-586` |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs:449-490` |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs:498-527` |
+| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts:8-21` |
+| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts:6-10` |
+| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue:47` |
+| `tierLabel()` helper usage | `frontend/src/views/AgentsConfigView.vue:47` |
+| `RelayRegistry` uses `resolve_model()` | `backend/src/relay/mod.rs:48-53` |
+
+## ApiSources-D1 Model-First Agent Configuration Design
+**Status:** proposed
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-A3, ApiSources-G3
+
+### Overview
+
+Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
+
+### 1. Backend Data Model Changes
+
+**File: `backend/src/relay/config.rs`**
+
+#### AgentConfig (lines ~379-397)
+
+Replace `model_tier: ModelTier` with `model_id: String`:
+
+```rust
+pub struct AgentConfig {
+    pub id: String,
+    pub name: String,
+    pub profession_id: String,
+    pub soul_id: String,
+    pub api_source_id: String,
+    pub model_id: String,              // ← NEW: direct model reference (was model_tier)
+    pub is_default: bool,
+    pub temperature: f32,
+    pub max_tokens: u32,
+    pub reasoning_budget: Option<u32>,
+    pub thinking_enabled: bool,
+    pub thinking_budget: Option<u32>,
+    pub avatar_url: Option<String>,
+    pub equipped_skills: Vec<String>,
+}
+```
+
+#### ModelDefinition (lines ~32-36) — unchanged
+
+```rust
+pub struct ModelDefinition {
+    pub id: String,       // e.g., "claude-sonnet-4-20250514"
+    pub name: String,     // e.g., "Claude Sonnet 4"
+    pub tier: ModelTier,  // Display tag only: Min/Lite/Mid/Pro/Max
+}
+```
+
+#### resolve_model() (lines ~548-586) — simplified
+
+```rust
+pub fn resolve_model(
+    config: &AgentConfig,
+    api_sources: &[ApiSource],
+) -> Option<crate::relay::agent::ModelConfig> {
+    // 1. Find the ApiSource
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
+
+    // 2. Find the specific model by ID
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            log::warn!(
+                "model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id
+            );
+            source.models.first()
+        })?;
+
+    Some(crate::relay::agent::ModelConfig {
+        provider: source.provider.clone(),
+        model: model_def.id.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        reasoning_budget: config.reasoning_budget,
+        fallback_chain: Vec::new(),
+    })
+}
 ```
 
 
-| Tier | Anthropic | OpenAI | Purpose |
-|---|---|---|---|
-| Light | claude-3-5-haiku | gpt-4o-mini | Routing, test gen, docs |
-| Mid | claude-3-5-sonnet | gpt-4o | Planning, coding |
-| Heavy | claude-3-opus | o1 | Architecture, review |
+#### Default Config Generation (lines ~458-467)
+
+```rust
+fn generate_default_configs(
+    api_sources: &[ApiSource],
+) -> Vec<AgentConfig> {
+    // Use first available ApiSource as default
+    let source = api_sources.first();
+
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),
+        ("architect", "Vera", "architect", ModelTier::Pro),
+        ("planner", "Felix", "planner", ModelTier::Mid),
+        ("tester", "Quinn", "tester", ModelTier::Lite),
+        ("coder", "Ash", "coder", ModelTier::Mid),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
+        ("documenter", "Luna", "documenter", ModelTier::Lite),
+        ("gofer", "Gus", "gofer", ModelTier::Lite),
+    ];
+
+    defaults.map(|(prof_id, name, soul_id, preferred_tier)| {
+        // Find best matching model: preferred tier > any model
+        let model_id = source
+            .and_then(|s| s.models.iter().find(|m| m.tier == preferred_tier))
+            .or_else(|| source.and_then(|s| s.models.first()))
+            .map(|m| m.id.clone())
+            .unwrap_or_default();
+
+        AgentConfig {
+            id: prof_id.to_string(),
+            name: name.to_string(),
+            profession_id: prof_id.to_string(),
+            soul_id: soul_id.to_string(),
+            api_source_id: source.map(|s| s.id.clone()).unwrap_or_default(),
+            model_id,  // ← concrete model ID
+            is_default: true,
+            temperature: 0.7,
+            max_tokens: 8192,
+            reasoning_budget: None,
+            thinking_enabled: false,
+            thinking_budget: None,
+            avatar_url: None,
+            equipped_skills: Vec::new(),
+        }
+    }).to_vec()
+}
+```
+
+#### Migration
+
+When loading existing configs with `model_tier` but no `model_id`:
+
+```rust
+fn migrate_agent_config(config: &mut AgentConfig, api_sources: &[ApiSource]) {
+    if config.model_id.is_empty() {
+        // Legacy config: convert tier → model_id
+        let source = api_sources.iter()
+            .find(|s| s.id == config.api_source_id)
+            .or_else(|| api_sources.first());
+
+        config.model_id = source
+            .and_then(|s| {
+                // Try exact tier match first, then any model
+                s.models.iter().find(|m| m.tier == config.model_tier)
+                    .or_else(|| s.models.first())
+            })
+            .map(|m| m.id.clone())
+            .unwrap_or_default();
+
+        log::info!(
+            "Migrated AgentConfig '{}': tier {:?} → model_id '{}'",
+            config.id, config.model_tier, config.model_id
+        );
+    }
+}
+```
 
 
+### 2. Frontend Changes
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/forge/config/api-sources` | List all sources |
-| POST | `/api/forge/config/api-sources` | Create source |
-| PUT | `/api/forge/config/api-sources/{id}` | Update source |
-| DELETE | `/api/forge/config/api-sources/{id}` | Delete source |
-| POST | `/api/forge/config/api-sources/{id}/test` | Test connectivity |
+**File: `frontend/src/composables/useAgentConfigs.ts`**
 
+```typescript
+export interface AgentConfigDto {
+  id: string
+  name: string
+  profession_id: string
+  soul_id: string
+  api_source_id: string
+  model_id: string             // ← NEW: direct model reference (was model_tier)
+  is_default: boolean
+  temperature: number
+  max_tokens: number
+  reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
+  avatar_url?: string
+  equipped_skills?: string[]
+}
+```
 
+**File: `frontend/src/views/AgentsConfigView.vue`**
 
----
+Replace tier dropdown with model selector:
 
----
+```
+┌─────────────────────────────────────────────┐
+│ Agent: Isaac (advisor)                       │
+├─────────────────────────────────────────────┤
+│ API Source: [Anthropic Claude ▾]            │
+│                                              │
+│ Model: [Claude Sonnet 4 (Mid) ▾]            │
+│        ┌──────────────────────────────┐      │
+│        │ ● Claude Haiku 3.5    (Min)  │      │
+│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
+│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
+│        │ ○ Claude Opus 4      (Pro)   │      │
+│        └──────────────────────────────┘      │
+│                                              │
+│ Temperature: [0.7]  Max Tokens: [8192]      │
+└─────────────────────────────────────────────┘
+```
 
----
+1. When `api_source_id` changes → refresh model list, auto-select first model
+2. Model list shows: display name + tier badge (color-coded)
+3. Selected model's tier badge shown in collapsed selector
+4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
 
----
+### 3. State Machine
 
----
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: AgentConfig loaded
+    Idle --> SourceChanged: User changes api_source_id
+    SourceChanged --> ModelListLoaded: Fetch models for new source
+    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
+    ModelSelected --> Saved: User saves config
+    ModelSelected --> SourceChanged: User changes source again
+    Saved --> [*]
 
----
+    Idle --> ModelSelected: User changes model_id (same source)
+    ModelListLoaded --> SourceChanged: User changes source before selecting
+```
 
----
----
+### 4. Error Handling
+
+| Error Case | Handling |
+|------------|----------|
+| `model_id` not found in ApiSource | Fallback to first model, log warning |
+| `api_source_id` not found | Fallback to first ApiSource + first model |
+| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
+| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load: tier → first matching model |
+| ApiSource deleted while agents reference it | Agent shows "API Source not found" warning in UI, cannot spawn |
+
+### 5. Files Modified
+
+| File | Change |
+|------|--------|
+| `backend/src/relay/config.rs` | AgentConfig: `model_tier` → `model_id`; simplify `resolve_model()`; update defaults; add migration |
+| `backend/src/relay/mod.rs` | `spawn_agent_from_config()` — no logic change (already uses `resolve_model()`) |
+| `frontend/src/composables/useAgentConfigs.ts` | `model_tier` → `model_id` in `AgentConfigDto` |
+| `frontend/src/composables/useApiSources.ts` | Add helper: `getModelsForSource(sourceId)` |
+| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector |
+| `frontend/src/locales/en.json` | Update model selection keys |
+| `frontend/src/locales/zh.json` | Update model selection keys |
+
+### 6. Data Lifecycle
+
+```
+[Default Generation]
+  api_sources loaded → generate_default_configs() → picks concrete model_id per tier preference
+  → saved to agent_configs.json
+
+[User Edit]
+  User opens AgentConfig → UI shows model list for selected ApiSource
+  → User picks model → model_id saved
+
+[Agent Spawn]
+  Orchestrator → resolve_model(config, api_sources)
+  → find ModelDefinition by model_id
+  → return ModelConfig(provider, model_id, params)
+  → AgentInstance spawned with resolved model
+
+[ApiSource Model Change]
+  If referenced model_id removed from ApiSource
+  → resolve_model falls back to first model + log warning
+  → UI shows "Model not found" indicator on AgentConfig
+```
 
 ## ApiSources-D2 APIs Documentation View
 **Status:** implemented

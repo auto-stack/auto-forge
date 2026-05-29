@@ -268,9 +268,15 @@ pub fn standard_spec_flow() -> FlowSpec {
     flow.add_step(
         FlowStep::new("run-tests", "tester")
             .with_validators(test_validators())
-            .with_exit(crate::relay::flow::ExitRouting::Loop {
-                target_step_id: "code".into(),
-                max_iterations: 3,
+            .with_exit(crate::relay::flow::ExitRouting::Branch {
+                on: "to".into(),
+                arms: {
+                    let mut m = std::collections::HashMap::new();
+                    m.insert("coder".into(), "code".into());
+                    m.insert("reviewer".into(), "review".into());
+                    m
+                },
+                default: "review".into(),
             }),
     );
     flow.add_step(

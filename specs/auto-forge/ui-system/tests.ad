@@ -435,14 +435,12 @@ describe('view i18n integration', () => {
 })
 ```
 
-**BUGS FOUND:**
 
 1. **ApiSourcesView.vue** — Missing `useI18n` import and zero `t()` calls. Test will fail on `imports useI18n from vue-i18n`.
 2. **ProfessionsView.vue** — Missing `useI18n` import and zero `t()` calls. Test will fail on `imports useI18n from vue-i18n`.
 3. **SkillsView.vue** — Missing `useI18n` import and zero `t()` calls. Test will fail on `imports useI18n from vue-i18n`.
 4. **zh.json missing keys** — `apis.deleteConfirm` and `apis.missingTiersAlert` exist in en.json but NOT in zh.json. Key parity test will catch this.
 
-**COVERAGE:**
 
 | Goal | Covered by Test | Status |
 |------|-----------------|--------|

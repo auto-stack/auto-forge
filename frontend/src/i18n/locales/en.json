@@ -193,6 +193,7 @@
     "profession": "Profession",
     "soul": "Soul",
     "apiSource": "API Source",
+    "model": "Model",
     "modelTier": "Model Tier",
     "equippedSkills": "Equipped Skills",
     "temperature": "Temperature ({value})",

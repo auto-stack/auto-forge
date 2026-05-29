@@ -29,7 +29,7 @@
         <div class="card-name">{{ agent.name }}</div>
         <div class="card-badges">
           <span class="badge profession-badge">{{ agent.profession_id }}</span>
-          <span class="badge tier-badge" :class="agent.model_tier">{{ tierLabel(agent.model_tier) }}</span>
+          <span class="badge tier-badge" :class="agent.model_tier">{{ getModelDisplayName(agent) }}</span>
           <span v-if="agent.is_default" class="badge default-badge">{{ t('common.default') }}</span>
         </div>
         <div v-if="agent.equipped_skills?.length" class="card-skills">
@@ -93,7 +93,7 @@
             <div class="form-group">
               <label>{{ t('agents.profession') }}</label>
               <select v-model="editing.profession_id" class="form-select" :disabled="!isNew">
-                <option v-for="p in professions" :key="p.id" :value="p.id">
+                <option v-for="p in professionList" :key="p.id" :value="p.id">
                   {{ professionEmoji(p.id) }} {{ p.name }}
                 </option>
               </select>
@@ -116,20 +116,37 @@
               </select>
             </div>
             <div class="form-group">
-              <label>{{ t('agents.modelTier') }}</label>
-              <div class="tier-selector">
-                <button
-                  v-for="t in tiers"
-                  :key="t.value"
-                  class="tier-option"
-                  :class="{ active: editing.model_tier === t.value, [t.value]: true }"
-                  @click="editing.model_tier = t.value"
+              <label>{{ t('agents.model') }}</label>
+              <div ref="modelDropdownRef" class="model-dropdown">
+                <div
+                  class="model-dropdown-trigger"
+                  :class="{ open: modelDropdownOpen }"
+                  @click="modelDropdownOpen = !modelDropdownOpen"
                 >
-                  <span class="tier-bars">
-                    <span v-for="n in t.bars" :key="n" class="tier-bar" />
+                  <span class="model-dropdown-name">
+                    {{ availableModels.find(m => m.id === editing?.model_id)?.name || editing?.model_id || '' }}
                   </span>
-                  <span class="tier-label">{{ t.label }}</span>
-                </button>
+                  <span
+                    v-if="editing?.model_id"
+                    class="model-tier-tag"
+                    :class="availableModels.find(m => m.id === editing?.model_id)?.tier || editing?.model_tier || ''"
+                  >
+                    {{ tierLabel(availableModels.find(m => m.id === editing?.model_id)?.tier || editing?.model_tier || '') }}
+                  </span>
+                  <ChevronDown :size="14" class="model-dropdown-arrow" :class="{ open: modelDropdownOpen }" />
+                </div>
+                <div v-if="modelDropdownOpen" class="model-dropdown-panel">
+                  <div
+                    v-for="m in getModelsForSource(editing?.api_source_id || '')"
+                    :key="m.id"
+                    class="model-dropdown-item"
+                    :class="{ active: editing?.model_id === m.id, disabled: !isModelAllowedForProfession(m.tier, editing?.profession_id || '') }"
+                    @click="isModelAllowedForProfession(m.tier, editing?.profession_id || '') && selectModel(m)"
+                  >
+                    <span class="model-dropdown-item-name">{{ m.name }}</span>
+                    <span class="model-tier-tag" :class="m.tier">{{ tierLabel(m.tier) }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -207,21 +224,23 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { ref, onMounted, computed, watch } from 'vue'
-import { Plus, X, Trash2, Users, Upload, Sparkles } from 'lucide-vue-next'
+import { Plus, X, Trash2, Users, Upload, Sparkles, ChevronDown } from 'lucide-vue-next'
 import { useAgentConfigs, type AgentConfigDto } from '@/composables/useAgentConfigs'
 import AgentAvatar from '@/components/AgentAvatar.vue'
-import { useApiSources, type ApiSource } from '@/composables/useApiSources'
+import { useApiSources, type ApiSource, type ModelDefinition } from '@/composables/useApiSources'
 import { useSouls } from '@/composables/useSouls'
 import { useSkills } from '@/composables/useSkills'
+import { useProfessions, type ProfessionDto } from '@/composables/useProfessions'
 
 const { t } = useI18n()
 const {
   configs, loading, error,
   loadConfigs, createConfig, updateConfig, deleteConfig, resetDefaults,
 } = useAgentConfigs()
-const { sources: apiSources, loadSources } = useApiSources()
+const { sources: apiSources, loadSources, getModelsForSource } = useApiSources()
 const { souls, soulMap, loadSouls, getSoulMarkdown } = useSouls()
 const { skills, loadSkills: loadSkillsList } = useSkills()
+const { professions: professionList, loadProfessions } = useProfessions()
 
 const editing = ref<AgentConfigDto | null>(null)
 const editingId = ref<string | null>(null)
@@ -230,18 +249,8 @@ const saving = ref(false)
 const soulMarkdown = ref('')
 const avatarInput = ref<HTMLInputElement | null>(null)
 const generatingAvatar = ref(false)
-
-const professions = [
-  { id: 'assistant', name: 'Assistant' },
-  { id: 'advisor', name: 'Advisor' },
-  { id: 'architect', name: 'Architect' },
-  { id: 'planner', name: 'Planner' },
-  { id: 'coder', name: 'Coder' },
-  { id: 'tester', name: 'Tester' },
-  { id: 'reviewer', name: 'Reviewer' },
-  { id: 'documenter', name: 'Documenter' },
-  { id: 'gofer', name: 'Gofer' },
-]
+const modelDropdownOpen = ref(false)
+const modelDropdownRef = ref<HTMLElement | null>(null)
 
 const tiers = [
   { value: 'min' as const, label: 'Min', bars: 1 },
@@ -251,10 +260,103 @@ const tiers = [
   { value: 'max' as const, label: 'Max', bars: 3 },
 ]
 
+// Get profession tier constraints for the selected profession
+function getProfessionTierRange(professionId: string): { min: number; max: number } | null {
+  const prof = professionList.value.find(p => p.id === professionId)
+  if (!prof) return null
+  const order: Record<string, number> = { min: 0, lite: 1, mid: 2, pro: 3, max: 4 }
+  return { min: order[prof.min_tier] ?? 0, max: order[prof.max_tier] ?? 4 }
+}
+
+// Check if a model tier is within the profession's allowed range
+function isModelAllowedForProfession(modelTier: string, professionId: string): boolean {
+  const range = getProfessionTierRange(professionId)
+  if (!range) return true
+  const order: Record<string, number> = { min: 0, lite: 1, mid: 2, pro: 3, max: 4 }
+  const tierIdx = order[modelTier]
+  if (tierIdx === undefined) return true
+  return tierIdx >= range.min && tierIdx <= range.max
+}
+
+// Models available for the selected API source, filtered by profession tier range
+const availableModels = computed(() => {
+  if (!editing.value) return []
+  const all = getModelsForSource(editing.value.api_source_id)
+  const range = getProfessionTierRange(editing.value.profession_id)
+  if (!range) return all
+  const order: Record<string, number> = { min: 0, lite: 1, mid: 2, pro: 3, max: 4 }
+  return all.filter(m => {
+    const idx = order[m.tier]
+    if (idx === undefined) return true
+    return idx >= range.min && idx <= range.max
+  })
+})
+
+function getModelDisplayName(agent: AgentConfigDto): string {
+  const models = getModelsForSource(agent.api_source_id)
+  const model = models.find(m => m.id === agent.model_id)
+  return model ? `${model.name} (${tierLabel(model.tier)})` : (agent.model_id || tierLabel(agent.model_tier))
+}
+
+// When api_source_id changes, auto-select first allowed model
+watch(() => editing.value?.api_source_id, (newSourceId, oldSourceId) => {
+  if (newSourceId && newSourceId !== oldSourceId && editing.value) {
+    const models = availableModels.value
+    if (models.length > 0) {
+      editing.value.model_id = models[0].id
+      editing.value.model_tier = models[0].tier
+    }
+  }
+})
+
+// When profession changes, auto-select first allowed model if current is out of range
+watch(() => editing.value?.profession_id, (newProfId, oldProfId) => {
+  if (newProfId && newProfId !== oldProfId && editing.value) {
+    const models = availableModels.value
+    const currentAllowed = models.some(m => m.id === editing.value!.model_id)
+    if (!currentAllowed && models.length > 0) {
+      editing.value.model_id = models[0].id
+      editing.value.model_tier = models[0].tier
+    }
+  }
+})
+
+// When model changes, update model_tier for display
+watch(() => editing.value?.model_id, (newModelId) => {
+  if (newModelId && editing.value) {
+    const models = getModelsForSource(editing.value.api_source_id)
+    const model = models.find(m => m.id === newModelId)
+    if (model) {
+      editing.value.model_tier = model.tier
+    }
+  }
+})
+
 function tierLabel(tier: string): string {
   const map: Record<string, string> = { min: 'Min', lite: 'Lite', mid: 'Mid', pro: 'Pro', max: 'Max' }
   return map[tier] || tier
 }
+
+function selectModel(m: ModelDefinition) {
+  if (!editing.value) return
+  editing.value.model_id = m.id
+  editing.value.model_tier = m.tier
+  modelDropdownOpen.value = false
+}
+
+// Close model dropdown when clicking outside
+function onDocClick(e: MouseEvent) {
+  if (modelDropdownRef.value && !modelDropdownRef.value.contains(e.target as Node)) {
+    modelDropdownOpen.value = false
+  }
+}
+watch(modelDropdownOpen, (open) => {
+  if (open) {
+    document.addEventListener('click', onDocClick)
+  } else {
+    document.removeEventListener('click', onDocClick)
+  }
+})
 
 const professionEmoji = (id: string) => {
   const map: Record<string, string> = {
@@ -313,6 +415,7 @@ function startCreate() {
     profession_id: 'coder',
     soul_id: 'coder',
     api_source_id: apiSources.value[0]?.id ?? '',
+    model_id: '',
     model_tier: 'mid',
     is_default: false,
     temperature: 0.3,
@@ -412,6 +515,7 @@ onMounted(() => {
   loadSources()
   loadSouls()
   loadSkillsList()
+  loadProfessions()
 })
 
 function skillName(id: string): string {
@@ -535,11 +639,11 @@ function toggleSkill(skillId: string) {
   color: var(--af-primary);
 }
 
-.tier-badge.min { background: hsl(140 60% 40% / 0.12); color: hsl(140 60% 35%); }
+.tier-badge.min { background: hsl(0 0% 60% / 0.12); color: hsl(0 0% 40%); }
 .tier-badge.lite { background: hsl(150 55% 42% / 0.12); color: hsl(150 55% 37%); }
 .tier-badge.mid { background: hsl(210 60% 50% / 0.12); color: hsl(210 60% 45%); }
 .tier-badge.pro { background: hsl(260 55% 52% / 0.12); color: hsl(260 55% 47%); }
-.tier-badge.max { background: hsl(280 50% 50% / 0.12); color: hsl(280 50% 45%); }
+.tier-badge.max { background: hsl(38 92% 50% / 0.12); color: hsl(38 92% 40%); }
 
 .default-badge {
   background: hsl(var(--muted-foreground) / 0.08);
@@ -564,6 +668,123 @@ function toggleSkill(skillId: string) {
   border-radius: 4px;
   background: hsl(var(--primary) / 0.08);
   color: var(--af-primary);
+}
+
+.model-tier-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+  text-transform: uppercase;
+}
+.model-tier-badge.min { background: #9ca3af; color: white; }
+.model-tier-badge.lite { background: #22c55e; color: white; }
+.model-tier-badge.mid { background: #3b82f6; color: white; }
+.model-tier-badge.pro { background: #a855f7; color: white; }
+.model-tier-badge.max { background: #f59e0b; color: white; }
+
+.model-tier-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+.model-tier-tag.min { background: #9ca3af; color: white; }
+.model-tier-tag.lite { background: #22c55e; color: white; }
+.model-tier-tag.mid { background: #3b82f6; color: white; }
+.model-tier-tag.pro { background: #a855f7; color: white; }
+.model-tier-tag.max { background: #f59e0b; color: white; }
+
+.model-dropdown {
+  position: relative;
+}
+
+.model-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  background: var(--af-background);
+  color: var(--af-foreground);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  min-height: 36px;
+}
+.model-dropdown-trigger:hover,
+.model-dropdown-trigger.open {
+  border-color: var(--af-primary);
+}
+
+.model-dropdown-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.model-dropdown-arrow {
+  flex-shrink: 0;
+  color: var(--af-muted-foreground);
+  transition: transform 0.2s;
+}
+.model-dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.model-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--af-card);
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.model-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--af-border);
+}
+.model-dropdown-item:last-child {
+  border-bottom: none;
+}
+.model-dropdown-item:hover {
+  background: var(--af-muted);
+}
+.model-dropdown-item.active {
+  background: hsl(var(--primary) / 0.12);
+}
+.model-dropdown-item.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.model-dropdown-item.disabled:hover {
+  background: transparent;
+}
+
+.model-dropdown-item-name {
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .skills-selector {
@@ -762,28 +983,28 @@ function toggleSkill(skillId: string) {
 }
 
 .tier-option.active.min {
-  border-color: hsl(140 60% 35%);
-  background: hsl(140 60% 40% / 0.08);
+  border-color: hsl(0 0% 40%);
+  background: hsl(0 0% 60% / 0.08);
 }
 
 .tier-option.active.lite {
-  border-color: hsl(150 55% 37%);
-  background: hsl(150 55% 42% / 0.08);
+  border-color: hsl(142 60% 35%);
+  background: hsl(142 60% 40% / 0.08);
 }
 
 .tier-option.active.mid {
-  border-color: hsl(210 60% 45%);
-  background: hsl(210 60% 50% / 0.08);
+  border-color: hsl(217 70% 45%);
+  background: hsl(217 70% 55% / 0.08);
 }
 
 .tier-option.active.pro {
-  border-color: hsl(260 55% 47%);
-  background: hsl(260 55% 52% / 0.08);
+  border-color: hsl(271 55% 45%);
+  background: hsl(271 55% 55% / 0.08);
 }
 
 .tier-option.active.max {
-  border-color: hsl(280 50% 45%);
-  background: hsl(280 50% 50% / 0.08);
+  border-color: hsl(38 90% 40%);
+  background: hsl(38 90% 50% / 0.08);
 }
 
 .tier-bars {
@@ -798,11 +1019,11 @@ function toggleSkill(skillId: string) {
   background: var(--af-muted);
 }
 
-.tier-option.active.min .tier-bar { background: hsl(140 60% 35%); }
-.tier-option.active.lite .tier-bar { background: hsl(150 55% 37%); }
-.tier-option.active.mid .tier-bar { background: hsl(210 60% 45%); }
-.tier-option.active.pro .tier-bar { background: hsl(260 55% 47%); }
-.tier-option.active.max .tier-bar { background: hsl(280 50% 45%); }
+.tier-option.active.min .tier-bar { background: hsl(0 0% 40%); }
+.tier-option.active.lite .tier-bar { background: hsl(142 60% 35%); }
+.tier-option.active.mid .tier-bar { background: hsl(217 70% 45%); }
+.tier-option.active.pro .tier-bar { background: hsl(271 55% 45%); }
+.tier-option.active.max .tier-bar { background: hsl(38 90% 40%); }
 
 .tier-label {
   font-size: 0.78rem;

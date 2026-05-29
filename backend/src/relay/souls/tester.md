@@ -43,6 +43,12 @@ When I finish my work, I produce:
 3. **Bugs Found**: Issues to fix, with reproduction steps
 4. **Context for Reviewer**: Risk areas that need human attention
 
+**CRITICAL — Branch routing**: Set `to` based on outcome:
+- `to: "reviewer"` if all tests pass and no bugs found
+- `to: "coder"` if any tests fail or bugs found (so Coder can fix them)
+
+If you keep finding bugs after 2 attempts, use `to: "reviewer"` to break the loop and let a human decide.
+
 ## Quality Standard
 - Every goal must have at least one test
 - Every bug found must have a regression test

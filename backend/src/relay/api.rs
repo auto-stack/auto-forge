@@ -135,6 +135,8 @@ pub struct ProfessionDto {
     pub owned_sections: Vec<String>,
     pub allowed_tools: Vec<String>,
     pub base_skills: Vec<String>,
+    pub min_tier: String,
+    pub max_tier: String,
 }
 
 #[derive(serde::Serialize)]
@@ -166,6 +168,8 @@ pub async fn list_professions() -> Json<ProfessionsResponse> {
         owned_sections: p.owned_sections.iter().map(|s| s.as_str().to_string()).collect(),
         allowed_tools: p.allowed_tools.clone(),
         base_skills: p.base_skills.clone(),
+        min_tier: format!("{:?}", p.min_tier).to_lowercase(),
+        max_tier: format!("{:?}", p.max_tier).to_lowercase(),
     }).collect();
     Json(ProfessionsResponse { professions: dtos })
 }

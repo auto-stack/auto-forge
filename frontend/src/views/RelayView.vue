@@ -480,7 +480,8 @@ function scrollToStep(timelineIndex: number) {
 
   const entries = sessionLogRef.value.querySelectorAll('.session-entry.type-step_started')
   let matchCount = 0
-  for (const el of entries) {
+  for (let i = 0; i < entries.length; i++) {
+    const el = entries[i]
     if (el.getAttribute('data-step-id') === record.step_id) {
       if (matchCount === record.iteration) {
         sessionLogRef.value.scrollTo({

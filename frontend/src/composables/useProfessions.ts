@@ -15,6 +15,8 @@ export interface ProfessionDto {
   max_turns: number
   token_budget: number
   base_skills: string[]
+  min_tier: string
+  max_tier: string
 }
 
 // Singleton state

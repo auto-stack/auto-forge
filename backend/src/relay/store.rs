@@ -143,10 +143,22 @@ fn persistence_dir() -> PathBuf {
 /// Save a run entry to disk.
 pub fn save_run(entry: &RunEntry) {
     let dir = persistence_dir().join(&entry.run_id);
-    let _ = fs::create_dir_all(&dir);
+    if let Err(e) = fs::create_dir_all(&dir) {
+        tracing::error!("save_run: failed to create dir {}: {}", dir.display(), e);
+        return;
+    }
     let path = dir.join("run.json");
-    if let Ok(json) = serde_json::to_string_pretty(entry) {
-        let _ = fs::write(&path, json);
+    match serde_json::to_string_pretty(entry) {
+        Ok(json) => {
+            if let Err(e) = fs::write(&path, &json) {
+                tracing::error!("save_run: failed to write {} for run {}: {}", path.display(), entry.run_id, e);
+            } else {
+                tracing::debug!("save_run: persisted run {} to {}", entry.run_id, path.display());
+            }
+        }
+        Err(e) => {
+            tracing::error!("save_run: failed to serialize run {}: {}", entry.run_id, e);
+        }
     }
 }
 
@@ -154,20 +166,43 @@ pub fn save_run(entry: &RunEntry) {
 pub fn load_all_runs() -> RunStore {
     let store = Arc::new(Mutex::new(HashMap::new()));
     let dir = persistence_dir();
-    let Ok(entries) = fs::read_dir(&dir) else {
-        return store;
+    let entries = match fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!("load_all_runs: cannot read dir {}: {}", dir.display(), e);
+            return store;
+        }
     };
 
+    let mut loaded = 0;
+    let mut failed = 0;
     for entry in entries.flatten() {
         let path = entry.path().join("run.json");
-        if path.exists() {
-            if let Ok(data) = fs::read_to_string(&path) {
-                if let Ok(run_entry) = serde_json::from_str::<RunEntry>(&data) {
-                    let mut map = store.lock().unwrap();
-                    map.insert(run_entry.run_id.clone(), run_entry);
+        if !path.exists() {
+            continue;
+        }
+        match fs::read_to_string(&path) {
+            Ok(data) => {
+                match serde_json::from_str::<RunEntry>(&data) {
+                    Ok(run_entry) => {
+                        let mut map = store.lock().unwrap();
+                        map.insert(run_entry.run_id.clone(), run_entry);
+                        loaded += 1;
+                    }
+                    Err(e) => {
+                        tracing::error!("load_all_runs: failed to parse {}: {}", path.display(), e);
+                        failed += 1;
+                    }
                 }
             }
+            Err(e) => {
+                tracing::error!("load_all_runs: failed to read {}: {}", path.display(), e);
+                failed += 1;
+            }
         }
+    }
+    if loaded > 0 || failed > 0 {
+        tracing::info!("load_all_runs: loaded {} runs, {} failed from {}", loaded, failed, dir.display());
     }
     store
 }

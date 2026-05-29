@@ -8,6 +8,7 @@ export interface AgentConfigDto {
   profession_id: string
   soul_id: string
   api_source_id: string
+  model_id: string
   model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'
   is_default: boolean
   temperature: number

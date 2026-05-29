@@ -208,6 +208,8 @@ function startCreate() {
     max_turns: 10,
     token_budget: 8000,
     base_skills: [],
+    min_tier: 'min',
+    max_tier: 'max',
   }
   editingId.value = null
   isNew.value = true

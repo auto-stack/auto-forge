@@ -90,3 +90,562 @@ graph TB
 - Grouped by backend module: Forge, Relay, Config, Wiki, Raw
 - Each entry shows HTTP method, route path, handler function, and one-line description
 - Editable through the Specs workspace when `apis.ad` is updated
+
+## ApiSources-A3 ApiSources-A3 Model-First Agent Configuration Architecture
+**Status:** approved
+
+## ApiSources-A3 Model-First Agent Configuration Architecture
+**Status:** approved
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-G1, ApiSources-G3
+
+### Problem
+
+The current tier-based model selection forces agents to choose from 5 abstract tiers (min/lite/mid/pro/max). But a concrete ApiSource may only have 1–3 models, not covering all tiers. The fallback-downgrade logic in `resolve_model()` silently picks a different model than intended, and users have no way to directly control which specific model an agent uses.
+
+### Solution
+
+Flip the selection axis: **AgentConfig references a concrete model by ID**, not a tier. The tier becomes a display tag on the model, useful for UX grouping and recommendation but never used as a selection key.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        AC[AgentConfig] -->|model_id| MD[ModelDefinition]
+        MD -->|belongs to| AS[ApiSource]
+        MD -->|tagged| MT[ModelTier label]
+    end
+    subgraph "Resolution"
+        RM[resolve_model] -->|lookup model_id in ApiSource.models| MD
+        RM -->|found| MC[ModelConfig: provider + model + params]
+        RM -->|not found| FB[Fallback: first model in ApiSource]
+    end
+    subgraph "UI"
+        SEL[Model Selector] -->|lists| MODELS[ApiSource.models]
+        MODELS -->|shows tier badge| MT
+    end
+```
+
+### Data Model Change
+
+**Before** (current code at `backend/src/relay/config.rs:370-400`):
+```
+AgentConfig { api_source_id, model_tier: ModelTier }
+                           ↓
+resolve_model: find model WHERE tier == model_tier (with downgrade walk)
+```
+
+**After** (target):
+```
+AgentConfig { api_source_id, model_id: String, model_tier: ModelTier (deprecated) }
+                           ↓
+resolve_model: find model WHERE id == model_id (direct lookup)
+assign_model_ids: if model_id empty, convert model_tier → first matching model
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Selection key | `model_id` (String) | Direct reference, no ambiguity, no fallback logic needed |
+| Tier role | Display tag only | Still useful for UX grouping, recommendation badges, cost estimation |
+| model_id scope | Scoped to ApiSource | Same model_id can exist in different sources (e.g., "claude-sonnet-4-20250514") |
+| Fallback | First model in ApiSource | Only when model_id is invalid/removed; should be rare |
+| Default configs | Reference concrete model IDs | Defaults choose specific models from the first available ApiSource |
+| Migration | Auto-convert: tier → first matching model | Transparent upgrade for existing configs |
+| Backward compat | Keep `model_tier` field with `#[serde(default)]` | Old JSON configs still deserialize; migration fills `model_id` |
+
+### Model Resolution Sequence
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant R as resolve_model()
+    participant AS as ApiSource
+    participant M as ModelDefinition
+
+    O->>R: resolve(AgentConfig)
+    R->>AS: find by api_source_id
+    alt api_source_id valid
+        R->>AS: find model by model_id
+        alt model_id found
+            R->>M: return ModelConfig(provider, model_id, params)
+        else model_id not found (removed/renamed)
+            R->>M: fallback to AS.models[0]
+            Note over R: Log warning: model_id not found
+        end
+    else api_source_id invalid
+        R->>AS: use first ApiSource
+        R->>M: fallback to AS.models[0]
+        Note over R: Log warning: api_source not found
+    end
+```
+
+### Trigger Condition
+`resolve_model()` is called whenever an agent is spawned: relay pipeline step, chat turn, or errand dispatch.
+
+### Data Flow
+```
+[AgentConfig: api_source_id + model_id] → [lookup ApiSource] → [find ModelDefinition by id] → [ModelConfig]
+```
+
+### Design Highlight
+By storing `model_id` instead of `model_tier`, we eliminate the entire downgrade-walk logic (lines 548-586 in current config.rs) and give users direct control. The tier tag remains for UX convenience — showing "Mid" next to "claude-sonnet-4-20250514" helps users understand cost/capability without forcing them into a rigid hierarchy.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **model_id direct reference (chosen)** | Exact control, no silent downgrades, simpler code | Must update when models are removed/renamed |
+| Tier with fallback walk (current) | Works with partial tier coverage | Silent downgrades, user confusion |
+| Tier + model override | Backwards compatible | Two selection axes = confusion |
+
+### Verified Code Locations
+
+| Component | File | Lines |
+|-----------|------|-------|
+| `AgentConfig` struct (current) | `backend/src/relay/config.rs` | ~370-400 |
+| `resolve_model()` (current tier walk) | `backend/src/relay/config.rs` | ~548-586 |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs` | ~458-490 |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs` | ~498-527 |
+| `RelayRegistry` (uses configs) | `backend/src/relay/mod.rs` | ~48-58 |
+| `AgentConfigDto` (current) | `frontend/src/composables/useAgentConfigs.ts` | ~8-22 |
+| `ApiSource` type | `frontend/src/composables/useApiSources.ts` | ~9-22 |
+| `AgentsConfigView` (tier dropdown) | `frontend/src/views/AgentsConfigView.vue` | ~1-902 |
+
+## ApiSources-A3 Model-First Agent Configuration Architecture
+**Status:** approved
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-G1, ApiSources-G3
+
+### Problem
+
+The current tier-based model selection forces agents to choose from 5 abstract tiers (min/lite/mid/pro/max). But a concrete ApiSource may only have 1–3 models, not covering all tiers. The fallback-downgrade logic in `resolve_model()` silently picks a different model than intended, and users have no way to directly control which specific model an agent uses.
+
+### Solution
+
+Flip the selection axis: **AgentConfig references a concrete model by ID**, not a tier. The tier becomes a display tag on the model, useful for UX grouping and recommendation but never used as a selection key.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        AC[AgentConfig] -->|model_id| MD[ModelDefinition]
+        MD -->|belongs to| AS[ApiSource]
+        MD -->|tagged| MT[ModelTier label]
+    end
+    subgraph "Resolution"
+        RM[resolve_model] -->|lookup model_id in ApiSource.models| MD
+        RM -->|found| MC[ModelConfig: provider + model + params]
+        RM -->|not found| FB[Fallback: first model in ApiSource]
+    end
+    subgraph "UI"
+        SEL[Model Selector] -->|lists| MODELS[ApiSource.models]
+        MODELS -->|shows tier badge| MT
+    end
+```
+
+### Data Model Change
+
+**Before** (current code at `backend/src/relay/config.rs:370-400`):
+```
+AgentConfig { api_source_id, model_tier: ModelTier }
+                           ↓
+resolve_model: find model WHERE tier == model_tier (with downgrade walk)
+```
+
+**After** (target):
+```
+AgentConfig { api_source_id, model_id: String, model_tier: ModelTier (deprecated) }
+                           ↓
+resolve_model: find model WHERE id == model_id (direct lookup)
+migrate_agent_config: if model_id empty, convert model_tier → first matching model
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Selection key | `model_id` (String) | Direct reference, no ambiguity, no fallback logic needed |
+| Tier role | Display tag only | Still useful for UX grouping, recommendation badges, cost estimation |
+| model_id scope | Scoped to ApiSource | Same model_id can exist in different sources (e.g., "claude-sonnet-4-20250514") |
+| Fallback | First model in ApiSource | Only when model_id is invalid/removed; should be rare |
+| Default configs | Reference concrete model IDs | Defaults choose specific models from the first available ApiSource |
+| Migration | Auto-convert: tier → first matching model | Transparent upgrade for existing configs |
+| Backward compat | Keep `model_tier` field with `#[serde(default)]` | Old JSON configs still deserialize; migration fills `model_id` |
+
+### Model Resolution Sequence
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant R as resolve_model()
+    participant AS as ApiSource
+    participant M as ModelDefinition
+
+    O->>R: resolve(AgentConfig)
+    R->>AS: find by api_source_id
+    alt api_source_id valid
+        R->>AS: find model by model_id
+        alt model_id found
+            R->>M: return ModelConfig(provider, model_id, params)
+        else model_id not found (removed/renamed)
+            R->>M: fallback to AS.models[0]
+            Note over R: Log warning: model_id not found
+        end
+    else api_source_id invalid
+        R->>AS: use first ApiSource
+        R->>M: fallback to AS.models[0]
+        Note over R: Log warning: api_source not found
+    end
+```
+
+### Trigger Condition
+`resolve_model()` is called whenever an agent is spawned: relay pipeline step, chat turn, or errand dispatch.
+
+### Data Flow
+```
+[AgentConfig: api_source_id + model_id] → [lookup ApiSource] → [find ModelDefinition by id] → [ModelConfig]
+```
+
+### Design Highlight
+By storing `model_id` instead of `model_tier`, we eliminate the entire downgrade-walk logic (lines 548-586 in current config.rs) and give users direct control. The tier tag remains for UX convenience — showing "Mid" next to "claude-sonnet-4-20250514" helps users understand cost/capability without forcing them into a rigid hierarchy.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **model_id direct reference (chosen)** | Exact control, no silent downgrades, simpler code | Must update when models are removed/renamed |
+| Tier with fallback walk (current) | Works with partial tier coverage | Silent downgrades, user confusion |
+| Tier + model override | Backwards compatible | Two selection axes = confusion |
+
+### Verified Code Locations
+
+| Component | File | Lines |
+|-----------|------|-------|
+| `AgentConfig` struct (current) | `backend/src/relay/config.rs` | ~370-400 |
+| `resolve_model()` (current tier walk) | `backend/src/relay/config.rs` | ~548-586 |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs` | ~458-490 |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs` | ~495-530 |
+| `RelayRegistry` (uses configs) | `backend/src/relay/mod.rs` | ~48-58 |
+| `AgentConfigDto` (current) | `frontend/src/composables/useAgentConfigs.ts` | ~8-22 |
+| `ApiSource` type | `frontend/src/composables/useApiSources.ts` | ~9-22 |
+| `AgentsConfigView` (tier dropdown) | `frontend/src/views/AgentsConfigView.vue` | ~1-902 |
+
+## ApiSources-A3 Model-First Agent Configuration Architecture
+**Status:** approved
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-G1, ApiSources-G3
+
+### Problem
+
+The current tier-based model selection forces agents to choose from 5 abstract tiers (min/lite/mid/pro/max). But a concrete ApiSource may only have 1–3 models, not covering all tiers. The fallback-downgrade logic in `resolve_model()` silently picks a different model than intended, and users have no way to directly control which specific model an agent uses.
+
+### Solution
+
+Flip the selection axis: **AgentConfig references a concrete model by ID**, not a tier. The tier becomes a display tag on the model, useful for UX grouping and recommendation but never used as a selection key.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        AC[AgentConfig] -->|model_id| MD[ModelDefinition]
+        MD -->|belongs to| AS[ApiSource]
+        MD -->|tagged| MT[ModelTier label]
+    end
+    subgraph "Resolution"
+        RM[resolve_model] -->|lookup model_id in ApiSource.models| MD
+        RM -->|found| MC[ModelConfig: provider + model + params]
+        RM -->|not found| FB[Fallback: first model in ApiSource]
+    end
+    subgraph "UI"
+        SEL[Model Selector] -->|lists| MODELS[ApiSource.models]
+        MODELS -->|shows tier badge| MT
+    end
+```
+
+### Data Model Change
+
+**Before** (current code at `backend/src/relay/config.rs:370-400`):
+```
+AgentConfig { api_source_id, model_tier: ModelTier }
+                           ↓
+resolve_model: find model WHERE tier == model_tier (with downgrade walk)
+```
+
+**After** (target):
+```
+AgentConfig { api_source_id, model_id: String, model_tier: ModelTier (deprecated) }
+                           ↓
+resolve_model: find model WHERE id == model_id (direct lookup)
+migrate_agent_config: if model_id empty, convert model_tier → first matching model
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Selection key | `model_id` (String) | Direct reference, no ambiguity, no fallback logic needed |
+| Tier role | Display tag only | Still useful for UX grouping, recommendation badges, cost estimation |
+| model_id scope | Scoped to ApiSource | Same model_id can exist in different sources (e.g., "claude-sonnet-4-20250514") |
+| Fallback | First model in ApiSource | Only when model_id is invalid/removed; should be rare |
+| Default configs | Reference concrete model IDs | Defaults choose specific models from the first available ApiSource |
+| Migration | Auto-convert: tier → first matching model | Transparent upgrade for existing configs |
+| Backward compat | Keep `model_tier` field with `#[serde(default)]` | Old JSON configs still deserialize; migration fills `model_id` |
+
+### Model Resolution Sequence
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant R as resolve_model()
+    participant AS as ApiSource
+    participant M as ModelDefinition
+
+    O->>R: resolve(AgentConfig)
+    R->>AS: find by api_source_id
+    alt api_source_id valid
+        R->>AS: find model by model_id
+        alt model_id found
+            R->>M: return ModelConfig(provider, model_id, params)
+        else model_id not found (removed/renamed)
+            R->>M: fallback to AS.models[0]
+            Note over R: Log warning: model_id not found
+        end
+    else api_source_id invalid
+        R->>AS: use first ApiSource
+        R->>M: fallback to AS.models[0]
+        Note over R: Log warning: api_source not found
+    end
+```
+
+### Trigger Condition
+`resolve_model()` is called whenever an agent is spawned: relay pipeline step, chat turn, or errand dispatch.
+
+### Data Flow
+```
+[AgentConfig: api_source_id + model_id] → [lookup ApiSource] → [find ModelDefinition by id] → [ModelConfig]
+```
+
+### Design Highlight
+By storing `model_id` instead of `model_tier`, we eliminate the entire downgrade-walk logic (lines 548-586 in current config.rs) and give users direct control. The tier tag remains for UX convenience — showing "Mid" next to "claude-sonnet-4-20250514" helps users understand cost/capability without forcing them into a rigid hierarchy.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **model_id direct reference (chosen)** | Exact control, no silent downgrades, simpler code | Must update when models are removed/renamed |
+| Tier with fallback walk (current) | Works with partial tier coverage | Silent downgrades, user confusion |
+| Tier + model override | Backwards compatible | Two selection axes = confusion |
+
+### Verified Code Locations
+
+| Component | File | Lines |
+|-----------|------|-------|
+| `AgentConfig` struct (current) | `backend/src/relay/config.rs` | ~370-400 |
+| `resolve_model()` (current tier walk) | `backend/src/relay/config.rs` | ~548-586 |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs` | ~458-490 |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs` | ~495-530 |
+| `RelayRegistry` (uses configs) | `backend/src/relay/mod.rs` | ~48-58 |
+| `AgentConfigDto` (current) | `frontend/src/composables/useAgentConfigs.ts` | ~8-22 |
+| `ApiSource` type | `frontend/src/composables/useApiSources.ts` | ~9-22 |
+| `AgentsConfigView` (tier dropdown) | `frontend/src/views/AgentsConfigView.vue` | ~1-902 |
+
+## ApiSources-A3 Model-First Agent Configuration Architecture
+**Status:** approved
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-G1, ApiSources-G3
+
+### Problem
+
+The current tier-based model selection forces agents to choose from 5 abstract tiers (min/lite/mid/pro/max). But a concrete ApiSource may only have 1–3 models, not covering all tiers. The fallback-downgrade logic in `resolve_model()` (lines 548–586 of `backend/src/relay/config.rs`) silently picks a different model than intended, and users have no way to directly control which specific model an agent uses.
+
+### Solution
+
+Flip the selection axis: **AgentConfig references a concrete model by ID**, not a tier. The tier becomes a display tag on the model, useful for UX grouping and recommendation but never used as a selection key.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        AC[AgentConfig] -->|model_id| MD[ModelDefinition]
+        MD -->|belongs to| AS[ApiSource]
+        MD -->|tagged| MT[ModelTier label]
+    end
+    subgraph "Resolution"
+        RM[resolve_model] -->|lookup model_id in ApiSource.models| MD
+        RM -->|found| MC[ModelConfig: provider + model + params]
+        RM -->|not found| FB[Fallback: first model in ApiSource]
+    end
+    subgraph "UI"
+        SEL[Model Selector] -->|lists| MODELS[ApiSource.models]
+        MODELS -->|shows tier badge| MT
+    end
+```
+
+### Data Model Change
+
+**Before** (current code at `backend/src/relay/config.rs:379-397`):
+```
+AgentConfig { api_source_id, model_tier: ModelTier }
+                           ↓
+resolve_model: find model WHERE tier == model_tier (with downgrade walk)
+```
+
+**After**:
+```
+AgentConfig { api_source_id, model_id: String, model_tier: ModelTier (deprecated) }
+                           ↓
+resolve_model: find model WHERE id == model_id (direct lookup)
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Selection key | `model_id` (String) | Direct reference, no ambiguity, no fallback logic needed |
+| Tier role | Display tag only | Still useful for UX grouping, recommendation badges, cost estimation |
+| model_id scope | Scoped to ApiSource | Same model_id can exist in different sources (e.g., "claude-sonnet-4-20250514") |
+| Fallback | First model in ApiSource | Only when model_id is invalid/removed; should be rare |
+| Default configs | Reference concrete model IDs | Defaults choose specific models from the first available ApiSource |
+| Migration | Auto-convert: tier → first matching model | Transparent upgrade for existing configs |
+| Backward compat | Keep `model_tier` field with `#[serde(default)]` | Existing JSON configs deserialize without error; migration fills `model_id` |
+
+### Model Resolution Sequence
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant R as resolve_model()
+    participant AS as ApiSource
+    participant M as ModelDefinition
+
+    O->>R: resolve(AgentConfig)
+    R->>AS: find by api_source_id
+    alt api_source_id valid
+        R->>AS: find model by model_id
+        alt model_id found
+            R->>M: return ModelConfig(provider, model_id, params)
+        else model_id not found (removed/renamed)
+            R->>M: fallback to AS.models[0]
+            Note over R: Log warning: model_id not found
+        end
+    else api_source_id invalid
+        R->>AS: use first ApiSource
+        R->>M: fallback to AS.models[0]
+        Note over R: Log warning: api_source not found
+    end
+```
+
+### Trigger Condition
+`resolve_model()` is called whenever an agent is spawned: relay pipeline step, chat turn, or errand dispatch.
+
+### Data Flow
+```
+[AgentConfig: api_source_id + model_id] → [lookup ApiSource] → [find ModelDefinition by id] → [ModelConfig]
+```
+
+### Design Highlight
+By storing `model_id` instead of `model_tier`, we eliminate the entire downgrade-walk logic (current lines 548-586) and give users direct control. The tier tag remains for UX convenience — showing "Mid" next to "claude-sonnet-4-20250514" helps users understand cost/capability without forcing them into a rigid hierarchy.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **model_id direct reference (chosen)** | Exact control, no silent downgrades, simpler code | Must update when models are removed/renamed |
+| Tier with fallback walk (current) | Works with partial tier coverage | Silent downgrades, user confusion |
+| Tier + model override | Backwards compatible | Two selection axes = confusion |
+
+### Verified Files
+- `backend/src/relay/config.rs` — AgentConfig struct at lines 379-397, resolve_model() at lines 548-586, generate_default_agents_with_source() at lines 449-490
+- `backend/src/relay/mod.rs` — RelayRegistry struct with api_sources Vec
+- `frontend/src/composables/useAgentConfigs.ts` — AgentConfigDto with `model_tier` field (line 10)
+- `frontend/src/composables/useApiSources.ts` — ModelDefinition interface with id/name/tier (lines 6-10)
+- `frontend/src/views/AgentsConfigView.vue` — tier dropdown UI using `agent.model_tier` and `tierLabel()`
+
+## ApiSources-A3 Model-First Agent Configuration Architecture
+**Status:** proposed
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-G1, ApiSources-G3
+
+### Problem
+
+The current tier-based model selection forces agents to choose from 5 abstract tiers (min/lite/mid/pro/max). But a concrete ApiSource may only have 1–3 models, not covering all tiers. The fallback-downgrade logic in `resolve_model()` silently picks a different model than intended, and users have no way to directly control which specific model an agent uses.
+
+### Solution
+
+Flip the selection axis: **AgentConfig references a concrete model by ID**, not a tier. The tier becomes a display tag on the model, useful for UX grouping and recommendation but never used as a selection key.
+
+```mermaid
+graph TB
+    subgraph "Config Layer"
+        AC[AgentConfig] -->|model_id| MD[ModelDefinition]
+        MD -->|belongs to| AS[ApiSource]
+        MD -->|tagged| MT[ModelTier label]
+    end
+    subgraph "Resolution"
+        RM[resolve_model] -->|lookup model_id in ApiSource.models| MD
+        RM -->|found| MC[ModelConfig: provider + model + params]
+        RM -->|not found| FB[Fallback: first model in ApiSource]
+    end
+    subgraph "UI"
+        SEL[Model Selector] -->|lists| MODELS[ApiSource.models]
+        MODELS -->|shows tier badge| MT
+    end
+```
+
+### Data Model Change
+
+```
+AgentConfig { api_source_id, model_tier: ModelTier }
+                           ↓
+resolve_model: find model WHERE tier == model_tier (with downgrade)
+```
+
+```
+AgentConfig { api_source_id, model_id: String }
+                           ↓
+resolve_model: find model WHERE id == model_id (direct lookup)
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Selection key | `model_id` (String) | Direct reference, no ambiguity, no fallback logic needed |
+| Tier role | Display tag only | Still useful for UX grouping, recommendation badges, cost estimation |
+| model_id scope | Scoped to ApiSource | Same model_id can exist in different sources (e.g., "claude-sonnet-4-20250514") |
+| Fallback | First model in ApiSource | Only when model_id is invalid/removed; should be rare |
+| Default configs | Reference concrete model IDs | Defaults choose specific models from the first available ApiSource |
+| Migration | Auto-convert: tier → first matching model | Transparent upgrade for existing configs |
+
+### Model Resolution Sequence
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant R as resolve_model()
+    participant AS as ApiSource
+    participant M as ModelDefinition
+
+    O->>R: resolve(AgentConfig)
+    R->>AS: find by api_source_id
+    alt api_source_id valid
+        R->>AS: find model by model_id
+        alt model_id found
+            R->>M: return ModelConfig(provider, model_id, params)
+        else model_id not found (removed/renamed)
+            R->>M: fallback to AS.models[0]
+            Note over R: Log warning: model_id not found
+        end
+    else api_source_id invalid
+        R->>AS: use first ApiSource
+        R->>M: fallback to AS.models[0]
+        Note over R: Log warning: api_source not found
+    end
+```
+
+### Trigger Condition
+`resolve_model()` is called whenever an agent is spawned: relay pipeline step, chat turn, or errand dispatch.
+
+### Data Flow
+```
+[AgentConfig: api_source_id + model_id] → [lookup ApiSource] → [find ModelDefinition by id] → [ModelConfig]
+```
+
+### Design Highlight
+By storing `model_id` instead of `model_tier`, we eliminate the entire downgrade-walk logic and give users direct control. The tier tag remains for UX convenience — showing "Mid" next to "claude-sonnet-4-20250514" helps users understand cost/capability without forcing them into a rigid hierarchy.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **model_id direct reference (chosen)** | Exact control, no silent downgrades, simpler code | Must update when models are removed/renamed |
+| Tier with fallback walk (current) | Works with partial tier coverage | Silent downgrades, user confusion |
+| Tier + model override | Backwards compatible | Two selection axes = confusion |

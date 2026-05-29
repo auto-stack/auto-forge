@@ -193,6 +193,7 @@
     "profession": "角色",
     "soul": "灵魂",
     "apiSource": "API 来源",
+    "model": "模型",
     "modelTier": "模型层级",
     "equippedSkills": "装备技能",
     "temperature": "温度 ({value})",

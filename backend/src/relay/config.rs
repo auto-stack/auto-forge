@@ -42,9 +42,10 @@ pub struct ModelDefinition {
 }
 
 /// Cost/performance tier for model selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelTier {
+    #[default]
     #[serde(alias = "light")]
     Min,    // Ultra-cheap: Haiku, GPT-4o-mini
     Lite,   // Cheap: Sonnet 3.5, GPT-4o
@@ -371,7 +372,7 @@ pub fn load_or_detect_api_sources() -> Vec<ApiSource> {
 
 // ─── Agent Config ────────────────────────────────────────────────────────────
 
-/// A configured agent binding Soul + Profession + API Source + Model Tier.
+/// A configured agent binding Soul + Profession + API Source + Model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     pub id: String,
@@ -379,6 +380,11 @@ pub struct AgentConfig {
     pub profession_id: String,
     pub soul_id: String,
     pub api_source_id: String,
+    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
+    #[serde(default)]
+    pub model_id: String,
+    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
+    #[serde(default)]
     pub model_tier: ModelTier,
     #[serde(default)]
     pub is_default: bool,
@@ -474,6 +480,7 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             profession_id: profession.to_string(),
             soul_id: soul.to_string(),
             api_source_id: api_source_id.to_string(),
+            model_id: String::new(), // filled by assign_model_ids()
             model_tier: tier,
             is_default: true,
             temperature: 0.3,
@@ -525,47 +532,66 @@ pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentCon
         }
     }
 
-    if added || fixed {
+    // MIGRATION: Fill model_id for configs that only have model_tier
+    let migrated = assign_model_ids(&mut merged, api_sources);
+
+    if added || fixed || migrated {
         let _ = save_agent_configs(&merged);
     }
     merged
 }
 
+/// For each config with empty model_id, find the best matching model
+/// from its ApiSource by preferred tier, then fallback to first model.
+pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) -> bool {
+    let mut migrated = false;
+    for config in configs.iter_mut() {
+        if config.model_id.is_empty() {
+            let source = api_sources.iter()
+                .find(|s| s.id == config.api_source_id)
+                .or_else(|| api_sources.first());
+            config.model_id = source
+                .and_then(|s| {
+                    s.models.iter().find(|m| m.tier == config.model_tier)
+                        .or_else(|| s.models.first())
+                })
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+
+            if !config.model_id.is_empty() {
+                migrated = true;
+                tracing::info!(
+                    "Migrated AgentConfig '{}': tier {:?} → model_id '{}'",
+                    config.id, config.model_tier, config.model_id
+                );
+            }
+        }
+    }
+    migrated
+}
+
 /// Resolve an AgentConfig into a concrete ModelConfig for use by AgentInstance.
 ///
-/// Fallback strategy when the exact tier is missing:
-/// 1. Try the requested tier.
-/// 2. Walk down the tier ladder (Pro→Mid→Lite→Min, Max→Pro→Mid→Lite→Min).
-/// 3. As a last resort, use the first available model in the source.
+/// Looks up the model by `model_id` directly. Falls back to first model if not found.
 pub fn resolve_model(
     config: &AgentConfig,
     api_sources: &[ApiSource],
 ) -> Option<crate::relay::agent::ModelConfig> {
-    let source = api_sources.iter().find(|s| s.id == config.api_source_id)
+    // 1. Find the ApiSource
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
         .or_else(|| api_sources.first())?;
 
-    // Collect available tiers in this source
-    let available_tiers: std::collections::HashSet<ModelTier> =
-        source.models.iter().map(|m| m.tier).collect();
-
-    // Try the requested tier first, then walk down the ladder
-    let target_tier = if available_tiers.contains(&config.model_tier) {
-        config.model_tier
-    } else {
-        // Walk down: try each lower tier in order
-        let order = config.model_tier.order();
-        let mut found = None;
-        for target_order in (0..order).rev() {
-            if let Some(tier) = available_tiers.iter().find(|t| t.order() == target_order) {
-                found = Some(*tier);
-                break;
-            }
-        }
-        found.or_else(|| source.models.first().map(|m| m.tier))?
-    };
-
-    let model_def = source.models.iter().find(|m| m.tier == target_tier)
-        .or_else(|| source.models.first())?;
+    // 2. Find the specific model by ID (direct lookup, no tier walk)
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            tracing::warn!(
+                "model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id
+            );
+            source.models.first()
+        })?;
 
     Some(crate::relay::agent::ModelConfig {
         provider: source.provider.clone(),
@@ -651,5 +677,186 @@ mod tests {
         for source in &sources {
             assert!(!source.models.is_empty());
         }
+    }
+
+    // ─── Model-First Agent Config Tests (ApiSources-G3) ─────────────────────
+
+    fn make_test_source() -> ApiSource {
+        ApiSource {
+            id: "test-source".into(),
+            name: "Test Source".into(),
+            provider: Provider::Anthropic,
+            api_key_env: "TEST_KEY".into(),
+            api_key_stored: None,
+            base_url: None,
+            is_available: true,
+            models: vec![
+                ModelDefinition { id: "claude-3-5-haiku-20241022".into(), name: "Claude Haiku 3.5".into(), tier: ModelTier::Min },
+                ModelDefinition { id: "claude-3-5-sonnet-20241022".into(), name: "Claude Sonnet 3.5".into(), tier: ModelTier::Lite },
+                ModelDefinition { id: "claude-sonnet-4".into(), name: "Claude Sonnet 4".into(), tier: ModelTier::Mid },
+                ModelDefinition { id: "claude-opus-4".into(), name: "Claude Opus 4".into(), tier: ModelTier::Pro },
+            ],
+        }
+    }
+
+    fn make_test_config(model_id: &str, api_source_id: &str, tier: ModelTier) -> AgentConfig {
+        AgentConfig {
+            id: "test-agent".into(),
+            name: "Test Agent".into(),
+            profession_id: "assistant".into(),
+            soul_id: "assistant".into(),
+            api_source_id: api_source_id.into(),
+            model_id: model_id.into(),
+            model_tier: tier,
+            is_default: false,
+            temperature: 0.3,
+            max_tokens: 8192,
+            reasoning_budget: None,
+            thinking_enabled: false,
+            thinking_budget: None,
+            avatar_url: None,
+            equipped_skills: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn test_resolve_model_valid_model_id() {
+        let source = make_test_source();
+        let config = make_test_config("claude-sonnet-4", "test-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-sonnet-4");
+        assert_eq!(result.temperature, 0.3);
+        assert_eq!(result.max_tokens, 8192);
+    }
+
+    #[test]
+    fn test_resolve_model_invalid_model_id_falls_back() {
+        let source = make_test_source();
+        let config = make_test_config("nonexistent-model", "test-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
+    }
+
+    #[test]
+    fn test_resolve_model_empty_model_id_falls_back() {
+        let source = make_test_source();
+        let config = make_test_config("", "test-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
+    }
+
+    #[test]
+    fn test_resolve_model_missing_api_source_falls_back() {
+        let source = make_test_source();
+        let config = make_test_config("claude-3-5-haiku-20241022", "deleted-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model of first source
+    }
+
+    #[test]
+    fn test_resolve_model_no_api_sources_returns_none() {
+        let config = make_test_config("any-model", "any-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_model_empty_models_returns_none() {
+        let empty_source = ApiSource {
+            id: "empty-source".into(),
+            name: "Empty".into(),
+            provider: Provider::Anthropic,
+            api_key_env: "KEY".into(),
+            api_key_stored: None,
+            base_url: None,
+            is_available: true,
+            models: vec![],
+        };
+        let config = make_test_config("any-model", "empty-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[empty_source]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_assign_model_ids_migrates_tier_to_model_id() {
+        let source = make_test_source();
+        let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
+        assign_model_ids(&mut configs, &[source]);
+        assert_eq!(configs[0].model_id, "claude-sonnet-4");
+    }
+
+    #[test]
+    fn test_assign_model_ids_tier_not_found_falls_back() {
+        let source = make_test_source();
+        // Source has Min, Lite, Mid, Pro but NOT Max
+        let mut configs = vec![make_test_config("", "test-source", ModelTier::Max)];
+        assign_model_ids(&mut configs, &[source]);
+        assert_eq!(configs[0].model_id, "claude-3-5-haiku-20241022"); // first model
+    }
+
+    #[test]
+    fn test_assign_model_ids_skips_already_set() {
+        let source = make_test_source();
+        let mut configs = vec![make_test_config("already-set", "test-source", ModelTier::Mid)];
+        assign_model_ids(&mut configs, &[source]);
+        assert_eq!(configs[0].model_id, "already-set");
+    }
+
+    #[test]
+    fn test_assign_model_ids_empty_sources() {
+        let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
+        assign_model_ids(&mut configs, &[]);
+        assert_eq!(configs[0].model_id, "");
+    }
+
+    #[test]
+    fn test_serde_old_json_no_model_id() {
+        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_tier":"mid","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
+        let config: AgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.model_id, "");
+        assert_eq!(config.model_tier, ModelTier::Mid);
+    }
+
+    #[test]
+    fn test_serde_new_json_with_model_id() {
+        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","model_tier":"mid","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
+        let config: AgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.model_id, "claude-sonnet-4");
+        assert_eq!(config.model_tier, ModelTier::Mid);
+    }
+
+    #[test]
+    fn test_serde_new_json_without_model_tier() {
+        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
+        let config: AgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.model_id, "claude-sonnet-4");
+        assert_eq!(config.model_tier, ModelTier::Min); // serde default
+    }
+
+    #[test]
+    fn test_generate_defaults_empty_model_id() {
+        let defaults = generate_default_agents_with_source("test-source");
+        assert_eq!(defaults.len(), 9);
+        for config in &defaults {
+            assert_eq!(config.model_id, "");
+            assert_eq!(config.api_source_id, "test-source");
+        }
+        // Verify specific tiers
+        assert_eq!(defaults.iter().find(|c| c.profession_id == "advisor").unwrap().model_tier, ModelTier::Mid);
+        assert_eq!(defaults.iter().find(|c| c.profession_id == "architect").unwrap().model_tier, ModelTier::Pro);
+        assert_eq!(defaults.iter().find(|c| c.profession_id == "assistant").unwrap().model_tier, ModelTier::Lite);
+    }
+
+    #[test]
+    fn test_resolve_model_preserves_parameters() {
+        let source = make_test_source();
+        let mut config = make_test_config("claude-sonnet-4", "test-source", ModelTier::Mid);
+        config.temperature = 0.7;
+        config.max_tokens = 16384;
+        config.reasoning_budget = Some(8192);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.temperature, 0.7);
+        assert_eq!(result.max_tokens, 16384);
+        assert_eq!(result.reasoning_budget, Some(8192));
     }
 }

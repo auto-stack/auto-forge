@@ -7,19 +7,9 @@
 **Tags:** stack:backend
 **Depends on:** AgentConfig-G1, Runtime-G3
 
-- [ ] ApiSource data model supports Anthropic, OpenAI, and Local providers with per-source models
-- [ ] ModelTier enum (Light / Mid / Heavy) maps to concrete models per provider
-- [ ] First-startup auto-detection finds existing Claude keys, OpenAI keys, and Ollama instances
-- [ ] API sources persisted to `dirs::data_local_dir()/autoforge/api_sources.json`
-- [ ] CRUD API endpoints for creating, reading, updating, and deleting API sources
-- [ ] Multi-provider AI dispatch routes chat requests to the correct provider (Anthropic SSE, OpenAI streaming, Local/Ollama)
-- [ ] API key resolution priority: env var → ~/.claude/settings.json → stored (base64)
-- [ ] Test Connection endpoint verifies API source connectivity and credentials
-- [ ] APIs top-level view with source list, detail editor, and model management table
-- [ ] First-startup UI guides user when no API source is configured
+ApiSource data model supports Anthropic, OpenAI, and Local providers with per-source models. ModelTier enum (Min / Lite / Mid / Pro / Max) tags each model for display grouping. AgentConfig references concrete model IDs (model_id) instead of tiers, enabling direct model selection per agent regardless of how many tiers an ApiSource covers. First-startup auto-detection finds existing Claude keys, OpenAI keys, and Ollama instances. API sources persisted to `dirs::data_local_dir()/autoforge/api_sources.json`. CRUD API endpoints for creating, reading, updating, and deleting API sources. Multi-provider AI dispatch routes chat requests to the correct provider (Anthropic SSE, OpenAI streaming, Local/Ollama). API key resolution priority: env var → ~/.claude/settings.json → stored (base64). Test Connection endpoint verifies API source connectivity and credentials. APIs top-level view with source list, detail editor, and model management table. First-startup UI guides user when no API source is configured.
 
-Currently AutoForge only supports Anthropic Claude with a hardcoded API key path. ApiSources-G1 introduces a configurable multi-provider system so agents can use different LLM backends. The APIs view sits as a top-level navigation tab alongside Chat, Specs, and Relay, because Tools and Skills views will follow the same pattern in the future.
----
+Currently AutoForge only supports Anthropic Claude with a hardcoded API key path. ApiSources-G1 introduces a configurable multi-provider system so agents can use different LLM backends. ApiSources-G3 evolves this to model-first selection: agents choose specific models (by model_id) from each ApiSource, with tier as a display-only tag.
 
 ## ApiSources-G2 APIs Documentation View
 **Status:** implemented
@@ -30,3 +20,17 @@ Currently AutoForge only supports Anthropic Claude with a hardcoded API key path
 - [x] Lists all API routes grouped by module (project, chats, wiki, relay, config)
 - [x] Displays method, path, handler name, and brief description per endpoint
 - [x] Static content sourced from `specs/apis.ad`; editable via Specs workspace
+
+## ApiSources-G3 Model-First Agent Configuration replaces Tier-based selection
+**Status:** proposed
+**Tags:** stack:both, module:api-sources
+**Depends on:** ApiSources-G1
+
+- [ ] AgentConfig stores `model_id` (reference to a specific model in an ApiSource) instead of `model_tier`
+- [ ] Model tier becomes a tag/label on each ModelDefinition for display and reference only
+- [ ] Frontend Agent config UI shows model list per ApiSource for direct model selection
+- [ ] resolve_model() resolves directly by model_id, eliminating tier downgrade fallback logic
+- [ ] Default AgentConfigs are updated to reference concrete model IDs instead of tier values
+- [ ] Existing AgentConfig migrations gracefully convert tier-based configs to model-based
+
+Currently agents select a model by choosing a tier (min/lite/mid/pro/max), which causes problems when an ApiSource doesn't have models for all tiers. The new design lets users directly select a specific model from the ApiSource's model list, with tier shown as a tag for reference. This ensures no agent is misconfigured due to missing tiers.

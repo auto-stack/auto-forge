@@ -80,6 +80,7 @@ export interface RunState {
   savings_ratio: number
   events: RunEventDto[]
   title?: string
+  current_step_started_at?: number
 }
 
 export interface StepState {
