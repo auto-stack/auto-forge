@@ -89,23 +89,9 @@ impl AgentTurn {
         registry: ToolRegistry,
         messages: Vec<ChatMessage>,
     ) -> Self {
-        let mut allowed: Vec<String> = agent.profession.allowed_tools.clone();
-        // Merge skill-granted tools
-        for tool in &agent.skill_tools {
-            if !allowed.contains(tool) {
-                allowed.push(tool.clone());
-            }
-        }
-        let tool_definitions: Vec<ToolDefinition> = if allowed.is_empty() {
-            // If no tools are explicitly allowed, allow none (assistant/documenter)
-            Vec::new()
-        } else {
-            registry
-                .definitions()
-                .into_iter()
-                .filter(|d| allowed.contains(&d.name))
-                .collect()
-        };
+        // Use the global cached filter instead of re-scanning every time.
+        let tool_definitions = ToolRegistry::global()
+            .definitions_for_profession(&agent.profession, &agent.skill_tools);
 
         Self {
             agent,
@@ -225,7 +211,28 @@ impl AgentTurn {
                                     if !allowed.is_empty() && !allowed.contains(&name) {
                                         format!("Tool '{}' is not available for profession '{}'", name, self.agent.profession.id)
                                     } else {
-                                        match tool.execute(input.clone()) {
+                                        // Heavy tools (shell, search, list_symbols) can block for seconds.
+                                        // Run them on the blocking thread pool so tokio workers stay responsive.
+                                        let is_heavy = matches!(name.as_str(), "shell" | "search" | "list_symbols");
+                                        let tool_result = if is_heavy {
+                                            let tool_name = name.clone();
+                                            let tool_input = input.clone();
+                                            let tool_name_err = tool_name.clone();
+                                            tokio::task::spawn_blocking(move || {
+                                                crate::forge::tools::ToolRegistry::global()
+                                                    .get(&tool_name)
+                                                    .map(|t| t.execute(tool_input))
+                                            })
+                                            .await
+                                            .ok()
+                                            .flatten()
+                                            .unwrap_or_else(|| Err(crate::forge::tools::ToolError::ExecutionFailed(
+                                                format!("Tool '{}' failed or panicked", tool_name_err)
+                                            )))
+                                        } else {
+                                            tool.execute(input.clone())
+                                        };
+                                        match tool_result {
                                             Ok(r) => r,
                                             Err(e) => format!("Error: {}", e),
                                         }
@@ -602,6 +609,8 @@ mod tests {
             thinking_enabled: false,
             thinking_budget: 0,
             base_skills: Vec::new(),
+            min_tier: crate::relay::config::ModelTier::Lite,
+            max_tier: crate::relay::config::ModelTier::Max,
         };
         let soul = SoulConfig::parse("tester", "# Soul of the Tester\n\n## Core Values\n- Test everything\n").unwrap();
         AgentInstance::spawn(profession, soul, crate::relay::agent::ModelConfig::cheap())

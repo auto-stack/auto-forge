@@ -39,6 +39,10 @@ pub use soul::{SoulConfig, SoulError};
 pub use store::{RunStore, new_run_store, start_run, get_run, list_runs, advance_run, submit_handoff, resolve_gate, RunEntry, RunEvent, RunSummary, RunState, StepState, GateState};
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
+
+/// Global singleton — initialized once on first access.
+static GLOBAL_REGISTRY: LazyLock<RelayRegistry> = LazyLock::new(RelayRegistry::new);
 
 /// Global registry of Souls, Professions, and API Sources.
 pub struct RelayRegistry {
@@ -114,6 +118,11 @@ impl RelayRegistry {
 
     pub fn get_profession(&self, id: &str) -> Option<&Profession> {
         self.professions.get(id)
+    }
+
+    /// Access the global singleton registry.
+    pub fn global() -> &'static RelayRegistry {
+        &GLOBAL_REGISTRY
     }
 
     /// Spawn an agent instance with the given profession and soul.

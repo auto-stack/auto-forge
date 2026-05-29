@@ -125,6 +125,12 @@ impl ToolDefinition {
 
 // ─── Tool Registry ───────────────────────────────────────────────────────────
 
+static GLOBAL_TOOL_REGISTRY: LazyLock<ToolRegistry> = LazyLock::new(ToolRegistry::new);
+
+/// Per-profession cached tool definitions (avoids O(n) filter on every AgentTurn::new).
+static PROFESSION_TOOL_CACHE: LazyLock<Mutex<HashMap<String, Vec<ToolDefinition>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 pub struct ToolRegistry {
     tools: HashMap<String, Box<dyn Tool>>,
 }
@@ -155,6 +161,11 @@ impl ToolRegistry {
         registry
     }
 
+    /// Access the global singleton registry.
+    pub fn global() -> &'static ToolRegistry {
+        &GLOBAL_TOOL_REGISTRY
+    }
+
     pub fn register(&mut self, tool: Box<dyn Tool>) {
         self.tools.insert(tool.name().to_string(), tool);
     }
@@ -172,6 +183,43 @@ impl ToolRegistry {
 
     pub fn names(&self) -> Vec<String> {
         self.tools.keys().cloned().collect()
+    }
+
+    /// Return cached tool definitions for a given profession + skills.
+    /// First call builds the cache; subsequent calls are O(1) HashMap lookup.
+    pub fn definitions_for_profession(
+        &self,
+        profession: &crate::relay::Profession,
+        skill_tools: &[String],
+    ) -> Vec<ToolDefinition> {
+        let cache_key = format!("{}:{:?}", profession.id, skill_tools);
+        {
+            let cache = PROFESSION_TOOL_CACHE.lock().unwrap();
+            if let Some(cached) = cache.get(&cache_key) {
+                return cached.clone();
+            }
+        }
+
+        let mut allowed: Vec<String> = profession.allowed_tools.clone();
+        for tool in skill_tools {
+            if !allowed.contains(tool) {
+                allowed.push(tool.clone());
+            }
+        }
+
+        let defs = if allowed.is_empty() {
+            Vec::new()
+        } else {
+            self.tools
+                .values()
+                .map(|t| ToolDefinition::from_tool(t.as_ref()))
+                .filter(|d| allowed.contains(&d.name))
+                .collect()
+        };
+
+        let mut cache = PROFESSION_TOOL_CACHE.lock().unwrap();
+        cache.insert(cache_key, defs.clone());
+        defs
     }
 }
 

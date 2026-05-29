@@ -77,7 +77,7 @@ fn test_goal_discovery_flow_discover_step_has_tool_guard() {
     let flow = goal_discovery_flow();
     let step = flow.get_step("discover").unwrap();
     let guard = step.tool_guard.as_ref().expect("discover should have a tool guard");
-    assert_eq!(guard.required_first, vec!["write_goals"]);
+    assert_eq!(guard.required_first, vec!["write_specs", "write_goals"]);
     assert!(guard.always_allowed.contains(&"list_specs".to_string()));
     assert!(guard.always_allowed.contains(&"read_specs".to_string()));
 }

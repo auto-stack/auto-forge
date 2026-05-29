@@ -39,6 +39,13 @@ async fn main() {
     };
     let ai_provider_clone = app_state.ai_provider.clone();
 
+    // Warm up LLM connection pool in the background so the first real request
+    // does not pay the TCP+TLS handshake cost.
+    let ai_provider_warmup = app_state.ai_provider.clone();
+    tokio::spawn(async move {
+        ai_provider_warmup.warm_up().await;
+    });
+
     let api_routes = Router::new()
         .merge(auto_forge::forge::routes())
         .with_state(app_state);

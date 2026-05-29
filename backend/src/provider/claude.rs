@@ -78,12 +78,36 @@ pub struct ClaudeProvider {
 impl ClaudeProvider {
     pub fn new() -> Self {
         let (api_key, base_url, reasoning_model) = load_api_config();
+        // Tuned client: larger idle pool, keep-alive, and HTTP/2 adaptive window
+        // so concurrent relay pipelines do not exhaust connections.
+        let client = reqwest::Client::builder()
+            .pool_max_idle_per_host(32)
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .http2_adaptive_window(true)
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         Self {
-            client: reqwest::Client::new(),
+            client,
             api_key,
             base_url,
             reasoning_model,
         }
+    }
+
+    /// Fire a minimal request to warm up the TCP/TLS connection pool.
+    /// Runs in the background; result is ignored.
+    pub async fn warm_up(&self) {
+        if self.api_key.is_none() {
+            tracing::warn!("LLM warm-up skipped: no API key configured");
+            return;
+        }
+        let request = crate::provider::AIRequest {
+            prompt: "ping".to_string(),
+            context: None,
+        };
+        let start = std::time::Instant::now();
+        let _ = self.chat(request).await;
+        tracing::info!("LLM connection warm-up completed in {:?}", start.elapsed());
     }
 
     /// Return the model to use for a given request. If thinking is requested

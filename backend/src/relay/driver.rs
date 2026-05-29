@@ -31,7 +31,13 @@ pub async fn drive_run(
     set_tool_context(&project_path, &run_id);
 
     loop {
-        let advance_result = advance_run(&run_store, &run_id);
+        let loop_start = std::time::Instant::now();
+        let advance_result = {
+            let t = std::time::Instant::now();
+            let r = advance_run(&run_store, &run_id);
+            tracing::info!(run_id = %run_id, elapsed_ms = t.elapsed().as_millis() as u64, "advance_run");
+            r
+        };
 
         match advance_result {
             Some(AdvanceResult::ExecuteStep {
@@ -50,25 +56,35 @@ pub async fn drive_run(
                 });
 
                 // Build agent instance for this profession
-                let agent = match build_agent(&profession_id, agent_config_id.as_deref()) {
-                    Some(a) => a,
-                    None => {
-                        tracing::error!(
-                            "Run {}: failed to spawn agent for profession {}",
-                            run_id, profession_id
-                        );
-                        break;
-                    }
+                let agent = {
+                    let t = std::time::Instant::now();
+                    let a = match build_agent(&profession_id, agent_config_id.as_deref()) {
+                        Some(a) => a,
+                        None => {
+                            tracing::error!(
+                                "Run {}: failed to spawn agent for profession {}",
+                                run_id, profession_id
+                            );
+                            break;
+                        }
+                    };
+                    tracing::info!(run_id = %run_id, profession_id = %profession_id, elapsed_ms = t.elapsed().as_millis() as u64, "build_agent");
+                    a
                 };
 
                 // Gather context for this step
-                let messages = build_step_messages(
-                    &run_store,
-                    &run_id,
-                    &step_id,
-                    &profession_id,
-                    &initial_task,
-                );
+                let messages = {
+                    let t = std::time::Instant::now();
+                    let m = build_step_messages(
+                        &run_store,
+                        &run_id,
+                        &step_id,
+                        &profession_id,
+                        &initial_task,
+                    );
+                    tracing::info!(run_id = %run_id, profession_id = %profession_id, elapsed_ms = t.elapsed().as_millis() as u64, "build_step_messages");
+                    m
+                };
 
                 // Fetch the current flow step to get tool_guard and validators
                 let flow_step = {
@@ -81,11 +97,16 @@ pub async fn drive_run(
                 };
 
                 // Run the agent turn
-                let mut turn = crate::relay::turn::AgentTurn::new(
-                    agent,
-                    ToolRegistry::new(),
-                    messages,
-                );
+                let mut turn = {
+                    let t = std::time::Instant::now();
+                    let turn = crate::relay::turn::AgentTurn::new(
+                        agent,
+                        ToolRegistry::new(),
+                        messages,
+                    );
+                    tracing::info!(run_id = %run_id, profession_id = %profession_id, elapsed_ms = t.elapsed().as_millis() as u64, "AgentTurn::new");
+                    turn
+                };
                 turn.max_turns = turn.agent.profession.max_turns;
                 if let Some(step) = flow_step {
                     turn.tool_guard = step.tool_guard.clone();
@@ -277,15 +298,36 @@ pub async fn drive_run(
                     }
                 });
 
+                let turn_start = std::time::Instant::now();
                 let turn_result = turn.run(provider.clone(), turn_tx).await;
+                let turn_elapsed_ms = turn_start.elapsed().as_millis() as u64;
+                tracing::info!(
+                    run_id = %run_id,
+                    profession_id = %profession_id,
+                    elapsed_ms = turn_elapsed_ms,
+                    input_tokens = turn_result.input_tokens,
+                    output_tokens = turn_result.output_tokens,
+                    tool_calls = turn_result.tool_calls.len(),
+                    "AgentTurn::run"
+                );
 
                 // Build handoff document from turn result
                 let to_profession = guess_next_profession(&run_store, &run_id)
                     .unwrap_or_else(|| "next".to_string());
-                let handoff = turn.to_handoff(&turn_result, &to_profession, &run_id, 0);
+                let handoff = {
+                    let t = std::time::Instant::now();
+                    let h = turn.to_handoff(&turn_result, &to_profession, &run_id, 0);
+                    tracing::info!(run_id = %run_id, profession_id = %profession_id, elapsed_ms = t.elapsed().as_millis() as u64, "turn.to_handoff");
+                    h
+                };
 
                 // Submit handoff — pipeline engine advances internally
-                let next_result = submit_handoff(&run_store, &run_id, handoff.clone());
+                let next_result = {
+                    let t = std::time::Instant::now();
+                    let r = submit_handoff(&run_store, &run_id, handoff.clone());
+                    tracing::info!(run_id = %run_id, profession_id = %profession_id, elapsed_ms = t.elapsed().as_millis() as u64, "submit_handoff");
+                    r
+                };
 
                 // Broadcast step completion with token usage
                 let _ = event_tx.send(RunEventBroadcast {
@@ -298,6 +340,13 @@ pub async fn drive_run(
                         "tokens_used": handoff.token_usage.step_input + handoff.token_usage.step_output,
                     })),
                 });
+
+                tracing::info!(
+                    run_id = %run_id,
+                    profession_id = %profession_id,
+                    elapsed_ms = loop_start.elapsed().as_millis() as u64,
+                    "relay_step_total"
+                );
 
                 match next_result {
                     Some(AdvanceResult::ExecuteStep { .. }) => {
@@ -386,7 +435,7 @@ fn build_agent(
     profession_id: &str,
     agent_config_id: Option<&str>,
 ) -> Option<AgentInstance> {
-    let registry = crate::relay::RelayRegistry::new();
+    let registry = crate::relay::RelayRegistry::global();
 
     if let Some(config_id) = agent_config_id {
         // Look up specific agent config by ID

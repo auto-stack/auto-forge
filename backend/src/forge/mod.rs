@@ -1865,8 +1865,6 @@ mod handlers {
     use super::*;
     use crate::provider::AIProviderState;
     use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest};
-    use crate::forge::tools::ToolRegistry;
-
     // ─── Project Management ───────────────────────────────────────────────
 
     pub async fn get_project_status() -> Json<project::ProjectInfo> {
@@ -2053,7 +2051,7 @@ mod handlers {
                 id: format!("m-{}", uuid::Uuid::new_v4()),
                 role: String::from("system"),
                 content: {
-                    let relay = crate::relay::RelayRegistry::new();
+                    let relay = crate::relay::RelayRegistry::global();
                     let agent_name = relay.default_agent_for("assistant")
                         .map(|c| c.name.as_str())
                         .unwrap_or("Assistant Agent");
@@ -2139,7 +2137,8 @@ mod handlers {
             let sid_for_panic = sid.clone();
             let event_tx_for_panic = event_tx.clone();
             let result = std::panic::AssertUnwindSafe(async move {
-                let registry = ToolRegistry::new();
+                let stream_start = std::time::Instant::now();
+                let registry = crate::forge::tools::ToolRegistry::global();
             let ai_for_turns = ai.clone();
             let _provider = ai.clone();
 
@@ -2171,6 +2170,7 @@ mod handlers {
 
             // Build conversation messages from session history
             let mut chat_messages = Vec::new();
+            let t_chat_msgs = std::time::Instant::now();
             {
                 let store = forge_sessions().lock().unwrap();
                 if let Some(session) = store.get(&sid) {
@@ -2254,13 +2254,14 @@ mod handlers {
                     }
                 }
             }
+            tracing::info!(sid = %sid, elapsed_ms = t_chat_msgs.elapsed().as_millis() as u64, "forge_stream: build_chat_messages");
 
             // Build system prompt and tool set
             fn build_system_and_tools(
                 registry: &crate::forge::tools::ToolRegistry,
                 profession_id: &str,
             ) -> (String, Vec<crate::forge::tools::ToolDefinition>, Vec<String>, u32) {
-                let relay = crate::relay::RelayRegistry::new();
+                let relay = crate::relay::RelayRegistry::global();
                 let agent_config = relay.default_agent_for(profession_id);
                 let prompt = match agent_config.and_then(|cfg| relay.spawn_agent_from_config(cfg)) {
                     Some(agent) => agent.render_system_prompt(),
@@ -2287,11 +2288,13 @@ mod handlers {
                 (prompt, tools, allowed, max_tokens)
             }
 
+            let t_sys = std::time::Instant::now();
             let (system_prompt, all_tools, allowed_tool_names, max_tokens) = build_system_and_tools(&registry, &active_profession);
+            tracing::info!(sid = %sid, profession_id = %active_profession, elapsed_ms = t_sys.elapsed().as_millis() as u64, "forge_stream: build_system_and_tools");
 
             // Load thinking configuration: prefer AgentConfig, fall back to Profession defaults
             let (thinking_enabled, thinking_budget) = {
-                let relay = crate::relay::RelayRegistry::new();
+                let relay = crate::relay::RelayRegistry::global();
                 if let Some(agent_cfg) = relay.default_agent_for(&active_profession) {
                     (agent_cfg.thinking_enabled, agent_cfg.thinking_budget.unwrap_or(0))
                 } else {
@@ -2311,11 +2314,12 @@ mod handlers {
 
             while turn_count < max_turns {
                 turn_count += 1;
+                let turn_start = std::time::Instant::now();
                 let mut turn_text = String::new();
 
                 // Re-resolve thinking config when profession changes (e.g. after bring_in)
                 let (thinking_enabled, thinking_budget) = {
-                    let relay = crate::relay::RelayRegistry::new();
+                    let relay = crate::relay::RelayRegistry::global();
                     if let Some(agent_cfg) = relay.default_agent_for(&current_profession) {
                         (agent_cfg.thinking_enabled, agent_cfg.thinking_budget.unwrap_or(0))
                     } else {
@@ -2349,6 +2353,8 @@ mod handlers {
                 let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();
                 let provider_clone = ai_for_turns.clone();
 
+                let llm_start = std::time::Instant::now();
+                let mut first_token_ms: Option<u64> = None;
                 let turn_task = tokio::spawn(async move {
                     provider_clone.chat_turn(request, turn_tx).await
                 });
@@ -2360,6 +2366,9 @@ mod handlers {
                 while let Some(event) = turn_rx.recv().await {
                     match event {
                         ToolChatEvent::TextDelta { text } => {
+                            if first_token_ms.is_none() {
+                                first_token_ms = Some(llm_start.elapsed().as_millis() as u64);
+                            }
                             turn_text.push_str(&text);
                             let event = Event::default().data(
                                 serde_json::to_string(&ForgeStreamEvent::Delta {
@@ -2422,8 +2431,29 @@ mod handlers {
                                 );
                                 let _ = event_tx.send(Ok(event));
                             } else if let Some(tool) = registry.get(&name) {
-                                let result = tool.execute(input);
-                                let mut result_str = match result {
+                                let t_tool = std::time::Instant::now();
+                                let is_heavy = matches!(name.as_str(), "shell" | "search" | "list_symbols");
+                                let tool_input = input.clone();
+                                let tool_result = if is_heavy {
+                                    let tool_name = name.clone();
+                                    let tool_name_err = tool_name.clone();
+                                    tokio::task::spawn_blocking(move || {
+                                        crate::forge::tools::ToolRegistry::global()
+                                            .get(&tool_name)
+                                            .map(|t| t.execute(tool_input))
+                                    })
+                                    .await
+                                    .ok()
+                                    .flatten()
+                                    .unwrap_or_else(|| Err(crate::forge::tools::ToolError::ExecutionFailed(
+                                        format!("Tool '{}' failed or panicked", tool_name_err)
+                                    )))
+                                } else {
+                                    tool.execute(input)
+                                };
+                                let tool_elapsed_ms = t_tool.elapsed().as_millis() as u64;
+                                tracing::info!(sid = %sid, profession_id = %current_profession, tool_name = %name, elapsed_ms = tool_elapsed_ms, "forge_stream: tool_execute");
+                                let mut result_str = match tool_result {
                                     Ok(r) => r,
                                     Err(e) => format!("Error: {}", e),
                                 };
@@ -2572,7 +2602,7 @@ mod handlers {
                                             let from_profession = handoff_data["from_profession"].as_str().unwrap_or("").to_string();
 
                                             // Resolve display names for the event
-                                            let relay = crate::relay::RelayRegistry::new();
+                                            let relay = crate::relay::RelayRegistry::global();
                                             let from_name = relay.default_agent_for(&from_profession)
                                                 .map(|c| c.name.clone())
                                                 .unwrap_or_else(|| from_profession.clone());
@@ -2712,6 +2742,20 @@ mod handlers {
                     break;
                 }
 
+                let llm_elapsed_ms = llm_start.elapsed().as_millis() as u64;
+                let turn_elapsed_ms = turn_start.elapsed().as_millis() as u64;
+                tracing::info!(
+                    sid = %sid,
+                    profession_id = %current_profession,
+                    turn = turn_count,
+                    llm_elapsed_ms = llm_elapsed_ms,
+                    first_token_ms = first_token_ms.unwrap_or(0),
+                    turn_elapsed_ms = turn_elapsed_ms,
+                    text_len = turn_text.len(),
+                    tool_calls = turn_tool_calls.len(),
+                    "forge_stream: turn_complete"
+                );
+
                 // Persist assistant message first, then tool results
                 // (Anthropic API requires assistant with tool_use BEFORE user with tool_result)
                 if !turn_text.is_empty() || !turn_tool_calls.is_empty() {
@@ -2784,6 +2828,7 @@ mod handlers {
                 serde_json::to_string(&ForgeStreamEvent::Done).unwrap(),
             );
             let _ = event_tx.send(Ok(event));
+            tracing::info!(sid = %sid, elapsed_ms = stream_start.elapsed().as_millis() as u64, turns = turn_count, "forge_stream: complete");
             }).catch_unwind().await;
 
             if let Err(panic_payload) = result {

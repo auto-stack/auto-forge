@@ -530,7 +530,7 @@ mod tests {
         let advisor_step = flow.get_step("discover").unwrap();
         assert!(advisor_step.tool_guard.is_some());
         let guard = advisor_step.tool_guard.as_ref().unwrap();
-        assert_eq!(guard.required_first, vec!["write_goals"]);
+        assert_eq!(guard.required_first, vec!["write_specs", "write_goals"]);
         assert!(guard.always_allowed.contains(&"list_specs".to_string()));
     }
 

@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
 
 /// Shared in-memory store for all relay runs.
 pub type RunStore = Arc<Mutex<HashMap<String, RunEntry>>>;
@@ -140,8 +141,8 @@ fn persistence_dir() -> PathBuf {
     dir
 }
 
-/// Save a run entry to disk.
-pub fn save_run(entry: &RunEntry) {
+/// Synchronous disk write (used by the background persistence task).
+fn save_run_sync(entry: &RunEntry) {
     let dir = persistence_dir().join(&entry.run_id);
     if let Err(e) = fs::create_dir_all(&dir) {
         tracing::error!("save_run: failed to create dir {}: {}", dir.display(), e);
@@ -159,6 +160,44 @@ pub fn save_run(entry: &RunEntry) {
         Err(e) => {
             tracing::error!("save_run: failed to serialize run {}: {}", entry.run_id, e);
         }
+    }
+}
+
+/// Background async persistence queue.
+/// Calling `save_run()` only clones the entry and sends it to a channel —
+/// the actual disk I/O happens on a blocking thread pool without blocking callers.
+static SAVE_RUN_TX: std::sync::Mutex<Option<mpsc::UnboundedSender<RunEntry>>> = std::sync::Mutex::new(None);
+
+fn ensure_save_run_tx() -> Option<mpsc::UnboundedSender<RunEntry>> {
+    let mut tx_opt = SAVE_RUN_TX.lock().unwrap();
+    if let Some(ref tx) = *tx_opt {
+        return Some(tx.clone());
+    }
+    // Only spawn the background task if a tokio runtime is available.
+    if tokio::runtime::Handle::try_current().is_ok() {
+        let (tx, mut rx) = mpsc::unbounded_channel::<RunEntry>();
+        tokio::spawn(async move {
+            while let Some(entry) = rx.recv().await {
+                let _ = tokio::task::spawn_blocking(move || {
+                    save_run_sync(&entry);
+                }).await;
+            }
+        });
+        *tx_opt = Some(tx.clone());
+        Some(tx)
+    } else {
+        None
+    }
+}
+
+/// Queue a run entry for async persistence.
+/// This is non-blocking when a tokio runtime is present.
+/// Falls back to synchronous disk write in test contexts without a runtime.
+pub fn save_run(entry: &RunEntry) {
+    if let Some(tx) = ensure_save_run_tx() {
+        let _ = tx.send(entry.clone());
+    } else {
+        save_run_sync(entry);
     }
 }
 
