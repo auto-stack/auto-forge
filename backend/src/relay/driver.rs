@@ -107,6 +107,7 @@ pub async fn drive_run(
                     tracing::info!(run_id = %run_id, profession_id = %profession_id, elapsed_ms = t.elapsed().as_millis() as u64, "AgentTurn::new");
                     turn
                 };
+                turn.run_id = Some(run_id.clone());
                 turn.max_turns = turn.agent.profession.max_turns;
                 if let Some(step) = flow_step {
                     turn.tool_guard = step.tool_guard.clone();

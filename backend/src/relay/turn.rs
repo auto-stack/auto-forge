@@ -79,6 +79,8 @@ pub struct AgentTurn {
     pub budget_tracker: Option<BudgetTracker>,
     /// Optional tool guard enforcing step-level sequencing rules.
     pub tool_guard: Option<ToolGuard>,
+    /// Optional run_id for logging context.
+    pub run_id: Option<String>,
 }
 
 impl AgentTurn {
@@ -101,6 +103,7 @@ impl AgentTurn {
             max_turns: 40,
             budget_tracker: None,
             tool_guard: None,
+            run_id: None,
         }
     }
 
@@ -132,6 +135,8 @@ impl AgentTurn {
         while turn_count < self.max_turns {
             turn_count += 1;
             self.agent.context.turns_taken = turn_count;
+            let t_chat_turn = std::time::Instant::now();
+            let mut tools_elapsed_ms: u64 = 0;
 
             // Budget check before turn
             if let Some(ref tracker) = self.budget_tracker {
@@ -178,6 +183,7 @@ impl AgentTurn {
                     ToolChatEvent::ThinkingDelta { .. } => {}
                     ToolChatEvent::ToolUse { id, name, input } => {
                         got_tool_use = true;
+                        let t_tool = std::time::Instant::now();
                         let _ = tx.send(TurnEvent::ToolCall {
                             id: id.clone(),
                             name: name.clone(),
@@ -248,7 +254,17 @@ impl AgentTurn {
                             result: exec_result.clone(),
                         });
 
-                        tracing::info!("AgentTurn tool call: id={}, name={}, profession={}, result={}", id, name, self.agent.profession.id, exec_result.chars().take(100).collect::<String>());
+                        let tool_elapsed_ms = t_tool.elapsed().as_millis() as u64;
+                        tools_elapsed_ms += tool_elapsed_ms;
+                        tracing::info!(
+                            run_id = %self.run_id.as_deref().unwrap_or("unknown"),
+                            profession_id = %self.agent.profession.id,
+                            turn = turn_count,
+                            tool_name = %name,
+                            elapsed_ms = tool_elapsed_ms,
+                            "AgentTurn: tool_execute"
+                        );
+                        tracing::debug!("AgentTurn tool call: id={}, name={}, profession={}, result={}", id, name, self.agent.profession.id, exec_result.chars().take(100).collect::<String>());
                         // Track special tools
                         if name == "handoff" || name == "bring_in" || name == "spawn_relay" {
                             result.handoff_requested = true;
@@ -339,6 +355,19 @@ impl AgentTurn {
                 }
                 Ok(None) => {}
             }
+
+            let chat_turn_elapsed_ms = t_chat_turn.elapsed().as_millis() as u64;
+            let llm_elapsed_ms = chat_turn_elapsed_ms.saturating_sub(tools_elapsed_ms);
+            tracing::info!(
+                run_id = %self.run_id.as_deref().unwrap_or("unknown"),
+                profession_id = %self.agent.profession.id,
+                turn = turn_count,
+                chat_turn_elapsed_ms,
+                llm_elapsed_ms,
+                tools_elapsed_ms,
+                tool_calls_this_turn = turn_tools.len(),
+                "AgentTurn: chat_turn_complete"
+            );
 
             // Persist assistant message for next turn
             if !turn_text.is_empty() || !turn_tools.is_empty() {

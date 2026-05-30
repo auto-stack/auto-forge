@@ -159,6 +159,11 @@ static PROFESSIONS: LazyLock<Mutex<Vec<Profession>>> = LazyLock::new(|| {
     Mutex::new(profession::load_or_generate_professions())
 });
 
+/// Get a reference to the global professions list.
+pub fn professions() -> &'static Mutex<Vec<Profession>> {
+    &PROFESSIONS
+}
+
 pub async fn list_professions() -> Json<ProfessionsResponse> {
     let professions = PROFESSIONS.lock().unwrap();
     let dtos = professions.iter().map(|p| ProfessionDto {
@@ -437,6 +442,11 @@ static API_SOURCES: LazyLock<Mutex<Vec<ApiSource>>> = LazyLock::new(|| {
     Mutex::new(config::load_or_detect_api_sources())
 });
 
+/// Get a reference to the global API sources list.
+pub fn api_sources() -> &'static Mutex<Vec<ApiSource>> {
+    &API_SOURCES
+}
+
 pub async fn list_api_sources() -> Json<Vec<ApiSource>> {
     let sources = API_SOURCES.lock().unwrap();
     Json(sources.clone())
@@ -537,7 +547,7 @@ pub async fn test_api_connection(
     Json(result)
 }
 
-async fn do_test_connection(id: &str) -> ConnectionTestResult {
+pub async fn do_test_connection(id: &str) -> ConnectionTestResult {
     let source = {
         let sources = API_SOURCES.lock().unwrap();
         match sources.iter().find(|s| s.id == id) {

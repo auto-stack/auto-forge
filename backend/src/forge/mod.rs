@@ -356,7 +356,7 @@ pub struct ToolCallInfo {
     pub status: String,
 }
 
-struct SessionStore {
+pub struct SessionStore {
     sessions: std::collections::HashMap<String, ForgeSession>,
     data_dir: PathBuf,
     /// Maps project_path → active_session_id.
@@ -401,15 +401,15 @@ impl SessionStore {
         tracing::info!("Loaded {} persistent Forge sessions", self.sessions.len());
     }
 
-    fn get(&self, sid: &str) -> Option<&ForgeSession> {
+    pub fn get(&self, sid: &str) -> Option<&ForgeSession> {
         self.sessions.get(sid)
     }
 
-    fn get_mut(&mut self, sid: &str) -> Option<&mut ForgeSession> {
+    pub fn get_mut(&mut self, sid: &str) -> Option<&mut ForgeSession> {
         self.sessions.get_mut(sid)
     }
 
-    fn insert(&mut self, session: ForgeSession) {
+    pub fn insert(&mut self, session: ForgeSession) {
         self.save(&session);
         self.sessions.insert(session.id.clone(), session);
     }
@@ -425,7 +425,7 @@ impl SessionStore {
         self.save(&session_clone);
     }
 
-    fn update_status(&mut self, sid: &str, status: ForgeStatus) {
+    pub fn update_status(&mut self, sid: &str, status: ForgeStatus) {
         let Some(session) = self.sessions.get_mut(sid) else { return };
         session.status = status;
         let session_clone = session.clone();
@@ -439,14 +439,14 @@ impl SessionStore {
         self.save(&session_clone);
     }
 
-    fn save(&self, session: &ForgeSession) {
+    pub fn save(&self, session: &ForgeSession) {
         let path = self.data_dir.join(format!("{}.json", session.id));
         if let Ok(json) = serde_json::to_string_pretty(session) {
             let _ = std::fs::write(path, json);
         }
     }
 
-    fn list_all(&self) -> Vec<&ForgeSession> {
+    pub fn list_all(&self) -> Vec<&ForgeSession> {
         self.sessions.values().collect()
     }
 
@@ -482,7 +482,7 @@ impl SessionStore {
         true
     }
 
-    fn remove(&mut self, sid: &str) -> bool {
+    pub fn remove(&mut self, sid: &str) -> bool {
         let existed = self.sessions.remove(sid).is_some();
         if existed {
             let path = self.data_dir.join(format!("{}.json", sid));
@@ -494,7 +494,7 @@ impl SessionStore {
     }
 }
 
-fn forge_sessions() -> &'static Mutex<SessionStore> {
+pub fn forge_sessions() -> &'static Mutex<SessionStore> {
     static STORE: OnceLock<Mutex<SessionStore>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(SessionStore::new()))
 }
@@ -707,6 +707,11 @@ const TMPL_REPORTS: &str = include_str!("templates/reports.ad");
 
 
 impl SpecsStore {
+    /// Return the parent directory of the specs data_dir (i.e. the project root).
+    pub fn project_base_path(&self) -> Option<std::path::PathBuf> {
+        self.data_dir.parent().map(|p| p.to_path_buf())
+    }
+
     fn new_default() -> Self {
         let templates_dir = dirs::cache_dir()
             .unwrap_or_else(|| PathBuf::from("."))
@@ -723,11 +728,11 @@ impl SpecsStore {
         store
     }
 
-    fn is_project_open(&self) -> bool {
+    pub fn is_project_open(&self) -> bool {
         !self.data_dir.as_os_str().is_empty()
     }
 
-    fn open_project(&mut self, project_path: &std::path::Path) -> Result<project::ProjectInfo, String> {
+    pub fn open_project(&mut self, project_path: &std::path::Path) -> Result<project::ProjectInfo, String> {
         if !project_path.exists() {
             return Err(format!("Directory does not exist: {}", project_path.display()));
         }
@@ -763,7 +768,7 @@ impl SpecsStore {
         })
     }
 
-    fn close_project(&mut self) {
+    pub fn close_project(&mut self) {
         self.projects.clear();
         self.data_dir = PathBuf::new();
         self.flat_mode_project = None;
@@ -1512,7 +1517,7 @@ impl SpecsStore {
         }
     }
 
-    fn update_section(&mut self, project: &str, section_id: &str, content: String, status: String) -> Result<(), String> {
+    pub fn update_section(&mut self, project: &str, section_id: &str, content: String, status: String) -> Result<(), String> {
         let doc = self.get_or_default(project);
         if let Some(section) = doc.sections.iter_mut().find(|s| s.id == section_id) {
             section.content = content;
@@ -1754,7 +1759,7 @@ fn sanitize_filename(name: &str) -> String {
     name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
 }
 
-pub(crate) fn specs() -> &'static Mutex<SpecsStore> {
+pub fn specs() -> &'static Mutex<SpecsStore> {
     static STORE: OnceLock<Mutex<SpecsStore>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(SpecsStore::new_default()))
 }

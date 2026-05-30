@@ -269,3 +269,110 @@ let client = reqwest::Client::builder()
 | Gate 通知机制 | 用 `tokio::sync::Notify` 替代 2 秒轮询 | 中 |
 | Agent 实例模板池 | 预缓存 `AgentInstance` 静态模板，交接时 clone + 注入动态上下文 | 中 |
 | 异步化持久化层 | `save_run` 完全异步（`tokio::fs` + 写入队列） | 中 |
+
+---
+
+## 八、追加优化：AgentTurn 内部细粒度计时（阶段三补完）
+
+> 实施日期：2026-05-30
+
+### 问题
+
+`AgentTurn::run` 的 284,200ms 是一个**黑盒总时间**，内部包含：
+- 多轮 `chat_turn`（每次外层循环一次 LLM 调用）
+- 每轮中的工具执行时间
+- 每轮中的 LLM 生成时间（含隐藏的 extended thinking）
+- 框架开销（已优化到 ≈0ms）
+
+无法区分"延迟来自框架还是 LLM"，也无法判断 thinking 是否占用了大量时间。
+
+### 解决方案
+
+在 `AgentTurn::run` 的外层循环（每轮 `chat_turn`）中新增三级计时：
+
+#### 1. 每轮 `chat_turn` 独立计时
+
+```rust
+while turn_count < self.max_turns {
+    turn_count += 1;
+    let t_chat_turn = std::time::Instant::now();
+    let mut tools_elapsed_ms: u64 = 0;
+    // ... chat_turn + tool execution ...
+    let chat_turn_elapsed_ms = t_chat_turn.elapsed().as_millis() as u64;
+    let llm_elapsed_ms = chat_turn_elapsed_ms.saturating_sub(tools_elapsed_ms);
+    tracing::info!(
+        run_id, profession_id, turn = turn_count,
+        chat_turn_elapsed_ms, llm_elapsed_ms, tools_elapsed_ms,
+        tool_calls_this_turn, "AgentTurn: chat_turn_complete"
+    );
+}
+```
+
+输出示例：
+```
+AgentTurn: chat_turn_complete run_id=run-xxx profession_id=coder turn=3
+  chat_turn_elapsed_ms=15234 llm_elapsed_ms=14890 tools_elapsed_ms=344
+  tool_calls_this_turn=5
+```
+
+**诊断价值**：一眼看出本轮耗时是 LLM 在思考（`llm_elapsed_ms` 大）还是工具执行慢（`tools_elapsed_ms` 大）。
+
+#### 2. 每次 `tool_execute` 独立计时
+
+```rust
+ToolChatEvent::ToolUse { id, name, input } => {
+    let t_tool = std::time::Instant::now();
+    // ... 工具执行 ...
+    let tool_elapsed_ms = t_tool.elapsed().as_millis() as u64;
+    tools_elapsed_ms += tool_elapsed_ms;
+    tracing::info!(
+        run_id, profession_id, turn = turn_count,
+        tool_name = %name, elapsed_ms = tool_elapsed_ms,
+        "AgentTurn: tool_execute"
+    );
+}
+```
+
+输出示例：
+```
+AgentTurn: tool_execute run_id=run-xxx profession_id=coder turn=3
+  tool_name=read_file elapsed_ms=5
+AgentTurn: tool_execute run_id=run-xxx profession_id=coder turn=3
+  tool_name=search elapsed_ms=150
+```
+
+**诊断价值**：精确定位哪个工具、哪一轮调用耗时异常。
+
+#### 3. `run_id` 上下文注入
+
+`AgentTurn` 新增 `run_id: Option<String>` 字段，driver 在创建 turn 后注入：
+```rust
+turn.run_id = Some(run_id.clone());
+```
+
+确保所有 `AgentTurn` 内部日志都能与 `drive_run` 的外部日志关联分析。
+
+### 关于 Thinking 的说明
+
+Coder profession 默认启用了 `thinking_enabled=true`（budget=2048 tokens），但：
+- `ThinkingDelta` 事件在 `relay/turn.rs` 中被丢弃（`ToolChatEvent::ThinkingDelta { .. } => {}`）
+- Thinking 的**内容**和**独立耗时**当前不可见
+- Thinking 时间被包含在 `llm_elapsed_ms` 中（通过 `chat_turn_elapsed_ms - tools_elapsed_ms` 近似得出）
+
+**如果要进一步拆分 thinking 时间**，需要：
+1. 在 `ThinkingDelta` 处理中记录第一个/最后一个 delta 的到达时间
+2. 或让 Claude API 在 `Usage` 中返回 thinking token 的独立耗时（当前 API 不支持）
+
+当前方案已足够区分"框架延迟 vs LLM 延迟"。
+
+### 实施文件
+
+| 文件 | 修改内容 |
+|------|---------|
+| `backend/src/relay/turn.rs` | `AgentTurn` 新增 `run_id` 字段；外层循环新增 `t_chat_turn`、`tools_elapsed_ms`；`ToolUse` 处理新增 `t_tool`；循环结束后输出 `chat_turn_complete` 日志 |
+| `backend/src/relay/driver.rs` | 创建 `AgentTurn` 后注入 `turn.run_id = Some(run_id.clone())` |
+
+### 验证
+
+- 所有 **191 个测试** 通过
+- 无编译警告（除原有的 unused 警告外）

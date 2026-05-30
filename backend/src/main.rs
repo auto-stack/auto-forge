@@ -5,6 +5,11 @@ use axum::Router;
 use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 
+use rmcp::transport::streamable_http_server::{
+    StreamableHttpServerConfig, StreamableHttpService,
+};
+use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+
 #[derive(Clone)]
 struct AppState {
     ai_provider: AIProviderState,
@@ -61,6 +66,16 @@ async fn main() {
         tracing::info!("AutoForge UI served at /forge ({})", forge_dist_dir.display());
     }
     app = app.nest_service("/avatars", tower_http::services::ServeDir::new(&avatars_dir));
+
+    // MCP Streamable HTTP endpoint
+    let mcp_server = auto_forge::mcp::AutoForgeMcpServer::new(ai_provider_clone.clone());
+    let mcp_service = StreamableHttpService::new(
+        move || Ok(mcp_server.clone()),
+        std::sync::Arc::new(LocalSessionManager::default()),
+        StreamableHttpServerConfig::default(),
+    );
+    app = app.route_service("/mcp", mcp_service);
+    tracing::info!("MCP server mounted at /mcp");
 
     let app = app.layer(cors);
 
