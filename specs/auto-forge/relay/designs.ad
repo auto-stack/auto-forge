@@ -915,3 +915,426 @@ interface ForgeStreamEvent {
 ---
 
 ---
+
+## Relay-D13 PDF Export for Relay Run Reports — Design
+**Status:** draft
+
+## Relay-D13 PDF Export for Relay Run Reports — Design
+**Status:** proposed
+**File:** `frontend/src/views/RelayView.vue`
+**Module:** `frontend/src/utils/PdfGenerator.ts`, `frontend/src/views/RelayView.vue`
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G15, Relay-A7
+
+### Overview
+
+Client-side PDF export for completed relay runs. Uses `jspdf` + `jspdf-autotable` to generate a multi-page PDF document from existing RunState data. No backend changes required.
+
+### 1. PdfGenerator Utility
+
+
+```typescript
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
+interface RunStateForPdf {
+  run_id: string
+  title: string
+  flow_id: string
+  status: string
+  mode: string
+  started_at: string
+  completed_at: string
+  tokens_used: number
+  steps: StepSummary[]
+  spec_changes: SpecChange[]
+  deliverables: Deliverable[]
+}
+
+interface StepSummary {
+  step_id: string
+  profession: string
+  status: string
+  tokens_used: number
+  elapsed_ms: number
+  tool_calls: number
+  handoff_summary?: string
+}
+
+interface SpecChange {
+  section_id: string
+  action: 'created' | 'updated' | 'deleted'
+  item_ids: string[]
+}
+
+interface Deliverable {
+  type: 'file' | 'spec' | 'report'
+  path: string
+  description?: string
+}
+
+export class PdfGenerator {
+  private doc: jsPDF
+  private pageWidth: number
+  private margin: number
+  private contentWidth: number
+
+  constructor() {
+    this.doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    this.pageWidth = this.doc.internal.pageSize.getWidth()
+    this.margin = 20
+    this.contentWidth = this.pageWidth - 2 * this.margin
+  }
+
+  generate(run: RunStateForPdf): jsPDF {
+    this.renderCover(run)
+    this.renderSummary(run)
+    this.renderTimeline(run)
+    if (run.spec_changes.length > 0) this.renderSpecChanges(run)
+    if (run.deliverables.length > 0) this.renderDeliverables(run)
+    return this.doc
+  }
+
+  save(run: RunStateForPdf): void {
+    const slug = run.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .slice(0, 40)
+    const date = new Date().toISOString().slice(0, 10)
+    this.doc.save(`relay-${slug}-${date}.pdf`)
+  }
+
+  // --- Page renderers (private) ---
+
+  private renderCover(run: RunStateForPdf): void {
+    // Title block
+    this.doc.setFontSize(24)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.text('Relay Run Report', this.margin, 60)
+
+    this.doc.setFontSize(12)
+    this.doc.setFont('helvetica', 'normal')
+    this.doc.text(run.title || run.run_id, this.margin, 72)
+
+    // Metadata table
+    const rows = [
+      ['Run ID', run.run_id],
+      ['Flow', run.flow_id],
+      ['Status', run.status],
+      ['Mode', run.mode],
+      ['Started', formatTimestamp(run.started_at)],
+      ['Completed', formatTimestamp(run.completed_at)],
+      ['Duration', formatDuration(run.started_at, run.completed_at)],
+      ['Total Tokens', run.tokens_used.toLocaleString()],
+    ]
+    autoTable(this.doc, {
+      startY: 85,
+      head: [['Field', 'Value']],
+      body: rows,
+      margin: { left: this.margin, right: this.margin },
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [59, 130, 246] }, // blue-500
+    })
+  }
+
+  private renderSummary(run: RunStateForPdf): void {
+    this.addPage()
+    this.sectionTitle('Execution Summary')
+
+    const totalSteps = run.steps.length
+    const completedSteps = run.steps.filter(s => s.status === 'done').length
+    const failedSteps = run.steps.filter(s => s.status === 'error').length
+    const totalToolCalls = run.steps.reduce((sum, s) => sum + s.tool_calls, 0)
+    const totalElapsedMs = run.steps.reduce((sum, s) => sum + s.elapsed_ms, 0)
+
+    const summaryRows = [
+      ['Total Steps', `${completedSteps}/${totalSteps} completed`],
+      ['Failed Steps', failedSteps.toString()],
+      ['Total Tool Calls', totalToolCalls.toString()],
+      ['Total Duration', formatMs(totalElapsedMs)],
+      ['Total Tokens', run.tokens_used.toLocaleString()],
+      ['Spec Changes', run.spec_changes.length.toString()],
+      ['Deliverables', run.deliverables.length.toString()],
+    ]
+    autoTable(this.doc, {
+      startY: this.lastY() + 5,
+      head: [['Metric', 'Value']],
+      body: summaryRows,
+      margin: { left: this.margin, right: this.margin },
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [59, 130, 246] },
+    })
+
+    // Per-step token breakdown
+    this.sectionTitle('Per-Step Token Usage', 10)
+
+    const stepRows = run.steps.map(s => [
+      s.step_id,
+      s.profession,
+      s.status,
+      s.tokens_used.toLocaleString(),
+      formatMs(s.elapsed_ms),
+      s.tool_calls.toString(),
+    ])
+    autoTable(this.doc, {
+      startY: this.lastY() + 5,
+      head: [['Step', 'Profession', 'Status', 'Tokens', 'Duration', 'Tools']],
+      body: stepRows,
+      margin: { left: this.margin, right: this.margin },
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [59, 130, 246] },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        3: { halign: 'right' },
+        4: { halign: 'right' },
+        5: { halign: 'right' },
+      },
+    })
+  }
+
+  private renderTimeline(run: RunStateForPdf): void {
+    this.addPage()
+    this.sectionTitle('Execution Timeline')
+
+    const rows = run.steps.map(s => [
+      formatTimestamp(s.started_at || ''),
+      s.step_id,
+      s.profession,
+      s.status === 'done' ? '✓' : s.status === 'error' ? '✗' : '—',
+      s.handoff_summary || '',
+    ])
+    autoTable(this.doc, {
+      startY: this.lastY() + 5,
+      head: [['Time', 'Step', 'Profession', 'Status', 'Handoff Note']],
+      body: rows,
+      margin: { left: this.margin, right: this.margin },
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [59, 130, 246] },
+      columnStyles: {
+        0: { cellWidth: 32 },
+        4: { cellWidth: 'wrap' },
+      },
+    })
+  }
+
+  private renderSpecChanges(run: RunStateForPdf): void {
+    this.addPage()
+    this.sectionTitle('Spec Changes')
+
+    const rows = run.spec_changes.map(c => [
+      c.section_id,
+      c.action,
+      c.item_ids.join(', '),
+    ])
+    autoTable(this.doc, {
+      startY: this.lastY() + 5,
+      head: [['Section', 'Action', 'Items']],
+      body: rows,
+      margin: { left: this.margin, right: this.margin },
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [59, 130, 246] },
+    })
+  }
+
+  private renderDeliverables(run: RunStateForPdf): void {
+    this.addPage()
+    this.sectionTitle('Deliverables')
+
+    const rows = run.deliverables.map(d => [
+      d.type,
+      d.path,
+      d.description || '',
+    ])
+    autoTable(this.doc, {
+      startY: this.lastY() + 5,
+      head: [['Type', 'Path', 'Description']],
+      body: rows,
+      margin: { left: this.margin, right: this.margin },
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [59, 130, 246] },
+    })
+  }
+
+  // --- Helpers ---
+
+  private sectionTitle(text: string, offset = 0): void {
+    const y = this.lastY() + 10 + offset
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.text(text, this.margin, y)
+  }
+
+  private addPage(): void {
+    this.doc.addPage()
+  }
+
+  private lastY(): number {
+    // jspdf-autotable stores finalY on the doc after each autoTable call
+    return (this.doc as any).lastAutoTable?.finalY ?? this.margin
+  }
+}
+
+// --- Formatters ---
+
+function formatTimestamp(iso: string): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatDuration(start: string, end: string): string {
+  if (!start || !end) return '—'
+  return formatMs(new Date(end).getTime() - new Date(start).getTime())
+}
+
+function formatMs(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+  const mins = Math.floor(ms / 60000)
+  const secs = Math.floor((ms % 60000) / 1000)
+  return `${mins}m ${secs}s`
+}
+```
+
+### 2. State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: RelayView mounted
+    Idle --> Generating: User clicks Export PDF
+    Generating --> Generating: Build pages from RunState
+    Generating --> Downloading: jsPDF.save() called
+    Downloading --> Idle: Browser download completes
+    Generating --> Error: jspdf throws
+    Error --> Idle: User dismisses error
+```
+
+### 3. Frontend Integration
+
+
+```vue
+<!-- In run detail header -->
+<button
+  v-if="selectedRun?.status === 'completed'"
+  @click="exportPdf"
+  :disabled="exporting"
+  class="export-btn"
+>
+  <Download :size="16" />
+  {{ exporting ? t('relay.exporting') : t('relay.exportPdf') }}
+</button>
+```
+
+```typescript
+import { PdfGenerator } from '@/utils/PdfGenerator'
+
+const exporting = ref(false)
+
+async function exportPdf() {
+  if (!selectedRun.value) return
+  exporting.value = true
+  try {
+    const gen = new PdfGenerator()
+    // Map RunState → RunStateForPdf
+    const pdfData = mapRunState(selectedRun.value)
+    gen.generate(pdfData)
+    gen.save(pdfData)
+  } catch (e) {
+    console.error('PDF export failed:', e)
+  } finally {
+    exporting.value = false
+  }
+}
+
+function mapRunState(run: RunState): RunStateForPdf {
+  return {
+    run_id: run.run_id,
+    title: run.title || run.run_id,
+    flow_id: run.flow_id,
+    status: run.status,
+    mode: run.mode || 'gsd',
+    started_at: run.started_at,
+    completed_at: run.completed_at,
+    tokens_used: run.tokens_used || 0,
+    steps: run.steps.map(s => ({
+      step_id: s.step_id,
+      profession: s.profession_id,
+      status: s.status,
+      tokens_used: s.tokens_used || 0,
+      elapsed_ms: s.elapsed_ms || 0,
+      tool_calls: s.tool_calls?.length || 0,
+      handoff_summary: s.handoff?.summary,
+    })),
+    spec_changes: run.spec_changes || [],
+    deliverables: run.deliverables || [],
+  }
+}
+```
+
+### 4. i18n Keys
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `relay.exportPdf` | `"Export PDF"` | `"导出 PDF"` |
+| `relay.exporting` | `"Exporting..."` | `"导出中..."` |
+
+### 5. Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `jspdf` | ^2.5.x | PDF document generation |
+| `jspdf-autotable` | ^3.8.x | Table rendering in PDF |
+
+Both are lightweight (~200KB combined gzipped), client-side only, no native dependencies.
+
+### 6. Error Handling
+
+| Error Case | Handling |
+|------------|----------|
+| Run not completed | Export button disabled (only shown for `status === 'completed'`) |
+| jspdf throws during generation | try/catch, log error, show toast notification |
+| RunState missing fields | Default to `—` or `0` in formatters |
+| Large run (50+ steps) | autoTable handles page breaks automatically |
+
+### 7. Data Lifecycle
+
+```
+[User clicks Export]
+    → mapRunState() converts frontend RunState → flat PdfData interface
+    → PdfGenerator.generate(pdfData) builds pages in memory
+    → PdfGenerator.save(pdfData) triggers browser download
+    → No persistence — PDF is a one-time export
+    → No server involvement
+```
+
+### 8. PDF Document Structure
+
+| Page | Content | Layout |
+|------|---------|--------|
+| 1 — Cover | Title, run metadata table | Centered title, metadata table |
+| 2 — Summary | Metrics overview + per-step token table | Two autoTables |
+| 3 — Timeline | Chronological step execution | autoTable with timestamps |
+| 4 — Spec Changes | Sections modified, actions, item IDs | autoTable (optional) |
+| 5 — Deliverables | Files/specs/reports produced | autoTable (optional) |
+
+Pages 4 and 5 are only included if the run has spec_changes or deliverables.
+
+### 9. Files Modified
+
+| File | Change |
+|------|--------|
+| `frontend/package.json` | Add `jspdf` and `jspdf-autotable` dependencies |
+| `frontend/src/utils/PdfGenerator.ts` | **New file** — PDF generation utility |
+| `frontend/src/views/RelayView.vue` | Add export button + `exportPdf()` handler |
+| `frontend/src/locales/en.json` | Add `relay.exportPdf`, `relay.exporting` |
+| `frontend/src/locales/zh.json` | Add `relay.exportPdf`, `relay.exporting` |
+
+### 10. Quality Checklist
+
+- [x] Interface defined (RunStateForPdf, step types)
+- [x] State machine defined (Idle → Generating → Downloading)
+- [x] Data model defined (flat PDF-specific types)
+- [x] Error cases handled (disabled for non-completed, try/catch, defaults)
+- [x] Data lifecycle defined (one-time export, no persistence)
+- [x] All file paths are new (no verification needed)
+- [x] No unhandled error cases

@@ -52,6 +52,7 @@ pub enum RunEvent {
     RunCompleted { #[serde(default)] timestamp: u64 },
     RunFailed { #[serde(default)] timestamp: u64, error: String },
     TokenSpend { #[serde(default)] timestamp: u64, cumulative: u64, step_tokens: u64 },
+    RelayUpdate { #[serde(default)] timestamp: u64, step_id: String, profession_id: String, status: String },
     RelayCompleteNotification {
         run_id: String,
         status: String,
@@ -346,21 +347,23 @@ pub fn advance_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
 pub fn submit_handoff(store: &RunStore, run_id: &str, handoff: HandoffDocument) -> Option<AdvanceResult> {
     let mut map = store.lock().unwrap();
     let entry = map.get_mut(run_id)?;
+    // Capture the just-completed step ID before the engine advances
+    let completed_step_id = entry.engine.flow.steps.get(entry.engine.current_step)
+        .map(|s| s.id.clone())
+        .unwrap_or_default();
     let result = entry.engine.submit_handoff(handoff.clone());
     entry.updated_at = now_secs();
 
-    let step_tokens = handoff.token_usage.step_input + handoff.token_usage.step_output;
-    entry.events.push(RunEvent::TokenSpend {
-        timestamp: now_secs(),
-        cumulative: entry.engine.cumulative_tokens,
-        step_tokens,
-    });
+    // Note: per-turn TokenSpend events are already pushed by the
+    // TurnEvent::Usage handler in the driver. We do not add another
+    // TokenSpend here to avoid double-counting. The engine's
+    // cumulative_tokens is updated once by engine.submit_handoff().
 
     match &result {
-        AdvanceResult::ExecuteStep { step_id, .. } => {
+        AdvanceResult::ExecuteStep { .. } => {
             entry.events.push(RunEvent::StepCompleted {
                 timestamp: now_secs(),
-                step_id: step_id.clone(),
+                step_id: completed_step_id,
                 handoff_summary: handoff.summary.clone(),
             });
         }

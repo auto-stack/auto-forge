@@ -30,6 +30,8 @@ pub enum TurnEvent {
     BudgetWarning { remaining: u64 },
     /// Budget hard-stopped the turn.
     BudgetExceeded,
+    /// Token usage for a completed inner chat turn.
+    Usage { input_tokens: u64, output_tokens: u64 },
 }
 
 /// Result of a completed agent turn.
@@ -137,6 +139,8 @@ impl AgentTurn {
             self.agent.context.turns_taken = turn_count;
             let t_chat_turn = std::time::Instant::now();
             let mut tools_elapsed_ms: u64 = 0;
+            let mut turn_input_tokens: u64 = 0;
+            let mut turn_output_tokens: u64 = 0;
 
             // Budget check before turn
             if let Some(ref tracker) = self.budget_tracker {
@@ -316,6 +320,31 @@ impl AgentTurn {
                             }
                         }
 
+                        // Loop detection: if the same tool with same args has been called
+                        // 3+ times across all turns, break to prevent runaway loops
+                        let loop_key = format!("{}:{}", name, input.to_string());
+                        let loop_count = result.tool_calls.iter()
+                            .chain(turn_tools.iter())
+                            .filter(|t| format!("{}:{}", t.name, t.arguments.to_string()) == loop_key)
+                            .count();
+                        if loop_count >= 3 {
+                            tracing::warn!(
+                                run_id = %self.run_id.as_deref().unwrap_or("unknown"),
+                                profession_id = %self.agent.profession.id,
+                                tool_name = %name,
+                                "AgentTurn: loop detected — same tool called 3+ times with identical args, breaking"
+                            );
+                            let _ = tx.send(TurnEvent::Error {
+                                message: format!(
+                                    "Loop detected: tool '{}' was called {} times with the same arguments. Stopping to prevent runaway execution.",
+                                    name, loop_count + 1
+                                ),
+                            });
+                            result.assistant_text = turn_text;
+                            result.tool_calls = turn_tools;
+                            return result;
+                        }
+
                         turn_tools.push(ToolCallRecord {
                             id: id.clone(),
                             name: name.clone(),
@@ -328,6 +357,8 @@ impl AgentTurn {
                     ToolChatEvent::Usage { input_tokens, output_tokens } => {
                         result.input_tokens += input_tokens as u64;
                         result.output_tokens += output_tokens as u64;
+                        turn_input_tokens += input_tokens as u64;
+                        turn_output_tokens += output_tokens as u64;
                     }
                     ToolChatEvent::Done => break,
                     ToolChatEvent::Error { message } => {
@@ -366,8 +397,14 @@ impl AgentTurn {
                 llm_elapsed_ms,
                 tools_elapsed_ms,
                 tool_calls_this_turn = turn_tools.len(),
+                input_tokens = turn_input_tokens,
+                output_tokens = turn_output_tokens,
                 "AgentTurn: chat_turn_complete"
             );
+            let _ = tx.send(TurnEvent::Usage {
+                input_tokens: turn_input_tokens,
+                output_tokens: turn_output_tokens,
+            });
 
             // Persist assistant message for next turn
             if !turn_text.is_empty() || !turn_tools.is_empty() {

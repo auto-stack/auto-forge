@@ -1394,3 +1394,53 @@ stateDiagram-v2
 ---
 
 ---
+
+## ApiSources-T3 Specifics
+**Status:** draft
+
+The winning copy should be the one marked "done" with:
+- All 15 test cases in a table (TC-T3.1 through TC-T3.15)
+- Coverage matrix mapping G3 goals to tests
+- Full Rust test code in the `### Rust Test Code` section
+- Implementation verification checklist for both backend and frontend
+
+All 9+ other copies (various statuses: draft, done, proposed) must be deleted.
+
+### Files Modified
+
+No code files are modified. This is a **spec-only cleanup**.
+
+| Action | Section | Item ID | Copies to Delete |
+|--------|---------|---------|-----------------|
+| Delete | tests | ApiSources-T3 | 9+ copies (keep best "done" version) |
+| Delete | designs | ApiSources-D1 | 3 copies (keep approved with code evidence) |
+| Delete | designs | UiSystem-D4 | 4 copies (keep most complete draft) |
+| Delete | architecture | ApiSources-A3 | 4 copies (keep first complete) |
+
+### Prevention (Future)
+
+The `update_spec` tool already upserts by ID correctly. The duplication comes from relay agents writing the *same ID* multiple times in a single pipeline run. The fix is:
+
+1. Coder agent should call `update_spec(action: "upsert")` not `write_specs` for existing items
+2. Tester agent should check `list_specs` before creating test items
+3. If an item with the same ID exists, use `update_spec(action: "patch")` to update content only
+
+### Trigger Condition
+
+Immediate — this is a manual cleanup triggered by the "debug test" task. Future prevention is automatic via agent behavior.
+
+### Data Flow
+
+```
+[Tests section loaded] → [Group ApiSources-T3 items] → [Select "done" version with full test code] → [Delete 9+ duplicates] → [Save clean section]
+```
+
+### Design Highlight
+
+This is a one-time remediation, not a system feature. The real fix is agent behavior change (use upsert, not append). The dedup just cleans up the mess that already exists.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Manual spec cleanup (chosen) | Immediate, precise, no code risk | Tedious, doesn't prevent recurrence |
+| Automated dedup script | Scalable, repeatable | Over-engineered for one-time cleanup |
+| Agent prevention only | Prevents future | Doesn't fix current state |

@@ -54,6 +54,27 @@ pub async fn drive_run(
                         "profession_id": &profession_id,
                     })),
                 });
+                let _ = event_tx.send(RunEventBroadcast {
+                    run_id: run_id.clone(),
+                    event_type: "relay_update".to_string(),
+                    payload: Some(json!({
+                        "step_id": &step_id,
+                        "profession_id": &profession_id,
+                        "status": "running",
+                    })),
+                });
+                {
+                    let mut map = run_store.lock().unwrap();
+                    if let Some(entry) = map.get_mut(&run_id) {
+                        entry.events.push(crate::relay::store::RunEvent::RelayUpdate {
+                            timestamp: now_secs(),
+                            step_id: step_id.clone(),
+                            profession_id: profession_id.clone(),
+                            status: "running".to_string(),
+                        });
+                        crate::relay::store::save_run(entry);
+                    }
+                }
 
                 // Build agent instance for this profession
                 let agent = {
@@ -209,6 +230,32 @@ pub async fn drive_run(
                                             }
                                         }
                                     }
+                                    Some(crate::relay::turn::TurnEvent::Usage { input_tokens, output_tokens }) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let step_tokens = input_tokens + output_tokens;
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_usage".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                                "input_tokens": input_tokens,
+                                                "output_tokens": output_tokens,
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                // Projected cumulative (engine.cumulative_tokens is only
+                                                // updated at handoff time by engine.submit_handoff)
+                                                let projected_cumulative = entry.engine.cumulative_tokens + step_tokens;
+                                                entry.events.push(crate::relay::store::RunEvent::TokenSpend {
+                                                    timestamp: now_secs(),
+                                                    cumulative: projected_cumulative,
+                                                    step_tokens,
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
                                     Some(crate::relay::turn::TurnEvent::Complete) => {
                                         flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
                                         let _ = event_tx_fwd.send(RunEventBroadcast {
@@ -312,6 +359,9 @@ pub async fn drive_run(
                     "AgentTurn::run"
                 );
 
+                // Per-turn token usage is already tracked by the TurnEvent::Usage handler
+                // in the event forwarder above. No need to double-count here.
+
                 // Build handoff document from turn result
                 let to_profession = guess_next_profession(&run_store, &run_id)
                     .unwrap_or_else(|| "next".to_string());
@@ -341,6 +391,27 @@ pub async fn drive_run(
                         "tokens_used": handoff.token_usage.step_input + handoff.token_usage.step_output,
                     })),
                 });
+                let _ = event_tx.send(RunEventBroadcast {
+                    run_id: run_id.clone(),
+                    event_type: "relay_update".to_string(),
+                    payload: Some(json!({
+                        "step_id": &step_id,
+                        "profession_id": &profession_id,
+                        "status": "completed",
+                    })),
+                });
+                {
+                    let mut map = run_store.lock().unwrap();
+                    if let Some(entry) = map.get_mut(&run_id) {
+                        entry.events.push(crate::relay::store::RunEvent::RelayUpdate {
+                            timestamp: now_secs(),
+                            step_id: step_id.clone(),
+                            profession_id: profession_id.clone(),
+                            status: "completed".to_string(),
+                        });
+                        crate::relay::store::save_run(entry);
+                    }
+                }
 
                 tracing::info!(
                     run_id = %run_id,

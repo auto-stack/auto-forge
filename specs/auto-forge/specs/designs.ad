@@ -1044,135 +1044,198 @@ All three view modes share the same `filteredItems` computed (module + stack + t
 
 ---
 
-## Specs-D13 Kanban Board for Goals & Plans
+## Specs-D13 Test Validation Design — Deduplication Checklist & Procedure
 **Status:** draft
 **Module:** `frontend/src/components/kanban/`
-**Tags:** stack:frontend
+**Tags:** stack:both, module:specs
 **Depends on:** Specs-D12, Specs-G7
 
-### Overview
+## Overview
 
-A drag-and-drop Kanban board for Goals and Plans. Columns represent status states; cards represent individual spec items. Moving a card to a new column updates its `status` field via the existing `update_spec` API.
+Test validation design defines the concrete checklist and deduplication procedure the Architect applies to test specs before approving pipeline advancement. This is a spec-level quality gate, not a runtime test runner.
 
-### Column Definitions
-
-#### Goals Kanban
-
-| Column | Maps to `status` | Color |
-|---|---|---|
-| **Backlog** | `backlog` | `hsl(var(--muted-foreground))` |
-| **In Progress** | `in_progress` | `hsl(var(--primary))` |
-| **Completed** | `completed` | `hsl(142 70% 45%)` |
-| **Cancelled** | `cancelled` | `hsl(0 70% 50%)` |
-
-#### Plans Kanban
-
-| Column | Maps to `status` | Color |
-|---|---|---|
-| **Planned** | `planned` | `hsl(var(--muted-foreground))` |
-| **In Progress** | `in_progress` | `hsl(var(--primary))` |
-| **Done** | `done` | `hsl(142 70% 45%)` |
-| **Blocked** | `blocked` | `hsl(38 90% 50%)` |
-
-> **Note:** If a spec item has a `status` value not in the column mapping, it is placed in the first column (default/fallback) with a warning indicator.
-
-### Card Design
-
-```
-┌─ Kanban Card (220px min-width) ─────────────────┐
-│ [ID badge]  [Priority chip]  [tag chips...]     │
-│ Title text (1–2 lines, ellipsis)                │
-│ ─────────────────────────────────────────────── │
-│ 👤 owner-tag  📎 N deps                         │
-└─────────────────────────────────────────────────┘
-```
-
-- **ID badge**: e.g. `G-12`, `P-3` — JetBrains Mono, 0.72rem
-- **Priority**: `critical` | `high` | `medium` | `low` — color-coded chip
-- **Tags**: max 2 visible, `+N` overflow
-- **Dependencies**: count of `depends_on` entries; click opens RelationsPanel
-- **Hover**: subtle shadow lift (`translateY(-2px)`), 150ms transition
-
-### Drag & Drop Interaction
+### Interface
 
 ```typescript
-// Native HTML5 Drag and Drop (no external library)
-interface DragState {
-  itemId: string
-  fromColumn: string
+interface ValidationResult {
+  valid: boolean
+  duplicateCount: number
+  orphanCount: number
+  redundancyCount: number
+  issues: ValidationIssue[]
 }
 
-function onDragStart(item: SpecItem, column: string) {
-  dragState.value = { itemId: item.id, fromColumn: column }
-}
-
-function onDrop(targetColumn: string) {
-  if (!dragState.value) return
-  const { itemId, fromColumn } = dragState.value
-  if (fromColumn === targetColumn) return
-
-  // Optimistic UI update
-  moveItem(itemId, fromColumn, targetColumn)
-
-  // Persist to backend
-  updateSpecItem(itemId, { status: columnToStatus(targetColumn) })
+interface ValidationIssue {
+  id: string
+  section: string
+  severity: 'critical' | 'warning' | 'info'
+  message: string
+  action: 'delete' | 'merge' | 'flag' | 'none'
+  relatedIds: string[]
 }
 ```
 
-- Column header highlights when a draggable item hovers over it
-- Column background changes to `hsl(var(--primary) / 0.03)` on drag-over
-- Invalid drops (e.g., dropping a Goal onto a Plan column) are rejected with `cursor: not-allowed`
+### State Machine
 
-### Column Header
-
+```mermaid
+stateDiagram-v2
+    [*] --> Scanning: Read all spec sections
+    Scanning --> Deduplicating: Count items per ID
+    Deduplicating --> Tracing: Resolve depends_on chains
+    Tracing --> Reporting: Compile issues list
+    Reporting --> Approved: No critical issues
+    Reporting --> Rejected: Critical issues found
+    Rejected --> Scanning: Issues fixed, re-validate
+    Approved --> [*]
 ```
-┌─ Column Header ─────────────────────────┐
-│ ● Column Name                    (N)    │
-│ [──────── progress bar ────────]        │
-└─────────────────────────────────────────┘
+
+### Data Model
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `duplicateCount` | `number` | Items sharing same ID within a section |
+| `orphanCount` | `number` | Test items with no upstream goal/design |
+| `redundancyCount` | `number` | Test items verifying identical behavior |
+| `issues[].severity` | `'critical' \| 'warning' \| 'info'` | Critical = blocks pipeline |
+| `issues[].action` | `'delete' \| 'merge' \| 'flag' \| 'none'` | Recommended resolution |
+
+### Deduplication Procedure
+
+1. **Scan**: Load all items from each section
+2. **Group by ID**: For each section, group items by `item_id`
+3. **For each group with count > 1**:
+   - Keep the item with highest-quality status (done > approved > draft > proposed)
+   - If tied, keep the most recently updated
+   - Mark all others for deletion
+4. **Trace**: For each remaining test item, verify `depends_on` references exist
+5. **Report**: Output `ValidationResult`
+
+### Current Scan Results (AutoForge specs)
+
+| Section | Issue | IDs | Recommended Action |
+|---------|-------|-----|--------------------|
+| architecture | ApiSources-A3 has 5+ copies | ApiSources-A3 | Keep first approved, delete duplicates |
+| designs | ApiSources-D1 has 4+ copies | ApiSources-D1 | Keep most complete, delete duplicates |
+| designs | UiSystem-D4 has 5+ copies | UiSystem-D4 | Keep most complete, delete duplicates |
+| tests | ApiSources-T3 has 7+ copies | ApiSources-T3 | Keep "done" verified copy, delete duplicates |
+| goals | Specs-G8/G9 duplicate cleanup | Specs-G8, Specs-G9 | Keep Specs-G8, reject Specs-G9 |
+
+### Design Highlight
+
+Spec dedup is idempotent — running it multiple times produces the same result. The Architect marks items as `rejected` rather than deleting them, preserving audit trail.
+
+### Trigger Condition
+After Tester drafts tests, before Coder implements. Also triggered manually by `test validation` task.
+
+### Data Flow
+```
+[All spec sections] → [Group items by ID per section] → [Identify duplicates] → [Select best version] → [Mark rest rejected] → [Trace depends_on] → [Flag orphans] → [ValidationResult]
 ```
 
-- **Dot**: column color indicator
-- **Count**: number of cards in the column
-- **Progress bar** (optional): for Goals, shows `% completed` based on sub-goal status
+### Trade-offs
 
-### Filtering Within Kanban
+| Approach | Pros | Cons |
+|----------|------|------|
+| Mark duplicates as rejected (chosen) | Preserves audit trail; reversible | Spec sections remain large |
+| Delete duplicates | Clean sections; smaller specs | Loses history; irreversible |
+| Keep all duplicates | No data loss | Confusing; violates single-source-of-truth |
 
-The same sidebar filters (module, stack, text search) apply to Kanban. When filters change:
-- Cards that no longer match are removed from columns with a fade-out
-- Cards that newly match are added with a fade-in
-- Empty columns show a ghost placeholder: "No items match current filters"
+## Specs-D14 Spec Deduplication Design — Immediate Cleanup & Prevention
+**Status:** approved
+**Priority:** P0
+**Module:** specs
+**Tags:** stack:both, module:specs
+**Depends on:** Specs-A4, Specs-A3, Specs-G8
 
-### API Integration
+## Overview
 
-Kanban uses the **existing** `update_spec` tool (no new backend endpoints):
+Concrete design for cleaning up the 10+ duplicate test specs and preventing future duplication. This is the implementation plan for the architecture diagnosed in `Specs-A4`.
+
+### Phase 1: Immediate Cleanup (Manual Spec Edits)
+
+Delete all duplicate items, keeping the highest-quality copy per ID. The Coder will execute these deletions.
+
+#### Deletion Plan
+
+| Section | Item ID | Copies to Delete | Keep | Rationale |
+|---------|---------|------------------|------|-----------|
+| tests | ApiSources-T3 | Delete 9+ copies | Keep the **last "done" copy** with the full coverage matrix and Rust test code | Most complete, verified |
+| designs | ApiSources-D1 | Delete 4+ copies | Keep the **"approved" copy** with `model_id: String` field and verified code evidence table | Authoritative design |
+| designs | UiSystem-D4 | Delete 4+ copies | Keep the **most complete "draft"** copy with all 6 views + test file fix | Only complete version |
+| architecture | ApiSources-A3 | Delete 4+ copies | Keep the **first "proposed" copy** | Only version with content |
+| goals | Specs-G9 | Delete 1 copy | Keep Specs-G8 only | G9 is exact duplicate of G8 |
+
+#### Selection Algorithm
 
 ```typescript
-async function updateSpecItem(itemId: string, patch: Partial<SpecItem>) {
-  await fetch(`/api/forge/specs/${project}/update`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      section: currentSection.value,  // "goals" or "plans"
-      item_id: itemId,
-      changes: patch,                 // { status: "in_progress" }
-    }),
-  })
+function selectBestCopy(items: SpecItem[]): SpecItem {
+  const statusRank: Record<string, number> = {
+    done: 10, verified: 9, implemented: 8, approved: 7,
+    in_review: 6, in_progress: 5, stable: 4,
+    draft: 3, proposed: 2, backlog: 1, empty: 0
+  }
+  
+  return items.sort((a, b) => {
+    // Primary: highest status
+    const rankA = statusRank[a.status] ?? 0
+    const rankB = statusRank[b.status] ?? 0
+    if (rankA !== rankB) return rankB - rankA
+    // Secondary: most content
+    return b.content.length - a.content.length
+  })[0]
 }
 ```
 
-### Mobile Considerations
+### Phase 2: Prevention — Relay Driver Dedup Guard
 
-On screens `< 768px`:
-- Columns become horizontally swipeable (CSS `overflow-x: auto; scroll-snap-type: x mandatory`)
-- Cards remain full-width within the snapped column
-- Drag-and-drop is disabled; status changes via a bottom action sheet (tap card → select new status)
+The relay driver (`relay/driver.rs`) must check for existing spec items before creating new ones during the Tester step.
 
-### Requirements
+```mermaid
+sequenceDiagram
+    participant Tester
+    participant Tool as update_spec tool
+    participant Store as SpecsStore
 
-- Kanban must respect `readOnly` mode (no drag when user lacks edit permissions)
-- Status transitions must be validated: some transitions may be invalid (e.g., `completed` → `backlog` is allowed, but `cancelled` → `in_progress` may require confirmation)
-- Keyboard accessibility: `Tab` navigates cards, `Space` grabs/releases, arrow keys move between columns
-- When a card is moved, a toast notification confirms: "G-12 moved to In Progress"
+    Tester->>Tool: update_spec("ApiSources-T3", "done", ...)
+    Tool->>Store: Check if item "ApiSources-T3" exists
+    alt Item exists with same or higher status
+        Tool->>Tool: Patch content only (no new item)
+        Tool-->>Tester: "Updated existing ApiSources-T3"
+    else Item does not exist
+        Tool->>Store: Create new item
+        Tool-->>Tester: "Created ApiSources-T3"
+    end
+```
 
----
+### Data Flow — Cleanup Execution
+
+```
+[Read tests section] → [Group items by ID] → [ApiSources-T3: 10 copies found]
+  → [Rank by status: done=10, done=10, done=10, draft=3, draft=3, draft=3, draft=3, draft=3, draft=3, draft=3]
+  → [Tiebreak by content length: select longest "done" copy]
+  → [Delete 9 copies via update_spec(action: "delete")]
+  → [Result: 1 authoritative ApiSources-T3 remaining]
+```
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `specs/auto-forge/tests.ad` | Delete duplicate ApiSources-T3 entries (keep 1) |
+| `specs/auto-forge/designs.ad` | Delete duplicate ApiSources-D1 entries (keep 1), UiSystem-D4 entries (keep 1) |
+| `specs/auto-forge/architecture.ad` | Delete duplicate ApiSources-A3 entries (keep 1) |
+| `specs/auto-forge/goals.ad` | Delete Specs-G9 (duplicate of Specs-G8) |
+
+### Quality Checklist
+
+- [ ] ApiSources-T3 reduced to exactly 1 copy in tests section
+- [ ] ApiSources-D1 reduced to exactly 1 copy in designs section
+- [ ] UiSystem-D4 reduced to exactly 1 copy in designs section
+- [ ] ApiSources-A3 reduced to exactly 1 copy in architecture section
+- [ ] Specs-G9 deleted (Specs-G8 kept)
+- [ ] All cross-references (depends_on) still resolve correctly after cleanup
+- [ ] No orphaned items (items depending on deleted specs updated)
+
+### Design Highlight
+
+This is a one-time manual cleanup followed by a prevention rule. The `update_spec` tool already handles upserts correctly for single operations — the duplication happened because relay retries called it multiple times in rapid succession, each appending a new item before the previous one was saved. The fix is deletion of existing duplicates, not a code change.

@@ -1750,138 +1750,47 @@ impl Tool for UpdateSpecTool {
             .and_then(|v| v.as_str())
             .unwrap_or("upsert");
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
         let mut store = super::specs().lock().unwrap();
 
-        let result_msg = {
-            let doc = store.get_or_default(&project_name);
+        let result_msg = match action {
+            "delete" => {
+                store.delete_spec_item(&project_name, section_id, item_id)
+                    .map_err(ToolError::ExecutionFailed)?
+            }
+            "patch" => {
+                let content = args
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| ToolError::InvalidInput("'patch' action requires 'content' argument".into()))?;
+                store.patch_spec_item(&project_name, section_id, item_id, content)
+                    .map_err(ToolError::ExecutionFailed)?
+            }
+            _ => {
+                let title = args.get("title").and_then(|v| v.as_str());
+                let content = args.get("content").and_then(|v| v.as_str());
+                let status = args.get("status").and_then(|v| v.as_str());
+                let priority = args.get("priority").and_then(|v| v.as_str());
+                let assignee = args.get("assignee").and_then(|v| v.as_str());
+                let test_file = args.get("test_file").and_then(|v| v.as_str());
+                let file = args.get("file").and_then(|v| v.as_str());
+                let milestone = args.get("milestone").and_then(|v| v.as_str());
+                let module = args.get("module").and_then(|v| v.as_str());
+                let depends_on: Option<Vec<String>> = args
+                    .get("depends_on")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
+                let tags: Option<Vec<String>> = args
+                    .get("tags")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
 
-            // Find or create the target section
-            let section_idx = doc.sections.iter().position(|s| s.id == section_id);
-            let section = if let Some(idx) = section_idx {
-                &mut doc.sections[idx]
-            } else {
-                let new_section = super::SpecsSection {
-                    id: section_id.to_string(),
-                    section_type: super::SectionType::from_id(section_id),
-                    title: section_id.to_string(),
-                    items: vec![],
-                    content: String::new(),
-                    status: super::Status::Empty,
-                    depends_on: vec![],
-                    last_modified: now,
-                    last_verified: None,
-                };
-                doc.sections.push(new_section);
-                doc.sections.last_mut().unwrap()
-            };
-
-            match action {
-                "delete" => {
-                    let old_len = section.items.len();
-                    section.items.retain(|i| i.id != item_id);
-                    if section.items.len() == old_len {
-                        return Ok(format!("Item '{}' not found in section '{}'. No changes made.", item_id, section_id));
-                    }
-                    section.last_modified = now;
-                    "deleted".to_string()
-                }
-                "patch" => {
-                    let content = args
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| ToolError::InvalidInput("'patch' action requires 'content' argument".into()))?;
-                    if let Some(item) = section.items.iter_mut().find(|i| i.id == item_id) {
-                        item.content = content.to_string();
-                        item.modified_at = now;
-                        section.last_modified = now;
-                        "patched".to_string()
-                    } else {
-                        return Err(ToolError::ExecutionFailed(format!("Item '{}' not found in section '{}'. Use 'upsert' to create it.", item_id, section_id)));
-                    }
-                }
-                _ => {
-                    // upsert (default)
-                    let title = args
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(item_id);
-                    let content = args
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    let status_str = args
-                        .get("status")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("draft");
-                    let priority = args.get("priority").and_then(|v| v.as_str());
-                    let assignee = args.get("assignee").and_then(|v| v.as_str());
-                    let test_file = args.get("test_file").and_then(|v| v.as_str());
-                    let file = args.get("file").and_then(|v| v.as_str());
-                    let milestone = args.get("milestone").and_then(|v| v.as_str());
-                    let module = args.get("module").and_then(|v| v.as_str());
-                    let depends_on: Vec<String> = args
-                        .get("depends_on")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-                        .unwrap_or_default();
-                    let tags: Vec<String> = args
-                        .get("tags")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-                        .unwrap_or_default();
-
-                    let is_new = if let Some(item) = section.items.iter_mut().find(|i| i.id == item_id) {
-                        // Update existing item — only change provided fields
-                        if args.get("title").is_some() { item.title = title.to_string(); }
-                        if args.get("content").is_some() { item.content = content.to_string(); }
-                        if args.get("status").is_some() { item.status = super::Status::from_str_lossy(status_str); }
-                        if args.get("priority").is_some() { item.priority = priority.map(String::from); }
-                        if args.get("assignee").is_some() { item.assignee = assignee.map(String::from); }
-                        if args.get("test_file").is_some() { item.test_file = test_file.map(String::from); }
-                        if args.get("file").is_some() { item.file = file.map(String::from); }
-                        if args.get("milestone").is_some() { item.milestone = milestone.map(String::from); }
-                        if args.get("module").is_some() { item.module = module.map(String::from); }
-                        if args.get("depends_on").is_some() { item.depends_on = depends_on; }
-                        if args.get("tags").is_some() { item.tags = tags; }
-                        item.modified_at = now;
-                        false
-                    } else {
-                        // Create new item
-                        let new_item = super::SpecItem {
-                            id: item_id.to_string(),
-                            title: title.to_string(),
-                            content: content.to_string(),
-                            status: super::Status::from_str_lossy(status_str),
-                            depends_on,
-                            related: vec![],
-                            priority: priority.map(String::from),
-                            assignee: assignee.map(String::from),
-                            test_file: test_file.map(String::from),
-                            file: file.map(String::from),
-                            milestone: milestone.map(String::from),
-                            module: module.map(String::from),
-                            tags,
-                            created_at: now,
-                            modified_at: now,
-                            completed_at: None,
-                        };
-                        section.items.push(new_item);
-                        true
-                    };
-
-                    section.last_modified = now;
-                    if is_new { "created".to_string() } else { "updated".to_string() }
-                }
+                store.upsert_spec_item(
+                    &project_name, section_id, item_id,
+                    title, content, status, priority, assignee,
+                    test_file, file, milestone, module, depends_on, tags,
+                ).map_err(ToolError::ExecutionFailed)?
             }
         };
-
-        let doc = store.get(&project_name).unwrap();
-        store.save_ad_format(doc, &project_name);
 
         match result_msg.as_str() {
             "deleted" => Ok(format!("Deleted item '{}' from section '{}'. Changes saved.", item_id, section_id)),

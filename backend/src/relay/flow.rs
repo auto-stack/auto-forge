@@ -138,7 +138,7 @@ pub enum ExitRouting {
 
 /// Content-aware validators for step handoffs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(rename_all = "snake_case", tag = "type", content = "content")]
 pub enum StepValidator {
     /// Must have non-empty spec_updates containing at least one of these sections.
     SpecUpdatesNonEmpty { sections: Vec<String> },

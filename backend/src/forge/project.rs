@@ -52,7 +52,7 @@ pub struct ProjectTreeNode {
     pub children: Option<Vec<ProjectTreeNode>>,
 }
 
-fn should_skip_entry(name: &str) -> bool {
+pub fn should_skip_entry(name: &str) -> bool {
     if name.starts_with('.') {
         return true;
     }

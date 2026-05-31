@@ -155,7 +155,7 @@ def drive_run(run_id, step_summaries):
     for i in range(30):  # safety limit
         state = get_run(run_id)
         if not state:
-            print("❌ Run not found!")
+            print("FAIL Run not found!")
             return False
 
         status = state["status"]
@@ -163,17 +163,17 @@ def drive_run(run_id, step_summaries):
         total = state["total_steps"]
 
         if status == "Completed":
-            print(f"\n✅ Relay completed at step {step_idx}/{total}")
+            print(f"\nOK Relay completed at step {step_idx}/{total}")
             print(f"   Total tokens: {state.get('cumulative_tokens', 0)}")
             return True
 
         if status.startswith("Failed"):
-            print(f"\n❌ Relay failed: {status}")
+            print(f"\nFAIL Relay failed: {status}")
             return False
 
         if state.get("waiting_for_gate"):
             gate = state["waiting_for_gate"]
-            print(f"⏸️  Gate waiting at {gate['step_id']} ({gate['profession_id']})")
+            print(f"||  Gate waiting at {gate['step_id']} ({gate['profession_id']})")
             print("   → Approving gate...")
             resolve_gate(run_id, "approve")
             continue
@@ -192,14 +192,14 @@ def drive_run(run_id, step_summaries):
 
             step_id = state["steps"][min(step_idx, len(state["steps"]) - 1)]["id"]
             summary = step_summaries.get(step_id, f"Completed {step_id} step.")
-            print(f"▶️  Step {step_idx + 1}/{total}: {prof} — {summary[:60]}...")
+            print(f">>  Step {step_idx + 1}/{total}: {prof} — {summary[:60]}...")
             submit_handoff(run_id, prof, summary)
         else:
             print(f"   Advance result: {result}")
 
         time.sleep(0.3)
 
-    print("\n⚠️  Hit safety limit — run may still be in progress")
+    print("\nWARN  Hit safety limit — run may still be in progress")
     return False
 
 
@@ -281,7 +281,7 @@ def test_reject_and_retry():
     state = get_run(run_id)
     if state.get("waiting_for_gate"):
         gate = state["waiting_for_gate"]
-        print(f"⏸️  Gate at {gate['step_id']} — rejecting with feedback")
+        print(f"||  Gate at {gate['step_id']} — rejecting with feedback")
         resolve_gate(run_id, "reject", "Goals are too vague. Need concrete performance targets.")
         time.sleep(0.2)
 
@@ -344,19 +344,19 @@ def test_professions_have_write_goals():
 
     result = api_call("GET", "/api/forge/relay/professions")
     if not result:
-        print("❌ Failed to fetch professions")
+        print("FAIL Failed to fetch professions")
         return False
 
     advisor = next((p for p in result.get("professions", []) if p["id"] == "advisor"), None)
     if not advisor:
-        print("❌ Advisor profession not found")
+        print("FAIL Advisor profession not found")
         return False
 
     if "write_goals" in advisor.get("allowed_tools", []):
-        print("✅ Advisor has write_goals tool")
+        print("OK Advisor has write_goals tool")
         return True
     else:
-        print(f"❌ Advisor missing write_goals. Tools: {advisor.get('allowed_tools')}")
+        print(f"FAIL Advisor missing write_goals. Tools: {advisor.get('allowed_tools')}")
         return False
 
 
@@ -372,12 +372,12 @@ def test_flow_registry_has_goal_discovery():
         "task": "Test goal discovery flow",
     })
     if not result:
-        print("❌ Failed to create run from registry")
+        print("FAIL Failed to create run from registry")
         return False
 
     run_id = result["run_id"]
     state = result["state"]
-    print(f"✅ Created run {run_id} with {state['total_steps']} step(s)")
+    print(f"OK Created run {run_id} with {state['total_steps']} step(s)")
 
     # Cleanup
     api_call("DELETE", f"/api/forge/relay/runs/{run_id}")
@@ -391,7 +391,7 @@ def main():
         if result is None:
             raise RuntimeError("No response")
     except Exception as e:
-        print(f"❌ Backend not reachable at {BASE}: {e}")
+        print(f"FAIL Backend not reachable at {BASE}: {e}")
         print("   Please start the server: cd backend && cargo run")
         sys.exit(1)
 
@@ -407,7 +407,7 @@ def main():
     print("SUMMARY")
     print("=" * 55)
     for name, ok in results:
-        print(f"  {'✅' if ok else '❌'} {name}")
+        print(f"  {'OK' if ok else 'FAIL'} {name}")
 
     all_ok = all(r[1] for r in results)
     sys.exit(0 if all_ok else 1)

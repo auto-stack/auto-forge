@@ -295,3 +295,308 @@ graph TB
 ---
 
 ---
+
+## Relay-A6 Human-Friendly Relay Run Titles Architecture
+**Status:** approved
+**Tags:** stack:both, module:relay
+**Depends on:** Relay-G14, Relay-G13
+
+## Overview
+
+Relay runs currently display raw UUIDs (e.g., `run-6ddc1312`) which are meaningless to users. This architecture adds human-readable titles derived from the task description, making relay runs identifiable at a glance in the Relay view, chat cards, and run history.
+
+### Problem
+
+The `RunEntry` struct stores a `run_id` (UUID) but no display title. Every UI surface that references a relay run must either show the raw UUID (unreadable) or the full task description (too long). Neither is good UX.
+
+### Solution
+
+Auto-generate a title from the task description at run creation time. Store it alongside `run_id`. Display the title prominently with `run_id` as secondary info.
+
+```mermaid
+graph TB
+    subgraph "Run Creation"
+        SR[spawn_relay tool] -->|task string| TT[title_from_task]
+        TT -->|max 40 chars| RE[RunEntry.title]
+        RE -->|persist| RS[RunStore]
+    end
+    subgraph "API Response"
+        RS -->|RunSummary| API[/api/forge/relay/runs]
+        RS -->|RunState| API2[/api/forge/relay/runs/:id]
+    end
+    subgraph "UI Surfaces"
+        API -->|title + run_id subtitle| RV[RelayView run list]
+        API -->|title + run_id subtitle| CC[Chat relay card]
+        API -->|title + run_id subtitle| RH[Run history]
+    end
+```
+
+### Title Generation Algorithm
+
+```
+function title_from_task(task: string) -> string:
+    // 1. Strip leading "## Task\n" or markdown headers if present
+    cleaned = task.trim()
+    if cleaned starts with "## ":
+        cleaned = first line after "## "
+    if cleaned starts with "# ":
+        cleaned = first line after "# "
+
+    // 2. Take first sentence or first N words
+    first_sentence = split on '. ' or '\n' and take first part
+    words = first_sentence.split(' ')
+
+    // 3. Truncate to max 40 chars, break at word boundary
+    if words.join(' ').length > 40:
+        result = ""
+        for word in words:
+            if (result + " " + word).length > 40: break
+            result += (result ? " " : "") + word
+        return result + "..."
+    
+    return words.join(' ')
+```
+
+### Data Model Change
+
+```rust
+// RunEntry — add title field
+pub struct RunEntry {
+    pub run_id: String,        // existing: "run-6ddc1312"
+    pub title: String,         // NEW: "Add OAuth2 login support"
+    pub flow_id: String,       // existing
+    pub status: RunStatus,     // existing
+    // ... rest unchanged
+}
+```
+
+Frontend types:
+
+```typescript
+interface RunSummary {
+  run_id: string      // "run-6ddc1312"
+  title: string       // "Add OAuth2 login support"  ← NEW
+  flow_id: string
+  status: string
+  // ... rest unchanged
+}
+```
+
+### API Changes
+
+| Endpoint | Change |
+|----------|--------|
+| `POST /api/forge/relay/runs` (spawn) | Accept/derive `title` from `task` field |
+| `GET /api/forge/relay/runs` | Return `title` in each `RunSummary` |
+| `GET /api/forge/relay/runs/:id` | Return `title` in `RunState` |
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Title generation time | At spawn (not lazy) | Consistent, no computation at display time |
+| Title source | Task description first sentence | Most descriptive, user-authored |
+| Max length | 40 characters | Fits in sidebar/cards without truncation |
+| Fallback | Display `run_id` if title empty | Always show something meaningful |
+| Editability | Read-only (auto-generated) | No user confusion about what to name runs |
+| Storage | New `title` field on RunEntry | Simple, no separate lookup |
+
+### Trigger Condition
+
+Title is generated when `spawn_relay` tool creates a new `RunEntry`. No other trigger.
+
+### Data Flow
+
+```
+[User chat → Advisor → spawn_relay(task: "Add OAuth2 login support")]
+    → title_from_task("Add OAuth2 login support") → "Add OAuth2 login support"
+    → RunEntry { run_id: "run-6ddc1312", title: "Add OAuth2 login support", ... }
+    → Persisted to RunStore
+    → Returned in all subsequent API responses
+```
+
+### Design Highlight
+
+By generating the title at spawn time from the task description, we avoid any extra API calls or lazy computation. The title is as good as the task description's first sentence — which the Advisor writes. Since Advisors already write descriptive task summaries, the titles will be meaningful.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **Auto-generate from task at spawn** (chosen) | Zero user effort, consistent, always available | Depends on good task descriptions |
+| User-entered title | Perfect title | Extra step, users skip it |
+| LLM-generated title | Can be better than task excerpt | Extra token cost, latency |
+| First N chars of task | Simplest | May cut mid-word, ugly |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `backend/src/relay/driver.rs` | Add `title_from_task()` helper; pass title to `RunEntry::new()` |
+| `backend/src/relay/run_store.rs` | Add `title` field to `RunEntry`, `RunSummary`, `RunState` |
+| `backend/src/forge/tools.rs` | SpawnRelayTool result includes title |
+| `frontend/src/composables/useRelay.ts` | Add `title` to `RunSummary` type |
+| `frontend/src/views/RelayView.vue` | Display title prominently, run_id as subtitle |
+| `frontend/src/components/RelayCard.vue` | Display title instead of run_id |
+
+## Relay-A7 Relay Report PDF Export Architecture
+**Status:** proposed
+**Tags:** stack:frontend, module:relay
+
+## Overview
+
+Relay run reports contain execution metadata, handoff timeline, gate decisions, spec changes, and deliverable summaries. Currently these are only visible in the Relay view UI. Users need to export relay reports as PDF documents for sharing, archiving, and offline review.
+
+### Problem
+
+Relay run data is trapped in the browser. There is no way to:
+- Share a relay report with stakeholders who don't have AutoForge access
+- Archive relay execution history for compliance or retrospectives
+- Generate a printable summary of what an autonomous pipeline did
+
+### Solution
+
+Add a **frontend PDF export** that renders relay run data into a formatted PDF document using the browser's print-to-PDF capability backed by a dedicated `RelayReportView` component. No backend PDF generation needed — the data already exists in the frontend via the relay API.
+
+```mermaid
+graph TB
+    subgraph "Frontend"
+        RE[RelayView — run detail] -->|click Export| RRV[RelayReportView.vue]
+        RRV -->|render formatted| RRD[Report DOM]
+        RRD -->|window.print| PDF[PDF via browser print dialog]
+        RRV -->|html2pdf.js| PDF2[Direct PDF download]
+    end
+    subgraph "Data Source"
+        RS[GET /api/forge/relay/runs/:id] -->|RunState| RRV
+        RH[GET /api/forge/relay/runs/:id/history] -->|HandoffLog| RRV
+    end
+```
+
+### Trigger Condition
+
+User clicks "Export PDF" button in the Relay view header or run detail card. The report view opens in a new tab/window and triggers the browser print dialog (or direct download via html2pdf.js).
+
+### Data Flow
+
+```
+[User clicks Export] → [Fetch RunState + HandoffHistory from API]
+    → [Render RelayReportView with structured data]
+    → [Trigger window.print() or html2pdf.js]
+    → [User saves PDF from browser dialog]
+```
+
+### Design Highlight
+
+By rendering PDF in the browser instead of generating it on the backend, we avoid adding Rust PDF libraries (large dependency), avoid file storage cleanup, and let the user choose their own print settings (portrait/landscape, margins, page range). The report DOM is just another Vue component with print-optimized CSS.
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| PDF generation | Frontend (html2pdf.js + print CSS) | Zero backend dependency, no file cleanup, user controls output |
+| Report layout | Dedicated `RelayReportView.vue` component | Separation of concerns, testable, can be previewed before export |
+| Data fetching | Existing relay API endpoints | No new backend endpoints needed |
+| Styling | `@media print` CSS + dedicated print stylesheet | Clean separation of screen and print styles |
+| Library | html2pdf.js (wraps html2canvas + jsPDF) | Small bundle, well-maintained, handles CJK text |
+
+### Trade-offs
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **Frontend html2pdf.js** (chosen) | No backend dependency, user controls output, simple | Large DOMs may be slow to render; browser-dependent quality |
+| Backend Rust PDF generation (genpdf) | Consistent output, no browser dependency | Adds `genpdf` crate (~2MB), file cleanup needed, more code |
+| Browser print() only | Zero dependencies | Inconsistent across browsers, user must know Ctrl+P |
+| Server-side headless Chrome (puppeteer) | Perfect rendering | Requires Chrome runtime, heavy infrastructure |
+
+### API Data Used
+
+| Endpoint | Fields Used |
+|----------|-------------|
+| `GET /api/forge/relay/runs/:id` | `run_id`, `title`, `flow_id`, `status`, `mode`, `created_at`, `completed_at`, `tokens_used`, `steps` |
+| `GET /api/forge/relay/runs/:id/history` | `handoffs[]` with `from`, `to`, `timestamp`, `summary`, `tokens_used` |
+
+No new backend endpoints required.
+
+## Relay-A7 PDF Export Architecture for Relay Run Reports
+**Status:** proposed
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G15, Relay-A4
+
+### Overview
+
+Users need to export relay run reports as PDF documents for sharing, archival, and offline review. The PDF should include run metadata, execution timeline, spec changes, and deliverable summaries — producing a professional document without requiring any server-side PDF generation library.
+
+### Architecture Decision: Client-Side PDF Generation
+
+PDF generation happens entirely in the browser using the `jspdf` library with `jspdf-autotable` for structured table rendering. This avoids backend dependencies, works offline, and produces instant results. The relay run data is already available in the frontend via the RunState API.
+
+```mermaid
+graph TB
+    subgraph "Frontend — PDF Generation"
+        EB[Export Button] --> PG[PdfGenerator.ts]
+        PG --> JPDF[jspdf + autotable]
+        PG --> DATA[RunState API data]
+        DATA --> META[Run metadata]
+        DATA --> HIST[Execution history]
+        DATA --> SPECS[Spec changes]
+        DATA --> DELIV[Deliverables]
+    end
+
+    subgraph "PDF Document"
+        P1[Cover: title, flow, status, dates]
+        P2[Summary: metrics table]
+        P3[Timeline: step-by-step]
+        P4[Specs: sections modified]
+        P5[Deliverables: files list]
+    end
+
+    JPDF --> P1
+    JPDF --> P2
+    JPDF --> P3
+    JPDF --> P4
+    JPDF --> P5
+```
+
+### Trigger Condition
+
+User clicks "Export PDF" button in the Relay view header or run detail card. The button is only enabled when a completed run is selected.
+
+### Data Flow
+
+```
+[User clicks Export PDF]
+    → fetch RunState from GET /api/forge/relay/runs/{id}
+    → PdfGenerator.run(runState)
+    → Build pages: cover → summary → timeline → specs → deliverables
+    → jsdoc.save("relay-{run_id}.pdf")
+    → Browser downloads PDF
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Generation location | Client-side (browser) | No server dependency, instant, works offline |
+| PDF library | jspdf + jspdf-autotable | Lightweight, no native deps, table support built-in |
+| Data source | Existing RunState API | No new backend endpoint needed |
+| Trigger | User-initiated button click | No auto-generation; user controls when |
+| File naming | `relay-{title-slug}-{date}.pdf` | Identifiable, sortable by date |
+
+### Trade-offs
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Client-side jspdf** (chosen) | Zero backend deps, instant, offline-capable | Limited styling, no custom fonts easily |
+| Server-side (wkhtmltopdf/WeasyPrint) | Rich HTML→PDF, full CSS support | Backend dependency, latency, resource usage |
+| Print-to-PDF (window.print()) | Zero code | Unpredictable layout, user must know Ctrl+P |
+| Puppeteer headless | Perfect rendering | Requires Node.js server, heavy resource usage |
+
+### Components Involved
+
+| Component | Role |
+|-----------|------|
+| `PdfGenerator.ts` | New utility: accepts RunState, produces PDF blob |
+| `RelayView.vue` | Export button in header + run detail card |
+| `useRelay.ts` | Provides runState data (already exists) |
+
+### Design Highlight
+
+Client-side PDF generation is the simplest architecture that delivers value. Every piece of relay data the PDF needs is already loaded in the frontend — we just need to serialize it into a formatted document. No backend changes required.

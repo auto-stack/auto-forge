@@ -1,5 +1,12 @@
 //! AutoSmith — Spec-driven serial agent orchestration
 //!
+//! Module structure (5 source files):
+//!   - mod.rs      : this file — sessions, specs, status, persistence
+//!   - errand.rs   : errand log persistence and audit
+//!   - project.rs  : project management
+//!   - tools.rs    : tool utilities and caching
+//!   - wiki.rs     : wiki page storage and retrieval
+//!
 //! This module adds Forge (chat loop), Specs (knowledge management),
 //! and Relay (agent pipeline) endpoints to the auto-playground server.
 //! It reuses the existing NotebookActor for VM session sharing with AutoLab.
@@ -1559,6 +1566,130 @@ impl SpecsStore {
         }
     }
 
+    // ─── Fine-grained item operations ─────────────────────────────────────────
+
+    pub fn upsert_spec_item(
+        &mut self,
+        project: &str,
+        section_id: &str,
+        item_id: &str,
+        title: Option<&str>,
+        content: Option<&str>,
+        status: Option<&str>,
+        priority: Option<&str>,
+        assignee: Option<&str>,
+        test_file: Option<&str>,
+        file: Option<&str>,
+        milestone: Option<&str>,
+        module: Option<&str>,
+        depends_on: Option<Vec<String>>,
+        tags: Option<Vec<String>>,
+    ) -> Result<String, String> {
+        let now = now_secs();
+        let doc = self.get_or_default(project);
+
+        // Find or create section
+        let section_idx = doc.sections.iter().position(|s| s.id == section_id);
+        let section = if let Some(idx) = section_idx {
+            &mut doc.sections[idx]
+        } else {
+            let new_section = SpecsSection {
+                id: section_id.to_string(),
+                section_type: SectionType::from_id(section_id),
+                title: section_id.to_string(),
+                items: vec![],
+                content: String::new(),
+                status: Status::Empty,
+                depends_on: vec![],
+                last_modified: now,
+                last_verified: None,
+            };
+            doc.sections.push(new_section);
+            doc.sections.last_mut().unwrap()
+        };
+
+        let is_new = if let Some(item) = section.items.iter_mut().find(|i| i.id == item_id) {
+            if let Some(t) = title { item.title = t.to_string(); }
+            if let Some(c) = content { item.content = c.to_string(); }
+            if let Some(s) = status { item.status = Status::from_str_lossy(s); }
+            if let Some(p) = priority { item.priority = Some(p.to_string()); }
+            if let Some(a) = assignee { item.assignee = Some(a.to_string()); }
+            if let Some(t) = test_file { item.test_file = Some(t.to_string()); }
+            if let Some(f) = file { item.file = Some(f.to_string()); }
+            if let Some(m) = milestone { item.milestone = Some(m.to_string()); }
+            if let Some(m) = module { item.module = Some(m.to_string()); }
+            if let Some(d) = depends_on { item.depends_on = d; }
+            if let Some(t) = tags { item.tags = t; }
+            item.modified_at = now;
+            false
+        } else {
+            let new_item = SpecItem {
+                id: item_id.to_string(),
+                title: title.unwrap_or(item_id).to_string(),
+                content: content.unwrap_or("").to_string(),
+                status: Status::from_str_lossy(status.unwrap_or("draft")),
+                depends_on: depends_on.unwrap_or_default(),
+                related: vec![],
+                priority: priority.map(String::from),
+                assignee: assignee.map(String::from),
+                test_file: test_file.map(String::from),
+                file: file.map(String::from),
+                milestone: milestone.map(String::from),
+                module: module.map(String::from),
+                tags: tags.unwrap_or_default(),
+                created_at: now,
+                modified_at: now,
+                completed_at: None,
+            };
+            section.items.push(new_item);
+            true
+        };
+
+        section.last_modified = now;
+        doc.version += 1;
+        Self::rebuild_relations(doc);
+        Self::derive_statuses(doc);
+        let doc_clone = doc.clone();
+        self.save(&doc_clone);
+
+        Ok(if is_new { "created".to_string() } else { "updated".to_string() })
+    }
+
+    pub fn delete_spec_item(&mut self, project: &str, section_id: &str, item_id: &str) -> Result<String, String> {
+        let doc = self.get_or_default(project);
+        let section = doc.sections.iter_mut().find(|s| s.id == section_id)
+            .ok_or_else(|| format!("Section '{}' not found", section_id))?;
+        let old_len = section.items.len();
+        section.items.retain(|i| i.id != item_id);
+        if section.items.len() == old_len {
+            return Ok(format!("Item '{}' not found in section '{}'", item_id, section_id));
+        }
+        section.last_modified = now_secs();
+        doc.version += 1;
+        Self::rebuild_relations(doc);
+        Self::derive_statuses(doc);
+        let doc_clone = doc.clone();
+        self.save(&doc_clone);
+        Ok("deleted".to_string())
+    }
+
+    pub fn patch_spec_item(&mut self, project: &str, section_id: &str, item_id: &str, content: &str) -> Result<String, String> {
+        let doc = self.get_or_default(project);
+        let section = doc.sections.iter_mut().find(|s| s.id == section_id)
+            .ok_or_else(|| format!("Section '{}' not found", section_id))?;
+        let item = section.items.iter_mut().find(|i| i.id == item_id)
+            .ok_or_else(|| format!("Item '{}' not found in section '{}'", item_id, section_id))?;
+        item.content = content.to_string();
+        item.modified_at = now_secs();
+        section.last_modified = now_secs();
+        doc.version += 1;
+        Self::rebuild_relations(doc);
+        Self::derive_statuses(doc);
+        let doc_clone = doc.clone();
+        self.save(&doc_clone);
+        Ok("patched".to_string())
+    }
+
     fn update_full(&mut self, incoming: SpecsDocument) -> Result<SpecsDocument, String> {
         let project = incoming.project.clone();
         let doc = self.get_or_default(&project);
@@ -1870,6 +2001,72 @@ mod handlers {
     use super::*;
     use crate::provider::AIProviderState;
     use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest};
+    use serde_json::Value;
+
+    // ─── Health ────────────────────────────────────────────────────────────
+
+    pub async fn health() -> Json<Value> {
+        Json(serde_json::json!({"status": "ok"}))
+    }
+
+    // ─── Project Statistics ────────────────────────────────────────────────
+
+    const SOURCE_EXTENSIONS: &[&str] = &[".rs", ".vue", ".ts", ".js", ".md", ".ad"];
+
+    #[derive(Debug, serde::Serialize)]
+    pub struct StatsResponse {
+        pub source_files: u64,
+        pub total_lines_of_code: u64,
+        pub active_sessions: u64,
+    }
+
+    #[derive(Debug, serde::Serialize)]
+    struct ErrorResponse {
+        error: String,
+    }
+
+    fn count_source_stats(dir: &std::path::Path) -> (u64, u64) {
+        let mut file_count = 0u64;
+        let mut total_lines = 0u64;
+        let Ok(entries) = std::fs::read_dir(dir) else { return (0, 0) };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if project::should_skip_entry(&name) {
+                continue;
+            }
+            let path = entry.path();
+            if path.is_dir() {
+                let (sub_files, sub_lines) = count_source_stats(&path);
+                file_count += sub_files;
+                total_lines += sub_lines;
+            } else {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+                if SOURCE_EXTENSIONS.contains(&ext) {
+                    file_count += 1;
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        total_lines += content.lines().count() as u64;
+                    }
+                }
+            }
+        }
+        (file_count, total_lines)
+    }
+
+    pub async fn get_stats() -> Result<Json<StatsResponse>, (StatusCode, Json<ErrorResponse>)> {
+        let Some(project_path) = current_project_path() else {
+            return Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse { error: "no project open".to_string() }),
+            ));
+        };
+        let (source_files, total_lines_of_code) = count_source_stats(std::path::Path::new(&project_path));
+        let active_sessions = {
+            let store = forge_sessions().lock().unwrap();
+            store.list_all().iter().filter(|s| !matches!(s.status, ForgeStatus::Idle)).count() as u64
+        };
+        Ok(Json(StatsResponse { source_files, total_lines_of_code, active_sessions }))
+    }
+
     // ─── Project Management ───────────────────────────────────────────────
 
     pub async fn get_project_status() -> Json<project::ProjectInfo> {
@@ -2289,6 +2486,11 @@ mod handlers {
                 let tools: Vec<_> = registry.definitions().into_iter()
                     .filter(|t| allowed.is_empty() || allowed.contains(&t.name))
                     .collect();
+                let mut prompt = prompt;
+                if !tools.is_empty() {
+                    prompt.push_str("\n\nYou have access to tools. When you need to explore the project structure, read files, or modify code, actively use the available tools rather than asking the user to provide information.");
+                    prompt.push_str("\nIf the task requires multi-step code changes across multiple files, call the `spawn_relay` tool to start a Relay Run pipeline instead of doing everything yourself.");
+                }
                 let max_tokens = agent_config.map(|c| c.max_tokens).unwrap_or(4096);
                 (prompt, tools, allowed, max_tokens)
             }
@@ -2316,6 +2518,7 @@ mod handlers {
             let mut current_profession = active_profession.clone();
             let mut all_tools = all_tools;
             let mut allowed_tool_names = allowed_tool_names;
+            let mut spawn_relay_done = false;
 
             while turn_count < max_turns {
                 turn_count += 1;
@@ -2572,9 +2775,13 @@ mod handlers {
                                             );
                                             let _ = event_tx.send(Ok(event));
 
-                                            // Replace tool result with a friendly message
+                                            // Mark spawn_relay as done so we break the ReAct loop
+                                            spawn_relay_done = true;
+
+                                            // Replace tool result with a friendly message that tells LLM to stop
                                             result_str = format!(
-                                                "Relay pipeline started: {} (flow: {}, mode: {}). Monitor in Relay view.",
+                                                "SUCCESS: Relay pipeline '{}' has been started (flow: {}, mode: {}). \
+                                                 DO NOT call spawn_relay again. The conversation will now pause while the relay pipeline runs.",
                                                 run_id, flow_id, mode_str
                                             );
                                         }
@@ -2814,6 +3021,11 @@ mod handlers {
                         // Add tool result to chat_messages for next turn
                         chat_messages.push(ChatMessage::tool_result(&call.id, result));
                     }
+                }
+
+                // If spawn_relay was called, stop the loop to prevent duplicate runs
+                if spawn_relay_done {
+                    break;
                 }
 
                 // If no tool_use was requested, we're done
@@ -3383,6 +3595,8 @@ where
     crate::provider::AIProviderState: FromRef<S>,
 {
     Router::new()
+        // Health
+        .route("/api/health", get(handlers::health))
         // Project management
         .route("/api/forge/project/status", get(handlers::get_project_status))
         .route("/api/forge/project/open", post(handlers::open_project))

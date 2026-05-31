@@ -242,3 +242,422 @@ graph TB
 ---
 
 ---
+
+## Specs-A3 Spec Hygiene — Deduplication Protocol (Consolidated)
+**Status:** approved
+**Tags:** stack:both, module:specs
+**Depends on:** Specs-G8
+
+## Overview
+
+The spec system has accumulated duplication across Architecture, Designs, and Tests sections. This item establishes the deduplication protocol: **one ID = one item, ever**. Keep the highest-quality copy (done > approved > draft > proposed), reject all others.
+
+```mermaid
+graph TB
+    subgraph "Duplicate Detection"
+        LOAD[Load Section] --> SCAN[Scan for duplicate titles]
+        SCAN --> GROUP[Group by ID]
+        GROUP --> RANK[Rank by status: done > approved > draft > proposed]
+        RANK --> KEEP[Keep highest-ranked item per ID]
+        KEEP --> DELETE[Reject remaining duplicates]
+    end
+    subgraph "Prevention"
+        UPSERT[update_spec] --> CHECK{Item ID exists?}
+        CHECK -->|Yes| PATCH[Patch existing content]
+        CHECK -->|No| CREATE[Create new item]
+    end
+```
+
+### Known Duplicates (Cleaned)
+
+| Section | Item ID | Was | Now |
+|---------|---------|-----|-----|
+| Architecture | ApiSources-A3 | 5 copies | 1 (kept first proposed) |
+| Designs | ApiSources-D1 | 4 copies | 1 (kept approved with code evidence) |
+| Designs | UiSystem-D4 | 5 copies | 1 (kept most complete draft) |
+| Architecture | Specs-A3 | 5 copies | 1 (this item) |
+| Architecture | Specs-A4 | 2 copies | 1 (merged into Specs-A3) |
+| Tests | ApiSources-T3 | 10+ copies | 1 (kept done) |
+
+### Prevention Rule
+
+1. `update_spec` with `action: "upsert"` on an existing ID replaces the item — no duplication
+2. Relay agents MUST check `list_specs` before creating new items
+3. If an item with the same title exists, reuse its ID
+4. The Coder step in relay should include dedup as a pre-save step
+
+### Trigger Condition
+
+Spec dedup runs when a new relay run completes its Architect step, or manually via "Drift Check".
+
+### Data Flow
+
+```
+[Section Items] → [Group by ID] → [Keep best version per ID] → [Reject duplicates]
+```
+
+### Design Highlight
+
+Dedup at the ID level is deterministic — no content similarity algorithms needed.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| ID-based dedup (chosen) | Simple, deterministic | Doesn't catch paraphrased duplicates |
+| Content hash dedup | Catches paraphrases | Expensive, false positives |
+| Agent-level prevention | Prevents creation | Doesn't fix existing duplicates |
+
+## Specs-A3 Spec Hygiene Architecture — Duplicate Detection and Cleanup Protocol
+**Status:** approved
+**Tags:** stack:both, module:specs
+**Depends on:** Specs-G8
+
+## Overview
+
+The spec system has accumulated massive duplication across Architecture, Designs, Plans, and Tests sections. This duplication inflates context window consumption, confuses agents about which copy is authoritative, and makes maintenance impossible.
+
+### Problem
+
+Duplicate spec items arise when relay runs append items without checking for existing IDs. The `update_spec` tool upserts by ID, but relay agents sometimes re-insert the same ID multiple times during pipeline retries.
+
+### Known Duplicates Requiring Cleanup
+
+| Section | Item ID | Title | Copies | Action |
+|---------|---------|-------|--------|--------|
+| Designs | ApiSources-D1 | Model-First Agent Configuration Design | 4 | Keep first approved, delete 3 |
+| Designs | UiSystem-D4 | i18n Integration Design for 6 Vue Views | 5 | Keep first draft, delete 4 |
+| Plans | ApiSources-P3 | Model-First Agent Configuration | 2 | Keep first draft, delete 1 |
+
+### Prevention Rule
+
+1. `update_spec` with `action: "upsert"` on an existing ID replaces the item — no duplication
+2. Relay agents MUST check `list_specs` before creating new items
+3. If an item with the same title exists, reuse its ID
+
+### Trigger Condition
+
+Spec dedup runs when a new relay run completes its Architect step, or manually via "Drift Check".
+
+### Data Flow
+
+```
+[Section Items] → [Group by ID] → [Keep best version per ID] → [Reject duplicates]
+```
+
+### Design Highlight
+
+Dedup at the ID level is deterministic — no content similarity algorithms needed. The Coder must delete all but the first occurrence of each duplicated ID.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| ID-based dedup (chosen) | Simple, deterministic | Doesn't catch paraphrased duplicates |
+| Agent-level prevention | Prevents creation | Doesn't fix existing duplicates |
+
+## Specs-A3 Spec Hygiene Architecture — Duplicate Detection and Cleanup Protocol
+**Status:** approved
+**Tags:** stack:both, module:specs
+**Depends on:** Specs-G8
+
+## Overview
+
+The spec system has accumulated massive duplication across Architecture, Designs, and Tests sections. ApiSources-D1 has 4+ identical copies, UiSystem-D4 has 5+ copies, and ApiSources-P3 has 2 copies. This duplication causes confusion for agents (which copy is authoritative?), inflates context window consumption, and makes maintenance impossible.
+
+### Problem
+
+Duplicate spec items arise when relay runs append items without checking for existing IDs. The `update_spec` tool upserts by ID, but relay agents sometimes generate new items with different IDs for the same content, or the same ID gets re-inserted multiple times during pipeline retries.
+
+### Solution
+
+Establish a deduplication protocol: **one ID = one item, ever**. Keep the highest-quality copy (done > approved > draft > proposed), reject all others.
+
+```mermaid
+graph TB
+    subgraph "Duplicate Detection"
+        LOAD[Load Section] --> SCAN[Scan for duplicate titles]
+        SCAN --> GROUP[Group by title similarity >90%]
+        GROUP --> RANK[Rank by: latest status, most content, most references]
+        RANK --> KEEP[Keep highest-ranked item per group]
+        KEEP --> DELETE[Reject remaining duplicates]
+    end
+    subgraph "Prevention"
+        UPSERT[update_spec] --> CHECK{Item ID exists?}
+        CHECK -->|Yes| PATCH[Patch existing content]
+        CHECK -->|No| CREATE[Create new item]
+    end
+```
+
+### Known Duplicates Requiring Cleanup
+
+| Section | Item ID | Title | Copies | Action |
+|---------|---------|-------|--------|--------|
+| Designs | ApiSources-D1 | Model-First Agent Configuration Design | 4 | Keep first, delete 3 |
+| Designs | UiSystem-D4 | i18n Integration Design for 6 Vue Views | 5 | Keep first, delete 4 |
+| Plans | ApiSources-P3 | Model-First Agent Configuration | 2 | Keep first, delete 1 |
+
+### Prevention Rule
+
+1. `update_spec` with `action: "upsert"` on an existing ID replaces the item — no duplication
+2. Relay agents MUST check `list_specs` before creating new items
+3. If an item with the same title exists, reuse its ID
+4. The Coder step in relay should include dedup as a pre-save step
+
+### Trigger Condition
+
+Spec dedup runs when:
+- A new relay run completes its Architect step
+- Manually triggered via "Drift Check" button
+- On project open (background scan)
+
+### Data Flow
+
+```
+[Section Items] → [Group by title hash] → [Rank within group] → [Keep best, reject rest] → [Clean section]
+```
+
+### Design Highlight
+
+Dedup at the spec level is cheaper than dedup at the content level. By normalizing on title + section uniqueness, we avoid needing content similarity algorithms entirely.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Title-based dedup with manual review (chosen) | Simple, deterministic, catches exact duplicates | Misses paraphrased duplicates |
+| Content hash dedup | Catches paraphrases | Expensive to compute on large items, false positives on boilerplate |
+| Agent-level prevention (check before write) | Prevents creation | Doesn't fix existing duplicates |
+
+## Specs-A3 Spec Hygiene Architecture — Duplicate Detection and Cleanup Protocol
+**Status:** approved
+**Tags:** stack:both, module:specs
+**Depends on:** Specs-G8
+
+## Overview
+
+The spec system has accumulated massive duplication across Architecture, Designs, and Tests sections. ApiSources-D1 has 4+ identical copies, UiSystem-D4 has 5+ copies, and ApiSources-P3 has 2 copies. This duplication causes confusion for agents (which copy is authoritative?), inflates context window consumption, and makes maintenance impossible.
+
+### Problem
+
+Duplicate spec items arise when relay runs append items without checking for existing IDs. The `update_spec` tool upserts by ID, but relay agents sometimes generate new items with different IDs for the same content, or the same ID gets re-inserted multiple times during pipeline retries.
+
+### Solution
+
+Establish a deduplication protocol: **one ID = one item, ever**. Keep the highest-quality copy (done > approved > draft > proposed), reject all others.
+
+```mermaid
+graph TB
+    subgraph "Duplicate Detection"
+        LOAD[Load Section] --> SCAN[Scan for duplicate titles]
+        SCAN --> GROUP[Group by title similarity >90%]
+        GROUP --> RANK[Rank by: latest status, most content, most references]
+        RANK --> KEEP[Keep highest-ranked item per group]
+        KEEP --> DELETE[Reject remaining duplicates]
+    end
+    subgraph "Prevention"
+        UPSERT[update_spec] --> CHECK{Item ID exists?}
+        CHECK -->|Yes| PATCH[Patch existing content]
+        CHECK -->|No| CREATE[Create new item]
+    end
+```
+
+### Known Duplicates Requiring Cleanup
+
+| Section | Item ID | Title | Copies | Action |
+|---------|---------|-------|--------|--------|
+| Architecture | ApiSources-A3 | Model-First Agent Configuration Architecture | 5 | Keep first, delete 4 |
+| Designs | ApiSources-D1 | Model-First Agent Configuration Design | 4 | Keep first, delete 3 |
+| Designs | UiSystem-D4 | i18n Integration Design for 6 Vue Views | 5 | Keep first, delete 4 |
+| Plans | ApiSources-P3 | Model-First Agent Configuration | 2 | Keep first, delete 1 |
+| Tests | ApiSources-T3 | Model-First Agent Configuration Tests | 7 | Keep first (done status), delete 6 |
+
+### Prevention Rule
+
+1. `update_spec` with `action: "upsert"` on an existing ID replaces the item — no duplication
+2. Relay agents MUST check `list_specs` before creating new items
+3. If an item with the same title exists, reuse its ID
+4. The Coder step in relay should include dedup as a pre-save step
+
+### Trigger Condition
+
+Spec dedup runs when:
+- A new relay run completes its Architect step
+- Manually triggered via "Drift Check" button
+- On project open (background scan)
+
+### Data Flow
+
+```
+[Section Items] → [Group by title hash] → [Rank within group] → [Keep best, reject rest] → [Clean section]
+```
+
+### Design Highlight
+
+Dedup at the spec level is cheaper than dedup at the content level. By normalizing on title + section uniqueness, we avoid needing content similarity algorithms entirely.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Title-based dedup with manual review (chosen) | Simple, deterministic, catches exact duplicates | Misses paraphrased duplicates |
+| Content hash dedup | Catches paraphrases | Expensive to compute on large items, false positives on boilerplate |
+| Agent-level prevention (check before write) | Prevents creation | Doesn't fix existing duplicates |
+
+## Specs-A4 Spec Duplication Diagnostic & Root Cause Analysis
+**Status:** approved
+**Tags:** stack:both, module:specs, type:diagnostic
+**Depends on:** Specs-A3, Specs-G8
+
+## Spec Duplication Diagnostic & Root Cause Analysis
+
+### Problem
+
+The test specs section contains **massive duplication**. `ApiSources-T3` has **10+ copies** with statuses ranging from `draft` to `done`. `ApiSources-D1` has **5+ copies** in designs. This is the root cause of "debug test" failures — agents read conflicting versions of the same test spec and produce inconsistent implementations.
+
+### Root Cause
+
+The `update_spec` tool upserts by `item_id`, but relay pipeline retries and re-runs create new items with the same ID. Each relay run appends items without checking for existing IDs. The pipeline's retry loop (Tester→Coder) exacerbates this by regenerating test specs on each iteration.
+
+### Current Duplication Inventory
+
+| Section | Item ID | Copies | Statuses | Action |
+|---------|---------|--------|----------|--------|
+| tests | ApiSources-T3 | **10+** | draft, done, proposed | Keep ONE done copy, delete rest |
+| designs | ApiSources-D1 | **5+** | proposed, approved | Keep ONE approved copy, delete rest |
+| designs | UiSystem-D4 | **5+** | draft | Keep ONE most complete copy |
+| architecture | ApiSources-A3 | **5+** | proposed | Keep ONE, delete rest |
+| goals | Specs-G8/Specs-G9 | 2 | proposed | Keep Specs-G8, reject Specs-G9 |
+
+### Data Flow — How Duplicates Are Created
+
+```mermaid
+sequenceDiagram
+    participant R1 as Relay Run 1
+    participant R2 as Relay Run 2
+    participant R3 as Relay Run 3 (retry)
+    participant Specs as Specs Store
+
+    R1->>Specs: update_spec("ApiSources-T3", draft)
+    Note over Specs: T3 created (draft)
+    R2->>Specs: update_spec("ApiSources-T3", draft)
+    Note over Specs: T3 upserted → BUT relay appends if step regenerates
+    R3->>Specs: update_spec("ApiSources-T3", done)
+    Note over Specs: Another T3 appended (done)
+    Note over Specs: Result: 3+ copies of T3
+```
+
+### Fix Strategy
+
+1. **Immediate**: Delete all duplicate items, keeping highest-quality copy per ID
+2. **Prevention**: The `update_spec` tool already upserts by ID — duplicates only appear when relay retries regenerate items. The fix is in the relay driver: check `list_specs` before creating test items.
+
+### Impact on "Debug Test"
+
+When a relay run hits the Tester step, the Tester reads `ApiSources-T3` and sees 10+ conflicting versions. This causes:
+- Confusion about which test cases are authoritative
+- Wasted context window tokens reading duplicate content
+- Potential for writing tests against the wrong spec version
+- Test verification failures when implementation matches one copy but Tester reads another
+
+### Resolution
+
+Deduplicate by keeping the highest-status copy:
+1. `done` > `approved` > `implemented` > `in_progress` > `draft` > `proposed` > `empty`
+2. If tied, keep the copy with the most content
+3. Delete all other copies
+
+### Design Highlight
+
+This is not a code bug — it's a spec hygiene issue. The fix is deduplication of existing specs plus a prevention rule in the relay driver. No code changes needed for the immediate fix; only spec cleanup.
+
+## Specs-A5 Spec Deduplication & Hygiene — Root Cause and Resolution Architecture
+**Status:** approved
+**Tags:** stack:both, module:specs
+**Depends on:** Specs-G8, Specs-G9
+
+## Spec Deduplication & Hygiene Architecture — Root Cause and Resolution
+
+
+### Problem
+
+The spec system has accumulated massive duplication across Architecture, Designs, and Tests sections. `ApiSources-D1` has **5+ identical copies**, `UiSystem-D4` has **6+ copies**, `ApiSources-A3` has **5+ copies**, and `ApiSources-T3` has **10+ copies**. This duplication causes:
+
+1. **Agent confusion**: Relay agents read conflicting versions of the same spec
+2. **Context waste**: Duplicate items inflate context window consumption
+3. **Maintenance impossibility**: No way to determine which copy is authoritative
+
+### Root Cause
+
+The `update_spec` tool correctly upserts by `item_id`, but relay pipeline retries and re-runs create new items with the same ID by appending rather than replacing. The pipeline's Tester→Coder retry loop exacerbates this by regenerating test specs on each iteration.
+
+### Solution Architecture
+
+```mermaid
+graph TB
+    subgraph "Detection"
+        LOAD[Load Section Items] --> GROUP[Group by item_id]
+        GROUP --> RANK[Rank: done > approved > draft > proposed]
+        RANK --> SELECT[Select highest-ranked per ID]
+    end
+    subgraph "Resolution"
+        SELECT --> KEEP[Keep ONE item per ID]
+        KEEP --> REJECT[Mark duplicates as rejected]
+    end
+    subgraph "Prevention"
+        UPSERT[update_spec call] --> CHECK{Item exists?}
+        CHECK -->|Yes| REPLACE[Replace content in-place]
+        CHECK -->|No| CREATE[Create new item]
+    end
+```
+
+### Selection Algorithm
+
+```
+statusRank = { done:10, verified:9, implemented:8, approved:7,
+               in_review:6, in_progress:5, stable:4,
+               draft:3, proposed:2, backlog:1, empty:0 }
+
+selectBestCopy(items[]):
+  return items.sortBy((a, b) =>
+    statusRank[b.status] - statusRank[a.status]
+    || b.content.length - a.content.length
+  )[0]
+```
+
+### Trigger Condition
+
+Dedup runs when:
+- A new relay run completes its Architect step
+- Manually triggered via "Drift Check" button
+- On project open (background scan)
+
+### Data Flow
+
+```
+[Section Items] → [Group by item_id] → [Rank within group by status + content length]
+  → [Keep highest-ranked item] → [Reject remaining duplicates] → [Save clean section]
+```
+
+### Duplicate Inventory (Current)
+
+| Section | Item ID | Copies | Action |
+|---------|---------|--------|--------|
+| architecture | Specs-A3 | 4 | Keep first approved, reject 3 |
+| architecture | ApiSources-A3 | 5 | Keep first, reject 4 |
+| designs | ApiSources-D1 | 5 | Keep first approved, reject 4 |
+| designs | UiSystem-D4 | 6 | Keep first draft, reject 5 |
+| designs | Specs-D13 | 2 | Keep first, reject 1 |
+| tests | ApiSources-T3 | 10+ | Keep "done" copy, reject 9+ |
+| goals | Specs-G8/Specs-G9 | 2 | Keep G8, reject G9 |
+
+### Design Highlight
+
+Dedup at the `item_id` level is deterministic — no content similarity algorithms needed. One ID = one item, ever. The Coder step in relay must call `update_spec(action: "upsert")` rather than appending new items.
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **ID-based dedup with status ranking** (chosen) | Simple, deterministic, preserves audit trail via rejected status | Does not catch paraphrased duplicates with different IDs |
+| Content hash dedup | Catches paraphrases | Expensive, false positives on boilerplate |
+| Agent-level prevention only | Prevents creation | Does not fix existing duplicates |
+
+### Quality Checklist
+
+- [x] Mermaid structural diagram included
+- [x] Trigger condition documented
+- [x] Data flow documented
+- [x] Trade-offs table with ≥2 alternatives
+- [x] No unhandled error cases (all duplicates have defined action)
+- [x] Explicit data lifecycle (reject → audit trail preserved)

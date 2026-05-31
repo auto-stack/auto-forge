@@ -70,13 +70,79 @@
 ---
 ---
 
-## ApiSources-T3 ApiSources-T3 [G3] Model-First Agent Configuration Tests
+## ApiSources-T3 ApiSources-T3 [G3] Model-First Agent Configuration Tests — CANONICAL
 **Status:** done
 **Priority:** P0
 **Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
+**File:** backend/src/relay/config.rs
 **Module:** api-sources
 **Tags:** stack:backend, stack:frontend, module:api-sources, type:unit
 **Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
+
+## ApiSources-T3 [G3] Model-First Agent Configuration Tests
+**Status:** done
+**Priority:** P0
+**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`, lines 682–862)
+**Module:** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
+**Tags:** stack:backend, stack:frontend, module:api-sources, type:unit
+**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
+
+### Verification Summary (Quinn — draft-tests)
+
+All 15 backend tests implemented inline in `config.rs`. Code review confirms implementation matches design spec. One cosmetic CSS deviation noted (non-blocking). Frontend verified via code review.
+
+### Test Cases (all implemented, all passing)
+
+| TC | Description | Status |
+|----|-------------|--------|
+| TC-T3.1 | resolve_model with valid model_id returns correct model | ✅ |
+| TC-T3.2 | resolve_model with invalid model_id falls back to first model | ✅ |
+| TC-T3.3 | resolve_model with empty model_id falls back to first model | ✅ |
+| TC-T3.4 | resolve_model with missing api_source_id falls back to first source | ✅ |
+| TC-T3.5 | resolve_model returns None when no api_sources | ✅ |
+| TC-T3.6 | resolve_model returns None when source has empty models | ✅ |
+| TC-T3.7 | assign_model_ids migrates tier to model_id | ✅ |
+| TC-T3.8 | assign_model_ids falls back to first model when tier not found | ✅ |
+| TC-T3.9 | assign_model_ids skips configs that already have model_id | ✅ |
+| TC-T3.10 | assign_model_ids handles empty api_sources | ✅ |
+| TC-T3.11 | Serde round-trip — old JSON (no model_id) deserializes with defaults | ✅ |
+| TC-T3.12 | Serde round-trip — new JSON (with model_id) deserializes correctly | ✅ |
+| TC-T3.13 | Serde round-trip — new JSON without model_tier uses default | ✅ |
+| TC-T3.14 | generate_default_agents_with_source produces empty model_id | ✅ |
+| TC-T3.15 | resolve_model preserves all AgentConfig parameters in ModelConfig | ✅ |
+
+### Coverage Matrix
+
+| G3 Goal | Tests |
+|---------|-------|
+| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
+| Frontend model list per ApiSource | Verified via code review |
+| resolve_model() by model_id (no tier walk) | TC-T3.1–T3.6, TC-T3.15 |
+| Default configs reference model_id | TC-T3.14 |
+| Migrations convert tier→model_id | TC-T3.7–T3.10 |
+
+### Frontend Verification (Code Review)
+
+- ✅ `AgentConfigDto` has `model_id: string` and `model_tier` for display
+- ✅ `useApiSources.ts` exports `getModelsForSource(sourceId)` helper
+- ✅ `AgentsConfigView.vue` model selector lists all models from selected ApiSource with tier badges
+- ✅ Watcher on `api_source_id` auto-selects first model + updates model_tier
+- ✅ Watcher on `model_id` syncs model_tier from selected model
+- ✅ i18n: uses `t('agents.model')` for label
+- ✅ No duplicate definitions
+
+### Cosmetic Deviation (Non-blocking)
+
+Tier badge CSS uses subtle/low-opacity backgrounds (better for dark mode) instead of spec's bold solid backgrounds. Hue values match spec exactly: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber.
+
+### Bugs Found
+
+None.
+
+### Test Code Location
+
+All Rust tests: `backend/src/relay/config.rs` → `#[cfg(test)] mod tests` → functions `test_resolve_model_*`, `test_assign_model_ids_*`, `test_serde_*`, `test_generate_defaults_empty_model_id`, `test_resolve_model_preserves_parameters`
 
 ## ApiSources-T3 [G3] Model-First Agent Configuration Tests
 **Status:** done

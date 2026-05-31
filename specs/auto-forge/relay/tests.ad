@@ -1028,3 +1028,114 @@ async fn e2e_relay_failure_notification() {
 - **Relay API**: `backend/src/relay/api.rs` - SSE event broadcasting
 
 ---
+
+---
+
+## Relay-T20 MCP End-to-End Test Scenario
+**Status:** implemented
+**Tags:** stack:backend, module:mcp
+**Depends on:** Relay-P6, Chat-P1
+
+Complete validation workflow exercising AutoForge entirely through the MCP interface. Covers project setup, chat sessions, Relay Run execution, gate resolution, handoff submission, and state verification.
+
+### Phase 1: Project Setup
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 1.1 | `forge_get_project_status` | `{ "project_open": false }` |
+| 1.2 | `forge_open_project` | Project metadata with root path |
+| 1.3 | `forge_get_project_status` | `{ "project_open": true, ... }` |
+| 1.4 | `forge_read_specs` | Specs document with sections |
+
+### Phase 2: Chat Session Lifecycle
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 2.1 | `forge_create_session` | `{ "id": "fs-<uuid>", "status": "Idle" }` |
+| 2.2 | `forge_poll_chat_status` | `{ "status": "Idle", "message_count": 0 }` |
+| 2.3 | `forge_send_message` | Assistant reply present |
+| 2.4 | `forge_poll_chat_status` | `message_count >= 2` |
+| 2.5 | `forge_get_session` (with history) | Messages array with roles |
+| 2.6 | `forge_get_session` (without history) | `message_count` present, messages omitted |
+
+### Phase 3: Relay Run Full Lifecycle
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 3.1 | `forge_list_professions` | Professions array |
+| 3.2 | `forge_start_relay_run` | `{ "run_id": "run-<uuid>", "status": "pending" }` |
+| 3.3 | `forge_poll_run_phase` | Status "pending" or "running" |
+| 3.4 | `forge_poll_run_phase` (poll loop) | Status transitions through steps |
+| 3.5 | `forge_get_run` | Complete RunState |
+| 3.6 | `forge_list_runs` | Array containing new run |
+
+### Phase 4: Manual Run Control
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 4.1 | `forge_advance_run` | `ExecuteStep { ... }` |
+| 4.2 | `forge_poll_run_phase` | `current_step` incremented |
+| 4.3 | `forge_submit_handoff` | Handoff accepted |
+| 4.4 | `forge_resolve_gate` (approve) | Gate resolved, run continues |
+| 4.5 | `forge_resolve_gate` (reject) | Run routes back to same step |
+
+### Phase 5: Batch Operations
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 5.1 | `forge_batch_start_runs` | Multiple `run_ids` returned |
+| 5.2 | `forge_batch_get_results` | Array of RunBrief objects |
+
+### Phase 6: Spec Workflow Integration
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 6.1 | `forge_send_message` (spec update) | Message accepted |
+| 6.2 | `forge_poll_chat_status` | `pending_changes = true` |
+| 6.3 | `forge_approve_spec` | Changes applied |
+| 6.4 | `forge_reject_spec` | Changes discarded |
+| 6.5 | `forge_read_specs` | Updated specs document |
+
+### Phase 7: File System Operations
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 7.1 | `forge_browse_directory` | Directory entries |
+| 7.2 | `forge_read_file` | File content and metadata |
+
+### Phase 8: Performance & Diagnostics
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 8.1 | `forge_get_performance_logs` | Recent backend.log lines |
+| 8.2 | `forge_list_api_sources` | Configured API sources |
+| 8.3 | `forge_test_api_connection` | ConnectionTestResult |
+
+### Phase 9: Cleanup
+
+| Step | Tool | Expected Result |
+|------|------|----------------|
+| 9.1 | `forge_delete_session` | `{ "deleted": true }` |
+| 9.2 | `forge_get_session` | "Session not found" |
+| 9.3 | `forge_close_project` | `{ "status": "closed" }` |
+
+---
+
+## Relay-T21 Chat → spawn_relay → Relay Run Automation Verification
+**Status:** completed
+**Tags:** stack:backend
+**Depends on:** Relay-T20
+
+Validation checklist for the Chat-triggered Relay Run pipeline after fixes.
+
+| # | Check | Method | Result |
+|---|-------|--------|--------|
+| 1 | Only 1 Relay Run spawned per Chat session | Code review + live test | `spawn_relay_done` flag breaks ReAct loop after first success |
+| 2 | Tokens count exactly once per turn | Event log analysis | 38 `token_spend` events, 0 duplicates |
+| 3 | Discover step auto-flows without human gate | Live run observation | Run progressed through `discover` with `gate=auto` |
+| 4 | `step_completed` step_id is correct | Event log analysis | Exactly 1 event per step, correct `step_id` |
+| 5 | `relay_update` events broadcast and persist | Event log analysis | Events present after each step transition |
+| 6 | `forge_poll_run_phase` returns correct profession | API response check | `current_profession` matches active step |
+| 7 | `/api/health` endpoint responds | `curl` test | `{"status":"ok"}` |
+
+---

@@ -1,17 +1,6 @@
 {
   "pages": [
     {
-      "slug": "test-page",
-      "title": "Test Page",
-      "source_type": "manual",
-      "tags": [
-        "test",
-        "demo"
-      ],
-      "version": 4,
-      "updated_at": 1779178546
-    },
-    {
       "slug": "relay-run-6ddc1312-report",
       "title": "Relay Run 6ddc1312 - Test Execution Report",
       "source_type": "manual",
@@ -23,6 +12,29 @@
       ],
       "version": 1,
       "updated_at": 1779211364
+    },
+    {
+      "slug": "forge-module-inventory",
+      "title": "Forge Module .rs File Inventory",
+      "source_type": "manual",
+      "tags": [
+        "forge",
+        "inventory",
+        "backend"
+      ],
+      "version": 1,
+      "updated_at": 1780148227
+    },
+    {
+      "slug": "test-page",
+      "title": "Test Page",
+      "source_type": "manual",
+      "tags": [
+        "test",
+        "demo"
+      ],
+      "version": 4,
+      "updated_at": 1779178546
     }
   ]
 }

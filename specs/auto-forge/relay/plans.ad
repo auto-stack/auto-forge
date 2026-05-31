@@ -316,3 +316,109 @@
 ---
 
 ---
+
+## Relay-P11 Agent Response Speed Optimization
+**Status:** in_progress
+**Tags:** stack:backend
+**Depends on:** Relay-P1, Relay-P2, Runtime-G2
+
+Systematic optimization of Relay Pipeline latency. Phase 1 and 2 completed; Phase 3 partially completed.
+
+### Root Cause Analysis
+
+| Priority | Issue | Location | Estimated Impact |
+|----------|-------|----------|-----------------|
+| P0 | Agent recreated per step (ephemeral design) | `drive_run` → `build_agent()` | 50–500ms handoff overhead |
+| P0 | `std::sync::Mutex` blocks tokio worker threads | `RunStore` definition | Thread starvation under concurrency |
+| P1 | Synchronous I/O in async runtime | `shell`, `search`, `list_symbols` tools | 10s+ stalls (`cargo test`) |
+| P2 | No connection warm-up | `ClaudeProvider::new()` | 50–300ms TLS handshake per first request |
+| P2 | Deep clone of messages/tools per ReAct turn | `ToolChatRequest` construction | Grows with conversation length |
+| P3 | Gate polling busy-wait | `tokio::time::sleep(2s)` | Minor, tolerable |
+
+### Phase 1 — Agent Lifecycle Optimization (Completed)
+
+| Task | Owner | Duration | Status |
+|------|-------|----------|--------|
+| Relay-P11.1 | Profile handoff overhead: `build_agent`, `RelayRegistry::new`, `ToolRegistry::new` | Core | 1 day | Done |
+| Relay-P11.2 | Memoize `RelayRegistry` — cache parsed configs across steps | Core | 2 days | Done |
+| Relay-P11.3 | Memoize `ToolRegistry` — build once per profession, reuse | Core | 1 day | Done |
+| Relay-P11.4 | Pre-render system prompts — cache soul + spec context | Core | 1 day | Done |
+
+### Phase 2 — Concurrency & I/O Optimization (Completed)
+
+| Task | Owner | Duration | Status |
+|------|-------|----------|--------|
+| Relay-P11.5 | Replace `std::sync::Mutex` with `tokio::sync::RwLock` in `RunStore` | Core | 2 days | Done |
+| Relay-P11.6 | Move `save_run` disk I/O out of lock — use background task | Core | 1 day | Done |
+| Relay-P11.7 | Make `shell` tool async (`tokio::process::Command`) | Core | 1 day | Done |
+| Relay-P11.8 | Make `search` tool async (streaming walk + yield) | Core | 2 days | Done |
+
+### Phase 3 — Connection & Memory Optimization (In Progress)
+
+| Task | Owner | Duration | Status |
+|------|-------|----------|--------|
+| Relay-P11.9 | Add connection warm-up request in `ClaudeProvider::new()` | Core | 1 day | In Progress |
+| Relay-P11.10 | Tune `reqwest::Client` connection pool for high concurrency | Core | 0.5 day | Pending |
+| Relay-P11.11 | Replace deep clone with `Arc<Messages>` + cow pattern | Core | 2 days | Pending |
+| Relay-P11.12 | Gate notification via `tokio::sync::Notify` instead of polling | Core | 1 day | Pending |
+
+### References
+
+- ClaudeCode Bootstrap design: Fast-path dispatch, module-level parallel I/O, promise parallelism, memoized init
+- Key insight: ClaudeCode's Agent is long-lived (one query loop); AutoForge's Agent is per-step. Move toward "warm-up and reuse" model.
+
+---
+
+## Relay-P12 MCP Server Integration Plan
+**Status:** planned
+**Tags:** stack:backend
+**Depends on:** Relay-P6, Chat-P1
+
+Implement a full MCP (Model Context Protocol) Server on top of existing REST APIs, enabling AI Agents to discover and control AutoForge programmatically.
+
+### Technology Choices
+
+| Option | Decision |
+|--------|----------|
+| SDK | `rmcp` (official Anthropic Rust SDK) |
+| Transport | stdio + HTTP (SSE) |
+| Integration | Direct module integration (no HTTP proxy layer) |
+
+### Module Structure
+
+```
+backend/src/mcp/
+├── mod.rs          # McpServer struct, #[tool] macros
+├── tools/
+│   ├── chat.rs     # forge_create_session, forge_send_message, ...
+│   ├── relay.rs    # forge_start_relay_run, forge_poll_run_phase, ...
+│   ├── specs.rs    # forge_read_specs, forge_update_spec, ...
+│   ├── config.rs   # forge_list_api_sources, forge_test_api_connection
+│   └── system.rs   # forge_get_performance_logs, forge_browse_directory
+├── resources/      # forge://specs/{project}, forge://runs/{run_id}
+├── prompts/        # Analysis, review, batch-test templates
+└── transport.rs    # stdio / HTTP configuration
+```
+
+### Tools Registry (30 tools implemented)
+
+**Chat:** `forge_create_session`, `forge_send_message`, `forge_poll_chat_status`, `forge_get_session`, `forge_delete_session`
+
+**Relay:** `forge_start_relay_run`, `forge_poll_run_phase`, `forge_get_run`, `forge_list_runs`, `forge_advance_run`, `forge_submit_handoff`, `forge_resolve_gate`, `forge_batch_start_runs`, `forge_batch_get_results`
+
+**Specs:** `forge_read_specs`, `forge_update_spec`, `forge_list_specs_sections`
+
+**Config:** `forge_list_api_sources`, `forge_test_api_connection`, `forge_open_project`, `forge_close_project`, `forge_get_project_status`
+
+**System:** `forge_read_file`, `forge_write_file`, `forge_browse_directory`, `forge_shell`, `forge_search`, `forge_get_performance_logs`
+
+### Phase Plan
+
+| Phase | Task | Duration | Status |
+|-------|------|----------|--------|
+| Phase 1 | Backend event emission — `relay_complete`, `RunMetadata` | 2 days | Planned |
+| Phase 2 | Chat integration — `ForgeStreamEvent::RelayComplete`, SSE routing | 2 days | Planned |
+| Phase 3 | Frontend UI — system message bubble, "View Report" button | 2 days | Planned |
+| Phase 4 | Report link — `?report_id=` navigation, Specs highlight | 1 day | Planned |
+
+---

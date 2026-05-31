@@ -2,6 +2,52 @@
 
 ---
 
+## Relay-R2 — Chat → Relay Run E2E Pipeline Fixes
+**Status:** completed
+**Tags:** stack:backend
+**Date:** 2026-05-30
+
+Post-implementation report for the Chat → spawn_relay → Relay Run automation pipeline. Eight bugs were discovered during end-to-end testing and all have been fixed and verified.
+
+### Fixes Applied
+
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 1 | `forge_poll_run_phase` returned wrong profession | `src/mcp/mod.rs` | `saturating_sub(1)` → `run.current_step` |
+| 2 | `forge_batch_get_results` returned wrong profession | `src/mcp/mod.rs` | Same 0-based index fix |
+| 3 | Chat prompt lacked tool-use instruction | `src/forge/mod.rs` | Append "actively use available tools" |
+| 4 | Chat prompt lacked relay-run trigger | `src/forge/mod.rs` | Append "call `spawn_relay` tool" instruction |
+| 5 | `relay_update` events missing | `src/relay/driver.rs` | Broadcast after `step_started` / `step_completed` |
+| 6 | `step_completed` recorded wrong step_id | `src/relay/store.rs` | Capture `completed_step_id` before `engine.submit_handoff()` |
+| 7 | Coder step looped / got stuck | `src/relay/profession.rs` | `max_turns`: 12 → 30 |
+| 8 | Token tracking lost | `src/relay/driver.rs` | `TurnEvent::Usage` handler pushes per-turn `TokenSpend` |
+
+### Additional Fixes (Verification Phase)
+
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 9 | `/api/health` handler unregistered | `src/forge/mod.rs` | Add `.route("/api/health", get(health))` |
+| 10 | Per-turn token tracking imprecise | `src/relay/turn.rs` + `driver.rs` | `TurnEvent::Usage` emitted after each inner chat turn |
+| 11 | `relay_update` not persisted | `src/relay/store.rs` + `driver.rs` | `RunEvent::RelayUpdate` variant added |
+| 12 | Duplicate `spawn_relay` calls | `src/forge/mod.rs` | `spawn_relay_done` flag breaks ReAct loop |
+| 13 | Token 3× duplication | `src/relay/driver.rs` + `store.rs` | Single-source: only `TurnEvent::Usage` pushes `TokenSpend` |
+| 14 | Human gate blocked discover step | `src/relay/flows.rs` | `GateType::Human` → `Auto` for discover step |
+
+### Verification Results
+
+- **Run auto-progression:** `intake` → `discover` → `design` → `plan` → `draft-tests` without `waiting_approval`
+- **Token events:** 38 `token_spend` events, 0 duplicates
+- **Step completion:** Exactly 1 `step_completed` event per step
+- **Tests:** `cargo test --lib` 173/173 pass, relay module 87/87 pass
+
+### Known Limitations
+
+1. **Chat MCP tool lacks tools support:** `forge_send_message` uses non-streaming `ai_provider.chat()`. Only Web UI `forge_stream` supports tool calling.
+2. **Coder exploration loops:** Even with `max_turns=30`, Coder may spend large token budgets on exploration. Consider adding step-level hard budget caps.
+3. **Code step double execution:** `fast-track` flow occasionally executes code step twice (iteration 0 + 1) when handoff fails validator.
+
+---
+
 ## Relay-R1 — Forge Specs Relay Frontend Implementation
 **Status:** draft
 **Tags:** stack:frontend

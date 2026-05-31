@@ -1,9 +1,9 @@
-//! AutoForge MCP Server — Phase 1: Core Tools
+//! AutoForge MCP Server — 30 Tools
 //!
-//! Exposes 8 tools via rmcp so external MCP clients (Claude Desktop, Cursor,
+//! Exposes tools via rmcp so external MCP clients (Claude Desktop, Cursor,
 //! etc.) can interact with AutoForge without going through the REST API.
 //!
-//! Tools:
+//! Core:
 //!   • forge_get_project_status
 //!   • forge_create_session
 //!   • forge_send_message
@@ -12,6 +12,39 @@
 //!   • forge_list_runs
 //!   • forge_get_run
 //!   • forge_read_specs
+//!   • forge_list_specs_sections
+//!   • forge_update_spec
+//!
+//! Session Management:
+//!   • forge_get_session
+//!   • forge_list_sessions
+//!   • forge_delete_session
+//!
+//! File/Project:
+//!   • forge_read_file
+//!   • forge_browse_directory
+//!   • forge_open_project
+//!   • forge_close_project
+//!
+//! Spec Workflow:
+//!   • forge_approve_spec
+//!   • forge_reject_spec
+//!
+//! API Sources:
+//!   • forge_list_api_sources
+//!   • forge_test_api_connection
+//!
+//! Batch:
+//!   • forge_batch_start_runs
+//!   • forge_batch_get_results
+//!
+//! Monitoring & Control:
+//!   • forge_get_performance_logs
+//!   • forge_poll_chat_status
+//!   • forge_poll_run_phase
+//!   • forge_advance_run
+//!   • forge_submit_handoff
+//!   • forge_resolve_gate
 
 use rmcp::{
     model::{CallToolResult, Content, ErrorData as McpError},
@@ -66,11 +99,42 @@ pub struct GetRunInput {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct ReadSpecsInput {
     pub project: String,
+    /// Optional: filter to a single section (e.g. "goals", "architecture")
+    pub section_id: Option<String>,
+    /// Optional: filter to a single item within the section (requires section_id)
+    pub item_id: Option<String>,
+    /// Optional: when false, omit items array from sections (summaries only)
+    pub include_items: Option<bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct UpdateSpecInput {
+    pub project: String,
+    pub section_id: String,
+    pub item_id: String,
+    pub action: Option<String>,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub depends_on: Option<Vec<String>>,
+    pub assignee: Option<String>,
+    pub test_file: Option<String>,
+    pub file: Option<String>,
+    pub milestone: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub module: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct ListSpecsSectionsInput {
+    pub project: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetSessionInput {
     pub sid: String,
+    pub include_history: Option<bool>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
@@ -113,6 +177,34 @@ pub struct BatchStartRunsInput {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct BatchGetResultsInput {
     pub run_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct PollChatStatusInput {
+    pub sid: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct PollRunPhaseInput {
+    pub run_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct AdvanceRunInput {
+    pub run_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct SubmitHandoffInput {
+    pub run_id: String,
+    pub handoff: serde_json::Value,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct ResolveGateInput {
+    pub run_id: String,
+    pub decision: String,
+    pub feedback: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +435,10 @@ impl AutoForgeMcpServer {
             project_path,
         ));
 
-        text_response(&run_state)
+        tracing::info!(run_id = %run_id, "forge_start_relay_run: returning run_state");
+        let result = text_response(&run_state);
+        tracing::info!(run_id = %run_id, success = result.is_ok(), "forge_start_relay_run: text_response done");
+        result
     }
 
     // -----------------------------------------------------------------------
@@ -379,20 +474,167 @@ impl AutoForgeMcpServer {
     // -----------------------------------------------------------------------
     // 8. Read specs
     // -----------------------------------------------------------------------
-    #[tool(description = "Read the specs document for a project", annotations(read_only_hint = true, idempotent_hint = true))]
+    #[tool(description = "Read the specs document for a project. Use section_id/item_id to filter, and include_items=false for lightweight summaries.", annotations(read_only_hint = true, idempotent_hint = true))]
     async fn forge_read_specs(
         &self,
         input: rmcp::handler::server::wrapper::Parameters<ReadSpecsInput>,
     ) -> Result<CallToolResult, McpError> {
         let mut store = crate::forge::specs().lock().unwrap();
+        let has_filter = input.0.section_id.is_some()
+            || input.0.item_id.is_some()
+            || input.0.include_items == Some(false);
+
+        if has_filter {
+            let doc = store.get(&input.0.project).ok_or_else(|| {
+                McpError::invalid_params(
+                    format!("Project '{}' not found", input.0.project),
+                    None,
+                )
+            })?;
+
+            if let Some(ref section_id) = input.0.section_id {
+                let section = doc.sections.iter().find(|s| s.id == *section_id).ok_or_else(|| {
+                    McpError::invalid_params(
+                        format!("Section '{}' not found", section_id),
+                        None,
+                    )
+                })?;
+
+                if let Some(ref item_id) = input.0.item_id {
+                    let item = section.items.iter().find(|i| i.id == *item_id).ok_or_else(|| {
+                        McpError::invalid_params(
+                            format!("Item '{}' not found in section '{}'", item_id, section_id),
+                            None,
+                        )
+                    })?;
+                    return text_response(item);
+                }
+
+                if input.0.include_items == Some(false) {
+                    let mut sec = section.clone();
+                    sec.items.clear();
+                    return text_response(&sec);
+                }
+                return text_response(section);
+            }
+
+            // include_items=false without section_id: return doc with empty items
+            let mut doc_copy = doc.clone();
+            for s in &mut doc_copy.sections {
+                s.items.clear();
+            }
+            return text_response(&doc_copy);
+        }
+
         let doc = store.get_or_default(&input.0.project);
         text_response(doc)
     }
 
     // -----------------------------------------------------------------------
+    // 8b. List specs sections
+    // -----------------------------------------------------------------------
+    #[tool(description = "List all sections for a project with lightweight summaries (id, title, type, status, item_count)", annotations(read_only_hint = true, idempotent_hint = true))]
+    async fn forge_list_specs_sections(
+        &self,
+        input: rmcp::handler::server::wrapper::Parameters<ListSpecsSectionsInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let store = crate::forge::specs().lock().unwrap();
+        let doc = store.get(&input.0.project).ok_or_else(|| {
+            McpError::invalid_params(
+                format!("Project '{}' not found", input.0.project),
+                None,
+            )
+        })?;
+
+        #[derive(Serialize)]
+        struct SectionSummary {
+            id: String,
+            title: String,
+            section_type: String,
+            status: String,
+            item_count: usize,
+            last_modified: u64,
+        }
+
+        let sections: Vec<_> = doc.sections.iter().map(|s| SectionSummary {
+            id: s.id.clone(),
+            title: s.title.clone(),
+            section_type: format!("{:?}", s.section_type),
+            status: s.status.as_str().to_string(),
+            item_count: s.items.len(),
+            last_modified: s.last_modified,
+        }).collect();
+
+        text_response(&serde_json::json!({
+            "project": doc.project.clone(),
+            "section_count": sections.len(),
+            "sections": sections,
+        }))
+    }
+
+    // -----------------------------------------------------------------------
+    // 8c. Update spec item
+    // -----------------------------------------------------------------------
+    #[tool(description = "Update, create, or delete a single spec item. Action: upsert (default), delete, or patch.", annotations(destructive_hint = false))]
+    async fn forge_update_spec(
+        &self,
+        input: rmcp::handler::server::wrapper::Parameters<UpdateSpecInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let action = input.0.action.as_deref().unwrap_or("upsert");
+        let mut store = crate::forge::specs().lock().unwrap();
+
+        let result = match action {
+            "delete" => {
+                store.delete_spec_item(&input.0.project, &input.0.section_id, &input.0.item_id)
+            }
+            "patch" => {
+                let content = input.0.content.as_deref().ok_or_else(|| {
+                    McpError::invalid_params("'patch' action requires 'content'", None)
+                })?;
+                store.patch_spec_item(&input.0.project, &input.0.section_id, &input.0.item_id, content)
+            }
+            "upsert" => {
+                store.upsert_spec_item(
+                    &input.0.project,
+                    &input.0.section_id,
+                    &input.0.item_id,
+                    input.0.title.as_deref(),
+                    input.0.content.as_deref(),
+                    input.0.status.as_deref(),
+                    input.0.priority.as_deref(),
+                    input.0.assignee.as_deref(),
+                    input.0.test_file.as_deref(),
+                    input.0.file.as_deref(),
+                    input.0.milestone.as_deref(),
+                    input.0.module.as_deref(),
+                    input.0.depends_on.clone(),
+                    input.0.tags.clone(),
+                )
+            }
+            other => {
+                return Ok(error_text(format!(
+                    "Invalid action '{}'. Use 'upsert', 'delete', or 'patch'.",
+                    other
+                )));
+            }
+        };
+
+        match result {
+            Ok(msg) => text_response(&serde_json::json!({
+                "result": msg,
+                "project": input.0.project,
+                "section_id": input.0.section_id,
+                "item_id": input.0.item_id,
+                "action": action,
+            })),
+            Err(e) => Ok(error_text(e)),
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // 9. Get session
     // -----------------------------------------------------------------------
-    #[tool(description = "Get details of a Forge chat session", annotations(read_only_hint = true, idempotent_hint = true))]
+    #[tool(description = "Get details of a Forge chat session. Set include_history=true to retrieve the full message log.", annotations(read_only_hint = true, idempotent_hint = true))]
     async fn forge_get_session(
         &self,
         input: rmcp::handler::server::wrapper::Parameters<GetSessionInput>,
@@ -401,6 +643,8 @@ impl AutoForgeMcpServer {
         let session = store
             .get(&input.0.sid)
             .ok_or_else(|| McpError::invalid_params("Session not found", None))?;
+
+        let include_history = input.0.include_history.unwrap_or(false);
 
         #[derive(Serialize)]
         struct SessionDetail {
@@ -413,7 +657,24 @@ impl AutoForgeMcpServer {
             focus_section: Option<String>,
             message_count: usize,
             pending_changes_count: usize,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            messages: Option<Vec<serde_json::Value>>,
         }
+
+        let messages = if include_history {
+            Some(session.messages.iter().map(|m| {
+                serde_json::json!({
+                    "id": m.id,
+                    "role": m.role,
+                    "content": m.content,
+                    "timestamp": m.timestamp,
+                    "profession_id": m.profession_id,
+                })
+            }).collect())
+        } else {
+            None
+        };
+
         text_response(&SessionDetail {
             id: session.id.clone(),
             name: session.name.clone(),
@@ -424,6 +685,7 @@ impl AutoForgeMcpServer {
             focus_section: session.focus_section.clone(),
             message_count: session.messages.len(),
             pending_changes_count: session.pending_spec_changes.len(),
+            messages,
         })
     }
 
@@ -823,7 +1085,7 @@ impl AutoForgeMcpServer {
                     status: run.status.clone(),
                     current_step: run.current_step,
                     total_steps: run.total_steps,
-                    current_profession: run.steps.get(run.current_step.saturating_sub(1))
+                    current_profession: run.steps.get(run.current_step)
                         .map(|s| s.profession_id.clone()),
                     title: run.title.clone(),
                 });
@@ -834,6 +1096,184 @@ impl AutoForgeMcpServer {
             "requested": input.0.run_ids.len(),
             "found": results.len(),
             "runs": results,
+        }))
+    }
+
+    // -----------------------------------------------------------------------
+    // 23. Poll chat status
+    // -----------------------------------------------------------------------
+    #[tool(description = "Poll the current status of a Forge chat session — returns latest assistant reply, profession, and pending changes", annotations(read_only_hint = true, idempotent_hint = true))]
+    async fn forge_poll_chat_status(
+        &self,
+        input: rmcp::handler::server::wrapper::Parameters<PollChatStatusInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let store = crate::forge::forge_sessions().lock().unwrap();
+        let session = store
+            .get(&input.0.sid)
+            .ok_or_else(|| McpError::invalid_params("Session not found", None))?;
+
+        let assistant_reply = session.messages.iter().rev().find(|m| m.role == "assistant").map(|m| m.content.clone());
+
+        #[derive(Serialize)]
+        struct ChatStatus {
+            sid: String,
+            status: String,
+            assistant_reply: Option<String>,
+            active_profession: Option<String>,
+            pending_changes: bool,
+            message_count: usize,
+        }
+        text_response(&ChatStatus {
+            sid: session.id.clone(),
+            status: format!("{:?}", session.status),
+            assistant_reply,
+            active_profession: session.active_profession.clone(),
+            pending_changes: !session.pending_spec_changes.is_empty(),
+            message_count: session.messages.len(),
+        })
+    }
+
+    // -----------------------------------------------------------------------
+    // 24. Poll run phase
+    // -----------------------------------------------------------------------
+    #[tool(description = "Get the current phase of a Relay Run — lightweight alternative to forge_get_run", annotations(read_only_hint = true, idempotent_hint = true))]
+    async fn forge_poll_run_phase(
+        &self,
+        input: rmcp::handler::server::wrapper::Parameters<PollRunPhaseInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let run = crate::relay::store::get_run(
+            crate::relay::api::run_store(),
+            &input.0.run_id,
+        )
+        .ok_or_else(|| {
+            McpError::invalid_params(
+                "Run not found",
+                Some(serde_json::json!({ "run_id": &input.0.run_id })),
+            )
+        })?;
+
+        let waiting_on = run.waiting_for_gate.as_ref().map(|g| {
+            format!("gate:{} step:{} prof:{}", "human", g.step_id, g.profession_id)
+        });
+
+        #[derive(Serialize)]
+        struct RunPhase {
+            run_id: String,
+            status: String,
+            current_step: usize,
+            total_steps: usize,
+            current_profession: Option<String>,
+            waiting_on: Option<String>,
+            title: Option<String>,
+        }
+        text_response(&RunPhase {
+            run_id: run.run_id.clone(),
+            status: run.status.clone(),
+            current_step: run.current_step,
+            total_steps: run.total_steps,
+            current_profession: run.steps.get(run.current_step)
+                .map(|s| s.profession_id.clone()),
+            waiting_on,
+            title: run.title.clone(),
+        })
+    }
+
+    // -----------------------------------------------------------------------
+    // 25. Advance run
+    // -----------------------------------------------------------------------
+    #[tool(description = "Manually advance a Relay Run to the next step", annotations(destructive_hint = false))]
+    async fn forge_advance_run(
+        &self,
+        input: rmcp::handler::server::wrapper::Parameters<AdvanceRunInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let result = crate::relay::store::advance_run(
+            crate::relay::api::run_store(),
+            &input.0.run_id,
+        )
+        .ok_or_else(|| McpError::invalid_params("Run not found", None))?;
+
+        let _ = crate::relay::api::event_sender().send(crate::relay::api::RunEventBroadcast {
+            run_id: input.0.run_id.clone(),
+            event_type: "step_advanced".into(),
+            payload: None,
+        });
+
+        text_response(&serde_json::json!({
+            "result": format!("{:?}", result),
+            "run_id": input.0.run_id,
+        }))
+    }
+
+    // -----------------------------------------------------------------------
+    // 26. Submit handoff
+    // -----------------------------------------------------------------------
+    #[tool(description = "Submit a handoff document to advance a run from one agent to the next", annotations(destructive_hint = false))]
+    async fn forge_submit_handoff(
+        &self,
+        input: rmcp::handler::server::wrapper::Parameters<SubmitHandoffInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let handoff: crate::relay::handoff::HandoffDocument = serde_json::from_value(input.0.handoff.clone())
+            .map_err(|e| McpError::invalid_params(format!("Invalid handoff document: {e}"), None))?;
+
+        let result = crate::relay::store::submit_handoff(
+            crate::relay::api::run_store(),
+            &input.0.run_id,
+            handoff,
+        )
+        .ok_or_else(|| McpError::invalid_params("Run not found", None))?;
+
+        let _ = crate::relay::api::event_sender().send(crate::relay::api::RunEventBroadcast {
+            run_id: input.0.run_id.clone(),
+            event_type: "handoff_submitted".into(),
+            payload: None,
+        });
+
+        text_response(&serde_json::json!({
+            "result": format!("{:?}", result),
+            "run_id": input.0.run_id,
+        }))
+    }
+
+    // -----------------------------------------------------------------------
+    // 27. Resolve gate
+    // -----------------------------------------------------------------------
+    #[tool(description = "Resolve a pending gate (approve, reject, or edit) to continue a Relay Run", annotations(destructive_hint = false))]
+    async fn forge_resolve_gate(
+        &self,
+        input: rmcp::handler::server::wrapper::Parameters<ResolveGateInput>,
+    ) -> Result<CallToolResult, McpError> {
+        let decision = match input.0.decision.as_str() {
+            "approve" => crate::relay::pipeline::GateDecision::Approve,
+            "reject" => crate::relay::pipeline::GateDecision::Reject {
+                feedback: input.0.feedback.unwrap_or_default(),
+            },
+            "edit" => crate::relay::pipeline::GateDecision::Edit {
+                changes: input.0.feedback.unwrap_or_default(),
+            },
+            other => {
+                return Ok(error_text(format!(
+                    "Invalid decision '{}'. Use 'approve', 'reject', or 'edit'.",
+                    other
+                )));
+            }
+        };
+
+        let result = crate::relay::store::resolve_gate(
+            crate::relay::api::run_store(),
+            &input.0.run_id,
+            decision,
+        )
+        .ok_or_else(|| McpError::invalid_params("Run not found", None))?;
+
+        let _ = crate::relay::api::event_sender().send(crate::relay::api::RunEventBroadcast {
+            run_id: input.0.run_id.clone(),
+            event_type: "gate_resolved".into(),
+            payload: None,
+        });
+
+        text_response(&serde_json::json!({
+            "result": format!("{:?}", result),
+            "run_id": input.0.run_id,
         }))
     }
 }

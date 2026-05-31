@@ -246,7 +246,7 @@ pub fn standard_spec_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("intake", "assistant"));
     flow.add_step(
         FlowStep::new("discover", "advisor")
-            .with_gate(GateType::Human)
+            .with_gate(GateType::Auto)
             .with_validators(discover_validators())
             .with_tool_guard(discover_tool_guard()),
     );
@@ -516,9 +516,9 @@ mod tests {
     }
 
     #[test]
-    fn test_standard_flow_has_human_gate_at_advisor() {
+    fn test_standard_flow_has_auto_gate_at_advisor() {
         let flow = standard_spec_flow();
-        assert_eq!(flow.steps[1].gate, GateType::Human); // advisor → architect (GoalGate)
+        assert_eq!(flow.steps[1].gate, GateType::Auto);  // advisor → architect (was Human, now Auto for full automation)
         assert_eq!(flow.steps[2].gate, GateType::Auto);  // architect → planner
         assert_eq!(flow.steps[3].gate, GateType::Auto);  // planner → tester
         assert_eq!(flow.steps[4].gate, GateType::Auto);  // tester → coder

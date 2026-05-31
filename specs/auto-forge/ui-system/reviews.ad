@@ -12,3 +12,5 @@
 | C2 | Focus management on gates | ✅ Pass | `approveBtnRef` + `onMounted` focus in `GateCard.vue` | — |
 | C3 | Screen reader announcements | ✅ Pass | `aria-live="polite"` region + `role="alert"` on SecretaryMessage | — |
 | C4 | SSE event router wired end-to-end | ✅ Pass | `useEventRouter` in `useForge.ts` and `useRelay.ts` | — |
+
+---

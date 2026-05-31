@@ -326,7 +326,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             ],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
-            max_turns: 60,
+            max_turns: 30,
             token_budget: 20_000_000,
             thinking_enabled: true,
             thinking_budget: 2048,
