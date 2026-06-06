@@ -188,6 +188,17 @@
                       <pre>{{ entry.content }}</pre>
                     </div>
 
+                    <!-- Thinking content -->
+                    <div v-else-if="entry.type === 'thinking'" class="session-thinking">
+                      <details>
+                        <summary>
+                          <span class="thinking-icon">💭</span>
+                          <span>思考中</span>
+                        </summary>
+                        <pre>{{ entry.content }}</pre>
+                      </details>
+                    </div>
+
                     <!-- Unified Tool Widget -->
                     <div v-else-if="entry.type === 'tool'" class="session-tool unified">
                       <div class="tool-header">
@@ -1515,5 +1526,53 @@ function professionIcon(id: string): string {
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+/* ─── Session Log Thinking ────────────────────────────────────────────────── */
+
+.session-thinking details {
+  border: 1px solid hsl(var(--muted-foreground) / 0.12);
+  border-radius: 6px;
+  background: hsl(var(--muted-foreground) / 0.03);
+  overflow: hidden;
+}
+
+.session-thinking details[open] {
+  background: hsl(var(--muted-foreground) / 0.05);
+}
+
+.session-thinking summary {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--af-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.session-thinking summary::-webkit-details-marker {
+  display: none;
+}
+
+.session-thinking .thinking-icon {
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.session-thinking pre {
+  padding: 0.4rem 0.6rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--af-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  background: transparent;
+  border: none;
 }
 </style>

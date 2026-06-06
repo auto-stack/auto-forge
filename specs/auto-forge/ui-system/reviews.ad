@@ -8,9 +8,7 @@
 
 | Criterion | Goal | Result | Evidence | Issue |
 |---|---|---|---|---|
-| C1 | Keyboard shortcuts work | ✅ Pass | `Ctrl+1/2/3` in `App.vue` | — |
-| C2 | Focus management on gates | ✅ Pass | `approveBtnRef` + `onMounted` focus in `GateCard.vue` | — |
-| C3 | Screen reader announcements | ✅ Pass | `aria-live="polite"` region + `role="alert"` on SecretaryMessage | — |
-| C4 | SSE event router wired end-to-end | ✅ Pass | `useEventRouter` in `useForge.ts` and `useRelay.ts` | — |
-
----
+| C1 | Keyboard shortcuts work | ✅ pass | `Ctrl+1/2/3` in `App.vue` | — |
+| C2 | Focus management on gates | ✅ pass | `approveBtnRef` + `onMounted` focus in `GateCard.vue` | — |
+| C3 | Screen reader announcements | ✅ pass | `aria-live="polite"` regions + `role="alert"` on SecretaryMessage | — |
+| C4 | SSE event router wired end-to-end | ✅ pass | `useEventRouter` in `useForge.ts` and `useRelay.ts` | — |

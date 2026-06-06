@@ -7,6 +7,7 @@ export interface ForgeMessage {
   timestamp: number
   tool_calls?: ToolCallInfo[]
   profession_id?: string
+  thinking?: string
 }
 
 export interface SpecChange {
@@ -36,8 +37,9 @@ export interface ForgeSession {
 }
 
 export interface ForgeStreamEvent {
-  type: 'turn_start' | 'delta' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete' | 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
+  type: 'turn_start' | 'delta' | 'thinking' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete' | 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
   text?: string
+  thinking?: string
   id?: string
   name?: string
   arguments?: Record<string, unknown>

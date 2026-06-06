@@ -2,13 +2,11 @@
 
 ---
 
-## ApiSources-D1 ApiSources-D1 Model-First Agent Configuration Design
+## ApiSources-D1 ApiSources-D1 Model-First Agent Config Design
 **Status:** approved
-**Module:** `backend/src/relay/config.rs`
-**Tags:** stack:both
-**Depends on:** ApiSources-G1
+**Tags:** stack:both, module:api-sources
 
-## ApiSources-D1 Model-First Agent Configuration Design
+## ApiSources-D1 Model-First Agent Config Design
 **Status:** approved
 **Module:** `backend/src/relay/config.rs`, `frontend/src/composables/useAgentConfigs.ts`, `frontend/src/views/AgentsConfigView.vue`
 **Tags:** stack:both, module:api-sources
@@ -16,15 +14,15 @@
 
 ### Overview
 
-Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
+Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, resolution logic simplification, and frontend UI update.
 
-### 1. Backend Data Model Changes
+### 1. Backend Data Model Change
 
 **File: `backend/src/relay/config.rs`**
 
-#### AgentConfig (current lines 379–397)
+#### AgentConfig (~line 379–397)
 
-Replace `model_tier: ModelTier` with `model_id: String`, keep `model_tier` as deprecated for migration:
+Add `model_id: String` and keep `model_tier` as deprecated field for migration:
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,9 +57,9 @@ pub struct AgentConfig {
 }
 ```
 
-**Key**: Both fields use `#[serde(default)]` so existing JSON files with only `model_tier` deserialize without error (model_id defaults to ""), and new files with only `model_id` also work (model_tier defaults to Min).
+**Key**: Both fields use `#[serde(default)]`, so existing JSON files with only `model_tier` deserialize without error (`model_id` defaults to ""), and new files with only `model_id` also work (`model_tier` defaults to Min).
 
-#### ModelDefinition (lines 32–36) — unchanged
+#### ModelDefinition (~line 32–36) — Unchanged
 
 ```rust
 pub struct ModelDefinition {
@@ -71,9 +69,9 @@ pub struct ModelDefinition {
 }
 ```
 
-#### resolve_model() (current lines 548–586) — simplified
+#### resolve_model() (~line 548–586) — Simplified
 
-Replace the entire tier downgrade walk with a direct model_id lookup:
+Replace the entire tier-degradation walk with a direct model_id lookup:
 
 ```rust
 pub fn resolve_model(
@@ -107,369 +105,7 @@ pub fn resolve_model(
 }
 ```
 
-#### generate_default_agents_with_source() (current lines 449–490) — updated
-
-Pick concrete model_id by preferred tier:
-
-```rust
-pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
-    // Note: api_sources are loaded separately; this function is called
-    // from load_or_generate_agent_configs() which has access to them.
-    // We generate with empty model_id; load_or_generate_agent_configs
-    // will call assign_model_ids() to fill it.
-    let defaults: [(&str, &str, &str, ModelTier); 9] = [
-        ("assistant", "Nicole", "assistant", ModelTier::Lite),
-        ("advisor", "Isaac", "advisor", ModelTier::Mid),
-        ("architect", "Vera", "architect", ModelTier::Pro),
-        ("planner", "Felix", "planner", ModelTier::Mid),
-        ("tester", "Quinn", "tester", ModelTier::Lite),
-        ("coder", "Ash", "coder", ModelTier::Mid),
-        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
-        ("documenter", "Luna", "documenter", ModelTier::Lite),
-        ("gofer", "Gus", "gofer", ModelTier::Lite),
-    ];
-
-    defaults
-        .map(|(profession, name, soul, preferred_tier)| AgentConfig {
-            id: format!("default-{}", profession),
-            name: name.to_string(),
-            profession_id: profession.to_string(),
-            soul_id: soul.to_string(),
-            api_source_id: api_source_id.to_string(),
-            model_id: String::new(), // filled by migration
-            model_tier: preferred_tier,
-            is_default: true,
-            temperature: 0.3,
-            max_tokens: if preferred_tier == ModelTier::Lite { 4096 } else { 8192 },
-            reasoning_budget: if preferred_tier == ModelTier::Pro { Some(4096) } else { None },
-            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
-            thinking_budget: match profession {
-                "architect" | "coder" => Some(2048),
-                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
-                _ => None,
-            },
-            avatar_url: None,
-            equipped_skills: Vec::new(),
-        })
-        .to_vec()
-}
-```
-
-A new `assign_model_ids()` function fills model_id after generation:
-
-```rust
-/// For each config with empty model_id, find the best matching model
-/// from its ApiSource by preferred tier, then fallback to first model.
-pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) {
-    for config in configs.iter_mut() {
-        if config.model_id.is_empty() {
-            let source = api_sources.iter()
-                .find(|s| s.id == config.api_source_id)
-                .or_else(|| api_sources.first());
-            config.model_id = source
-                .and_then(|s| {
-                    s.models.iter().find(|m| m.tier == config.model_tier)
-                        .or_else(|| s.models.first())
-                })
-                .map(|m| m.id.clone())
-                .unwrap_or_default();
-        }
-    }
-}
-```
-
-#### Migration — in load_or_generate_agent_configs() (current lines 498–527)
-
-Insert `assign_model_ids()` call after loading existing configs:
-
-```rust
-pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
-    let existing = load_agent_configs();
-    let defaults = generate_default_agents_with_source(
-        api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
-    );
-
-    let mut merged = if existing.is_empty() {
-        defaults
-    } else {
-        // Fix empty api_source_id
-        let first_source_id = api_sources.first().map(|s| s.id.as_str()).unwrap_or("");
-        let mut merged: Vec<AgentConfig> = existing.into_iter().map(|mut c| {
-            if c.api_source_id.is_empty() && !first_source_id.is_empty() {
-                c.api_source_id = first_source_id.to_string();
-            }
-            c
-        }).collect();
-
-        // Add missing defaults
-        for default in &defaults {
-            if !merged.iter().any(|c| c.id == default.id) {
-                merged.push(default.clone());
-            }
-        }
-        merged
-    };
-
-    // MIGRATION: Fill model_id for configs that only have model_tier
-    assign_model_ids(&mut merged, api_sources);
-
-    let _ = save_agent_configs(&merged);
-    merged
-}
-```
-
-### 2. Frontend Changes
-
-**File: `frontend/src/composables/useAgentConfigs.ts`**
-
-```typescript
-export interface AgentConfigDto {
-  id: string
-  name: string
-  profession_id: string
-  soul_id: string
-  api_source_id: string
-  model_id: string             // ← NEW: direct model reference (was model_tier)
-  model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // ← kept for display
-  is_default: boolean
-  temperature: number
-  max_tokens: number
-  reasoning_budget: number | null
-  thinking_enabled: boolean
-  thinking_budget: number | null
-  avatar_url?: string
-  equipped_skills?: string[]
-}
-```
-
-**File: `frontend/src/composables/useApiSources.ts`** — add helper
-
-```typescript
-/// Get models for a specific API source
-function getModelsForSource(sourceId: string): ModelDefinition[] {
-  const source = _sources.value.find(s => s.id === sourceId)
-  return source?.models ?? []
-}
-```
-
-**File: `frontend/src/views/AgentsConfigView.vue`**
-
-Replace tier dropdown with model selector:
-
-```
-┌─────────────────────────────────────────────┐
-│ Agent: Isaac (advisor)                       │
-├─────────────────────────────────────────────┤
-│ API Source: [Anthropic Claude ▾]            │
-│                                              │
-│ Model: [Claude Sonnet 4 (Mid) ▾]            │
-│        ┌──────────────────────────────┐      │
-│        │ ● Claude Haiku 3.5    (Min)  │      │
-│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
-│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
-│        │ ○ Claude Opus 4      (Pro)   │      │
-│        └──────────────────────────────┘      │
-│                                              │
-│ Temperature: [0.3]  Max Tokens: [8192]      │
-└─────────────────────────────────────────────┘
-```
-
-1. When `api_source_id` changes → refresh model list, auto-select first model
-2. Model list shows: display name + tier badge (color-coded)
-3. Selected model's tier badge shown in collapsed selector
-4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
-
-#### Tier Badge CSS Classes
-
-```css
-.tier-badge.min { background: #9ca3af; color: white; }  /* gray */
-.tier-badge.lite { background: #22c55e; color: white; }  /* green */
-.tier-badge.mid { background: #3b82f6; color: white; }   /* blue */
-.tier-badge.pro { background: #a855f7; color: white; }   /* purple */
-.tier-badge.max { background: #f59e0b; color: white; }   /* amber */
-```
-
-### 3. State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> Idle: AgentConfig loaded
-    Idle --> SourceChanged: User changes api_source_id
-    SourceChanged --> ModelListLoaded: Fetch models for new source
-    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
-    ModelSelected --> Saved: User saves config
-    ModelSelected --> SourceChanged: User changes source again
-    Saved --> [*]
-
-    Idle --> ModelSelected: User changes model_id (same source)
-    ModelListLoaded --> SourceChanged: User changes source before selecting
-```
-
-### 4. Error Handling
-
-| Error Case | Handling |
-|------------|----------|
-| `model_id` not found in ApiSource | Fallback to first model in source, log warning via `log::warn!` |
-| `api_source_id` not found | Fallback to first ApiSource + first model |
-| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
-| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load via `assign_model_ids()`: tier → first matching model |
-| ApiSource deleted while agents reference it | `resolve_model()` falls back to first ApiSource; UI shows "Source not found" |
-
-### 5. Files Modified
-
-| File | Change |
-|------|--------|
-| `backend/src/relay/config.rs` | Add `model_id: String` to AgentConfig; simplify `resolve_model()` to direct lookup; add `assign_model_ids()` for migration; update `generate_default_agents_with_source()` |
-| `backend/src/relay/mod.rs` | No logic change — `RelayRegistry` already uses `resolve_model()` for all model resolution |
-| `frontend/src/composables/useAgentConfigs.ts` | Add `model_id` to `AgentConfigDto`; keep `model_tier` for display |
-| `frontend/src/composables/useApiSources.ts` | Add `getModelsForSource(sourceId)` helper |
-| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector listing models from selected ApiSource with tier badges |
-| `frontend/src/locales/en.json` | Add `agents.model` key |
-| `frontend/src/locales/zh.json` | Add `agents.model` key |
-
-### 6. Data Lifecycle
-
-```
-[Default Generation]
-  api_sources loaded → generate_default_agents_with_source() → model_id left empty
-  → assign_model_ids() fills model_id from preferred tier match
-  → saved to agent_configs.json
-
-[User Edit]
-  User opens AgentConfig → UI shows model list for selected ApiSource
-  → User picks model → model_id saved; model_tier updated from selected model's tier
-
-[Agent Spawn]
-  Orchestrator → resolve_model(config, api_sources)
-  → find ModelDefinition by model_id (direct lookup, no tier walk)
-  → return ModelConfig(provider, model_id, params)
-  → AgentInstance spawned with resolved model
-
-[ApiSource Model Change]
-  If referenced model_id removed from ApiSource
-  → resolve_model falls back to first model + log warning
-  → UI shows "Model not found" indicator on AgentConfig card
-
-[Legacy Config Migration]
-  Load agent_configs.json → model_id is empty, model_tier present
-  → assign_model_ids() converts tier → first matching model in ApiSource
-  → Saved back with model_id populated
-```
-
-### 7. Verified Code Evidence
-
-| What | File:Lines |
-|------|-----------|
-| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs:379-397` |
-| `resolve_model()` with tier downgrade walk | `backend/src/relay/config.rs:548-586` |
-| `generate_default_agents_with_source()` | `backend/src/relay/config.rs:449-490` |
-| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs:498-527` |
-| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts:8-21` |
-| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts:6-10` |
-| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue:47` |
-| `tierLabel()` helper usage | `frontend/src/views/AgentsConfigView.vue:47` |
-| `RelayRegistry` uses `resolve_model()` | `backend/src/relay/mod.rs:48-53` |
-
-## ApiSources-D1 Model-First Agent Configuration Design
-**Status:** approved
-**Module:** `backend/src/relay/config.rs`, `frontend/src/composables/useAgentConfigs.ts`, `frontend/src/views/AgentsConfigView.vue`
-**Tags:** stack:both, module:api-sources
-**Depends on:** ApiSources-A3, ApiSources-G3
-
-### Overview
-
-Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
-
-### 1. Backend Data Model Changes
-
-**File: `backend/src/relay/config.rs`**
-
-#### AgentConfig (current lines ~370–397)
-
-Add `model_id: String` and keep `model_tier` as deprecated for migration:
-
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentConfig {
-    pub id: String,
-    pub name: String,
-    pub profession_id: String,
-    pub soul_id: String,
-    pub api_source_id: String,
-    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
-    #[serde(default)]
-    pub model_id: String,
-    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
-    #[serde(default)]
-    pub model_tier: ModelTier,
-    #[serde(default)]
-    pub is_default: bool,
-    #[serde(default = "default_temperature")]
-    pub temperature: f32,
-    #[serde(default = "default_max_tokens")]
-    pub max_tokens: u32,
-    #[serde(default)]
-    pub reasoning_budget: Option<u32>,
-    #[serde(default)]
-    pub thinking_enabled: bool,
-    #[serde(default)]
-    pub thinking_budget: Option<u32>,
-    #[serde(default)]
-    pub avatar_url: Option<String>,
-    #[serde(default)]
-    pub equipped_skills: Vec<String>,
-}
-```
-
-**Key**: Both fields use `#[serde(default)]` so existing JSON files with only `model_tier` deserialize without error (model_id defaults to ""), and new files with only `model_id` also work (model_tier defaults to Min).
-
-#### ModelDefinition (lines ~32–36) — unchanged
-
-```rust
-pub struct ModelDefinition {
-    pub id: String,       // e.g., "claude-sonnet-4-20250514"
-    pub name: String,     // e.g., "Claude Sonnet 4"
-    pub tier: ModelTier,  // Display tag only: Min/Lite/Mid/Pro/Max
-}
-```
-
-#### resolve_model() (current lines ~548–586) — simplified
-
-Replace the entire tier downgrade walk with a direct model_id lookup:
-
-```rust
-pub fn resolve_model(
-    config: &AgentConfig,
-    api_sources: &[ApiSource],
-) -> Option<crate::relay::agent::ModelConfig> {
-    // 1. Find the ApiSource
-    let source = api_sources.iter()
-        .find(|s| s.id == config.api_source_id)
-        .or_else(|| api_sources.first())?;
-
-    // 2. Find the specific model by ID (direct lookup, no tier walk)
-    let model_def = source.models.iter()
-        .find(|m| m.id == config.model_id)
-        .or_else(|| {
-            log::warn!(
-                "model_id '{}' not found in ApiSource '{}', falling back to first model",
-                config.model_id, source.id
-            );
-            source.models.first()
-        })?;
-
-    Some(crate::relay::agent::ModelConfig {
-        provider: source.provider.clone(),
-        model: model_def.id.clone(),
-        temperature: config.temperature,
-        max_tokens: config.max_tokens,
-        reasoning_budget: config.reasoning_budget,
-        fallback_chain: Vec::new(),
-    })
-}
-```
-
-#### generate_default_agents_with_source() (current lines ~449–490) — updated
+#### generate_default_agents_with_source() (~line 449–490) — Updated
 
 Generate with empty model_id; migration fills it:
 
@@ -513,7 +149,7 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
 }
 ```
 
-#### New: assign_model_ids() — migration helper
+#### New: assign_model_ids() — Migration Helper
 
 ```rust
 /// For each config with empty model_id, find the best matching model
@@ -543,7 +179,7 @@ pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) 
 }
 ```
 
-#### load_or_generate_agent_configs() (current lines ~498–527) — add migration call
+#### load_or_generate_agent_configs() (~line 498–527) — Add migration call
 
 Insert `assign_model_ids()` call after loading/merging configs:
 
@@ -592,7 +228,7 @@ export interface AgentConfigDto {
   profession_id: string
   soul_id: string
   api_source_id: string
-  model_id: string             // ← NEW: direct model reference
+  model_id: string             // ← NEW: direct model reference (was model_tier)
   model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // ← kept for display
   is_default: boolean
   temperature: number
@@ -605,10 +241,10 @@ export interface AgentConfigDto {
 }
 ```
 
-**File: `frontend/src/composables/useApiSources.ts`** — add helper
+**File: `frontend/src/composables/useApiSources.ts`** — Add helper
 
 ```typescript
-/// Get models for a specific API source by ID
+/// Get models for a specific API source
 function getModelsForSource(sourceId: string): ModelDefinition[] {
   const source = _sources.value.find(s => s.id === sourceId)
   return source?.models ?? []
@@ -639,7 +275,7 @@ Replace tier dropdown with model selector:
 
 1. When `api_source_id` changes → refresh model list, auto-select first model
 2. Model list shows: display name + tier badge (color-coded)
-3. Selected model's tier badge shown in collapsed selector
+3. Collapsed selector shows selected model's tier badge
 4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
 
 #### Tier Badge CSS Classes
@@ -670,15 +306,15 @@ stateDiagram-v2
 
 ### 4. Error Handling
 
-| Error Case | Handling |
-|------------|----------|
-| `model_id` not found in ApiSource | Fallback to first model, log warning via `log::warn!` |
-| `api_source_id` not found | Fallback to first ApiSource + first model |
-| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
-| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load via `assign_model_ids()`: tier → first matching model |
-| ApiSource deleted while agents reference it | `resolve_model()` falls back to first ApiSource; UI shows source not found |
+| Error Scenario | Handling |
+|----------|----------|
+| `model_id` not found in ApiSource | Fall back to first model in source, log via `log::warn!` |
+| `api_source_id` not found | Fall back to first ApiSource + first model |
+| ApiSource has zero models | `resolve_model()` returns `None`, agent spawn fails gracefully |
+| Legacy config has `model_tier` but no `model_id` | Auto-migrated on load via `assign_model_ids()`: tier → first matching model |
+| Agent references deleted ApiSource | `resolve_model()` falls back to first ApiSource; UI shows "Source not found" |
 
-### 5. Files Modified
+### 5. Modified Files
 
 | File | Change |
 |------|--------|
@@ -695,45 +331,44 @@ stateDiagram-v2
 ```
 [Default Generation]
   api_sources loaded → generate_default_agents_with_source() → model_id left empty
-  → assign_model_ids() fills model_id from preferred tier match
+  → assign_model_ids() fills model_id by matching preferred tier
   → saved to agent_configs.json
 
 [User Edit]
-  User opens AgentConfig → UI shows model list for selected ApiSource
-  → User picks model → model_id saved; model_tier updated from selected model's tier
+  User opens AgentConfig → UI shows model list from selected ApiSource
+  → User selects model → saves model_id; model_tier updated from selected model's tier
 
 [Agent Spawn]
   Orchestrator → resolve_model(config, api_sources)
-  → find ModelDefinition by model_id (direct lookup, no tier walk)
+  → lookup ModelDefinition by model_id (direct lookup, no tier walk)
   → return ModelConfig(provider, model_id, params)
-  → AgentInstance spawned with resolved model
+  → spawn AgentInstance with resolved model
 
 [ApiSource Model Change]
   If referenced model_id removed from ApiSource
-  → resolve_model falls back to first model + log warning
+  → resolve_model falls back to first model + warns
   → UI shows "Model not found" indicator on AgentConfig card
 
 [Legacy Config Migration]
   Load agent_configs.json → model_id is empty, model_tier present
-  → assign_model_ids() converts tier → first matching model in ApiSource
-  → Saved back with model_id populated
+  → assign_model_ids() converts tier to first matching model in ApiSource
+  → saved back to file with model_id populated
 ```
 
 ### 7. Verified Code Evidence
 
-| What | File | Lines |
-|------|------|-------|
-| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs` | ~370-400 |
-| `resolve_model()` with tier downgrade walk | `backend/src/relay/config.rs` | ~548-586 |
-| `generate_default_agents_with_source()` | `backend/src/relay/config.rs` | ~449-490 |
-| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs` | ~498-527 |
-| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts` | ~8-22 |
-| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts` | ~6-10 |
-| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue` | ~47 |
-| `tierLabel()` helper usage | `frontend/src/views/AgentsConfigView.vue` | ~47 |
-| `RelayRegistry` uses `resolve_model()` | `backend/src/relay/mod.rs` | ~48-58 |
+| What | File:Line |
+|------|-----------|
+| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs:379-397` |
+| `resolve_model()` with tier-degradation walk | `backend/src/relay/config.rs:548-586` |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs:449-490` |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs:498-527` |
+| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts:8-21` |
+| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts:6-10` |
+| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue:47` |
+| `RelayRegistry` uses `resolve_model()` | `backend/src/relay/mod.rs:48-53` |
 
-## ApiSources-D1 Model-First Agent Configuration Design
+## ApiSources-D1 Model-First Agent Config Design
 **Status:** approved
 **Module:** `backend/src/relay/config.rs`, `frontend/src/composables/useAgentConfigs.ts`, `frontend/src/views/AgentsConfigView.vue`
 **Tags:** stack:both, module:api-sources
@@ -741,15 +376,222 @@ stateDiagram-v2
 
 ### Overview
 
-Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
+Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, resolution simplification, and frontend UI update.
 
 ### 1. Backend Data Model Changes
 
 **File: `backend/src/relay/config.rs`**
 
-#### AgentConfig (current lines 379–397)
+#### AgentConfig — Add `model_id`, keep `model_tier` for migration
 
-Replace `model_tier: ModelTier` with `model_id: String`, keep `model_tier` as deprecated for migration:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub id: String,
+    pub name: String,
+    pub profession_id: String,
+    pub soul_id: String,
+    pub api_source_id: String,
+    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
+    #[serde(default)]
+    pub model_id: String,
+    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
+    #[serde(default)]
+    pub model_tier: ModelTier,
+    // ... remaining fields unchanged ...
+}
+```
+
+Both fields use `#[serde(default)]` so existing JSON files with only `model_tier` deserialize without error (model_id defaults to ""), and new files with only `model_id` work too.
+
+#### resolve_model() — Simplified to direct lookup
+
+```rust
+pub fn resolve_model(
+    config: &AgentConfig,
+    api_sources: &[ApiSource],
+) -> Option<crate::relay::agent::ModelConfig> {
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
+
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            log::warn!("model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id);
+            source.models.first()
+        })?;
+
+    Some(crate::relay::agent::ModelConfig {
+        provider: source.provider.clone(),
+        model: model_def.id.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        reasoning_budget: config.reasoning_budget,
+        fallback_chain: Vec::new(),
+    })
+}
+```
+
+#### assign_model_ids() — Migration helper
+
+```rust
+pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) {
+    for config in configs.iter_mut() {
+        if config.model_id.is_empty() {
+            let source = api_sources.iter()
+                .find(|s| s.id == config.api_source_id)
+                .or_else(|| api_sources.first());
+            config.model_id = source
+                .and_then(|s| {
+                    s.models.iter().find(|m| m.tier == config.model_tier)
+                        .or_else(|| s.models.first())
+                })
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+        }
+    }
+}
+```
+
+#### load_or_generate_agent_configs() — Add migration call
+
+Insert `assign_model_ids(&mut merged, api_sources)` after merging existing configs with defaults, before `save_agent_configs()`.
+
+### 2. Frontend Changes
+
+#### AgentConfigDto — Add model_id
+
+```typescript
+export interface AgentConfigDto {
+  model_id: string             // NEW: direct model reference
+  model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // kept for display
+  // ... remaining fields unchanged
+}
+```
+
+#### useApiSources.ts — Add helper
+
+```typescript
+function getModelsForSource(sourceId: string): ModelDefinition[] {
+  const source = _sources.value.find(s => s.id === sourceId)
+  return source?.models ?? []
+}
+```
+
+#### AgentsConfigView.vue — Replace tier dropdown with model selector
+
+```
+┌─────────────────────────────────────────────┐
+│ API Source: [Anthropic Claude ▾]            │
+│                                              │
+│ Model: [Claude Sonnet 4 (Mid) ▾]            │
+│        ┌──────────────────────────────┐      │
+│        │ ● Claude Haiku 3.5    (Min)  │      │
+│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
+│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
+│        │ ○ Claude Opus 4      (Pro)   │      │
+│        └──────────────────────────────┘      │
+│                                              │
+│ Temperature: [0.3]  Max Tokens: [8192]      │
+└─────────────────────────────────────────────┘
+```
+
+1. When `api_source_id` changes → refresh model list, auto-select first model
+2. Model list shows: display name + tier badge (color-coded)
+3. Tier badge colors: Min=gray(#9ca3af), Lite=green(#22c55e), Mid=blue(#3b82f6), Pro=purple(#a855f7), Max=amber(#f59e0b)
+
+### 3. State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: AgentConfig loaded
+    Idle --> SourceChanged: User changes api_source_id
+    SourceChanged --> ModelListLoaded: Fetch models for new source
+    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
+    ModelSelected --> Saved: User saves config
+    ModelSelected --> SourceChanged: User changes source again
+    Saved --> [*]
+    Idle --> ModelSelected: User changes model_id (same source)
+```
+
+### 4. Error Handling
+
+| Error Scenario | Handling |
+|----------|----------|
+| `model_id` not found in ApiSource | Fallback to first model + log::warn |
+| `api_source_id` not found | Fallback to first ApiSource + first model |
+| ApiSource has no models | `resolve_model()` returns `None`, agent spawn fails gracefully |
+| Legacy config has `model_tier` but no `model_id` | Auto-migration on load via `assign_model_ids()` |
+| Agent references deleted ApiSource | `resolve_model()` falls back to first ApiSource; UI shows "source not found" |
+
+### 5. Modified Files
+
+| File | Change |
+|------|--------|
+| `backend/src/relay/config.rs` | Add `model_id` to AgentConfig; simplify `resolve_model()`; add `assign_model_ids()` |
+| `frontend/src/composables/useAgentConfigs.ts` | Add `model_id` to `AgentConfigDto` |
+| `frontend/src/composables/useApiSources.ts` | Add `getModelsForSource()` helper |
+| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector |
+| `frontend/src/locales/en.json` | Add `agents.model` key |
+| `frontend/src/locales/zh.json` | Add `agents.model` key |
+
+### 6. Data Lifecycle
+
+```
+[Default Generation]
+  api_sources loaded → generate_default_agents_with_source() → model_id left empty
+  → assign_model_ids() fills model_id by preferred tier match
+  → saved to agent_configs.json
+
+[User Edit]
+  User opens AgentConfig → UI shows models from selected ApiSource
+  → User selects model → saves model_id; model_tier updated from selected model's tier
+
+[Agent Spawn]
+  Orchestrator → resolve_model(config, api_sources)
+  → lookup ModelDefinition by model_id (direct lookup, no tier walk)
+  → return ModelConfig(provider, model_id, params)
+  → spawn AgentInstance with resolved model
+
+[ApiSource Model Removal]
+  If referenced model_id removed from ApiSource
+  → resolve_model falls back to first model + log::warn
+  → UI shows "model not found" indicator on AgentConfig card
+```
+
+### 7. Verified Code Evidence
+
+| What | File | Lines |
+|------|------|-------|
+| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs` | ~370-400 |
+| `resolve_model()` with tier walk | `backend/src/relay/config.rs` | ~548-586 |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs` | ~449-490 |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs` | ~498-527 |
+| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts` | ~8-22 |
+| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts` | ~6-10 |
+| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue` | ~47 |
+
+## ApiSources-D1 模型优先的智能体配置设计
+**Status:** draft
+
+**状态：** 已批准
+**模块：** `backend/src/relay/config.rs`、`frontend/src/composables/useAgentConfigs.ts`、`frontend/src/views/AgentsConfigView.vue`
+**标签：** stack:both, module:api-sources
+**依赖：** ApiSources-A3, ApiSources-G3
+
+### 概述
+
+将 `AgentConfig` 中的 `model_tier` 替换为 `model_id`，以实现直接模型选择。这是一次数据模型变更、解析逻辑简化以及前端 UI 更新。
+
+### 1. 后端数据模型变更
+
+**文件：`backend/src/relay/config.rs`**
+
+#### AgentConfig（当前第 379–397 行）
+
+将 `model_tier: ModelTier` 替换为 `model_id: String`，保留 `model_tier` 作为迁移用的弃用字段：
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -784,9 +626,9 @@ pub struct AgentConfig {
 }
 ```
 
-**Key**: Both fields use `#[serde(default)]` so existing JSON files with only `model_tier` deserialize without error (model_id defaults to ""), and new files with only `model_id` also work (model_tier defaults to Min).
+**关键**：两个字段都使用 `#[serde(default)]`，因此仅包含 `model_tier` 的现有 JSON 文件可以无错误地反序列化（model_id 默认为 ""），而仅包含 `model_id` 的新文件也能正常工作（model_tier 默认为 Min）。
 
-#### ModelDefinition (lines 32–36) — unchanged
+#### ModelDefinition（第 32–36 行）—— 未变更
 
 ```rust
 pub struct ModelDefinition {
@@ -796,9 +638,9 @@ pub struct ModelDefinition {
 }
 ```
 
-#### resolve_model() (current lines 548–586) — simplified
+#### resolve_model()（当前第 548–586 行）—— 简化
 
-Replace the entire tier downgrade walk with a direct model_id lookup:
+将整个层级降级遍历替换为直接的 model_id 查找：
 
 ```rust
 pub fn resolve_model(
@@ -832,9 +674,738 @@ pub fn resolve_model(
 }
 ```
 
-#### generate_default_agents_with_source() (current lines 449–490) — updated
+#### generate_default_agents_with_source()（当前第 449–490 行）—— 已更新
 
-Pick concrete model_id by preferred tier:
+根据首选层级选择具体的 model_id：
+
+```rust
+pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
+    // Note: api_sources are loaded separately; this function is called
+    // from load_or_generate_agent_configs() which has access to them.
+    // We generate with empty model_id; load_or_generate_agent_configs
+    // will call assign_model_ids() to fill it.
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),
+        ("architect", "Vera", "architect", ModelTier::Pro),
+        ("planner", "Felix", "planner", ModelTier::Mid),
+        ("tester", "Quinn", "tester", ModelTier::Lite),
+        ("coder", "Ash", "coder", ModelTier::Mid),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
+        ("documenter", "Luna", "documenter", ModelTier::Lite),
+        ("gofer", "Gus", "gofer", ModelTier::Lite),
+    ];
+
+    defaults
+        .map(|(profession, name, soul, preferred_tier)| AgentConfig {
+            id: format!("default-{}", profession),
+            name: name.to_string(),
+            profession_id: profession.to_string(),
+            soul_id: soul.to_string(),
+            api_source_id: api_source_id.to_string(),
+            model_id: String::new(), // filled by migration
+            model_tier: preferred_tier,
+            is_default: true,
+            temperature: 0.3,
+            max_tokens: if preferred_tier == ModelTier::Lite { 4096 } else { 8192 },
+            reasoning_budget: if preferred_tier == ModelTier::Pro { Some(4096) } else { None },
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_budget: match profession {
+                "architect" | "coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                _ => None,
+            },
+            avatar_url: None,
+            equipped_skills: Vec::new(),
+        })
+        .to_vec()
+}
+```
+
+新增的 `assign_model_ids()` 函数在生成后填充 model_id：
+
+```rust
+/// For each config with empty model_id, find the best matching model
+/// from its ApiSource by preferred tier, then fallback to first model.
+pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) {
+    for config in configs.iter_mut() {
+        if config.model_id.is_empty() {
+            let source = api_sources.iter()
+                .find(|s| s.id == config.api_source_id)
+                .or_else(|| api_sources.first());
+            config.model_id = source
+                .and_then(|s| {
+                    s.models.iter().find(|m| m.tier == config.model_tier)
+                        .or_else(|| s.models.first())
+                })
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+        }
+    }
+}
+```
+
+#### 迁移 —— 在 load_or_generate_agent_configs() 中（当前第 498–527 行）
+
+在加载现有配置后插入 `assign_model_ids()` 调用：
+
+```rust
+pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
+    let existing = load_agent_configs();
+    let defaults = generate_default_agents_with_source(
+        api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
+    );
+
+    let mut merged = if existing.is_empty() {
+        defaults
+    } else {
+        // Fix empty api_source_id
+        let first_source_id = api_sources.first().map(|s| s.id.as_str()).unwrap_or("");
+        let mut merged: Vec<AgentConfig> = existing.into_iter().map(|mut c| {
+            if c.api_source_id.is_empty() && !first_source_id.is_empty() {
+                c.api_source_id = first_source_id.to_string();
+            }
+            c
+        }).collect();
+
+        // Add missing defaults
+        for default in &defaults {
+            if !merged.iter().any(|c| c.id == default.id) {
+                merged.push(default.clone());
+            }
+        }
+        merged
+    };
+
+    // MIGRATION: Fill model_id for configs that only have model_tier
+    assign_model_ids(&mut merged, api_sources);
+
+    let _ = save_agent_configs(&merged);
+    merged
+}
+```
+
+### 2. 前端变更
+
+**文件：`frontend/src/composables/useAgentConfigs.ts`**
+
+```typescript
+export interface AgentConfigDto {
+  id: string
+  name: string
+  profession_id: string
+  soul_id: string
+  api_source_id: string
+  model_id: string             // ← NEW: direct model reference (was model_tier)
+  model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // ← kept for display
+  is_default: boolean
+  temperature: number
+  max_tokens: number
+  reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
+  avatar_url?: string
+  equipped_skills?: string[]
+}
+```
+
+**文件：`frontend/src/composables/useApiSources.ts`** —— 添加辅助函数
+
+```typescript
+/// Get models for a specific API source
+function getModelsForSource(sourceId: string): ModelDefinition[] {
+  const source = _sources.value.find(s => s.id === sourceId)
+  return source?.models ?? []
+}
+```
+
+**文件：`frontend/src/views/AgentsConfigView.vue`**
+
+将层级下拉框替换为模型选择器：
+
+```
+┌─────────────────────────────────────────────┐
+│ Agent: Isaac (advisor)                       │
+├─────────────────────────────────────────────┤
+│ API Source: [Anthropic Claude ▾]            │
+│                                              │
+│ Model: [Claude Sonnet 4 (Mid) ▾]            │
+│        ┌──────────────────────────────┐      │
+│        │ ● Claude Haiku 3.5    (Min)  │      │
+│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
+│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
+│        │ ○ Claude Opus 4      (Pro)   │      │
+│        └──────────────────────────────┘      │
+│                                              │
+│ Temperature: [0.3]  Max Tokens: [8192]      │
+└─────────────────────────────────────────────┘
+```
+
+1. 当 `api_source_id` 变更时 → 刷新模型列表，自动选择第一个模型
+2. 模型列表显示：显示名称 + 层级徽章（颜色编码）
+3. 折叠选择器中显示已选模型的层级徽章
+4. 层级徽章颜色：Min=灰色，Lite=绿色，Mid=蓝色，Pro=紫色，Max=琥珀色
+
+#### 层级徽章 CSS 类
+
+```css
+.tier-badge.min { background: #9ca3af; color: white; }  /* gray */
+.tier-badge.lite { background: #22c55e; color: white; }  /* green */
+.tier-badge.mid { background: #3b82f6; color: white; }   /* blue */
+.tier-badge.pro { background: #a855f7; color: white; }   /* purple */
+.tier-badge.max { background: #f59e0b; color: white; }   /* amber */
+```
+
+### 3. 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: AgentConfig loaded
+    Idle --> SourceChanged: User changes api_source_id
+    SourceChanged --> ModelListLoaded: Fetch models for new source
+    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
+    ModelSelected --> Saved: User saves config
+    ModelSelected --> SourceChanged: User changes source again
+    Saved --> [*]
+
+    Idle --> ModelSelected: User changes model_id (same source)
+    ModelListLoaded --> SourceChanged: User changes source before selecting
+```
+
+### 4. 错误处理
+
+| 错误场景 | 处理方式 |
+|----------|----------|
+| ApiSource 中未找到 `model_id` | 回退到来源中的第一个模型，通过 `log::warn!` 记录警告 |
+| 未找到 `api_source_id` | 回退到第一个 ApiSource + 第一个模型 |
+| ApiSource 没有模型 | `resolve_model()` 返回 `None`，智能体启动优雅失败 |
+| 遗留配置有 `model_tier` 但无 `model_id` | 加载时通过 `assign_model_ids()` 自动迁移：层级 → 第一个匹配的模型 |
+| 智能体引用 ApiSource 时该来源被删除 | `resolve_model()` 回退到第一个 ApiSource；UI 显示"来源未找到" |
+
+### 5. 修改的文件
+
+| 文件 | 变更 |
+|------|------|
+| `backend/src/relay/config.rs` | 向 AgentConfig 添加 `model_id: String`；简化 `resolve_model()` 为直接查找；添加 `assign_model_ids()` 用于迁移；更新 `generate_default_agents_with_source()` |
+| `backend/src/relay/mod.rs` | 无逻辑变更 —— `RelayRegistry` 已对所有模型解析使用 `resolve_model()` |
+| `frontend/src/composables/useAgentConfigs.ts` | 向 `AgentConfigDto` 添加 `model_id`；保留 `model_tier` 用于显示 |
+| `frontend/src/composables/useApiSources.ts` | 添加 `getModelsForSource(sourceId)` 辅助函数 |
+| `frontend/src/views/AgentsConfigView.vue` | 将层级下拉框替换为模型选择器，列出所选 ApiSource 的模型并显示层级徽章 |
+| `frontend/src/locales/en.json` | 添加 `agents.model` 键 |
+| `frontend/src/locales/zh.json` | 添加 `agents.model` 键 |
+
+### 6. 数据生命周期
+
+```
+[默认生成]
+  api_sources 加载 → generate_default_agents_with_source() → model_id 留空
+  → assign_model_ids() 根据首选层级匹配填充 model_id
+  → 保存到 agent_configs.json
+
+[用户编辑]
+  用户打开 AgentConfig → UI 显示所选 ApiSource 的模型列表
+  → 用户选择模型 → 保存 model_id；model_tier 根据所选模型的层级更新
+
+[智能体启动]
+  Orchestrator → resolve_model(config, api_sources)
+  → 通过 model_id 查找 ModelDefinition（直接查找，无层级遍历）
+  → 返回 ModelConfig(provider, model_id, params)
+  → 使用解析后的模型启动 AgentInstance
+
+[ApiSource 模型变更]
+  如果引用的 model_id 从 ApiSource 中移除
+  → resolve_model 回退到第一个模型 + 记录警告
+  → UI 在 AgentConfig 卡片上显示"模型未找到"指示器
+
+[遗留配置迁移]
+  加载 agent_configs.json → model_id 为空，model_tier 存在
+  → assign_model_ids() 将层级转换为 ApiSource 中第一个匹配的模型
+  → 保存回文件，model_id 已填充
+```
+
+### 7. 已验证的代码证据
+
+| 内容 | 文件:行号 |
+|------|-----------|
+| 包含 `model_tier` 的 AgentConfig 结构体 | `backend/src/relay/config.rs:379-397` |
+| 带层级降级遍历的 `resolve_model()` | `backend/src/relay/config.rs:548-586` |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs:449-490` |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs:498-527` |
+| 包含 `model_tier` 的 `AgentConfigDto` | `frontend/src/composables/useAgentConfigs.ts:8-21` |
+| `ModelDefinition` 接口 | `frontend/src/composables/useApiSources.ts:6-10` |
+| 卡片模板中的层级徽章 | `frontend/src/views/AgentsConfigView.vue:47` |
+| `tierLabel()` 辅助函数的使用 | `frontend/src/views/AgentsConfigView.vue:47` |
+| `RelayRegistry` 使用 `resolve_model()` | `backend/src/relay/mod.rs:48-53` |
+
+## ApiSources-D1 模型优先的智能体配置设计
+**Status:** draft
+
+**状态：** 已批准
+**模块：** `backend/src/relay/config.rs`、`frontend/src/composables/useAgentConfigs.ts`、`frontend/src/views/AgentsConfigView.vue`
+**标签：** stack:both, module:api-sources
+**依赖：** ApiSources-A3, ApiSources-G3
+
+### 概述
+
+将 `AgentConfig` 中的 `model_tier` 替换为 `model_id`，以实现直接模型选择。这是一次数据模型变更、解析逻辑简化以及前端 UI 更新。
+
+### 1. 后端数据模型变更
+
+**文件：`backend/src/relay/config.rs`**
+
+#### AgentConfig（当前第 ~370–397 行）
+
+添加 `model_id: String` 并将 `model_tier` 保留为弃用字段用于迁移：
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub id: String,
+    pub name: String,
+    pub profession_id: String,
+    pub soul_id: String,
+    pub api_source_id: String,
+    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
+    #[serde(default)]
+    pub model_id: String,
+    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
+    #[serde(default)]
+    pub model_tier: ModelTier,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default = "default_temperature")]
+    pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+    #[serde(default)]
+    pub reasoning_budget: Option<u32>,
+    #[serde(default)]
+    pub thinking_enabled: bool,
+    #[serde(default)]
+    pub thinking_budget: Option<u32>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub equipped_skills: Vec<String>,
+}
+```
+
+**关键**：两个字段都使用 `#[serde(default)]`，因此仅包含 `model_tier` 的现有 JSON 文件可以无错误地反序列化（model_id 默认为 ""），而仅包含 `model_id` 的新文件也能正常工作（model_tier 默认为 Min）。
+
+#### ModelDefinition（第 ~32–36 行）—— 未变更
+
+```rust
+pub struct ModelDefinition {
+    pub id: String,       // e.g., "claude-sonnet-4-20250514"
+    pub name: String,     // e.g., "Claude Sonnet 4"
+    pub tier: ModelTier,  // Display tag only: Min/Lite/Mid/Pro/Max
+}
+```
+
+#### resolve_model()（当前第 ~548–586 行）—— 简化
+
+将整个层级降级遍历替换为直接的 model_id 查找：
+
+```rust
+pub fn resolve_model(
+    config: &AgentConfig,
+    api_sources: &[ApiSource],
+) -> Option<crate::relay::agent::ModelConfig> {
+    // 1. Find the ApiSource
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
+
+    // 2. Find the specific model by ID (direct lookup, no tier walk)
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            log::warn!(
+                "model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id
+            );
+            source.models.first()
+        })?;
+
+    Some(crate::relay::agent::ModelConfig {
+        provider: source.provider.clone(),
+        model: model_def.id.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        reasoning_budget: config.reasoning_budget,
+        fallback_chain: Vec::new(),
+    })
+}
+```
+
+#### generate_default_agents_with_source()（当前第 ~449–490 行）—— 已更新
+
+生成时 model_id 为空；迁移时填充：
+
+```rust
+pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),
+        ("architect", "Vera", "architect", ModelTier::Pro),
+        ("planner", "Felix", "planner", ModelTier::Mid),
+        ("tester", "Quinn", "tester", ModelTier::Lite),
+        ("coder", "Ash", "coder", ModelTier::Mid),
+        ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
+        ("documenter", "Luna", "documenter", ModelTier::Lite),
+        ("gofer", "Gus", "gofer", ModelTier::Lite),
+    ];
+
+    defaults
+        .map(|(profession, name, soul, preferred_tier)| AgentConfig {
+            id: format!("default-{}", profession),
+            name: name.to_string(),
+            profession_id: profession.to_string(),
+            soul_id: soul.to_string(),
+            api_source_id: api_source_id.to_string(),
+            model_id: String::new(), // filled by assign_model_ids()
+            model_tier: preferred_tier,
+            is_default: true,
+            temperature: 0.3,
+            max_tokens: if preferred_tier == ModelTier::Lite { 4096 } else { 8192 },
+            reasoning_budget: if preferred_tier == ModelTier::Pro { Some(4096) } else { None },
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_budget: match profession {
+                "architect" | "coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                _ => None,
+            },
+            avatar_url: None,
+            equipped_skills: Vec::new(),
+        })
+        .to_vec()
+}
+```
+
+#### 新增：assign_model_ids() —— 迁移辅助函数
+
+```rust
+/// For each config with empty model_id, find the best matching model
+/// from its ApiSource by preferred tier, then fallback to first model.
+pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) {
+    for config in configs.iter_mut() {
+        if config.model_id.is_empty() {
+            let source = api_sources.iter()
+                .find(|s| s.id == config.api_source_id)
+                .or_else(|| api_sources.first());
+            config.model_id = source
+                .and_then(|s| {
+                    s.models.iter().find(|m| m.tier == config.model_tier)
+                        .or_else(|| s.models.first())
+                })
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+
+            if !config.model_id.is_empty() {
+                log::info!(
+                    "Migrated AgentConfig '{}': tier {:?} → model_id '{}'",
+                    config.id, config.model_tier, config.model_id
+                );
+            }
+        }
+    }
+}
+```
+
+#### load_or_generate_agent_configs()（当前第 ~498–527 行）—— 添加迁移调用
+
+在加载/合并配置后插入 `assign_model_ids()` 调用：
+
+```rust
+pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
+    let existing = load_agent_configs();
+    let defaults = generate_default_agents_with_source(
+        api_sources.first().map(|s| s.id.as_str()).unwrap_or(""),
+    );
+
+    let mut merged = if existing.is_empty() {
+        defaults
+    } else {
+        let first_source_id = api_sources.first().map(|s| s.id.as_str()).unwrap_or("");
+        let mut merged: Vec<AgentConfig> = existing.into_iter().map(|mut c| {
+            if c.api_source_id.is_empty() && !first_source_id.is_empty() {
+                c.api_source_id = first_source_id.to_string();
+            }
+            c
+        }).collect();
+
+        for default in &defaults {
+            if !merged.iter().any(|c| c.id == default.id) {
+                merged.push(default.clone());
+            }
+        }
+        merged
+    };
+
+    // MIGRATION: Fill model_id for configs that only have model_tier
+    assign_model_ids(&mut merged, api_sources);
+
+    let _ = save_agent_configs(&merged);
+    merged
+}
+```
+
+### 2. 前端变更
+
+**文件：`frontend/src/composables/useAgentConfigs.ts`**
+
+```typescript
+export interface AgentConfigDto {
+  id: string
+  name: string
+  profession_id: string
+  soul_id: string
+  api_source_id: string
+  model_id: string             // ← NEW: direct model reference
+  model_tier: 'min' | 'lite' | 'mid' | 'pro' | 'max'  // ← kept for display
+  is_default: boolean
+  temperature: number
+  max_tokens: number
+  reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
+  avatar_url?: string
+  equipped_skills?: string[]
+}
+```
+
+**文件：`frontend/src/composables/useApiSources.ts`** —— 添加辅助函数
+
+```typescript
+/// Get models for a specific API source by ID
+function getModelsForSource(sourceId: string): ModelDefinition[] {
+  const source = _sources.value.find(s => s.id === sourceId)
+  return source?.models ?? []
+}
+```
+
+**文件：`frontend/src/views/AgentsConfigView.vue`**
+
+将层级下拉框替换为模型选择器：
+
+```
+┌─────────────────────────────────────────────┐
+│ Agent: Isaac (advisor)                       │
+├─────────────────────────────────────────────┤
+│ API Source: [Anthropic Claude ▾]            │
+│                                              │
+│ Model: [Claude Sonnet 4 (Mid) ▾]            │
+│        ┌──────────────────────────────┐      │
+│        │ ● Claude Haiku 3.5    (Min)  │      │
+│        │ ○ Claude Sonnet 3.5  (Lite)  │      │
+│        │ ● Claude Sonnet 4    (Mid) ✓ │      │
+│        │ ○ Claude Opus 4      (Pro)   │      │
+│        └──────────────────────────────┘      │
+│                                              │
+│ Temperature: [0.3]  Max Tokens: [8192]      │
+└─────────────────────────────────────────────┘
+```
+
+1. 当 `api_source_id` 变更时 → 刷新模型列表，自动选择第一个模型
+2. 模型列表显示：显示名称 + 层级徽章（颜色编码）
+3. 折叠选择器中显示已选模型的层级徽章
+4. 层级徽章颜色：Min=灰色，Lite=绿色，Mid=蓝色，Pro=紫色，Max=琥珀色
+
+#### 层级徽章 CSS 类
+
+```css
+.tier-badge.min { background: #9ca3af; color: white; }
+.tier-badge.lite { background: #22c55e; color: white; }
+.tier-badge.mid { background: #3b82f6; color: white; }
+.tier-badge.pro { background: #a855f7; color: white; }
+.tier-badge.max { background: #f59e0b; color: white; }
+```
+
+### 3. 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: AgentConfig loaded
+    Idle --> SourceChanged: User changes api_source_id
+    SourceChanged --> ModelListLoaded: Fetch models for new source
+    ModelListLoaded --> ModelSelected: Auto-select first model OR user picks
+    ModelSelected --> Saved: User saves config
+    ModelSelected --> SourceChanged: User changes source again
+    Saved --> [*]
+
+    Idle --> ModelSelected: User changes model_id (same source)
+    ModelListLoaded --> SourceChanged: User changes source before selecting
+```
+
+### 4. 错误处理
+
+| 错误场景 | 处理方式 |
+|----------|----------|
+| ApiSource 中未找到 `model_id` | 回退到第一个模型，通过 `log::warn!` 记录警告 |
+| 未找到 `api_source_id` | 回退到第一个 ApiSource + 第一个模型 |
+| ApiSource 没有模型 | `resolve_model()` 返回 `None`，智能体启动优雅失败 |
+| 遗留配置有 `model_tier` 但无 `model_id` | 加载时通过 `assign_model_ids()` 自动迁移：层级 → 第一个匹配的模型 |
+| 智能体引用 ApiSource 时该来源被删除 | `resolve_model()` 回退到第一个 ApiSource；UI 显示来源未找到 |
+
+### 5. 修改的文件
+
+| 文件 | 变更 |
+|------|------|
+| `backend/src/relay/config.rs` | 向 AgentConfig 添加 `model_id: String`；简化 `resolve_model()` 为直接查找；添加 `assign_model_ids()` 用于迁移；更新 `generate_default_agents_with_source()` |
+| `backend/src/relay/mod.rs` | 无逻辑变更 —— `RelayRegistry` 已对所有模型解析使用 `resolve_model()` |
+| `frontend/src/composables/useAgentConfigs.ts` | 向 `AgentConfigDto` 添加 `model_id`；保留 `model_tier` 用于显示 |
+| `frontend/src/composables/useApiSources.ts` | 添加 `getModelsForSource(sourceId)` 辅助函数 |
+| `frontend/src/views/AgentsConfigView.vue` | 将层级下拉框替换为模型选择器，列出所选 ApiSource 的模型并显示层级徽章 |
+| `frontend/src/locales/en.json` | 添加 `agents.model` 键 |
+| `frontend/src/locales/zh.json` | 添加 `agents.model` 键 |
+
+### 6. 数据生命周期
+
+```
+[默认生成]
+  api_sources 加载 → generate_default_agents_with_source() → model_id 留空
+  → assign_model_ids() 根据首选层级匹配填充 model_id
+  → 保存到 agent_configs.json
+
+[用户编辑]
+  用户打开 AgentConfig → UI 显示所选 ApiSource 的模型列表
+  → 用户选择模型 → 保存 model_id；model_tier 根据所选模型的层级更新
+
+[智能体启动]
+  Orchestrator → resolve_model(config, api_sources)
+  → 通过 model_id 查找 ModelDefinition（直接查找，无层级遍历）
+  → 返回 ModelConfig(provider, model_id, params)
+  → 使用解析后的模型启动 AgentInstance
+
+[ApiSource 模型变更]
+  如果引用的 model_id 从 ApiSource 中移除
+  → resolve_model 回退到第一个模型 + 记录警告
+  → UI 在 AgentConfig 卡片上显示"模型未找到"指示器
+
+[遗留配置迁移]
+  加载 agent_configs.json → model_id 为空，model_tier 存在
+  → assign_model_ids() 将层级转换为 ApiSource 中第一个匹配的模型
+  → 保存回文件，model_id 已填充
+```
+
+### 7. 已验证的代码证据
+
+| 内容 | 文件 | 行号 |
+|------|------|------|
+| 包含 `model_tier` 的 AgentConfig 结构体 | `backend/src/relay/config.rs` | ~370-400 |
+| 带层级降级遍历的 `resolve_model()` | `backend/src/relay/config.rs` | ~548-586 |
+| `generate_default_agents_with_source()` | `backend/src/relay/config.rs` | ~449-490 |
+| `load_or_generate_agent_configs()` | `backend/src/relay/config.rs` | ~498-527 |
+| 包含 `model_tier` 的 `AgentConfigDto` | `frontend/src/composables/useAgentConfigs.ts` | ~8-22 |
+| `ModelDefinition` 接口 | `frontend/src/composables/useApiSources.ts` | ~6-10 |
+| 卡片模板中的层级徽章 | `frontend/src/views/AgentsConfigView.vue` | ~47 |
+| `tierLabel()` 辅助函数的使用 | `frontend/src/views/AgentsConfigView.vue` | ~47 |
+| `RelayRegistry` 使用 `resolve_model()` | `backend/src/relay/mod.rs` | ~48-58 |
+
+## ApiSources-D1 模型优先的智能体配置设计
+**Status:** draft
+
+**状态：** 已批准
+**模块：** `backend/src/relay/config.rs`、`frontend/src/composables/useAgentConfigs.ts`、`frontend/src/views/AgentsConfigView.vue`
+**标签：** stack:both, module:api-sources
+**依赖：** ApiSources-A3, ApiSources-G3
+
+### 概述
+
+将 `AgentConfig` 中的 `model_tier` 替换为 `model_id`，以实现直接模型选择。这是一次数据模型变更、解析逻辑简化以及前端 UI 更新。
+
+### 1. 后端数据模型变更
+
+**文件：`backend/src/relay/config.rs`**
+
+#### AgentConfig（当前第 379–397 行）
+
+将 `model_tier: ModelTier` 替换为 `model_id: String`，保留 `model_tier` 作为迁移用的弃用字段：
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub id: String,
+    pub name: String,
+    pub profession_id: String,
+    pub soul_id: String,
+    pub api_source_id: String,
+    /// Direct model reference (e.g., "claude-sonnet-4-20250514"). Replaces model_tier.
+    #[serde(default)]
+    pub model_id: String,
+    /// Deprecated: kept for migration from legacy configs. No longer used in resolution.
+    #[serde(default)]
+    pub model_tier: ModelTier,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default = "default_temperature")]
+    pub temperature: f32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
+    #[serde(default)]
+    pub reasoning_budget: Option<u32>,
+    #[serde(default)]
+    pub thinking_enabled: bool,
+    #[serde(default)]
+    pub thinking_budget: Option<u32>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub equipped_skills: Vec<String>,
+}
+```
+
+**关键**：两个字段都使用 `#[serde(default)]`，因此仅包含 `model_tier` 的现有 JSON 文件可以无错误地反序列化（model_id 默认为 ""），而仅包含 `model_id` 的新文件也能正常工作（model_tier 默认为 Min）。
+
+#### ModelDefinition（第 32–36 行）—— 未变更
+
+```rust
+pub struct ModelDefinition {
+    pub id: String,       // e.g., "claude-sonnet-4-20250514"
+    pub name: String,     // e.g., "Claude Sonnet 4"
+    pub tier: ModelTier,  // Display tag only: Min/Lite/Mid/Pro/Max
+}
+```
+
+#### resolve_model()（当前第 548–586 行）—— 简化
+
+将整个层级降级遍历替换为直接的 model_id 查找：
+
+```rust
+pub fn resolve_model(
+    config: &AgentConfig,
+    api_sources: &[ApiSource],
+) -> Option<crate::relay::agent::ModelConfig> {
+    // 1. Find the ApiSource
+    let source = api_sources.iter()
+        .find(|s| s.id == config.api_source_id)
+        .or_else(|| api_sources.first())?;
+
+    // 2. Find the specific model by ID
+    let model_def = source.models.iter()
+        .find(|m| m.id == config.model_id)
+        .or_else(|| {
+            log::warn!(
+                "model_id '{}' not found in ApiSource '{}', falling back to first model",
+                config.model_id, source.id
+            );
+            source.models.first()
+        })?;
+
+    Some(crate::relay::agent::ModelConfig {
+        provider: source.provider.clone(),
+        model: model_def.id.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        reasoning_budget: config.reasoning_budget,
+        fallback_chain: Vec::new(),
+    })
+}
+```
+
+#### generate_default_agents_with_source()（当前第 449–490 行）—— 已更新
+
+根据首选层级选择具体的 model_id：
 
 ```rust
 pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
@@ -880,7 +1451,7 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
 }
 ```
 
-A new `assign_model_ids()` function fills model_id after generation:
+新增的 `assign_model_ids()` 函数在生成后填充 model_id：
 
 ```rust
 /// For each config with empty model_id, find the best matching model
@@ -903,9 +1474,9 @@ pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) 
 }
 ```
 
-#### Migration — in load_or_generate_agent_configs() (current lines 498–527)
+#### 迁移 —— 在 load_or_generate_agent_configs() 中（当前第 498–527 行）
 
-Insert `assign_model_ids()` call after loading existing configs:
+在加载现有配置后插入 `assign_model_ids()` 调用：
 
 ```rust
 pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentConfig> {
@@ -943,9 +1514,9 @@ pub fn load_or_generate_agent_configs(api_sources: &[ApiSource]) -> Vec<AgentCon
 }
 ```
 
-### 2. Frontend Changes
+### 2. 前端变更
 
-**File: `frontend/src/composables/useAgentConfigs.ts`**
+**文件：`frontend/src/composables/useAgentConfigs.ts`**
 
 ```typescript
 export interface AgentConfigDto {
@@ -967,7 +1538,7 @@ export interface AgentConfigDto {
 }
 ```
 
-**File: `frontend/src/composables/useApiSources.ts`** — add helper
+**文件：`frontend/src/composables/useApiSources.ts`** —— 添加辅助函数
 
 ```typescript
 /// Get models for a specific API source
@@ -977,9 +1548,9 @@ function getModelsForSource(sourceId: string): ModelDefinition[] {
 }
 ```
 
-**File: `frontend/src/views/AgentsConfigView.vue`**
+**文件：`frontend/src/views/AgentsConfigView.vue`**
 
-Replace tier dropdown with model selector:
+将层级下拉框替换为模型选择器：
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -999,12 +1570,12 @@ Replace tier dropdown with model selector:
 └─────────────────────────────────────────────┘
 ```
 
-1. When `api_source_id` changes → refresh model list, auto-select first model
-2. Model list shows: display name + tier badge (color-coded)
-3. Selected model's tier badge shown in collapsed selector
-4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
+1. 当 `api_source_id` 变更时 → 刷新模型列表，自动选择第一个模型
+2. 模型列表显示：显示名称 + 层级徽章（颜色编码）
+3. 折叠选择器中显示已选模型的层级徽章
+4. 层级徽章颜色：Min=灰色，Lite=绿色，Mid=蓝色，Pro=紫色，Max=琥珀色
 
-#### Tier Badge CSS Classes
+#### 层级徽章 CSS 类
 
 ```css
 .tier-badge.min { background: #9ca3af; color: white; }  /* gray */
@@ -1014,7 +1585,7 @@ Replace tier dropdown with model selector:
 .tier-badge.max { background: #f59e0b; color: white; }   /* amber */
 ```
 
-### 3. State Machine
+### 3. 状态机
 
 ```mermaid
 stateDiagram-v2
@@ -1030,87 +1601,89 @@ stateDiagram-v2
     ModelListLoaded --> SourceChanged: User changes source before selecting
 ```
 
-### 4. Error Handling
+### 4. 错误处理
 
-| Error Case | Handling |
-|------------|----------|
-| `model_id` not found in ApiSource | Fallback to first model in source, log warning via `log::warn!` |
-| `api_source_id` not found | Fallback to first ApiSource + first model |
-| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
-| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load via `assign_model_ids()`: tier → first matching model |
-| ApiSource deleted while agents reference it | `resolve_model()` falls back to first ApiSource; UI shows "Source not found" |
+| 错误场景 | 处理方式 |
+|----------|----------|
+| ApiSource 中未找到 `model_id` | 回退到来源中的第一个模型，通过 `log::warn!` 记录警告 |
+| 未找到 `api_source_id` | 回退到第一个 ApiSource + 第一个模型 |
+| ApiSource 没有模型 | `resolve_model()` 返回 `None`，智能体启动优雅失败 |
+| 遗留配置有 `model_tier` 但无 `model_id` | 加载时通过 `assign_model_ids()` 自动迁移：层级 → 第一个匹配的模型 |
+| 智能体引用 ApiSource 时该来源被删除 | `resolve_model()` 回退到第一个 ApiSource；UI 显示"来源未找到" |
 
-### 5. Files Modified
+### 5. 修改的文件
 
-| File | Change |
-|------|--------|
-| `backend/src/relay/config.rs` | Add `model_id: String` to AgentConfig; simplify `resolve_model()` to direct lookup; add `assign_model_ids()` for migration; update `generate_default_agents_with_source()` |
-| `backend/src/relay/mod.rs` | No logic change — `RelayRegistry` already uses `resolve_model()` for all model resolution |
-| `frontend/src/composables/useAgentConfigs.ts` | Add `model_id` to `AgentConfigDto`; keep `model_tier` for display |
-| `frontend/src/composables/useApiSources.ts` | Add `getModelsForSource(sourceId)` helper |
-| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector listing models from selected ApiSource with tier badges |
-| `frontend/src/locales/en.json` | Add `agents.model` key |
-| `frontend/src/locales/zh.json` | Add `agents.model` key |
+| 文件 | 变更 |
+|------|------|
+| `backend/src/relay/config.rs` | 向 AgentConfig 添加 `model_id: String`；简化 `resolve_model()` 为直接查找；添加 `assign_model_ids()` 用于迁移；更新 `generate_default_agents_with_source()` |
+| `backend/src/relay/mod.rs` | 无逻辑变更 —— `RelayRegistry` 已对所有模型解析使用 `resolve_model()` |
+| `frontend/src/composables/useAgentConfigs.ts` | 向 `AgentConfigDto` 添加 `model_id`；保留 `model_tier` 用于显示 |
+| `frontend/src/composables/useApiSources.ts` | 添加 `getModelsForSource(sourceId)` 辅助函数 |
+| `frontend/src/views/AgentsConfigView.vue` | 将层级下拉框替换为模型选择器，列出所选 ApiSource 的模型并显示层级徽章 |
+| `frontend/src/locales/en.json` | 添加 `agents.model` 键 |
+| `frontend/src/locales/zh.json` | 添加 `agents.model` 键 |
 
-### 6. Data Lifecycle
+### 6. 数据生命周期
 
 ```
-[Default Generation]
-  api_sources loaded → generate_default_agents_with_source() → model_id left empty
-  → assign_model_ids() fills model_id from preferred tier match
-  → saved to agent_configs.json
+[默认生成]
+  api_sources 加载 → generate_default_agents_with_source() → model_id 留空
+  → assign_model_ids() 根据首选层级匹配填充 model_id
+  → 保存到 agent_configs.json
 
-[User Edit]
-  User opens AgentConfig → UI shows model list for selected ApiSource
-  → User picks model → model_id saved; model_tier updated from selected model's tier
+[用户编辑]
+  用户打开 AgentConfig → UI 显示所选 ApiSource 的模型列表
+  → 用户选择模型 → 保存 model_id；model_tier 根据所选模型的层级更新
 
-[Agent Spawn]
+[智能体启动]
   Orchestrator → resolve_model(config, api_sources)
-  → find ModelDefinition by model_id (direct lookup, no tier walk)
-  → return ModelConfig(provider, model_id, params)
-  → AgentInstance spawned with resolved model
+  → 通过 model_id 查找 ModelDefinition（直接查找，无层级遍历）
+  → 返回 ModelConfig(provider, model_id, params)
+  → 使用解析后的模型启动 AgentInstance
 
-[ApiSource Model Change]
-  If referenced model_id removed from ApiSource
-  → resolve_model falls back to first model + log warning
-  → UI shows "Model not found" indicator on AgentConfig card
+[ApiSource 模型变更]
+  如果引用的 model_id 从 ApiSource 中移除
+  → resolve_model 回退到第一个模型 + 记录警告
+  → UI 在 AgentConfig 卡片上显示"模型未找到"指示器
 
-[Legacy Config Migration]
-  Load agent_configs.json → model_id is empty, model_tier present
-  → assign_model_ids() converts tier → first matching model in ApiSource
-  → Saved back with model_id populated
+[遗留配置迁移]
+  加载 agent_configs.json → model_id 为空，model_tier 存在
+  → assign_model_ids() 将层级转换为 ApiSource 中第一个匹配的模型
+  → 保存回文件，model_id 已填充
 ```
 
-### 7. Verified Code Evidence
+### 7. 已验证的代码证据
 
-| What | File:Lines |
+| 内容 | 文件:行号 |
 |------|-----------|
-| AgentConfig struct with `model_tier` | `backend/src/relay/config.rs:379-397` |
-| `resolve_model()` with tier downgrade walk | `backend/src/relay/config.rs:548-586` |
+| 包含 `model_tier` 的 AgentConfig 结构体 | `backend/src/relay/config.rs:379-397` |
+| 带层级降级遍历的 `resolve_model()` | `backend/src/relay/config.rs:548-586` |
 | `generate_default_agents_with_source()` | `backend/src/relay/config.rs:449-490` |
 | `load_or_generate_agent_configs()` | `backend/src/relay/config.rs:498-527` |
-| `AgentConfigDto` with `model_tier` | `frontend/src/composables/useAgentConfigs.ts:8-21` |
-| `ModelDefinition` interface | `frontend/src/composables/useApiSources.ts:6-10` |
-| Tier badge in card template | `frontend/src/views/AgentsConfigView.vue:47` |
-| `tierLabel()` helper usage | `frontend/src/views/AgentsConfigView.vue:47` |
-| `RelayRegistry` uses `resolve_model()` | `backend/src/relay/mod.rs:48-53` |
+| 包含 `model_tier` 的 `AgentConfigDto` | `frontend/src/composables/useAgentConfigs.ts:8-21` |
+| `ModelDefinition` 接口 | `frontend/src/composables/useApiSources.ts:6-10` |
+| 卡片模板中的层级徽章 | `frontend/src/views/AgentsConfigView.vue:47` |
+| `tierLabel()` 辅助函数的使用 | `frontend/src/views/AgentsConfigView.vue:47` |
+| `RelayRegistry` 使用 `resolve_model()` | `backend/src/relay/mod.rs:48-53` |
 
-## ApiSources-D1 Model-First Agent Configuration Design
-**Status:** proposed
-**Tags:** stack:both, module:api-sources
-**Depends on:** ApiSources-A3, ApiSources-G3
+## ApiSources-D1 模型优先的智能体配置设计
+**Status:** draft
 
-### Overview
+**状态：** 提议
+**标签：** stack:both, module:api-sources
+**依赖：** ApiSources-A3, ApiSources-G3
 
-Replace `model_tier` in `AgentConfig` with `model_id` for direct model selection. This is a data model change, a resolution logic simplification, and a frontend UI update.
+### 概述
 
-### 1. Backend Data Model Changes
+将 `AgentConfig` 中的 `model_tier` 替换为 `model_id`，以实现直接模型选择。这是一次数据模型变更、解析逻辑简化以及前端 UI 更新。
 
-**File: `backend/src/relay/config.rs`**
+### 1. 后端数据模型变更
 
-#### AgentConfig (lines ~379-397)
+**文件：`backend/src/relay/config.rs`**
 
-Replace `model_tier: ModelTier` with `model_id: String`:
+#### AgentConfig（第 ~379-397 行）
+
+将 `model_tier: ModelTier` 替换为 `model_id: String`：
 
 ```rust
 pub struct AgentConfig {
@@ -1131,7 +1704,7 @@ pub struct AgentConfig {
 }
 ```
 
-#### ModelDefinition (lines ~32-36) — unchanged
+#### ModelDefinition（第 ~32-36 行）—— 未变更
 
 ```rust
 pub struct ModelDefinition {
@@ -1141,7 +1714,7 @@ pub struct ModelDefinition {
 }
 ```
 
-#### resolve_model() (lines ~548-586) — simplified
+#### resolve_model()（第 ~548-586 行）—— 简化
 
 ```rust
 pub fn resolve_model(
@@ -1176,7 +1749,7 @@ pub fn resolve_model(
 ```
 
 
-#### Default Config Generation (lines ~458-467)
+#### 默认配置生成（第 ~458-467 行）
 
 ```rust
 fn generate_default_configs(
@@ -1225,9 +1798,9 @@ fn generate_default_configs(
 }
 ```
 
-#### Migration
+#### 迁移
 
-When loading existing configs with `model_tier` but no `model_id`:
+当加载包含 `model_tier` 但没有 `model_id` 的现有配置时：
 
 ```rust
 fn migrate_agent_config(config: &mut AgentConfig, api_sources: &[ApiSource]) {
@@ -1255,9 +1828,9 @@ fn migrate_agent_config(config: &mut AgentConfig, api_sources: &[ApiSource]) {
 ```
 
 
-### 2. Frontend Changes
+### 2. 前端变更
 
-**File: `frontend/src/composables/useAgentConfigs.ts`**
+**文件：`frontend/src/composables/useAgentConfigs.ts`**
 
 ```typescript
 export interface AgentConfigDto {
@@ -1278,9 +1851,9 @@ export interface AgentConfigDto {
 }
 ```
 
-**File: `frontend/src/views/AgentsConfigView.vue`**
+**文件：`frontend/src/views/AgentsConfigView.vue`**
 
-Replace tier dropdown with model selector:
+将层级下拉框替换为模型选择器：
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -1300,12 +1873,12 @@ Replace tier dropdown with model selector:
 └─────────────────────────────────────────────┘
 ```
 
-1. When `api_source_id` changes → refresh model list, auto-select first model
-2. Model list shows: display name + tier badge (color-coded)
-3. Selected model's tier badge shown in collapsed selector
-4. Tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
+1. 当 `api_source_id` 变更时 → 刷新模型列表，自动选择第一个模型
+2. 模型列表显示：显示名称 + 层级徽章（颜色编码）
+3. 折叠选择器中显示已选模型的层级徽章
+4. 层级徽章颜色：Min=灰色，Lite=绿色，Mid=蓝色，Pro=紫色，Max=琥珀色
 
-### 3. State Machine
+### 3. 状态机
 
 ```mermaid
 stateDiagram-v2
@@ -1321,126 +1894,132 @@ stateDiagram-v2
     ModelListLoaded --> SourceChanged: User changes source before selecting
 ```
 
-### 4. Error Handling
+### 4. 错误处理
 
-| Error Case | Handling |
-|------------|----------|
-| `model_id` not found in ApiSource | Fallback to first model, log warning |
-| `api_source_id` not found | Fallback to first ApiSource + first model |
-| ApiSource has no models | Return `None` from `resolve_model()`, agent spawn fails gracefully |
-| Legacy config with `model_tier` but no `model_id` | Auto-migrate on load: tier → first matching model |
-| ApiSource deleted while agents reference it | Agent shows "API Source not found" warning in UI, cannot spawn |
+| 错误场景 | 处理方式 |
+|----------|----------|
+| ApiSource 中未找到 `model_id` | 回退到第一个模型，记录警告 |
+| 未找到 `api_source_id` | 回退到第一个 ApiSource + 第一个模型 |
+| ApiSource 没有模型 | `resolve_model()` 返回 `None`，智能体启动优雅失败 |
+| 遗留配置有 `model_tier` 但无 `model_id` | 加载时自动迁移：层级 → 第一个匹配的模型 |
+| 智能体引用 ApiSource 时该来源被删除 | 智能体在 UI 中显示"API 来源未找到"警告，无法启动 |
 
-### 5. Files Modified
+### 5. 修改的文件
 
-| File | Change |
-|------|--------|
-| `backend/src/relay/config.rs` | AgentConfig: `model_tier` → `model_id`; simplify `resolve_model()`; update defaults; add migration |
-| `backend/src/relay/mod.rs` | `spawn_agent_from_config()` — no logic change (already uses `resolve_model()`) |
-| `frontend/src/composables/useAgentConfigs.ts` | `model_tier` → `model_id` in `AgentConfigDto` |
-| `frontend/src/composables/useApiSources.ts` | Add helper: `getModelsForSource(sourceId)` |
-| `frontend/src/views/AgentsConfigView.vue` | Replace tier dropdown with model selector |
-| `frontend/src/locales/en.json` | Update model selection keys |
-| `frontend/src/locales/zh.json` | Update model selection keys |
+| 文件 | 变更 |
+|------|------|
+| `backend/src/relay/config.rs` | AgentConfig：`model_tier` → `model_id`；简化 `resolve_model()`；更新默认值；添加迁移 |
+| `backend/src/relay/mod.rs` | `spawn_agent_from_config()` —— 无逻辑变更（已使用 `resolve_model()`） |
+| `frontend/src/composables/useAgentConfigs.ts` | `AgentConfigDto` 中 `model_tier` → `model_id` |
+| `frontend/src/composables/useApiSources.ts` | 添加辅助函数：`getModelsForSource(sourceId)` |
+| `frontend/src/views/AgentsConfigView.vue` | 将层级下拉框替换为模型选择器 |
+| `frontend/src/locales/en.json` | 更新模型选择键 |
+| `frontend/src/locales/zh.json` | 更新模型选择键 |
 
-### 6. Data Lifecycle
+### 6. 数据生命周期
 
 ```
-[Default Generation]
-  api_sources loaded → generate_default_configs() → picks concrete model_id per tier preference
-  → saved to agent_configs.json
+[默认生成]
+  api_sources 加载 → generate_default_configs() → 根据层级偏好选择具体的 model_id
+  → 保存到 agent_configs.json
 
-[User Edit]
-  User opens AgentConfig → UI shows model list for selected ApiSource
-  → User picks model → model_id saved
+[用户编辑]
+  用户打开 AgentConfig → UI 显示所选 ApiSource 的模型列表
+  → 用户选择模型 → 保存 model_id
 
-[Agent Spawn]
+[智能体启动]
   Orchestrator → resolve_model(config, api_sources)
-  → find ModelDefinition by model_id
-  → return ModelConfig(provider, model_id, params)
-  → AgentInstance spawned with resolved model
+  → 通过 model_id 查找 ModelDefinition
+  → 返回 ModelConfig(provider, model_id, params)
+  → 使用解析后的模型启动 AgentInstance
 
-[ApiSource Model Change]
-  If referenced model_id removed from ApiSource
-  → resolve_model falls back to first model + log warning
-  → UI shows "Model not found" indicator on AgentConfig
+[ApiSource 模型变更]
+  如果引用的 model_id 从 ApiSource 中移除
+  → resolve_model 回退到第一个模型 + 记录警告
+  → UI 在 AgentConfig 上显示"模型未找到"指示器
 ```
 
-## ApiSources-D2 APIs Documentation View
-**Status:** implemented
-**Module:** `frontend/src/views/ApiSourcesView.vue` / `specs/apis.ad`
-**Tags:** stack:frontend
-**Depends on:** ApiSources-A2
-
-- Render `apis.ad` as structured endpoint documentation
-- Group endpoints by backend module with collapsible sections
-- Show method badge, path, and handler name per route
-
-- `useSpecs.ts` for loading `apis.ad` section
-- `MarkdownContent.vue` for rendering markdown tables
-
----
-
----
-
----
-
----
-
----
-
----
-
----
-
----
-
-## ApiSources-T3 Specifics
+## ApiSources-D2 API 文档视图
 **Status:** draft
 
-The winning copy should be the one marked "done" with:
-- All 15 test cases in a table (TC-T3.1 through TC-T3.15)
-- Coverage matrix mapping G3 goals to tests
-- Full Rust test code in the `### Rust Test Code` section
-- Implementation verification checklist for both backend and frontend
+**状态：** 已实现
+**模块：** `frontend/src/views/ApiSourcesView.vue` / `specs/apis.ad`
+**标签：** stack:frontend
+**依赖：** ApiSources-A2
 
-All 9+ other copies (various statuses: draft, done, proposed) must be deleted.
+- 将 `apis.ad` 渲染为结构化的端点文档
+- 按后端模块分组端点，使用可折叠区域
+- 为每个路由显示方法徽章、路径和处理程序名称
 
-### Files Modified
+- `useSpecs.ts` 用于加载 `apis.ad` 章节
+- `MarkdownContent.vue` 用于渲染 Markdown 表格
 
-No code files are modified. This is a **spec-only cleanup**.
+---
 
-| Action | Section | Item ID | Copies to Delete |
-|--------|---------|---------|-----------------|
-| Delete | tests | ApiSources-T3 | 9+ copies (keep best "done" version) |
-| Delete | designs | ApiSources-D1 | 3 copies (keep approved with code evidence) |
-| Delete | designs | UiSystem-D4 | 4 copies (keep most complete draft) |
-| Delete | architecture | ApiSources-A3 | 4 copies (keep first complete) |
+---
 
-### Prevention (Future)
+---
 
-The `update_spec` tool already upserts by ID correctly. The duplication comes from relay agents writing the *same ID* multiple times in a single pipeline run. The fix is:
+---
 
-1. Coder agent should call `update_spec(action: "upsert")` not `write_specs` for existing items
-2. Tester agent should check `list_specs` before creating test items
-3. If an item with the same ID exists, use `update_spec(action: "patch")` to update content only
+---
 
-### Trigger Condition
+---
 
-Immediate — this is a manual cleanup triggered by the "debug test" task. Future prevention is automatic via agent behavior.
+---
 
-### Data Flow
+---
+
+---
+
+## ApiSources-T3 详细说明
+**Status:** draft
+
+**状态：** 草稿
+
+应保留标记为"完成"的最佳副本，其需具备：
+- 表格中包含全部 15 个测试用例（TC-T3.1 至 TC-T3.15）
+- 将 G3 目标映射到测试的覆盖矩阵
+- `### Rust Test Code` 章节中包含完整的 Rust 测试代码
+- 后端和前端的实现验证清单
+
+其余 9 个以上的副本（各种状态：草稿、完成、提议）必须删除。
+
+### 修改的文件
+
+不修改任何代码文件。这是一次**仅限规格的清理**。
+
+| 操作 | 章节 | 项目 ID | 要删除的副本 |
+|------|------|---------|-------------|
+| 删除 | tests | ApiSources-T3 | 9+ 个副本（保留最佳的"完成"版本） |
+| 删除 | designs | ApiSources-D1 | 3 个副本（保留带代码证据的已批准版本） |
+| 删除 | designs | UiSystem-D4 | 4 个副本（保留最完整的草稿） |
+| 删除 | architecture | ApiSources-A3 | 4 个副本（保留第一个完整版本） |
+
+### 预防措施（未来）
+
+`update_spec` 工具已能按 ID 正确执行 upsert 操作。重复来源于中继智能体在单次流水线运行中多次写入*相同 ID*。修复方案为：
+
+1. 编码智能体应对已有项目调用 `update_spec(action: "upsert")`，而非 `write_specs`
+2. 测试智能体应在创建测试项目前检查 `list_specs`
+3. 如果存在相同 ID 的项目，使用 `update_spec(action: "patch")` 仅更新内容
+
+### 触发条件
+
+立即执行 —— 这是由"调试测试"任务触发的手动清理。未来通过智能体行为自动预防。
+
+### 数据流
 
 ```
-[Tests section loaded] → [Group ApiSources-T3 items] → [Select "done" version with full test code] → [Delete 9+ duplicates] → [Save clean section]
+[Tests 章节已加载] → [分组 ApiSources-T3 项目] → [选择带有完整测试代码的"完成"版本] → [删除 9+ 个重复项] → [保存干净的章节]
 ```
 
-### Design Highlight
+### 设计要点
 
-This is a one-time remediation, not a system feature. The real fix is agent behavior change (use upsert, not append). The dedup just cleans up the mess that already exists.
+这是一次性修复，而非系统功能。真正的修复是智能体行为变更（使用 upsert，而非 append）。去重只是清理已存在的混乱。
 
-| Approach | Pros | Cons |
-|---|---|---|
-| Manual spec cleanup (chosen) | Immediate, precise, no code risk | Tedious, doesn't prevent recurrence |
-| Automated dedup script | Scalable, repeatable | Over-engineered for one-time cleanup |
-| Agent prevention only | Prevents future | Doesn't fix current state |
+| 方案 | 优点 | 缺点 |
+|------|------|------|
+| 手动规格清理（已选定） | 即时、精确、无代码风险 | 繁琐，无法防止再次发生 |
+| 自动化去重脚本 | 可扩展、可重复 | 对于一次性清理来说过于复杂 |
+| 仅智能体预防 | 防止未来发生 | 无法修复当前状态 |

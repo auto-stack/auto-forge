@@ -2,58 +2,28 @@
 
 ---
 
-## ApiSources-T1 [G13] Test connection endpoint validates API credentials
-**Status:** proposed
-**Test File:** `backend/src/relay/api.rs` (integration test)
-**Tags:** stack:both
-**Depends on:** ApiSources-G1, ApiSources-D1
+## ApiSources-T1 [G13] 测试连接端点验证 API 凭据
+**Status:** draft
+
+**状态：** 提议
+**测试文件：** `backend/src/relay/api.rs`（集成测试）
+**标签：** stack:both
+**依赖：** ApiSources-G1, ApiSources-D1
 
 ```rust
 // POST /api/forge/config/api-sources/{id}/test
 ```
 
-1. Create source with valid Anthropic key
-2. Call test connection endpoint
-3. Assert response `{ "success": true, "model": "claude-3-5-sonnet" }`
-4. Create source with invalid key
-5. Call test connection endpoint
-6. Assert response `{ "success": false, "error": "Authentication failed" }`
+1. 使用有效的 Anthropic 密钥创建来源
+2. 调用测试连接端点
+3. 断言响应 `{ "success": true, "model": "claude-3-5-sonnet" }`
+4. 使用无效的密钥创建来源
+5. 调用测试连接端点
+6. 断言响应 `{ "success": false, "error": "Authentication failed" }`
 
-- Valid credentials return success with model confirmation.
-- Invalid credentials return descriptive error.
-- Local provider checks connectivity to URL.
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## ApiSources-T2 [G14] ClaudeProvider loads API config from ~/.claude/settings.json or env vars
-**Status:** done
-**Test File:** `backend/src/provider/claude.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:both
-**Depends on:** Provider-G1, Provider-D2
-
-1. Set `ANTHROPIC_API_KEY` env var
-2. Call `ClaudeProvider::new()`
-3. Assert `is_available() == true`
-4. Unset env var, create mock `~/.claude/settings.json` with `ANTHROPIC_AUTH_TOKEN`
-5. Call `ClaudeProvider::new()`
-6. Assert `is_available() == true`
-
-- Provider detects key from env var.
-- Provider detects key from settings.json.
-- Provider returns `false` when no key is available.
+- 有效凭据返回成功及模型确认。
+- 无效凭据返回描述性错误。
+- 本地提供商检查 URL 的连通性。
 
 ---
 
@@ -68,618 +38,672 @@
 ---
 
 ---
+
 ---
 
-## ApiSources-T3 ApiSources-T3 [G3] Model-First Agent Configuration Tests — CANONICAL
-**Status:** done
-**Priority:** P0
-**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
-**File:** backend/src/relay/config.rs
-**Module:** api-sources
-**Tags:** stack:backend, stack:frontend, module:api-sources, type:unit
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
+## ApiSources-T2 [G14] ClaudeProvider 从 ~/.claude/settings.json 或环境变量加载 API 配置
+**Status:** draft
 
-## ApiSources-T3 [G3] Model-First Agent Configuration Tests
-**Status:** done
-**Priority:** P0
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`, lines 682–862)
-**Module:** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
-**Tags:** stack:backend, stack:frontend, module:api-sources, type:unit
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
+**状态：** 完成
+**测试文件：** `backend/src/provider/claude.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:both
+**依赖：** Provider-G1, Provider-D2
 
-### Verification Summary (Quinn — draft-tests)
+1. 设置 `ANTHROPIC_API_KEY` 环境变量
+2. 调用 `ClaudeProvider::new()`
+3. 断言 `is_available() == true`
+4. 取消设置环境变量，创建模拟的 `~/.claude/settings.json` 并包含 `ANTHROPIC_AUTH_TOKEN`
+5. 调用 `ClaudeProvider::new()`
+6. 断言 `is_available() == true`
 
-All 15 backend tests implemented inline in `config.rs`. Code review confirms implementation matches design spec. One cosmetic CSS deviation noted (non-blocking). Frontend verified via code review.
+- 提供商从环境变量检测密钥。
+- 提供商从 settings.json 检测密钥。
+- 当没有可用密钥时提供商返回 `false`。
 
-### Test Cases (all implemented, all passing)
+---
 
-| TC | Description | Status |
-|----|-------------|--------|
-| TC-T3.1 | resolve_model with valid model_id returns correct model | ✅ |
-| TC-T3.2 | resolve_model with invalid model_id falls back to first model | ✅ |
-| TC-T3.3 | resolve_model with empty model_id falls back to first model | ✅ |
-| TC-T3.4 | resolve_model with missing api_source_id falls back to first source | ✅ |
-| TC-T3.5 | resolve_model returns None when no api_sources | ✅ |
-| TC-T3.6 | resolve_model returns None when source has empty models | ✅ |
-| TC-T3.7 | assign_model_ids migrates tier to model_id | ✅ |
-| TC-T3.8 | assign_model_ids falls back to first model when tier not found | ✅ |
-| TC-T3.9 | assign_model_ids skips configs that already have model_id | ✅ |
-| TC-T3.10 | assign_model_ids handles empty api_sources | ✅ |
-| TC-T3.11 | Serde round-trip — old JSON (no model_id) deserializes with defaults | ✅ |
-| TC-T3.12 | Serde round-trip — new JSON (with model_id) deserializes correctly | ✅ |
-| TC-T3.13 | Serde round-trip — new JSON without model_tier uses default | ✅ |
-| TC-T3.14 | generate_default_agents_with_source produces empty model_id | ✅ |
-| TC-T3.15 | resolve_model preserves all AgentConfig parameters in ModelConfig | ✅ |
+---
 
-### Coverage Matrix
+---
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list per ApiSource | Verified via code review |
-| resolve_model() by model_id (no tier walk) | TC-T3.1–T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7–T3.10 |
+---
 
-### Frontend Verification (Code Review)
+---
 
-- ✅ `AgentConfigDto` has `model_id: string` and `model_tier` for display
-- ✅ `useApiSources.ts` exports `getModelsForSource(sourceId)` helper
-- ✅ `AgentsConfigView.vue` model selector lists all models from selected ApiSource with tier badges
-- ✅ Watcher on `api_source_id` auto-selects first model + updates model_tier
-- ✅ Watcher on `model_id` syncs model_tier from selected model
-- ✅ i18n: uses `t('agents.model')` for label
-- ✅ No duplicate definitions
+---
 
-### Cosmetic Deviation (Non-blocking)
+---
 
-Tier badge CSS uses subtle/low-opacity backgrounds (better for dark mode) instead of spec's bold solid backgrounds. Hue values match spec exactly: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber.
+---
 
-### Bugs Found
+## ApiSources-T3 ApiSources-T3 [G3] 模型优先智能体配置测试 —— 规范
+**Status:** draft
 
-None.
+**状态：** 完成
+**优先级：** P0
+**测试文件：** `backend/src/forge/tools.rs`（内联 `#[cfg(test)]`）
+**文件：** backend/src/relay/config.rs
+**模块：** api-sources
+**标签：** stack:backend, stack:frontend, module:api-sources, type:unit
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-### Test Code Location
+## ApiSources-T3 [G3] 模型优先智能体配置测试
+**Status:** draft
 
-All Rust tests: `backend/src/relay/config.rs` → `#[cfg(test)] mod tests` → functions `test_resolve_model_*`, `test_assign_model_ids_*`, `test_serde_*`, `test_generate_defaults_empty_model_id`, `test_resolve_model_preserves_parameters`
+**状态：** 完成
+**优先级：** P0
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`，第 682–862 行）
+**模块：** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
+**标签：** stack:backend, stack:frontend, module:api-sources, type:unit
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-## ApiSources-T3 [G3] Model-First Agent Configuration Tests
-**Status:** done
-**Priority:** P0
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**Module:** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
-**Tags:** stack:backend, stack:frontend, module:api-sources, type:unit
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
+### 验证摘要（Quinn —— draft-tests）
 
-### Verification Summary (Tester Pass — run-tests)
+所有 15 个后端测试已在 `config.rs` 中内联实现。代码审查确认实现与设计规格匹配。注意到一个外观 CSS 偏差（非阻塞）。前端通过代码审查验证。
 
-All 15 backend tests are implemented and verified against the design spec. Implementation code matches spec. One cosmetic deviation noted (non-blocking).
+### 测试用例（全部已实现，全部通过）
 
-### Test Cases (all implemented, all passing)
+| 测试用例 | 描述 | 状态 |
+|----------|------|------|
+| TC-T3.1 | resolve_model 使用有效 model_id 返回正确模型 | ✅ |
+| TC-T3.2 | resolve_model 使用无效 model_id 回退到第一个模型 | ✅ |
+| TC-T3.3 | resolve_model 使用空 model_id 回退到第一个模型 | ✅ |
+| TC-T3.4 | resolve_model 使用缺失的 api_source_id 回退到第一个来源 | ✅ |
+| TC-T3.5 | resolve_model 在没有 api_sources 时返回 None | ✅ |
+| TC-T3.6 | resolve_model 在来源模型为空时返回 None | ✅ |
+| TC-T3.7 | assign_model_ids 将层级迁移到 model_id | ✅ |
+| TC-T3.8 | assign_model_ids 在层级未找到时回退到第一个模型 | ✅ |
+| TC-T3.9 | assign_model_ids 跳过已有 model_id 的配置 | ✅ |
+| TC-T3.10 | assign_model_ids 处理空的 api_sources | ✅ |
+| TC-T3.11 | Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化 | ✅ |
+| TC-T3.12 | Serde 往返 —— 新 JSON（含 model_id）正确反序列化 | ✅ |
+| TC-T3.13 | Serde 往返 —— 无 model_tier 的新 JSON 使用默认值 | ✅ |
+| TC-T3.14 | generate_default_agents_with_source 产生空 model_id | ✅ |
+| TC-T3.15 | resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig | ✅ |
 
-| Test Case | Description | Status |
-|-----------|-------------|--------|
-| TC-T3.1 | resolve_model with valid model_id returns correct model | ✅ verified |
-| TC-T3.2 | resolve_model with invalid model_id falls back to first model | ✅ verified |
-| TC-T3.3 | resolve_model with empty model_id falls back to first model | ✅ verified |
-| TC-T3.4 | resolve_model with missing api_source_id falls back to first source | ✅ verified |
-| TC-T3.5 | resolve_model returns None when no api_sources | ✅ verified |
-| TC-T3.6 | resolve_model returns None when source has empty models | ✅ verified |
-| TC-T3.7 | assign_model_ids migrates tier to model_id | ✅ verified |
-| TC-T3.8 | assign_model_ids falls back to first model when tier not found | ✅ verified |
-| TC-T3.9 | assign_model_ids skips configs that already have model_id | ✅ verified |
-| TC-T3.10 | assign_model_ids handles empty api_sources | ✅ verified |
-| TC-T3.11 | Serde round-trip — old JSON (no model_id) deserializes with defaults | ✅ verified |
-| TC-T3.12 | Serde round-trip — new JSON (with model_id) deserializes correctly | ✅ verified |
-| TC-T3.13 | Serde round-trip — new JSON without model_tier uses default | ✅ verified |
-| TC-T3.14 | generate_default_agents_with_source produces empty model_id | ✅ verified |
-| TC-T3.15 | resolve_model preserves all AgentConfig parameters in ModelConfig | ✅ verified |
+### 覆盖矩阵
 
-### Coverage Matrix
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 每个 ApiSource 的前端模型列表 | 通过代码审查验证 |
+| resolve_model() 按 model_id（无层级遍历） | TC-T3.1–T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7–T3.10 |
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list per ApiSource | Verified via code review (see below) |
-| resolve_model() by model_id (no tier walk) | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+### 前端验证（代码审查）
 
-### Implementation Verification (Backend)
+- ✅ `AgentConfigDto` 包含 `model_id: string` 和用于显示的 `model_tier`
+- ✅ `useApiSources.ts` 导出 `getModelsForSource(sourceId)` 辅助函数
+- ✅ `AgentsConfigView.vue` 模型选择器列出选定 ApiSource 的所有模型并带层级徽章
+- ✅ `api_source_id` 的监听器自动选择第一个模型 + 更新 model_tier
+- ✅ `model_id` 的监听器从选定模型同步 model_tier
+- ✅ i18n：标签使用 `t('agents.model')`
+- ✅ 无重复定义
 
-- ✅ `AgentConfig` struct has `model_id: String` with `#[serde(default)]`
-- ✅ `model_tier: ModelTier` kept with `#[serde(default)]` as deprecated field
-- ✅ `resolve_model()` uses direct `model_id` lookup, no tier downgrade walk
-- ✅ `assign_model_ids()` migrates empty model_id from tier, returns bool for dirty tracking
-- ✅ `generate_default_agents_with_source()` generates empty model_id (filled by migration)
-- ✅ `load_or_generate_agent_configs()` calls `assign_model_ids()` and saves only when dirty
-- ✅ All 15 test cases implemented inline in `#[cfg(test)] mod tests` block
+### 外观偏差（非阻塞）
 
-### Implementation Verification (Frontend)
+层级徽章 CSS 使用微妙/低透明度背景（更适合暗色模式），而非规格中的粗实色背景。色调值与规格完全匹配：Min=灰色, Lite=绿色, Mid=蓝色, Pro=紫色, Max=琥珀色。
 
-- ✅ `AgentConfigDto` has `model_id: string` and `model_tier` for display
-- ✅ `useApiSources.ts` exports `getModelsForSource(sourceId)` helper
-- ✅ `AgentsConfigView.vue` model selector (`<select v-model="editing.model_id">`) lists all models from selected ApiSource
-- ✅ `availableModels` computed uses `getModelsForSource(editing.value.api_source_id)`
-- ✅ Watcher on `api_source_id` auto-selects first model + updates model_tier
-- ✅ Watcher on `model_id` syncs model_tier from selected model
-- ✅ `getModelDisplayName()` shows "Model Name (Tier)" format in card badges
-- ✅ No duplicate definitions (verified single definition of each computed/watch/function)
-- ✅ i18n: uses `t('agents.model')` for label
+### 发现的缺陷
 
-### Cosmetic Deviation (Non-blocking)
+无。
 
-Tier badge CSS uses subtle/pastel style (low-opacity backgrounds with darker text) instead of spec's bold style (solid backgrounds with white text). Hue values match spec exactly: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber. The subtle approach works better with dark mode and does not affect functionality. **No fix required.**
+### 测试代码位置
 
-### Bugs Found
+所有 Rust 测试：`backend/src/relay/config.rs` → `#[cfg(test)] mod tests` → 函数 `test_resolve_model_*`、`test_assign_model_ids_*`、`test_serde_*`、`test_generate_defaults_empty_model_id`、`test_resolve_model_preserves_parameters`
 
-None. Implementation is complete and matches design spec.
+## ApiSources-T3 [G3] 模型优先智能体配置测试
+**Status:** draft
 
-## ApiSources-T3 Model-First Agent Configuration Tests
-**Status:** done
-**Priority:** P0
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**Module:** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
-**Tags:** stack:backend, stack:frontend, module:api-sources, type:unit
-**Depends on:** ApiSources-G3, ApiSources-D1
+**状态：** 完成
+**优先级：** P0
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**模块：** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
+**标签：** stack:backend, stack:frontend, module:api-sources, type:unit
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-### Verification Summary (run-tests — Quinn)
+### 验证摘要（测试通过 —— run-tests）
 
-Full code review of implementation. All 15 backend tests are implemented and verified inline in `config.rs` lines 690–858. The implementation matches the design spec. One cosmetic deviation in CSS noted (non-blocking).
+所有 15 个后端测试已根据设计规格实现并验证。实现代码与规格匹配。注意到一个外观偏差（非阻塞）。
 
-### Test Cases (all implemented)
+### 测试用例（全部已实现，全部通过）
 
-| Test Case | Description | Status |
-|-----------|-------------|--------|
-| TC-T3.1 | resolve_model with valid model_id returns correct model | ✅ verified |
-| TC-T3.2 | resolve_model with invalid model_id falls back to first model | ✅ verified |
-| TC-T3.3 | resolve_model with empty model_id falls back to first model | ✅ verified |
-| TC-T3.4 | resolve_model with missing api_source_id falls back to first source | ✅ verified |
-| TC-T3.5 | resolve_model returns None when no api_sources | ✅ verified |
-| TC-T3.6 | resolve_model returns None when source has empty models | ✅ verified |
-| TC-T3.7 | assign_model_ids migrates tier to model_id | ✅ verified |
-| TC-T3.8 | assign_model_ids falls back to first model when tier not found | ✅ verified |
-| TC-T3.9 | assign_model_ids skips configs that already have model_id | ✅ verified |
-| TC-T3.10 | assign_model_ids handles empty api_sources | ✅ verified |
-| TC-T3.11 | Serde round-trip — old JSON (no model_id) deserializes with defaults | ✅ verified |
-| TC-T3.12 | Serde round-trip — new JSON (with model_id) deserializes correctly | ✅ verified |
-| TC-T3.13 | Serde round-trip — new JSON without model_tier uses default | ✅ verified |
-| TC-T3.14 | generate_default_agents_with_source produces empty model_id | ✅ verified |
-| TC-T3.15 | resolve_model preserves all AgentConfig parameters in ModelConfig | ✅ verified |
+| 测试用例 | 描述 | 状态 |
+|----------|------|------|
+| TC-T3.1 | resolve_model 使用有效 model_id 返回正确模型 | ✅ 已验证 |
+| TC-T3.2 | resolve_model 使用无效 model_id 回退到第一个模型 | ✅ 已验证 |
+| TC-T3.3 | resolve_model 使用空 model_id 回退到第一个模型 | ✅ 已验证 |
+| TC-T3.4 | resolve_model 使用缺失的 api_source_id 回退到第一个来源 | ✅ 已验证 |
+| TC-T3.5 | resolve_model 在没有 api_sources 时返回 None | ✅ 已验证 |
+| TC-T3.6 | resolve_model 在来源模型为空时返回 None | ✅ 已验证 |
+| TC-T3.7 | assign_model_ids 将层级迁移到 model_id | ✅ 已验证 |
+| TC-T3.8 | assign_model_ids 在层级未找到时回退到第一个模型 | ✅ 已验证 |
+| TC-T3.9 | assign_model_ids 跳过已有 model_id 的配置 | ✅ 已验证 |
+| TC-T3.10 | assign_model_ids 处理空的 api_sources | ✅ 已验证 |
+| TC-T3.11 | Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化 | ✅ 已验证 |
+| TC-T3.12 | Serde 往返 —— 新 JSON（含 model_id）正确反序列化 | ✅ 已验证 |
+| TC-T3.13 | Serde 往返 —— 无 model_tier 的新 JSON 使用默认值 | ✅ 已验证 |
+| TC-T3.14 | generate_default_agents_with_source 产生空 model_id | ✅ 已验证 |
+| TC-T3.15 | resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig | ✅ 已验证 |
 
-### Coverage Matrix
+### 覆盖矩阵
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| resolve_model() by model_id (no tier walk) | TC-T3.1–T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7–T3.10 |
-| Frontend model list per ApiSource | Code review verified (see below) |
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 每个 ApiSource 的前端模型列表 | 通过代码审查验证（见下文） |
+| resolve_model() 按 model_id（无层级遍历） | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
 
-### Implementation Verification (Code Review)
+### 实现验证（后端）
 
-- ✅ `AgentConfig` struct has `model_id: String` with `#[serde(default)]` (line ~375)
-- ✅ `model_tier: ModelTier` kept with `#[serde(default)]` as deprecated (line ~378)
-- ✅ `resolve_model()` uses direct `model_id` lookup, no tier downgrade walk (line ~560)
-- ✅ `assign_model_ids()` migrates empty model_id from tier, returns bool for save (line ~540)
-- ✅ `generate_default_agents_with_source()` generates empty model_id (line ~460)
-- ✅ `load_or_generate_agent_configs()` calls `assign_model_ids()` (line ~510)
-- ✅ `assign_model_ids` returns `bool` to track if any migration happened (avoid unnecessary saves)
+- ✅ `AgentConfig` 结构体包含 `model_id: String` 和 `#[serde(default)]`
+- ✅ `model_tier: ModelTier` 保留 `#[serde(default)]` 作为弃用字段
+- ✅ `resolve_model()` 使用直接的 `model_id` 查找，无层级降级遍历
+- ✅ `assign_model_ids()` 从层级迁移空 model_id，返回 bool 用于脏跟踪
+- ✅ `generate_default_agents_with_source()` 生成空 model_id（由迁移填充）
+- ✅ `load_or_generate_agent_configs()` 调用 `assign_model_ids()` 且仅在脏时保存
+- ✅ 所有 15 个测试用例在 `#[cfg(test)] mod tests` 块中内联实现
 
-- ✅ `AgentConfigDto` has `model_id: string` field
-- ✅ `model_tier` kept as `'min' | 'lite' | 'mid' | 'pro' | 'max'` for display
+### 实现验证（前端）
 
-- ✅ `getModelsForSource(sourceId)` helper added and exported
+- ✅ `AgentConfigDto` 包含 `model_id: string` 和用于显示的 `model_tier`
+- ✅ `useApiSources.ts` 导出 `getModelsForSource(sourceId)` 辅助函数
+- ✅ `AgentsConfigView.vue` 模型选择器（`<select v-model="editing.model_id">`）列出选定 ApiSource 的所有模型
+- ✅ `availableModels` 计算属性使用 `getModelsForSource(editing.value.api_source_id)`
+- ✅ `api_source_id` 的监听器自动选择第一个模型 + 更新 model_tier
+- ✅ `model_id` 的监听器从选定模型同步 model_tier
+- ✅ `getModelDisplayName()` 在卡片徽章中显示"模型名称 (层级)"格式
+- ✅ 无重复定义（已验证每个计算属性/监听/函数只有一个定义）
+- ✅ i18n：标签使用 `t('agents.model')`
 
-- ✅ No duplicate definitions (prior bug reports were stale)
-- ✅ `availableModels` computed uses `getModelsForSource(editing.value.api_source_id)`
-- ✅ Watcher on `api_source_id` auto-selects first model + updates model_tier
-- ✅ Watcher on `model_id` syncs model_tier from selected model
-- ✅ Model selector `<select>` lists all models with tier badges
-- ✅ i18n: uses `t('agents.model')` for label
-- ✅ `getModelDisplayName()` shows "Model Name (Tier)" format in card badges
+### 外观偏差（非阻塞）
 
-### CSS Tier Badge Color Verification
+层级徽章 CSS 使用微妙/柔和风格（低透明度背景配深色文字），而非规格中的粗体风格（实色背景配白色文字）。色调值与规格完全匹配：Min=灰色, Lite=绿色, Mid=蓝色, Pro=紫色, Max=琥珀色。微妙的方案在暗/亮主题切换下效果更好。不影响功能。**无需修复。**
 
-Spec: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
+### 发现的缺陷
 
-Implementation (line ~560):
+无。实现已完成并与设计规格匹配。
+
+## ApiSources-T3 模型优先智能体配置测试
+**Status:** draft
+
+**状态：** 完成
+**优先级：** P0
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**模块：** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
+**标签：** stack:backend, stack:frontend, module:api-sources, type:unit
+**依赖：** ApiSources-G3, ApiSources-D1
+
+### 验证摘要（run-tests —— Quinn）
+
+实现完整代码审查。所有 15 个后端测试已在 `config.rs` 第 690–858 行内联实现并验证。实现与设计规格匹配。注意到一个 CSS 外观偏差（非阻塞）。
+
+### 测试用例（全部已实现）
+
+| 测试用例 | 描述 | 状态 |
+|----------|------|------|
+| TC-T3.1 | resolve_model 使用有效 model_id 返回正确模型 | ✅ 已验证 |
+| TC-T3.2 | resolve_model 使用无效 model_id 回退到第一个模型 | ✅ 已验证 |
+| TC-T3.3 | resolve_model 使用空 model_id 回退到第一个模型 | ✅ 已验证 |
+| TC-T3.4 | resolve_model 使用缺失的 api_source_id 回退到第一个来源 | ✅ 已验证 |
+| TC-T3.5 | resolve_model 在没有 api_sources 时返回 None | ✅ 已验证 |
+| TC-T3.6 | resolve_model 在来源模型为空时返回 None | ✅ 已验证 |
+| TC-T3.7 | assign_model_ids 将层级迁移到 model_id | ✅ 已验证 |
+| TC-T3.8 | assign_model_ids 在层级未找到时回退到第一个模型 | ✅ 已验证 |
+| TC-T3.9 | assign_model_ids 跳过已有 model_id 的配置 | ✅ 已验证 |
+| TC-T3.10 | assign_model_ids 处理空的 api_sources | ✅ 已验证 |
+| TC-T3.11 | Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化 | ✅ 已验证 |
+| TC-T3.12 | Serde 往返 —— 新 JSON（含 model_id）正确反序列化 | ✅ 已验证 |
+| TC-T3.13 | Serde 往返 —— 无 model_tier 的新 JSON 使用默认值 | ✅ 已验证 |
+| TC-T3.14 | generate_default_agents_with_source 产生空 model_id | ✅ 已验证 |
+| TC-T3.15 | resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig | ✅ 已验证 |
+
+### 覆盖矩阵
+
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| resolve_model() 按 model_id（无层级遍历） | TC-T3.1–T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7–T3.10 |
+| 每个 ApiSource 的前端模型列表 | 代码审查验证（见下文） |
+
+### 实现验证（代码审查）
+
+- ✅ `AgentConfig` 结构体包含 `model_id: String` 和 `#[serde(default)]`（第 ~375 行）
+- ✅ `model_tier: ModelTier` 保留 `#[serde(default)]` 作为弃用（第 ~378 行）
+- ✅ `resolve_model()` 使用直接的 `model_id` 查找，无层级降级遍历（第 ~560 行）
+- ✅ `assign_model_ids()` 从层级迁移空 model_id，返回 bool 用于保存（第 ~540 行）
+- ✅ `generate_default_agents_with_source()` 生成空 model_id（第 ~460 行）
+- ✅ `load_or_generate_agent_configs()` 调用 `assign_model_ids()`（第 ~510 行）
+- ✅ `assign_model_ids` 返回 `bool` 以跟踪是否发生任何迁移（避免不必要的保存）
+
+- ✅ `AgentConfigDto` 包含 `model_id: string` 字段
+- ✅ `model_tier` 保留为 `'min' | 'lite' | 'mid' | 'pro' | 'max'` 用于显示
+
+- ✅ `getModelsForSource(sourceId)` 辅助函数已添加并导出
+
+- ✅ 无重复定义（之前的缺陷报告已过时）
+- ✅ `availableModels` 计算属性使用 `getModelsForSource(editing.value.api_source_id)`
+- ✅ `api_source_id` 的监听器自动选择第一个模型 + 更新 model_tier
+- ✅ `model_id` 的监听器从选定模型同步 model_tier
+- ✅ 模型选择器 `<select>` 列出所有带层级徽章的模型
+- ✅ i18n：标签使用 `t('agents.model')`
+- ✅ `getModelDisplayName()` 在卡片徽章中显示"模型名称 (层级)"格式
+
+### CSS 层级徽章颜色验证
+
+规格：Min=灰色, Lite=绿色, Mid=蓝色, Pro=紫色, Max=琥珀色
+
+实现（第 ~560 行）：
 ```css
-.tier-badge.min { hsl(0 0% 60%) }    /* gray ✅ */
-.tier-badge.lite { hsl(150 55% 42%) } /* green ✅ */
-.tier-badge.mid { hsl(210 60% 50%) }  /* blue ✅ */
-.tier-badge.pro { hsl(260 55% 52%) }  /* purple ✅ */
-.tier-badge.max { hsl(38 92% 50%) }   /* amber ✅ */
+.tier-badge.min { hsl(0 0% 60%) }    /* 灰色 ✅ */
+.tier-badge.lite { hsl(150 55% 42%) } /* 绿色 ✅ */
+.tier-badge.mid { hsl(210 60% 50%) }  /* 蓝色 ✅ */
+.tier-badge.pro { hsl(260 55% 52%) }  /* 紫色 ✅ */
+.tier-badge.max { hsl(38 92% 50%) }   /* 琥珀色 ✅ */
 ```
 
-**Note**: Implementation uses subtle/low-opacity backgrounds (hsl with 0.12 alpha) with darker text instead of spec's bold solid backgrounds with white text. Hue values are correct. This is a cosmetic deviation that works better with dark/light theme toggling.
+**注意**：实现使用微妙/低透明度背景（hsl 带 0.12 alpha）配深色文字，而非规格中的粗实色背景配白色文字。色调值正确。这是更适合暗/亮主题切换的外观偏差。
 
-### Bugs Found
+### 发现的缺陷
 
-None in this verification pass. All previously reported bugs appear to have been resolved.
+本次验证通过无缺陷。所有先前报告的缺陷似乎都已解决。
 
-## ApiSources-T3 Model-First Agent Configuration Tests
-**Status:** done
-**Priority:** P0
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**Module:** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
-**Tags:** stack:backend, stack:frontend, module:api-sources, type:unit
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
+## ApiSources-T3 模型优先智能体配置测试
+**Status:** draft
 
-### Verification Summary (Tester Pass — run-tests)
+**状态：** 完成
+**优先级：** P0
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**模块：** `backend/src/relay/config.rs`, `frontend/src/views/AgentsConfigView.vue`
+**标签：** stack:backend, stack:frontend, module:api-sources, type:unit
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-All 15 backend tests are implemented and all implementation files verified against the design spec. No bugs found in this pass.
+### 验证摘要（测试通过 —— run-tests）
 
-### Test Cases (all implemented)
+所有 15 个后端测试已根据设计规格实现，所有实现文件已验证。本次通过未发现缺陷。
 
-| Test Case | Description | Status |
-|-----------|-------------|--------|
-| TC-T3.1 | resolve_model with valid model_id returns correct model | ✅ verified |
-| TC-T3.2 | resolve_model with invalid model_id falls back to first model | ✅ verified |
-| TC-T3.3 | resolve_model with empty model_id falls back to first model | ✅ verified |
-| TC-T3.4 | resolve_model with missing api_source_id falls back to first source | ✅ verified |
-| TC-T3.5 | resolve_model returns None when no api_sources | ✅ verified |
-| TC-T3.6 | resolve_model returns None when source has empty models | ✅ verified |
-| TC-T3.7 | assign_model_ids migrates tier to model_id | ✅ verified |
-| TC-T3.8 | assign_model_ids falls back to first model when tier not found | ✅ verified |
-| TC-T3.9 | assign_model_ids skips configs that already have model_id | ✅ verified |
-| TC-T3.10 | assign_model_ids handles empty api_sources | ✅ verified |
-| TC-T3.11 | Serde round-trip — old JSON (no model_id) deserializes with defaults | ✅ verified |
-| TC-T3.12 | Serde round-trip — new JSON (with model_id) deserializes correctly | ✅ verified |
-| TC-T3.13 | Serde round-trip — new JSON without model_tier uses default | ✅ verified |
-| TC-T3.14 | generate_default_agents_with_source produces empty model_id | ✅ verified |
-| TC-T3.15 | resolve_model preserves all AgentConfig parameters in ModelConfig | ✅ verified |
+### 测试用例（全部已实现）
 
-### Coverage Matrix
+| 测试用例 | 描述 | 状态 |
+|----------|------|------|
+| TC-T3.1 | resolve_model 使用有效 model_id 返回正确模型 | ✅ 已验证 |
+| TC-T3.2 | resolve_model 使用无效 model_id 回退到第一个模型 | ✅ 已验证 |
+| TC-T3.3 | resolve_model 使用空 model_id 回退到第一个模型 | ✅ 已验证 |
+| TC-T3.4 | resolve_model 使用缺失的 api_source_id 回退到第一个来源 | ✅ 已验证 |
+| TC-T3.5 | resolve_model 在没有 api_sources 时返回 None | ✅ 已验证 |
+| TC-T3.6 | resolve_model 在来源模型为空时返回 None | ✅ 已验证 |
+| TC-T3.7 | assign_model_ids 将层级迁移到 model_id | ✅ 已验证 |
+| TC-T3.8 | assign_model_ids 在层级未找到时回退到第一个模型 | ✅ 已验证 |
+| TC-T3.9 | assign_model_ids 跳过已有 model_id 的配置 | ✅ 已验证 |
+| TC-T3.10 | assign_model_ids 处理空的 api_sources | ✅ 已验证 |
+| TC-T3.11 | Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化 | ✅ 已验证 |
+| TC-T3.12 | Serde 往返 —— 新 JSON（含 model_id）正确反序列化 | ✅ 已验证 |
+| TC-T3.13 | Serde 往返 —— 无 model_tier 的新 JSON 使用默认值 | ✅ 已验证 |
+| TC-T3.14 | generate_default_agents_with_source 产生空 model_id | ✅ 已验证 |
+| TC-T3.15 | resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig | ✅ 已验证 |
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| resolve_model() by model_id (no tier walk) | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
-| Frontend model list per ApiSource | Not testable from Rust (manual/visual verification) |
+### 覆盖矩阵
 
-### Implementation Verification
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| resolve_model() 按 model_id（无层级遍历） | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+| 每个 ApiSource 的前端模型列表 | 无法从 Rust 测试（手动/视觉验证） |
 
-- ✅ `AgentConfig` struct has `model_id: String` with `#[serde(default)]` (line ~375)
-- ✅ `model_tier: ModelTier` kept with `#[serde(default)]` as deprecated (line ~378)
-- ✅ `resolve_model()` uses direct `model_id` lookup, no tier downgrade walk (line ~560)
-- ✅ `assign_model_ids()` migrates empty model_id from tier (line ~540)
-- ✅ `generate_default_agents_with_source()` generates empty model_id (line ~460)
-- ✅ `load_or_generate_agent_configs()` calls `assign_model_ids()` (line ~510)
+### 实现验证
 
-- ✅ `AgentConfigDto` has `model_id: string` field
-- ✅ `model_tier` kept as `'min' | 'lite' | 'mid' | 'pro' | 'max'` for display
+- ✅ `AgentConfig` 结构体包含 `model_id: String` 和 `#[serde(default)]`（第 ~375 行）
+- ✅ `model_tier: ModelTier` 保留 `#[serde(default)]` 作为弃用（第 ~378 行）
+- ✅ `resolve_model()` 使用直接的 `model_id` 查找，无层级降级遍历（第 ~560 行）
+- ✅ `assign_model_ids()` 从层级迁移空 model_id（第 ~540 行）
+- ✅ `generate_default_agents_with_source()` 生成空 model_id（第 ~460 行）
+- ✅ `load_or_generate_agent_configs()` 调用 `assign_model_ids()`（第 ~510 行）
 
-- ✅ `getModelsForSource(sourceId)` helper added and exported
+- ✅ `AgentConfigDto` 包含 `model_id: string` 字段
+- ✅ `model_tier` 保留为 `'min' | 'lite' | 'mid' | 'pro' | 'max'` 用于显示
 
-- ✅ No duplicate definitions (prior bug reports were stale)
-- ✅ `availableModels` computed uses `getModelsForSource(editing.value.api_source_id)`
-- ✅ Watcher on `api_source_id` auto-selects first model + updates model_tier
-- ✅ Watcher on `model_id` syncs model_tier from selected model
-- ✅ Model selector `<select>` lists all models with tier badges
-- ✅ CSS tier badges match spec: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber
+- ✅ `getModelsForSource(sourceId)` 辅助函数已添加并导出
 
-### Bugs Found
+- ✅ 无重复定义（之前的缺陷报告已过时）
+- ✅ `availableModels` 计算属性使用 `getModelsForSource(editing.value.api_source_id)`
+- ✅ `api_source_id` 的监听器自动选择第一个模型 + 更新 model_tier
+- ✅ `model_id` 的监听器从选定模型同步 model_tier
+- ✅ 模型选择器 `<select>` 列出所有带层级徽章的模型
+- ✅ CSS 层级徽章与规格匹配：Min=灰色, Lite=绿色, Mid=蓝色, Pro=紫色, Max=琥珀色
 
-None in this verification pass. All previously reported bugs appear to have been resolved.
+### 发现的缺陷
 
-## ApiSources-T3 [G3] Model-First Agent Configuration Tests
-**Status:** done
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**File:** `frontend/src/views/AgentsConfigView.vue`
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1
+本次验证通过无缺陷。所有先前报告的缺陷似乎都已解决。
 
-### Verification Summary (2025-01-16)
+## ApiSources-T3 [G3] 模型优先智能体配置测试
+**Status:** draft
 
-All 15 test cases implemented inline in `backend/src/relay/config.rs` lines 690–858. All tests pass against the model-first implementation. No duplicate definitions or compile-breaking issues found in frontend code. CSS tier badge colors match spec exactly.
+**状态：** 完成
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**文件：** `frontend/src/views/AgentsConfigView.vue`
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1
 
-### Test Cases (all passing)
+### 验证摘要（2025-01-16）
 
-| Test Case | Description | Status |
-|-----------|-------------|--------|
-| TC-T3.1 | resolve_model with valid model_id returns correct model | ✅ done |
-| TC-T3.2 | resolve_model with invalid model_id falls back to first model | ✅ done |
-| TC-T3.3 | resolve_model with empty model_id falls back to first model | ✅ done |
-| TC-T3.4 | resolve_model with missing api_source_id falls back to first source | ✅ done |
-| TC-T3.5 | resolve_model returns None when no api_sources | ✅ done |
-| TC-T3.6 | resolve_model returns None when source has empty models | ✅ done |
-| TC-T3.7 | assign_model_ids migrates tier to model_id | ✅ done |
-| TC-T3.8 | assign_model_ids falls back to first model when tier not found | ✅ done |
-| TC-T3.9 | assign_model_ids skips configs that already have model_id | ✅ done |
-| TC-T3.10 | assign_model_ids handles empty api_sources | ✅ done |
-| TC-T3.11 | Serde round-trip — old JSON (no model_id) deserializes with defaults | ✅ done |
-| TC-T3.12 | Serde round-trip — new JSON (with model_id) deserializes correctly | ✅ done |
-| TC-T3.13 | Serde round-trip — new JSON without model_tier uses default | ✅ done |
-| TC-T3.14 | generate_default_agents_with_source produces empty model_id | ✅ done |
-| TC-T3.15 | resolve_model preserves all AgentConfig parameters in ModelConfig | ✅ done |
+所有 15 个测试用例已在 `backend/src/relay/config.rs` 第 690–858 行内联实现。所有测试均通过模型优先实现。前端代码中未发现重复定义或编译中断问题。CSS 层级徽章颜色与规格完全匹配。
 
-### Coverage Matrix
+### 测试用例（全部通过）
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list selection | Verified via code review — model selector replaces tier dropdown, auto-selects first model on source change |
-| resolve_model() by model_id | TC-T3.1–T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7–T3.10 |
+| 测试用例 | 描述 | 状态 |
+|----------|------|------|
+| TC-T3.1 | resolve_model 使用有效 model_id 返回正确模型 | ✅ 完成 |
+| TC-T3.2 | resolve_model 使用无效 model_id 回退到第一个模型 | ✅ 完成 |
+| TC-T3.3 | resolve_model 使用空 model_id 回退到第一个模型 | ✅ 完成 |
+| TC-T3.4 | resolve_model 使用缺失的 api_source_id 回退到第一个来源 | ✅ 完成 |
+| TC-T3.5 | resolve_model 在没有 api_sources 时返回 None | ✅ 完成 |
+| TC-T3.6 | resolve_model 在来源模型为空时返回 None | ✅ 完成 |
+| TC-T3.7 | assign_model_ids 将层级迁移到 model_id | ✅ 完成 |
+| TC-T3.8 | assign_model_ids 在层级未找到时回退到第一个模型 | ✅ 完成 |
+| TC-T3.9 | assign_model_ids 跳过已有 model_id 的配置 | ✅ 完成 |
+| TC-T3.10 | assign_model_ids 处理空的 api_sources | ✅ 完成 |
+| TC-T3.11 | Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化 | ✅ 完成 |
+| TC-T3.12 | Serde 往返 —— 新 JSON（含 model_id）正确反序列化 | ✅ 完成 |
+| TC-T3.13 | Serde 往返 —— 无 model_tier 的新 JSON 使用默认值 | ✅ 完成 |
+| TC-T3.14 | generate_default_agents_with_source 产生空 model_id | ✅ 完成 |
+| TC-T3.15 | resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig | ✅ 完成 |
 
-### Frontend Verification (code review)
+### 覆盖矩阵
 
-- ✅ `AgentConfigDto` has `model_id: string` and `model_tier` for display
-- ✅ `useApiSources.ts` exports `getModelsForSource(sourceId)` helper
-- ✅ `AgentsConfigView.vue` model selector lists all models from selected ApiSource with tier badges
-- ✅ Auto-selects first model when api_source_id changes (watch on editing.value?.api_source_id)
-- ✅ Updates model_tier when model_id changes (watch on editing.value?.model_id)
-- ✅ `getModelDisplayName()` shows "Model Name (Tier)" format
-- ✅ CSS tier badge colors: Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber — matches spec
-- ✅ No duplicate definitions (previous BUG-1 through BUG-4 from earlier runs are resolved)
-- ✅ i18n: uses `t('agents.model')` for label
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 前端模型列表选择 | 通过代码审查验证 —— 模型选择器替代层级下拉框，在来源变更时自动选择第一个模型 |
+| resolve_model() 按 model_id | TC-T3.1–T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7–T3.10 |
 
-### Bugs Found
+### 前端验证（代码审查）
 
-None. Previous bugs (duplicate definitions, wrong CSS colors) reported in earlier test runs have been resolved in the current implementation.
+- ✅ `AgentConfigDto` 包含 `model_id: string` 和用于显示的 `model_tier`
+- ✅ `useApiSources.ts` 导出 `getModelsForSource(sourceId)` 辅助函数
+- ✅ `AgentsConfigView.vue` 模型选择器列出选定 ApiSource 的所有模型并带层级徽章
+- ✅ 当 api_source_id 变更时自动选择第一个模型（监听 editing.value?.api_source_id）
+- ✅ 当 model_id 变更时更新 model_tier（监听 editing.value?.model_id）
+- ✅ `getModelDisplayName()` 显示"模型名称 (层级)"格式
+- ✅ CSS 层级徽章颜色：Min=灰色, Lite=绿色, Mid=蓝色, Pro=紫色, Max=琥珀色 —— 与规格匹配
+- ✅ 无重复定义（早期运行中的先前 BUG-1 至 BUG-4 已解决）
+- ✅ i18n：标签使用 `t('agents.model')`
 
-### Test Code Location
+### 发现的缺陷
 
-All Rust tests: `backend/src/relay/config.rs` → `#[cfg(test)] mod tests` → functions `test_resolve_model_*`, `test_assign_model_ids_*`, `test_serde_*`, `test_generate_defaults_empty_model_id`, `test_resolve_model_preserves_parameters`
+无。先前缺陷（重复定义、错误 CSS 颜色）在早期测试运行中报告，已在当前实现中解决。
 
-## ApiSources-T3 Model-First Agent Configuration Tests
-**Status:** done
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**File:** `frontend/src/views/AgentsConfigView.vue`
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
+### 测试代码位置
 
-### Overview
+所有 Rust 测试：`backend/src/relay/config.rs` → `#[cfg(test)] mod tests` → 函数 `test_resolve_model_*`、`test_assign_model_ids_*`、`test_serde_*`、`test_generate_defaults_empty_model_id`、`test_resolve_model_preserves_parameters`
 
-Tests for the model-first AgentConfig changes: `model_id` field, `resolve_model()` direct lookup, `assign_model_ids()` migration, serde backward compat. All 15 test cases are implemented inline in the existing `#[cfg(test)] mod tests` block at the bottom of `backend/src/relay/config.rs`.
+## ApiSources-T3 模型优先智能体配置测试
+**Status:** draft
 
-### Test Cases (all passing)
+**状态：** 完成
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**文件：** `frontend/src/views/AgentsConfigView.vue`
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-#### TC-T3.1: resolve_model with valid model_id returns correct model ✅
-#### TC-T3.2: resolve_model with invalid model_id falls back to first model ✅
-#### TC-T3.3: resolve_model with empty model_id falls back to first model ✅
-#### TC-T3.4: resolve_model with missing api_source_id falls back to first source ✅
-#### TC-T3.5: resolve_model returns None when no api_sources ✅
-#### TC-T3.6: resolve_model returns None when source has empty models ✅
-#### TC-T3.7: assign_model_ids migrates tier to model_id ✅
-#### TC-T3.8: assign_model_ids falls back to first model when tier not found ✅
-#### TC-T3.9: assign_model_ids skips configs that already have model_id ✅
-#### TC-T3.10: assign_model_ids handles empty api_sources ✅
-#### TC-T3.11: Serde round-trip — old JSON (no model_id) deserializes with defaults ✅
-#### TC-T3.12: Serde round-trip — new JSON (with model_id) deserializes correctly ✅
-#### TC-T3.13: Serde round-trip — new JSON without model_tier uses default ✅
-#### TC-T3.14: generate_default_agents_with_source produces empty model_id ✅
-#### TC-T3.15: resolve_model preserves all AgentConfig parameters in ModelConfig ✅
+### 概述
 
-### Coverage Matrix
+模型优先 AgentConfig 变更的测试：`model_id` 字段、`resolve_model()` 直接查找、`assign_model_ids()` 迁移、serde 向后兼容。所有 15 个测试用例已在 `backend/src/relay/config.rs` 底部现有的 `#[cfg(test)] mod tests` 块中内联实现。
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list selection | Frontend — not testable from Rust unit tests |
-| resolve_model() by model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+### 测试用例（全部通过）
 
-### Bugs Found
+#### TC-T3.1：resolve_model 使用有效 model_id 返回正确模型 ✅
+#### TC-T3.2：resolve_model 使用无效 model_id 回退到第一个模型 ✅
+#### TC-T3.3：resolve_model 使用空 model_id 回退到第一个模型 ✅
+#### TC-T3.4：resolve_model 使用缺失的 api_source_id 回退到第一个来源 ✅
+#### TC-T3.5：resolve_model 在没有 api_sources 时返回 None ✅
+#### TC-T3.6：resolve_model 在来源模型为空时返回 None ✅
+#### TC-T3.7：assign_model_ids 将层级迁移到 model_id ✅
+#### TC-T3.8：assign_model_ids 在层级未找到时回退到第一个模型 ✅
+#### TC-T3.9：assign_model_ids 跳过已有 model_id 的配置 ✅
+#### TC-T3.10：assign_model_ids 处理空的 api_sources ✅
+#### TC-T3.11：Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化 ✅
+#### TC-T3.12：Serde 往返 —— 新 JSON（含 model_id）正确反序列化 ✅
+#### TC-T3.13：Serde 往返 —— 无 model_tier 的新 JSON 使用默认值 ✅
+#### TC-T3.14：generate_default_agents_with_source 产生空 model_id ✅
+#### TC-T3.15：resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig ✅
 
-#### BUG-1: Duplicate definitions in AgentsConfigView.vue (compile-breaking)
-1. `availableModels` computed property defined **twice** (lines ~210 and ~235)
-2. `watch(() => editing.value?.api_source_id, ...)` defined **twice** (lines ~215 and ~240)
-3. `watch(() => editing.value?.model_id, ...)` defined **twice** (lines ~225 and ~250)
-4. `getModelDisplayName()` function defined **twice** (lines ~230 and ~255)
-5. In `startCreate()`, `model_id` key appears **twice** in the same object literal:
+### 覆盖矩阵
+
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 前端模型列表选择 | 前端 —— 无法从 Rust 单元测试测试 |
+| resolve_model() 按 model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+
+### 发现的缺陷
+
+#### BUG-1：AgentsConfigView.vue 中的重复定义（编译中断）
+1. `availableModels` 计算属性定义了**两次**（第 ~210 和 ~235 行）
+2. `watch(() => editing.value?.api_source_id, ...)` 定义了**两次**（第 ~215 和 ~240 行）
+3. `watch(() => editing.value?.model_id, ...)` 定义了**两次**（第 ~225 和 ~250 行）
+4. `getModelDisplayName()` 函数定义了**两次**（第 ~230 和 ~255 行）
+5. 在 `startCreate()` 中，同一对象字面量中 `model_id` 键出现**两次**：
    ```typescript
    model_id: '',
-   model_id: '',  // duplicate key — TypeScript strict mode error
+   model_id: '',  // 重复键 —— TypeScript 严格模式错误
    ```
 
-## ApiSources-T3 [G3] Model-First Agent Configuration Tests
-**Status:** done
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**File:** `frontend/src/views/AgentsConfigView.vue`
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
-
-### Implementation Status
-All 15 test cases are implemented in the existing `#[cfg(test)] mod tests` block at the bottom of `config.rs`. The implementation code (resolve_model, assign_model_ids, generate_default_agents_with_source, AgentConfig with model_id) is also complete.
-
-### Test Cases (all passing)
-
-| Test Case | Description | Status |
-|-----------|-------------|--------|
-| TC-T3.1 | resolve_model with valid model_id returns correct model | ✅ done |
-| TC-T3.2 | resolve_model with invalid model_id falls back to first model | ✅ done |
-| TC-T3.3 | resolve_model with empty model_id falls back to first model | ✅ done |
-| TC-T3.4 | resolve_model with missing api_source_id falls back to first source | ✅ done |
-| TC-T3.5 | resolve_model returns None when no api_sources | ✅ done |
-| TC-T3.6 | resolve_model returns None when source has empty models | ✅ done |
-| TC-T3.7 | assign_model_ids migrates tier to model_id | ✅ done |
-| TC-T3.8 | assign_model_ids falls back to first model when tier not found | ✅ done |
-| TC-T3.9 | assign_model_ids skips configs that already have model_id | ✅ done |
-| TC-T3.10 | assign_model_ids handles empty api_sources | ✅ done |
-| TC-T3.11 | Serde round-trip — old JSON (no model_id) deserializes with defaults | ✅ done |
-| TC-T3.12 | Serde round-trip — new JSON (with model_id) deserializes correctly | ✅ done |
-| TC-T3.13 | Serde round-trip — new JSON without model_tier uses default | ✅ done |
-| TC-T3.14 | generate_default_agents_with_source produces empty model_id | ✅ done |
-| TC-T3.15 | resolve_model preserves all AgentConfig parameters in ModelConfig | ✅ done |
-
-### Coverage Matrix
-
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 |
-| resolve_model() by model_id | TC-T3.1–T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7–T3.10 |
-| Frontend model list selection | Not testable from Rust unit tests |
-
-### Bugs Found in Frontend Implementation
-
-
-1. **CRITICAL: Duplicate `model_id: ''` property** in `startCreate()` function (line ~310). Object literal has `model_id: ''` twice — this will cause a TypeScript/Vue compile error or at minimum the second overwrites the first silently.
-
-2. **HIGH: Duplicate `availableModels` computed** — defined twice in `<script setup>`. This will cause a Vue compiler error (`Identifier 'availableModels' has already been declared`).
-
-3. **HIGH: Duplicate watchers** — `watch(() => editing.value?.api_source_id, ...)` is defined twice, and `watch(() => editing.value?.model_id, ...)` is defined twice. Both sets appear to do the same thing.
-
-4. **HIGH: Duplicate `getModelDisplayName` function** — defined twice with slightly different logic. The first version uses `agent.model_id || tierLabel(agent.model_tier)` as fallback; the second uses just `tierLabel(agent.model_tier)`.
-
-5. **MEDIUM: Tier badge colors don't match spec** — Spec says Min=gray, Lite=green, Mid=blue, Pro=purple, Max=amber. Current CSS has: Min=green (hsl 140), Lite=green (hsl 150), Mid=blue (hsl 210), Pro=purple (hsl 260), Max=purple (hsl 280). Min should be gray and Max should be amber.
-
-### Recommendation
-Hand off to Coder to fix the 5 frontend bugs above. The backend implementation and tests are complete.
-
-## ApiSources-T3 Model-First Agent Configuration Tests
+## ApiSources-T3 [G3] 模型优先智能体配置测试
 **Status:** draft
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-### Overview
+**状态：** 完成
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**文件：** `frontend/src/views/AgentsConfigView.vue`
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-Tests for the model-first AgentConfig changes: `model_id` field, `resolve_model()` direct lookup, `assign_model_ids()` migration, serde backward compat. These tests MUST be added to the existing `#[cfg(test)] mod tests` block at the bottom of `backend/src/relay/config.rs` AFTER the implementation changes from P3.1–P3.5 are applied.
+### 实现状态
+所有 15 个测试用例已在 `config.rs` 底部现有的 `#[cfg(test)] mod tests` 块中实现。实现代码（resolve_model、assign_model_ids、generate_default_agents_with_source、带 model_id 的 AgentConfig）也已完整。
 
-### Test Cases
+### 测试用例（全部通过）
 
-#### TC-T3.1: resolve_model with valid model_id returns correct model
+| 测试用例 | 描述 | 状态 |
+|----------|------|------|
+| TC-T3.1 | resolve_model 使用有效 model_id 返回正确模型 | ✅ 完成 |
+| TC-T3.2 | resolve_model 使用无效 model_id 回退到第一个模型 | ✅ 完成 |
+| TC-T3.3 | resolve_model 使用空 model_id 回退到第一个模型 | ✅ 完成 |
+| TC-T3.4 | resolve_model 使用缺失的 api_source_id 回退到第一个来源 | ✅ 完成 |
+| TC-T3.5 | resolve_model 在没有 api_sources 时返回 None | ✅ 完成 |
+| TC-T3.6 | resolve_model 在来源模型为空时返回 None | ✅ 完成 |
+| TC-T3.7 | assign_model_ids 将层级迁移到 model_id | ✅ 完成 |
+| TC-T3.8 | assign_model_ids 在层级未找到时回退到第一个模型 | ✅ 完成 |
+| TC-T3.9 | assign_model_ids 跳过已有 model_id 的配置 | ✅ 完成 |
+| TC-T3.10 | assign_model_ids 处理空的 api_sources | ✅ 完成 |
+| TC-T3.11 | Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化 | ✅ 完成 |
+| TC-T3.12 | Serde 往返 —— 新 JSON（含 model_id）正确反序列化 | ✅ 完成 |
+| TC-T3.13 | Serde 往返 —— 无 model_tier 的新 JSON 使用默认值 | ✅ 完成 |
+| TC-T3.14 | generate_default_agents_with_source 产生空 model_id | ✅ 完成 |
+| TC-T3.15 | resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig | ✅ 完成 |
 
-```
-Given: AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
-  And: ApiSource with models containing id="claude-sonnet-4" tier=Mid
-When:  resolve_model(&config, &api_sources)
-Then:  Returns ModelConfig { model: "claude-sonnet-4", provider: Anthropic, temperature: 0.3, max_tokens: 8192 }
-```
+### 覆盖矩阵
 
-#### TC-T3.2: resolve_model with invalid model_id falls back to first model
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8 |
+| resolve_model() 按 model_id | TC-T3.1–T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7–T3.10 |
+| 前端模型列表选择 | 无法从 Rust 单元测试测试 |
 
-```
-Given: AgentConfig { model_id: "nonexistent-model", api_source_id: "test-source" }
-  And: ApiSource with models [haiku, sonnet, opus]
-When:  resolve_model()
-Then:  Returns ModelConfig { model: "claude-3-5-haiku-20241022" } (first model)
-```
+### 前端实现中发现的缺陷
 
-#### TC-T3.3: resolve_model with empty model_id falls back to first model
 
-```
-Given: AgentConfig { model_id: "", api_source_id: "test-source" }
-When:  resolve_model()
-Then:  Returns ModelConfig with first model's id
-```
+1. **严重：`startCreate()` 函数中重复的 `model_id: ''` 属性**（第 ~310 行）。对象字面量中 `model_id: ''` 出现两次 —— 这将导致 TypeScript/Vue 编译错误，或至少第二个静默覆盖第一个。
 
-#### TC-T3.4: resolve_model with missing api_source_id falls back to first source
+2. **高：`availableModels` 计算属性重复** —— 在 `<script setup>` 中定义了两次。这将导致 Vue 编译器错误（`标识符 'availableModels' 已声明`）。
 
-```
-Given: AgentConfig { api_source_id: "deleted-source", model_id: "claude-3-5-haiku-20241022" }
-  And: api_sources = [source_a, source_b] (neither is "deleted-source")
-When:  resolve_model()
-Then:  Falls back to source_a (first), resolves model from there
-```
+3. **高：监听器重复** —— `watch(() => editing.value?.api_source_id, ...)` 定义了两次，`watch(() => editing.value?.model_id, ...)` 也定义了两次。两组似乎执行相同操作。
 
-#### TC-T3.5: resolve_model returns None when no api_sources
+4. **高：`getModelDisplayName` 函数重复** —— 定义了两次，逻辑略有不同。第一个版本使用 `agent.model_id || tierLabel(agent.model_tier)` 作为回退；第二个仅使用 `tierLabel(agent.model_tier)`。
 
-```
-Given: api_sources = []
-When:  resolve_model()
-Then:  Returns None
-```
+5. **中：层级徽章颜色与规格不匹配** —— 规格要求 Min=灰色, Lite=绿色, Mid=蓝色, Pro=紫色, Max=琥珀色。当前 CSS：Min=绿色（hsl 140）, Lite=绿色（hsl 150）, Mid=蓝色（hsl 210）, Pro=紫色（hsl 260）, Max=紫色（hsl 280）。Min 应为灰色，Max 应为琥珀色。
 
-#### TC-T3.6: resolve_model returns None when source has empty models
+### 建议
+将上述 5 个前端缺陷移交给编码器修复。后端实现和测试已完成。
 
-```
-Given: AgentConfig { api_source_id: "test-source" }, source has models: []
-When:  resolve_model()
-Then:  Returns None
-```
+## ApiSources-T3 模型优先智能体配置测试
+**Status:** draft
 
-#### TC-T3.7: assign_model_ids migrates tier to model_id
+**状态：** 草稿
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-```
-Given: AgentConfig { model_id: "", model_tier: Mid }, ApiSource with Mid model "claude-sonnet-4"
-When:  assign_model_ids(&mut configs, &api_sources)
-Then:  config.model_id == "claude-sonnet-4"
-```
+### 概述
 
-#### TC-T3.8: assign_model_ids falls back to first model when tier not found
+模型优先 AgentConfig 变更的测试：`model_id` 字段、`resolve_model()` 直接查找、`assign_model_ids()` 迁移、serde 向后兼容。这些测试**必须**在 P3.1–P3.5 的实现变更应用后，添加到 `backend/src/relay/config.rs` 底部现有的 `#[cfg(test)] mod tests` 块中。
 
-```
-Given: AgentConfig { model_id: "", model_tier: Max }, source only has Min/Lite/Mid/Pro (no Max)
-When:  assign_model_ids()
-Then:  config.model_id == first model's id
-```
+### 测试用例
 
-#### TC-T3.9: assign_model_ids skips configs that already have model_id
+#### TC-T3.1：resolve_model 使用有效 model_id 返回正确模型
 
 ```
-Given: AgentConfig { model_id: "already-set" }
-When:  assign_model_ids()
-Then:  model_id remains "already-set"
+前提：AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
+  且：ApiSource 的模型包含 id="claude-sonnet-4" tier=Mid
+当： resolve_model(&config, &api_sources)
+则： 返回 ModelConfig { model: "claude-sonnet-4", provider: Anthropic, temperature: 0.3, max_tokens: 8192 }
 ```
 
-#### TC-T3.10: assign_model_ids handles empty api_sources
+#### TC-T3.2：resolve_model 使用无效 model_id 回退到第一个模型
 
 ```
-Given: api_sources = [], config { model_id: "" }
-When:  assign_model_ids()
-Then:  model_id remains ""
+前提：AgentConfig { model_id: "nonexistent-model", api_source_id: "test-source" }
+  且：ApiSource 的模型 [haiku, sonnet, opus]
+当： resolve_model()
+则： 返回 ModelConfig { model: "claude-3-5-haiku-20241022" }（第一个模型）
 ```
 
-#### TC-T3.11: Serde round-trip — old JSON (no model_id) deserializes with defaults
+#### TC-T3.3：resolve_model 使用空 model_id 回退到第一个模型
 
 ```
-Given: JSON without "model_id" field
-When:  serde_json::from_str::<AgentConfig>(json)
-Then:  model_id == "", model_tier == Mid (preserved from JSON)
+前提：AgentConfig { model_id: "", api_source_id: "test-source" }
+当： resolve_model()
+则： 返回包含第一个模型 id 的 ModelConfig
 ```
 
-#### TC-T3.12: Serde round-trip — new JSON (with model_id) deserializes correctly
+#### TC-T3.4：resolve_model 使用缺失的 api_source_id 回退到第一个来源
 
 ```
-Given: JSON with both model_id and model_tier
-When:  Deserialized
-Then:  Both fields preserve their values
+前提：AgentConfig { api_source_id: "deleted-source", model_id: "claude-3-5-haiku-20241022" }
+  且：api_sources = [source_a, source_b]（均非 "deleted-source"）
+当： resolve_model()
+则： 回退到 source_a（第一个），从那里解析模型
 ```
 
-#### TC-T3.13: Serde round-trip — new JSON without model_tier uses default
+#### TC-T3.5：resolve_model 在没有 api_sources 时返回 None
 
 ```
-Given: JSON with model_id but no model_tier
-When:  Deserialized
-Then:  model_tier == Min (serde default), model_id preserved
+前提：api_sources = []
+当： resolve_model()
+则： 返回 None
 ```
 
-#### TC-T3.14: generate_default_agents_with_source produces empty model_id
+#### TC-T3.6：resolve_model 在来源模型为空时返回 None
 
 ```
-Given: generate_default_agents_with_source("test-source")
-Then:  All configs have model_id=="", correct tiers, correct source id
+前提：AgentConfig { api_source_id: "test-source" }, 来源的模型：[]
+当： resolve_model()
+则： 返回 None
 ```
 
-#### TC-T3.15: resolve_model preserves all AgentConfig parameters in ModelConfig
+#### TC-T3.7：assign_model_ids 将层级迁移到 model_id
 
 ```
-Given: AgentConfig { temperature: 0.7, max_tokens: 16384, reasoning_budget: Some(8192) }
-When:  resolve_model()
-Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
+前提：AgentConfig { model_id: "", model_tier: Mid }, ApiSource 的 Mid 模型 "claude-sonnet-4"
+当： assign_model_ids(&mut configs, &api_sources)
+则： config.model_id == "claude-sonnet-4"
 ```
 
-### Rust Test Code (to append to existing mod tests block after P3 implementation)
+#### TC-T3.8：assign_model_ids 在层级未找到时回退到第一个模型
+
+```
+前提：AgentConfig { model_id: "", model_tier: Max }, 来源仅有 Min/Lite/Mid/Pro（无 Max）
+当： assign_model_ids()
+则： config.model_id == 第一个模型的 id
+```
+
+#### TC-T3.9：assign_model_ids 跳过已有 model_id 的配置
+
+```
+前提：AgentConfig { model_id: "already-set" }
+当： assign_model_ids()
+则： model_id 保持 "already-set"
+```
+
+#### TC-T3.10：assign_model_ids 处理空的 api_sources
+
+```
+前提：api_sources = [], config { model_id: "" }
+当： assign_model_ids()
+则： model_id 保持 ""
+```
+
+#### TC-T3.11：Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化
+
+```
+前提：无 "model_id" 字段的 JSON
+当： serde_json::from_str::<AgentConfig>(json)
+则： model_id == "", model_tier == Mid（从 JSON 保留）
+```
+
+#### TC-T3.12：Serde 往返 —— 新 JSON（含 model_id）正确反序列化
+
+```
+前提：同时包含 model_id 和 model_tier 的 JSON
+当： 反序列化
+则： 两个字段保留其值
+```
+
+#### TC-T3.13：Serde 往返 —— 无 model_tier 的新 JSON 使用默认值
+
+```
+前提：包含 model_id 但无 model_tier 的 JSON
+当： 反序列化
+则： model_tier == Min（serde 默认值）, model_id 保留
+```
+
+#### TC-T3.14：generate_default_agents_with_source 产生空 model_id
+
+```
+前提：generate_default_agents_with_source("test-source")
+则： 所有配置的 model_id=="", 正确的层级, 正确的来源 id
+```
+
+#### TC-T3.15：resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig
+
+```
+前提：AgentConfig { temperature: 0.7, max_tokens: 16384, reasoning_budget: Some(8192) }
+当： resolve_model()
+则： ModelConfig 具有匹配的温度、最大令牌数、推理预算
+```
+
+### Rust 测试代码（在 P3 实现后追加到现有 mod tests 块）
 
 ```rust
-    // ─── Model-First Agent Config Tests (ApiSources-G3) ─────────────────────
+    // ─── 模型优先智能体配置测试 (ApiSources-G3) ─────────────────────
 
     fn make_test_source() -> ApiSource {
         ApiSource {
@@ -734,7 +758,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let source = make_test_source();
         let config = make_test_config("nonexistent-model", "test-source", ModelTier::Mid);
         let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个模型
     }
 
     #[test]
@@ -742,7 +766,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let source = make_test_source();
         let config = make_test_config("", "test-source", ModelTier::Mid);
         let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个模型
     }
 
     #[test]
@@ -750,7 +774,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let source = make_test_source();
         let config = make_test_config("claude-3-5-haiku-20241022", "deleted-source", ModelTier::Mid);
         let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model of first source
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个来源的第一个模型
     }
 
     #[test]
@@ -788,10 +812,10 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
     #[test]
     fn test_assign_model_ids_tier_not_found_falls_back() {
         let source = make_test_source();
-        // Source has Min, Lite, Mid, Pro but NOT Max
+        // 来源有 Min、Lite、Mid、Pro 但没有 Max
         let mut configs = vec![make_test_config("", "test-source", ModelTier::Max)];
         assign_model_ids(&mut configs, &[source]);
-        assert_eq!(configs[0].model_id, "claude-3-5-haiku-20241022"); // first model
+        assert_eq!(configs[0].model_id, "claude-3-5-haiku-20241022"); // 第一个模型
     }
 
     #[test]
@@ -830,7 +854,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
         let config: AgentConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.model_id, "claude-sonnet-4");
-        assert_eq!(config.model_tier, ModelTier::Min); // serde default
+        assert_eq!(config.model_tier, ModelTier::Min); // serde 默认值
     }
 
     #[test]
@@ -841,7 +865,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
             assert_eq!(config.model_id, "");
             assert_eq!(config.api_source_id, "test-source");
         }
-        // Verify specific tiers
+        // 验证特定层级
         assert_eq!(defaults.iter().find(|c| c.profession_id == "advisor").unwrap().model_tier, ModelTier::Mid);
         assert_eq!(defaults.iter().find(|c| c.profession_id == "architect").unwrap().model_tier, ModelTier::Pro);
         assert_eq!(defaults.iter().find(|c| c.profession_id == "assistant").unwrap().model_tier, ModelTier::Lite);
@@ -861,243 +885,247 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
     }
 ```
 
-### Coverage Matrix
+### 覆盖矩阵
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list selection | Frontend — not testable from Rust unit tests |
-| resolve_model() by model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 前端模型列表选择 | 前端 —— 无法从 Rust 单元测试测试 |
+| resolve_model() 按 model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
 
-## ApiSources-T3 Model-First Agent Configuration Tests
+## ApiSources-T3 模型优先智能体配置测试
 **Status:** draft
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-### Overview
+**状态：** 草稿
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-Tests for the model-first AgentConfig changes: `model_id` field, `resolve_model()` direct lookup, `assign_model_ids()` migration, serde backward compat. These tests MUST be added to the existing `#[cfg(test)] mod tests` block at the bottom of `backend/src/relay/config.rs` AFTER the implementation changes from P3.1–P3.5 are applied.
+### 概述
 
-### Test Cases
+模型优先 AgentConfig 变更的测试：`model_id` 字段、`resolve_model()` 直接查找、`assign_model_ids()` 迁移、serde 向后兼容。这些测试**必须**在 P3.1–P3.5 的实现变更应用后，添加到 `backend/src/relay/config.rs` 底部现有的 `#[cfg(test)] mod tests` 块中。
 
-#### TC-T3.1: resolve_model with valid model_id returns correct model
+### 测试用例
 
-```
-Given: AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
-  And: ApiSource with models containing id="claude-sonnet-4" tier=Mid
-When:  resolve_model(&config, &api_sources)
-Then:  Returns ModelConfig { model: "claude-sonnet-4", provider: Anthropic }
-```
-
-#### TC-T3.2: resolve_model with invalid model_id falls back to first model
+#### TC-T3.1：resolve_model 使用有效 model_id 返回正确模型
 
 ```
-Given: AgentConfig { model_id: "nonexistent-model" }
-When:  resolve_model()
-Then:  Returns ModelConfig with first model's id
+前提：AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
+  且：ApiSource 的模型包含 id="claude-sonnet-4" tier=Mid
+当： resolve_model(&config, &api_sources)
+则： 返回 ModelConfig { model: "claude-sonnet-4", provider: Anthropic }
 ```
 
-#### TC-T3.3: resolve_model with empty model_id falls back to first model
+#### TC-T3.2：resolve_model 使用无效 model_id 回退到第一个模型
 
 ```
-Given: AgentConfig { model_id: "" }
-When:  resolve_model()
-Then:  Returns ModelConfig with first model's id
+前提：AgentConfig { model_id: "nonexistent-model" }
+当： resolve_model()
+则： 返回包含第一个模型 id 的 ModelConfig
 ```
 
-#### TC-T3.4: resolve_model with missing api_source_id falls back to first source
+#### TC-T3.3：resolve_model 使用空 model_id 回退到第一个模型
 
 ```
-Given: AgentConfig { api_source_id: "deleted-source" }
-When:  resolve_model() with multiple sources
-Then:  Falls back to first source, resolves model from there
+前提：AgentConfig { model_id: "" }
+当： resolve_model()
+则： 返回包含第一个模型 id 的 ModelConfig
 ```
 
-#### TC-T3.5: resolve_model returns None when no api_sources
-
-#### TC-T3.6: resolve_model returns None when source has empty models
-
-#### TC-T3.7: assign_model_ids migrates tier to model_id
+#### TC-T3.4：resolve_model 使用缺失的 api_source_id 回退到第一个来源
 
 ```
-Given: AgentConfig { model_id: "", model_tier: Mid }, ApiSource with Mid model
-When:  assign_model_ids()
-Then:  config.model_id == "claude-sonnet-4"
+前提：AgentConfig { api_source_id: "deleted-source" }
+当： resolve_model() 使用多个来源
+则： 回退到第一个来源，从那里解析模型
 ```
 
-#### TC-T3.8: assign_model_ids falls back to first model when tier not found
+#### TC-T3.5：resolve_model 在没有 api_sources 时返回 None
 
-#### TC-T3.9: assign_model_ids skips configs that already have model_id
+#### TC-T3.6：resolve_model 在来源模型为空时返回 None
 
-#### TC-T3.10: assign_model_ids handles empty api_sources
-
-#### TC-T3.11: Serde round-trip — old JSON (no model_id) deserializes with defaults
+#### TC-T3.7：assign_model_ids 将层级迁移到 model_id
 
 ```
-Given: JSON without "model_id" field
-Then:  model_id == "", model_tier == Mid (preserved from JSON)
+前提：AgentConfig { model_id: "", model_tier: Mid }, ApiSource 的 Mid 模型
+当： assign_model_ids()
+则： config.model_id == "claude-sonnet-4"
 ```
 
-#### TC-T3.12: Serde round-trip — new JSON (with model_id) deserializes correctly
+#### TC-T3.8：assign_model_ids 在层级未找到时回退到第一个模型
 
-#### TC-T3.13: Serde round-trip — new JSON without model_tier uses default
+#### TC-T3.9：assign_model_ids 跳过已有 model_id 的配置
 
-#### TC-T3.14: generate_default_agents_with_source produces empty model_id
+#### TC-T3.10：assign_model_ids 处理空的 api_sources
 
-#### TC-T3.15: resolve_model preserves all AgentConfig parameters in ModelConfig
+#### TC-T3.11：Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化
 
-### Coverage Matrix
+```
+前提：无 "model_id" 字段的 JSON
+则： model_id == "", model_tier == Mid（从 JSON 保留）
+```
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 |
-| resolve_model() by model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+#### TC-T3.12：Serde 往返 —— 新 JSON（含 model_id）正确反序列化
 
-## ApiSources-T3 Model-First Agent Configuration Tests
+#### TC-T3.13：Serde 往返 —— 无 model_tier 的新 JSON 使用默认值
+
+#### TC-T3.14：generate_default_agents_with_source 产生空 model_id
+
+#### TC-T3.15：resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig
+
+### 覆盖矩阵
+
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8 |
+| resolve_model() 按 model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+
+## ApiSources-T3 模型优先智能体配置测试
 **Status:** draft
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-### Overview
+**状态：** 草稿
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-Tests for the model-first AgentConfig changes: `model_id` field, `resolve_model()` direct lookup, `assign_model_ids()` migration, serde backward compat. These tests MUST be added to the existing `#[cfg(test)] mod tests` block at the bottom of `backend/src/relay/config.rs` AFTER the implementation changes from P3.1–P3.5 are applied.
+### 概述
 
-### Test Cases
+模型优先 AgentConfig 变更的测试：`model_id` 字段、`resolve_model()` 直接查找、`assign_model_ids()` 迁移、serde 向后兼容。这些测试**必须**在 P3.1–P3.5 的实现变更应用后，添加到 `backend/src/relay/config.rs` 底部现有的 `#[cfg(test)] mod tests` 块中。
 
-#### TC-T3.1: resolve_model with valid model_id returns correct model
+### 测试用例
 
-```
-Given: AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
-  And: ApiSource with models containing id="claude-sonnet-4" tier=Mid
-When:  resolve_model(&config, &api_sources)
-Then:  Returns ModelConfig { model: "claude-sonnet-4", provider: Anthropic, temperature: config.temperature, max_tokens: config.max_tokens }
-```
-
-#### TC-T3.2: resolve_model with invalid model_id falls back to first model
+#### TC-T3.1：resolve_model 使用有效 model_id 返回正确模型
 
 ```
-Given: AgentConfig { model_id: "nonexistent-model", api_source_id: "test-source" }
-  And: ApiSource with models [haiku, sonnet, opus]
-When:  resolve_model()
-Then:  Returns ModelConfig { model: "claude-3-5-haiku-20241022" } (first model)
+前提：AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
+  且：ApiSource 的模型包含 id="claude-sonnet-4" tier=Mid
+当： resolve_model(&config, &api_sources)
+则： 返回 ModelConfig { model: "claude-sonnet-4", provider: Anthropic, temperature: config.temperature, max_tokens: config.max_tokens }
 ```
 
-#### TC-T3.3: resolve_model with empty model_id falls back to first model
+#### TC-T3.2：resolve_model 使用无效 model_id 回退到第一个模型
 
 ```
-Given: AgentConfig { model_id: "", api_source_id: "test-source" }
-When:  resolve_model()
-Then:  Returns ModelConfig with first model's id
+前提：AgentConfig { model_id: "nonexistent-model", api_source_id: "test-source" }
+  且：ApiSource 的模型 [haiku, sonnet, opus]
+当： resolve_model()
+则： 返回 ModelConfig { model: "claude-3-5-haiku-20241022" }（第一个模型）
 ```
 
-#### TC-T3.4: resolve_model with missing api_source_id falls back to first source
+#### TC-T3.3：resolve_model 使用空 model_id 回退到第一个模型
 
 ```
-Given: AgentConfig { api_source_id: "deleted-source", model_id: "claude-3-5-haiku-20241022" }
-  And: api_sources = [source_a, source_b] (neither is "deleted-source")
-When:  resolve_model()
-Then:  Falls back to source_a (first), resolves model from there
+前提：AgentConfig { model_id: "", api_source_id: "test-source" }
+当： resolve_model()
+则： 返回包含第一个模型 id 的 ModelConfig
 ```
 
-#### TC-T3.5: resolve_model returns None when no api_sources
+#### TC-T3.4：resolve_model 使用缺失的 api_source_id 回退到第一个来源
 
 ```
-Given: api_sources = []
-When:  resolve_model()
-Then:  Returns None
+前提：AgentConfig { api_source_id: "deleted-source", model_id: "claude-3-5-haiku-20241022" }
+  且：api_sources = [source_a, source_b]（均非 "deleted-source"）
+当： resolve_model()
+则： 回退到 source_a（第一个），从那里解析模型
 ```
 
-#### TC-T3.6: resolve_model returns None when source has empty models
+#### TC-T3.5：resolve_model 在没有 api_sources 时返回 None
 
 ```
-Given: AgentConfig { api_source_id: "test-source" }, source has models: []
-When:  resolve_model()
-Then:  Returns None
+前提：api_sources = []
+当： resolve_model()
+则： 返回 None
 ```
 
-#### TC-T3.7: assign_model_ids migrates tier to model_id
+#### TC-T3.6：resolve_model 在来源模型为空时返回 None
 
 ```
-Given: AgentConfig { model_id: "", model_tier: Mid }, ApiSource with Mid model "claude-sonnet-4"
-When:  assign_model_ids(&mut configs, &api_sources)
-Then:  config.model_id == "claude-sonnet-4"
+前提：AgentConfig { api_source_id: "test-source" }, 来源的模型：[]
+当： resolve_model()
+则： 返回 None
 ```
 
-#### TC-T3.8: assign_model_ids falls back to first model when tier not found
+#### TC-T3.7：assign_model_ids 将层级迁移到 model_id
 
 ```
-Given: AgentConfig { model_id: "", model_tier: Pro }, source only has Min and Lite models
-When:  assign_model_ids()
-Then:  config.model_id == first model's id
+前提：AgentConfig { model_id: "", model_tier: Mid }, ApiSource 的 Mid 模型 "claude-sonnet-4"
+当： assign_model_ids(&mut configs, &api_sources)
+则： config.model_id == "claude-sonnet-4"
 ```
 
-#### TC-T3.9: assign_model_ids skips configs that already have model_id
+#### TC-T3.8：assign_model_ids 在层级未找到时回退到第一个模型
 
 ```
-Given: AgentConfig { model_id: "already-set" }
-When:  assign_model_ids()
-Then:  model_id remains "already-set"
+前提：AgentConfig { model_id: "", model_tier: Pro }, 来源仅有 Min 和 Lite 模型
+当： assign_model_ids()
+则： config.model_id == 第一个模型的 id
 ```
 
-#### TC-T3.10: assign_model_ids handles empty api_sources
+#### TC-T3.9：assign_model_ids 跳过已有 model_id 的配置
 
 ```
-Given: api_sources = [], config { model_id: "" }
-When:  assign_model_ids()
-Then:  model_id remains ""
+前提：AgentConfig { model_id: "already-set" }
+当： assign_model_ids()
+则： model_id 保持 "already-set"
 ```
 
-#### TC-T3.11: Serde round-trip — old JSON (no model_id) deserializes with defaults
+#### TC-T3.10：assign_model_ids 处理空的 api_sources
 
 ```
-Given: JSON: {"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_tier":"mid",...}
-When:  serde_json::from_str::(json)
-Then:  model_id == "", model_tier == Mid
+前提：api_sources = [], config { model_id: "" }
+当： assign_model_ids()
+则： model_id 保持 ""
 ```
 
-#### TC-T3.12: Serde round-trip — new JSON (with model_id) deserializes correctly
+#### TC-T3.11：Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化
 
 ```
-Given: JSON with both model_id and model_tier
-When:  Deserialized
-Then:  Both fields preserve their values
+前提：JSON: {"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_tier":"mid"}
+当： serde_json::from_str::<AgentConfig>(json)
+则： model_id == "", model_tier == Mid
 ```
 
-#### TC-T3.13: Serde round-trip — new JSON without model_tier uses default
+#### TC-T3.12：Serde 往返 —— 新 JSON（含 model_id）正确反序列化
 
 ```
-Given: JSON with model_id but no model_tier
-When:  Deserialized
-Then:  model_tier == Min (serde default), model_id preserved
+前提：同时包含 model_id 和 model_tier 的 JSON
+当： 反序列化
+则： 两个字段保留其值
 ```
 
-#### TC-T3.14: generate_default_agents_with_source produces empty model_id
+#### TC-T3.13：Serde 往返 —— 无 model_tier 的新 JSON 使用默认值
 
 ```
-Given: generate_default_agents_with_source("test-source")
-Then:  All configs have model_id=="", correct tiers, correct source id
+前提：包含 model_id 但无 model_tier 的 JSON
+当： 反序列化
+则： model_tier == Min（serde 默认值）, model_id 保留
 ```
 
-#### TC-T3.15: resolve_model preserves all AgentConfig parameters in ModelConfig
+#### TC-T3.14：generate_default_agents_with_source 产生空 model_id
 
 ```
-Given: AgentConfig { temperature: 0.7, max_tokens: 16384, reasoning_budget: Some(8192) }
-When:  resolve_model()
-Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
+前提：generate_default_agents_with_source("test-source")
+则： 所有配置的 model_id=="", 正确的层级, 正确的来源 id
 ```
 
-### Rust Test Code (to append to existing mod tests block after P3 implementation)
+#### TC-T3.15：resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig
+
+```
+前提：AgentConfig { temperature: 0.7, max_tokens: 16384, reasoning_budget: Some(8192) }
+当： resolve_model()
+则： ModelConfig 具有匹配的温度、最大令牌数、推理预算
+```
+
+### Rust 测试代码（追加到现有 mod tests）
 
 ```rust
-    // ─── Model-First Agent Config Tests (ApiSources-G3) ─────────────────────
+    // ─── 模型优先智能体配置测试 (ApiSources-G3) ─────────────────────
 
     fn make_test_source() -> ApiSource {
         ApiSource {
@@ -1152,7 +1180,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let source = make_test_source();
         let config = make_test_config("nonexistent-model", "test-source", ModelTier::Mid);
         let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个模型
     }
 
     #[test]
@@ -1160,7 +1188,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let source = make_test_source();
         let config = make_test_config("", "test-source", ModelTier::Mid);
         let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个模型
     }
 
     #[test]
@@ -1168,337 +1196,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let source = make_test_source();
         let config = make_test_config("claude-3-5-haiku-20241022", "deleted-source", ModelTier::Mid);
         let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model of first source
-    }
-
-    #[test]
-    fn test_resolve_model_no_api_sources_returns_none() {
-        let config = make_test_config("any-model", "any-source", ModelTier::Mid);
-        let result = resolve_model(&config, &[]);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_resolve_model_empty_models_returns_none() {
-        let empty_source = ApiSource {
-            id: "empty-source".into(),
-            name: "Empty".into(),
-            provider: Provider::Anthropic,
-            api_key_env: "KEY".into(),
-            api_key_stored: None,
-            base_url: None,
-            is_available: true,
-            models: vec![],
-        };
-        let config = make_test_config("any-model", "empty-source", ModelTier::Mid);
-        let result = resolve_model(&config, &[empty_source]);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_assign_model_ids_migrates_tier_to_model_id() {
-        let source = make_test_source();
-        let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
-        assign_model_ids(&mut configs, &[source]);
-        assert_eq!(configs[0].model_id, "claude-sonnet-4");
-    }
-
-    #[test]
-    fn test_assign_model_ids_tier_not_found_falls_back() {
-        let source = make_test_source();
-        // Source has Min, Lite, Mid, Pro but NOT Max
-        let mut configs = vec![make_test_config("", "test-source", ModelTier::Max)];
-        assign_model_ids(&mut configs, &[source]);
-        assert_eq!(configs[0].model_id, "claude-3-5-haiku-20241022"); // first model
-    }
-
-    #[test]
-    fn test_assign_model_ids_skips_already_set() {
-        let source = make_test_source();
-        let mut configs = vec![make_test_config("already-set", "test-source", ModelTier::Mid)];
-        assign_model_ids(&mut configs, &[source]);
-        assert_eq!(configs[0].model_id, "already-set");
-    }
-
-    #[test]
-    fn test_assign_model_ids_empty_sources() {
-        let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
-        assign_model_ids(&mut configs, &[]);
-        assert_eq!(configs[0].model_id, "");
-    }
-
-    #[test]
-    fn test_serde_old_json_no_model_id() {
-        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_tier":"mid","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
-        let config: AgentConfig = serde_json::from_str(json).unwrap();
-        assert_eq!(config.model_id, "");
-        assert_eq!(config.model_tier, ModelTier::Mid);
-    }
-
-    #[test]
-    fn test_serde_new_json_with_model_id() {
-        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","model_tier":"mid","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
-        let config: AgentConfig = serde_json::from_str(json).unwrap();
-        assert_eq!(config.model_id, "claude-sonnet-4");
-        assert_eq!(config.model_tier, ModelTier::Mid);
-    }
-
-    #[test]
-    fn test_serde_new_json_without_model_tier() {
-        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
-        let config: AgentConfig = serde_json::from_str(json).unwrap();
-        assert_eq!(config.model_id, "claude-sonnet-4");
-        assert_eq!(config.model_tier, ModelTier::Min); // serde default
-    }
-
-    #[test]
-    fn test_generate_defaults_empty_model_id() {
-        let defaults = generate_default_agents_with_source("test-source");
-        assert_eq!(defaults.len(), 9);
-        for config in &defaults {
-            assert_eq!(config.model_id, "");
-            assert_eq!(config.api_source_id, "test-source");
-        }
-        // Verify specific tiers
-        assert_eq!(defaults.iter().find(|c| c.profession_id == "advisor").unwrap().model_tier, ModelTier::Mid);
-        assert_eq!(defaults.iter().find(|c| c.profession_id == "architect").unwrap().model_tier, ModelTier::Pro);
-        assert_eq!(defaults.iter().find(|c| c.profession_id == "assistant").unwrap().model_tier, ModelTier::Lite);
-    }
-
-    #[test]
-    fn test_resolve_model_preserves_parameters() {
-        let source = make_test_source();
-        let mut config = make_test_config("claude-sonnet-4", "test-source", ModelTier::Mid);
-        config.temperature = 0.7;
-        config.max_tokens = 16384;
-        config.reasoning_budget = Some(8192);
-        let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.temperature, 0.7);
-        assert_eq!(result.max_tokens, 16384);
-        assert_eq!(result.reasoning_budget, Some(8192));
-    }
-```
-
-### Coverage Matrix
-
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list selection | Frontend — not testable from Rust unit tests |
-| resolve_model() by model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
-
-## ApiSources-T3 Model-First Agent Configuration Tests
-**Status:** draft
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)] mod tests`)
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
-
-### Overview
-
-Tests for the model-first AgentConfig changes: `model_id` field, `resolve_model()` direct lookup, `assign_model_ids()` migration, serde backward compat. These tests MUST be added to the existing `#[cfg(test)] mod tests` block at the bottom of `backend/src/relay/config.rs` AFTER the implementation changes from P3.1–P3.5 are applied.
-
-### Test Cases
-
-#### TC-T3.1: resolve_model with valid model_id returns correct model
-
-```
-Given: AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
-  And: ApiSource with models containing id="claude-sonnet-4" tier=Mid
-When:  resolve_model(&config, &api_sources)
-Then:  Returns ModelConfig { model: "claude-sonnet-4", provider: Anthropic, temperature: config.temperature, max_tokens: config.max_tokens }
-```
-
-#### TC-T3.2: resolve_model with invalid model_id falls back to first model
-
-```
-Given: AgentConfig { model_id: "nonexistent-model", api_source_id: "test-source" }
-  And: ApiSource with models [haiku, sonnet, opus]
-When:  resolve_model()
-Then:  Returns ModelConfig { model: "claude-3-5-haiku-20241022" } (first model)
-```
-
-#### TC-T3.3: resolve_model with empty model_id falls back to first model
-
-```
-Given: AgentConfig { model_id: "", api_source_id: "test-source" }
-When:  resolve_model()
-Then:  Returns ModelConfig with first model's id
-```
-
-#### TC-T3.4: resolve_model with missing api_source_id falls back to first source
-
-```
-Given: AgentConfig { api_source_id: "deleted-source", model_id: "claude-3-5-haiku-20241022" }
-  And: api_sources = [source_a, source_b] (neither is "deleted-source")
-When:  resolve_model()
-Then:  Falls back to source_a (first), resolves model from there
-```
-
-#### TC-T3.5: resolve_model returns None when no api_sources
-
-```
-Given: api_sources = []
-When:  resolve_model()
-Then:  Returns None
-```
-
-#### TC-T3.6: resolve_model returns None when source has empty models
-
-```
-Given: AgentConfig { api_source_id: "test-source" }, source has models: []
-When:  resolve_model()
-Then:  Returns None
-```
-
-#### TC-T3.7: assign_model_ids migrates tier to model_id
-
-```
-Given: AgentConfig { model_id: "", model_tier: Mid }, ApiSource with Mid model "claude-sonnet-4"
-When:  assign_model_ids(&mut configs, &api_sources)
-Then:  config.model_id == "claude-sonnet-4"
-```
-
-#### TC-T3.8: assign_model_ids falls back to first model when tier not found
-
-```
-Given: AgentConfig { model_id: "", model_tier: Pro }, source only has Min and Lite models
-When:  assign_model_ids()
-Then:  config.model_id == first model's id
-```
-
-#### TC-T3.9: assign_model_ids skips configs that already have model_id
-
-```
-Given: AgentConfig { model_id: "already-set" }
-When:  assign_model_ids()
-Then:  model_id remains "already-set"
-```
-
-#### TC-T3.10: assign_model_ids handles empty api_sources
-
-```
-Given: api_sources = [], config { model_id: "" }
-When:  assign_model_ids()
-Then:  model_id remains ""
-```
-
-#### TC-T3.11: Serde round-trip — old JSON (no model_id) deserializes with defaults
-
-```
-Given: JSON: {"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_tier":"mid"}
-When:  serde_json::from_str::<AgentConfig>(json)
-Then:  model_id == "", model_tier == Mid
-```
-
-#### TC-T3.12: Serde round-trip — new JSON (with model_id) deserializes correctly
-
-```
-Given: JSON with both model_id and model_tier
-When:  Deserialized
-Then:  Both fields preserve their values
-```
-
-#### TC-T3.13: Serde round-trip — new JSON without model_tier uses default
-
-```
-Given: JSON with model_id but no model_tier
-When:  Deserialized
-Then:  model_tier == Min (serde default), model_id preserved
-```
-
-#### TC-T3.14: generate_default_agents_with_source produces empty model_id
-
-```
-Given: generate_default_agents_with_source("test-source")
-Then:  All configs have model_id=="", correct tiers, correct source id
-```
-
-#### TC-T3.15: resolve_model preserves all AgentConfig parameters in ModelConfig
-
-```
-Given: AgentConfig { temperature: 0.7, max_tokens: 16384, reasoning_budget: Some(8192) }
-When:  resolve_model()
-Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
-```
-
-### Rust Test Code (to append to existing mod tests)
-
-```rust
-    // ─── Model-First Agent Config Tests (ApiSources-G3) ─────────────────────
-
-    fn make_test_source() -> ApiSource {
-        ApiSource {
-            id: "test-source".into(),
-            name: "Test Source".into(),
-            provider: Provider::Anthropic,
-            api_key_env: "TEST_KEY".into(),
-            api_key_stored: None,
-            base_url: None,
-            is_available: true,
-            models: vec![
-                ModelDefinition { id: "claude-3-5-haiku-20241022".into(), name: "Claude Haiku 3.5".into(), tier: ModelTier::Min },
-                ModelDefinition { id: "claude-3-5-sonnet-20241022".into(), name: "Claude Sonnet 3.5".into(), tier: ModelTier::Lite },
-                ModelDefinition { id: "claude-sonnet-4".into(), name: "Claude Sonnet 4".into(), tier: ModelTier::Mid },
-                ModelDefinition { id: "claude-opus-4".into(), name: "Claude Opus 4".into(), tier: ModelTier::Pro },
-            ],
-        }
-    }
-
-    fn make_test_config(model_id: &str, api_source_id: &str, tier: ModelTier) -> AgentConfig {
-        AgentConfig {
-            id: "test-agent".into(),
-            name: "Test Agent".into(),
-            profession_id: "assistant".into(),
-            soul_id: "assistant".into(),
-            api_source_id: api_source_id.into(),
-            model_id: model_id.into(),
-            model_tier: tier,
-            is_default: false,
-            temperature: 0.3,
-            max_tokens: 8192,
-            reasoning_budget: None,
-            thinking_enabled: false,
-            thinking_budget: None,
-            avatar_url: None,
-            equipped_skills: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn test_resolve_model_valid_model_id() {
-        let source = make_test_source();
-        let config = make_test_config("claude-sonnet-4", "test-source", ModelTier::Mid);
-        let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-sonnet-4");
-        assert_eq!(result.temperature, 0.3);
-        assert_eq!(result.max_tokens, 8192);
-    }
-
-    #[test]
-    fn test_resolve_model_invalid_model_id_falls_back() {
-        let source = make_test_source();
-        let config = make_test_config("nonexistent-model", "test-source", ModelTier::Mid);
-        let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
-    }
-
-    #[test]
-    fn test_resolve_model_empty_model_id_falls_back() {
-        let source = make_test_source();
-        let config = make_test_config("", "test-source", ModelTier::Mid);
-        let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model
-    }
-
-    #[test]
-    fn test_resolve_model_missing_api_source_falls_back() {
-        let source = make_test_source();
-        let config = make_test_config("claude-3-5-haiku-20241022", "deleted-source", ModelTier::Mid);
-        let result = resolve_model(&config, &[source]).unwrap();
-        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // first model of first source
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个来源的第一个模型
     }
 
     #[test]
@@ -1530,8 +1228,8 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let source = make_test_source();
         let mut config = make_test_config("", "test-source", ModelTier::Mid);
         assign_model_ids(&mut [config.clone()], &[source.clone()]);
-        // After migration, model_id should be the Mid-tier model
-        assert_eq!(config.model_id, ""); // NOTE: assign_model_ids takes &mut [], so we need to pass directly
+        // 迁移后，model_id 应为 Mid 层级模型
+        assert_eq!(config.model_id, ""); // 注意：assign_model_ids 接受 &mut []，因此需要直接传递
         let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
         assign_model_ids(&mut configs, &[source]);
         assert_eq!(configs[0].model_id, "claude-sonnet-4");
@@ -1540,10 +1238,10 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
     #[test]
     fn test_assign_model_ids_tier_not_found_falls_back() {
         let source = make_test_source();
-        // Source has Min, Lite, Mid, Pro but NOT Max
+        // 来源有 Min、Lite、Mid、Pro 但没有 Max
         let mut configs = vec![make_test_config("", "test-source", ModelTier::Max)];
         assign_model_ids(&mut configs, &[source]);
-        assert_eq!(configs[0].model_id, "claude-3-5-haiku-20241022"); // first model
+        assert_eq!(configs[0].model_id, "claude-3-5-haiku-20241022"); // 第一个模型
     }
 
     #[test]
@@ -1558,7 +1256,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
     fn test_assign_model_ids_empty_sources() {
         let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
         assign_model_ids(&mut configs, &[]);
-        assert_eq!(configs[0].model_id, ""); // cannot migrate
+        assert_eq!(configs[0].model_id, ""); // 无法迁移
     }
 
     #[test]
@@ -1582,7 +1280,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
         let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
         let config: AgentConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.model_id, "claude-sonnet-4");
-        assert_eq!(config.model_tier, ModelTier::Min); // serde default
+        assert_eq!(config.model_tier, ModelTier::Min); // serde 默认值
     }
 
     #[test]
@@ -1593,7 +1291,7 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
             assert_eq!(config.model_id, "");
             assert_eq!(config.api_source_id, "test-source");
         }
-        // Verify specific tiers
+        // 验证特定层级
         assert_eq!(defaults.iter().find(|c| c.profession_id == "advisor").unwrap().model_tier, ModelTier::Mid);
         assert_eq!(defaults.iter().find(|c| c.profession_id == "architect").unwrap().model_tier, ModelTier::Pro);
         assert_eq!(defaults.iter().find(|c| c.profession_id == "assistant").unwrap().model_tier, ModelTier::Lite);
@@ -1613,152 +1311,490 @@ Then:  ModelConfig has matching temperature, max_tokens, reasoning_budget
     }
 ```
 
-### Coverage Matrix
+### 覆盖矩阵
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list selection | Frontend — not testable from Rust unit tests |
-| resolve_model() by model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 前端模型列表选择 | 前端 —— 无法从 Rust 单元测试测试 |
+| resolve_model() 按 model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
 
-## ApiSources-T3 Model-First Agent Configuration Tests
+## ApiSources-T3 模型优先智能体配置测试
 **Status:** draft
-**File:** `backend/src/relay/config.rs`
-**Module:** `backend/src/relay/config.rs`
-**Depends on:** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-### Test Cases
+**状态：** 草稿
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)] mod tests`）
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
 
-#### TC-T3.1: resolve_model with valid model_id returns correct model
+### 概述
 
-```
-Given: AgentConfig with model_id="claude-sonnet-4" and api_source_id referencing source with that model
-When:  resolve_model() is called
-Then:  Returns ModelConfig with model="claude-sonnet-4", correct provider, temperature, max_tokens
-```
+模型优先 AgentConfig 变更的测试：`model_id` 字段、`resolve_model()` 直接查找、`assign_model_ids()` 迁移、serde 向后兼容。这些测试**必须**在 P3.1–P3.5 的实现变更应用后，添加到 `backend/src/relay/config.rs` 底部现有的 `#[cfg(test)] mod tests` 块中。
 
-#### TC-T3.2: resolve_model with invalid model_id falls back to first model
+### 测试用例
+
+#### TC-T3.1：resolve_model 使用有效 model_id 返回正确模型
 
 ```
-Given: AgentConfig with model_id="nonexistent-model" and api_source_id referencing valid source
-When:  resolve_model() is called
-Then:  Returns ModelConfig with model=first model's id, does not panic or return None
+前提：AgentConfig { model_id: "claude-sonnet-4", api_source_id: "test-source" }
+  且：ApiSource 的模型包含 id="claude-sonnet-4" tier=Mid
+当： resolve_model(&config, &api_sources)
+则： 返回 ModelConfig { model: "claude-sonnet-4", provider: Anthropic, temperature: config.temperature, max_tokens: config.max_tokens }
 ```
 
-#### TC-T3.3: resolve_model with empty model_id falls back to first model
+#### TC-T3.2：resolve_model 使用无效 model_id 回退到第一个模型
 
 ```
-Given: AgentConfig with model_id="" (legacy config before migration)
-When:  resolve_model() is called
-Then:  Returns ModelConfig with model=first model's id (same fallback as invalid)
+前提：AgentConfig { model_id: "nonexistent-model", api_source_id: "test-source" }
+  且：ApiSource 的模型 [haiku, sonnet, opus]
+当： resolve_model()
+则： 返回 ModelConfig { model: "claude-3-5-haiku-20241022" }（第一个模型）
 ```
 
-#### TC-T3.4: resolve_model with missing api_source_id falls back to first source
+#### TC-T3.3：resolve_model 使用空 model_id 回退到第一个模型
 
 ```
-Given: AgentConfig with api_source_id="deleted-source" and model_id matching a model in first source
-When:  resolve_model() is called with multiple api_sources
-Then:  Returns ModelConfig resolved from the first api_source
+前提：AgentConfig { model_id: "", api_source_id: "test-source" }
+当： resolve_model()
+则： 返回包含第一个模型 id 的 ModelConfig
 ```
 
-#### TC-T3.5: resolve_model returns None when no api_sources provided
+#### TC-T3.4：resolve_model 使用缺失的 api_source_id 回退到第一个来源
 
 ```
-Given: AgentConfig with any model_id, api_sources = []
-When:  resolve_model() is called
-Then:  Returns None
+前提：AgentConfig { api_source_id: "deleted-source", model_id: "claude-3-5-haiku-20241022" }
+  且：api_sources = [source_a, source_b]（均非 "deleted-source"）
+当： resolve_model()
+则： 回退到 source_a（第一个），从那里解析模型
 ```
 
-#### TC-T3.6: resolve_model returns None when api_source has empty models
+#### TC-T3.5：resolve_model 在没有 api_sources 时返回 None
 
 ```
-Given: AgentConfig with valid api_source_id, but that source has models=[]
-When:  resolve_model() is called
-Then:  Returns None
+前提：api_sources = []
+当： resolve_model()
+则： 返回 None
 ```
 
-#### TC-T3.7: assign_model_ids migrates tier to model_id
+#### TC-T3.6：resolve_model 在来源模型为空时返回 None
 
 ```
-Given: AgentConfig with model_id="" and model_tier=Mid, ApiSource with Mid-tier model "claude-sonnet-4"
-When:  assign_model_ids() is called
-Then:  config.model_id becomes "claude-sonnet-4"
+前提：AgentConfig { api_source_id: "test-source" }, 来源的模型：[]
+当： resolve_model()
+则： 返回 None
 ```
 
-#### TC-T3.8: assign_model_ids falls back to first model when tier not found
+#### TC-T3.7：assign_model_ids 将层级迁移到 model_id
 
 ```
-Given: AgentConfig with model_id="" and model_tier=Pro, ApiSource with only Min and Lite models
-When:  assign_model_ids() is called
-Then:  config.model_id becomes first model's id
+前提：AgentConfig { model_id: "", model_tier: Mid }, ApiSource 的 Mid 模型 "claude-sonnet-4"
+当： assign_model_ids(&mut configs, &api_sources)
+则： config.model_id == "claude-sonnet-4"
 ```
 
-#### TC-T3.9: assign_model_ids skips configs that already have model_id
+#### TC-T3.8：assign_model_ids 在层级未找到时回退到第一个模型
 
 ```
-Given: AgentConfig with model_id="already-set"
-When:  assign_model_ids() is called
-Then:  config.model_id remains "already-set" (not overwritten)
+前提：AgentConfig { model_id: "", model_tier: Pro }, 来源仅有 Min 和 Lite 模型
+当： assign_model_ids()
+则： config.model_id == 第一个模型的 id
 ```
 
-#### TC-T3.10: assign_model_ids handles empty api_sources
+#### TC-T3.9：assign_model_ids 跳过已有 model_id 的配置
 
 ```
-Given: AgentConfig with model_id="" and model_tier=Mid, api_sources=[]
-When:  assign_model_ids() is called
-Then:  config.model_id remains "" (cannot migrate)
+前提：AgentConfig { model_id: "already-set" }
+当： assign_model_ids()
+则： model_id 保持 "already-set"
 ```
 
-#### TC-T3.11: Serde round-trip: old JSON (no model_id) deserializes with defaults
+#### TC-T3.10：assign_model_ids 处理空的 api_sources
 
 ```
-Given: JSON string of AgentConfig without "model_id" field
-When:  Deserialized
-Then:  model_id == "" (serde default), model_tier preserves original value
+前提：api_sources = [], config { model_id: "" }
+当： assign_model_ids()
+则： model_id 保持 ""
 ```
 
-#### TC-T3.12: Serde round-trip: new JSON (with model_id) deserializes correctly
+#### TC-T3.11：Serde 往返 —— 旧 JSON（无 model_id）使用默认值反序列化
 
 ```
-Given: JSON string of AgentConfig with both "model_id" and "model_tier"
-When:  Deserialized
-Then:  model_id matches JSON value, model_tier matches JSON value
+前提：JSON: {"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_tier":"mid"}
+当： serde_json::from_str::<AgentConfig>(json)
+则： model_id == "", model_tier == Mid
 ```
 
-#### TC-T3.13: Serde round-trip: new JSON without model_tier deserializes with default
+#### TC-T3.12：Serde 往返 —— 新 JSON（含 model_id）正确反序列化
 
 ```
-Given: JSON string of AgentConfig with "model_id" but no "model_tier"
-When:  Deserialized
-Then:  model_tier defaults to Min (first variant), model_id preserves value
+前提：同时包含 model_id 和 model_tier 的 JSON
+当： 反序列化
+则： 两个字段保留其值
 ```
 
-#### TC-T3.14: generate_default_agents_with_source produces empty model_id
+#### TC-T3.13：Serde 往返 —— 无 model_tier 的新 JSON 使用默认值
 
 ```
-Given: generate_default_agents_with_source("test-source")
-When:  result examined
-Then:  all configs have model_id=="", model_tier set per profession, api_source_id=="test-source"
+前提：包含 model_id 但无 model_tier 的 JSON
+当： 反序列化
+则： model_tier == Min（serde 默认值）, model_id 保留
 ```
 
-#### TC-T3.15: resolve_model preserves all AgentConfig parameters
+#### TC-T3.14：generate_default_agents_with_source 产生空 model_id
 
 ```
-Given: AgentConfig with temperature=0.7, max_tokens=16384, reasoning_budget=Some(8192)
-When:  resolve_model() is called
-Then:  Returned ModelConfig has matching temperature, max_tokens, reasoning_budget
+前提：generate_default_agents_with_source("test-source")
+则： 所有配置的 model_id=="", 正确的层级, 正确的来源 id
 ```
 
-### Coverage Matrix
+#### TC-T3.15：resolve_model 保留 AgentConfig 中的所有参数到 ModelConfig
 
-| G3 Goal | Tests |
-|---------|-------|
-| AgentConfig stores model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
-| Model tier becomes display tag only | TC-T3.7, TC-T3.8 (tier used only for migration lookup) |
-| Frontend model list selection | (Frontend — not testable from Rust unit tests) |
-| resolve_model() by model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
-| Default configs reference model_id | TC-T3.14 |
-| Migrations convert tier→model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+```
+前提：AgentConfig { temperature: 0.7, max_tokens: 16384, reasoning_budget: Some(8192) }
+当： resolve_model()
+则： ModelConfig 具有匹配的温度、最大令牌数、推理预算
+```
+
+### Rust 测试代码（追加到现有 mod tests）
+
+```rust
+    // ─── 模型优先智能体配置测试 (ApiSources-G3) ─────────────────────
+
+    fn make_test_source() -> ApiSource {
+        ApiSource {
+            id: "test-source".into(),
+            name: "Test Source".into(),
+            provider: Provider::Anthropic,
+            api_key_env: "TEST_KEY".into(),
+            api_key_stored: None,
+            base_url: None,
+            is_available: true,
+            models: vec![
+                ModelDefinition { id: "claude-3-5-haiku-20241022".into(), name: "Claude Haiku 3.5".into(), tier: ModelTier::Min },
+                ModelDefinition { id: "claude-3-5-sonnet-20241022".into(), name: "Claude Sonnet 3.5".into(), tier: ModelTier::Lite },
+                ModelDefinition { id: "claude-sonnet-4".into(), name: "Claude Sonnet 4".into(), tier: ModelTier::Mid },
+                ModelDefinition { id: "claude-opus-4".into(), name: "Claude Opus 4".into(), tier: ModelTier::Pro },
+            ],
+        }
+    }
+
+    fn make_test_config(model_id: &str, api_source_id: &str, tier: ModelTier) -> AgentConfig {
+        AgentConfig {
+            id: "test-agent".into(),
+            name: "Test Agent".into(),
+            profession_id: "assistant".into(),
+            soul_id: "assistant".into(),
+            api_source_id: api_source_id.into(),
+            model_id: model_id.into(),
+            model_tier: tier,
+            is_default: false,
+            temperature: 0.3,
+            max_tokens: 8192,
+            reasoning_budget: None,
+            thinking_enabled: false,
+            thinking_budget: None,
+            avatar_url: None,
+            equipped_skills: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn test_resolve_model_valid_model_id() {
+        let source = make_test_source();
+        let config = make_test_config("claude-sonnet-4", "test-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-sonnet-4");
+        assert_eq!(result.temperature, 0.3);
+        assert_eq!(result.max_tokens, 8192);
+    }
+
+    #[test]
+    fn test_resolve_model_invalid_model_id_falls_back() {
+        let source = make_test_source();
+        let config = make_test_config("nonexistent-model", "test-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个模型
+    }
+
+    #[test]
+    fn test_resolve_model_empty_model_id_falls_back() {
+        let source = make_test_source();
+        let config = make_test_config("", "test-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个模型
+    }
+
+    #[test]
+    fn test_resolve_model_missing_api_source_falls_back() {
+        let source = make_test_source();
+        let config = make_test_config("claude-3-5-haiku-20241022", "deleted-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.model, "claude-3-5-haiku-20241022"); // 第一个来源的第一个模型
+    }
+
+    #[test]
+    fn test_resolve_model_no_api_sources_returns_none() {
+        let config = make_test_config("any-model", "any-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_model_empty_models_returns_none() {
+        let empty_source = ApiSource {
+            id: "empty-source".into(),
+            name: "Empty".into(),
+            provider: Provider::Anthropic,
+            api_key_env: "KEY".into(),
+            api_key_stored: None,
+            base_url: None,
+            is_available: true,
+            models: vec![],
+        };
+        let config = make_test_config("any-model", "empty-source", ModelTier::Mid);
+        let result = resolve_model(&config, &[empty_source]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_assign_model_ids_migrates_tier_to_model_id() {
+        let source = make_test_source();
+        let mut config = make_test_config("", "test-source", ModelTier::Mid);
+        assign_model_ids(&mut [config.clone()], &[source.clone()]);
+        // 迁移后，model_id 应为 Mid 层级模型
+        assert_eq!(config.model_id, ""); // 注意：assign_model_ids 接受 &mut []，因此需要直接传递
+        let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
+        assign_model_ids(&mut configs, &[source]);
+        assert_eq!(configs[0].model_id, "claude-sonnet-4");
+    }
+
+    #[test]
+    fn test_assign_model_ids_tier_not_found_falls_back() {
+        let source = make_test_source();
+        // 来源有 Min、Lite、Mid、Pro 但没有 Max
+        let mut configs = vec![make_test_config("", "test-source", ModelTier::Max)];
+        assign_model_ids(&mut configs, &[source]);
+        assert_eq!(configs[0].model_id, "claude-3-5-haiku-20241022"); // 第一个模型
+    }
+
+    #[test]
+    fn test_assign_model_ids_skips_already_set() {
+        let source = make_test_source();
+        let mut configs = vec![make_test_config("already-set", "test-source", ModelTier::Mid)];
+        assign_model_ids(&mut configs, &[source]);
+        assert_eq!(configs[0].model_id, "already-set");
+    }
+
+    #[test]
+    fn test_assign_model_ids_empty_sources() {
+        let mut configs = vec![make_test_config("", "test-source", ModelTier::Mid)];
+        assign_model_ids(&mut configs, &[]);
+        assert_eq!(configs[0].model_id, ""); // 无法迁移
+    }
+
+    #[test]
+    fn test_serde_old_json_no_model_id() {
+        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_tier":"mid","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
+        let config: AgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.model_id, "");
+        assert_eq!(config.model_tier, ModelTier::Mid);
+    }
+
+    #[test]
+    fn test_serde_new_json_with_model_id() {
+        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","model_tier":"mid","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
+        let config: AgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.model_id, "claude-sonnet-4");
+        assert_eq!(config.model_tier, ModelTier::Mid);
+    }
+
+    #[test]
+    fn test_serde_new_json_without_model_tier() {
+        let json = r#"{"id":"test","name":"T","profession_id":"assistant","soul_id":"assistant","api_source_id":"src","model_id":"claude-sonnet-4","is_default":false,"temperature":0.3,"max_tokens":8192,"reasoning_budget":null,"thinking_enabled":false,"thinking_budget":null}"#;
+        let config: AgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.model_id, "claude-sonnet-4");
+        assert_eq!(config.model_tier, ModelTier::Min); // serde 默认值
+    }
+
+    #[test]
+    fn test_generate_defaults_empty_model_id() {
+        let defaults = generate_default_agents_with_source("test-source");
+        assert_eq!(defaults.len(), 9);
+        for config in &defaults {
+            assert_eq!(config.model_id, "");
+            assert_eq!(config.api_source_id, "test-source");
+        }
+        // 验证特定层级
+        assert_eq!(defaults.iter().find(|c| c.profession_id == "advisor").unwrap().model_tier, ModelTier::Mid);
+        assert_eq!(defaults.iter().find(|c| c.profession_id == "architect").unwrap().model_tier, ModelTier::Pro);
+        assert_eq!(defaults.iter().find(|c| c.profession_id == "assistant").unwrap().model_tier, ModelTier::Lite);
+    }
+
+    #[test]
+    fn test_resolve_model_preserves_parameters() {
+        let source = make_test_source();
+        let mut config = make_test_config("claude-sonnet-4", "test-source", ModelTier::Mid);
+        config.temperature = 0.7;
+        config.max_tokens = 16384;
+        config.reasoning_budget = Some(8192);
+        let result = resolve_model(&config, &[source]).unwrap();
+        assert_eq!(result.temperature, 0.7);
+        assert_eq!(result.max_tokens, 16384);
+        assert_eq!(result.reasoning_budget, Some(8192));
+    }
+```
+
+### 覆盖矩阵
+
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 前端模型列表选择 | 前端 —— 无法从 Rust 单元测试测试 |
+| resolve_model() 按 model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |
+
+## ApiSources-T3 模型优先智能体配置测试
+**Status:** draft
+
+**状态：** 草稿
+**文件：** `backend/src/relay/config.rs`
+**模块：** `backend/src/relay/config.rs`
+**依赖：** ApiSources-G3, ApiSources-D1, ApiSources-P3
+
+### 测试用例
+
+#### TC-T3.1：resolve_model 使用有效 model_id 返回正确模型
+
+```
+前提：AgentConfig 的 model_id="claude-sonnet-4" 且 api_source_id 引用包含该模型的来源
+当： resolve_model() 被调用
+则： 返回 ModelConfig，model="claude-sonnet-4"、正确的提供商、温度、最大令牌数
+```
+
+#### TC-T3.2：resolve_model 使用无效 model_id 回退到第一个模型
+
+```
+前提：AgentConfig 的 model_id="nonexistent-model" 且 api_source_id 引用有效来源
+当： resolve_model() 被调用
+则： 返回 ModelConfig，model=第一个模型的 id，不 panic 或返回 None
+```
+
+#### TC-T3.3：resolve_model 使用空 model_id 回退到第一个模型
+
+```
+前提：AgentConfig 的 model_id=""（迁移前的旧版配置）
+当： resolve_model() 被调用
+则： 返回 ModelConfig，model=第一个模型的 id（与无效情况相同的回退）
+```
+
+#### TC-T3.4：resolve_model 使用缺失的 api_source_id 回退到第一个来源
+
+```
+前提：AgentConfig 的 api_source_id="deleted-source" 且 model_id 匹配第一个来源中的模型
+当： resolve_model() 被调用且包含多个 api_sources
+则： 从第一个 api_source 返回解析的 ModelConfig
+```
+
+#### TC-T3.5：resolve_model 在没有 api_sources 时返回 None
+
+```
+前提：AgentConfig 包含任意 model_id，api_sources = []
+当： resolve_model() 被调用
+则： 返回 None
+```
+
+#### TC-T3.6：resolve_model 在 api_source 模型为空时返回 None
+
+```
+前提：AgentConfig 包含有效的 api_source_id，但该来源的 models=[]
+当： resolve_model() 被调用
+则： 返回 None
+```
+
+#### TC-T3.7：assign_model_ids 将层级迁移到 model_id
+
+```
+前提：AgentConfig 的 model_id="" 且 model_tier=Mid，ApiSource 的 Mid 层级模型 "claude-sonnet-4"
+当： assign_model_ids() 被调用
+则： config.model_id 变为 "claude-sonnet-4"
+```
+
+#### TC-T3.8：assign_model_ids 在层级未找到时回退到第一个模型
+
+```
+前提：AgentConfig 的 model_id="" 且 model_tier=Pro，ApiSource 仅有 Min 和 Lite 模型
+当： assign_model_ids() 被调用
+则： config.model_id 变为第一个模型的 id
+```
+
+#### TC-T3.9：assign_model_ids 跳过已有 model_id 的配置
+
+```
+前提：AgentConfig 的 model_id="already-set"
+当： assign_model_ids() 被调用
+则： config.model_id 保持 "already-set"（未被覆盖）
+```
+
+#### TC-T3.10：assign_model_ids 处理空的 api_sources
+
+```
+前提：AgentConfig 的 model_id="" 且 model_tier=Mid，api_sources=[]
+当： assign_model_ids() 被调用
+则： config.model_id 保持 ""（无法迁移）
+```
+
+#### TC-T3.11：Serde 往返：旧 JSON（无 model_id）使用默认值反序列化
+
+```
+前提：无 "model_id" 字段的 AgentConfig JSON 字符串
+当： 反序列化
+则： model_id == ""（serde 默认值），model_tier 保留原始值
+```
+
+#### TC-T3.12：Serde 往返：新 JSON（含 model_id）正确反序列化
+
+```
+前提：同时包含 "model_id" 和 "model_tier" 的 AgentConfig JSON 字符串
+当： 反序列化
+则： model_id 匹配 JSON 值，model_tier 匹配 JSON 值
+```
+
+#### TC-T3.13：Serde 往返：无 model_tier 的新 JSON 使用默认值反序列化
+
+```
+前提：包含 "model_id" 但无 "model_tier" 的 AgentConfig JSON 字符串
+当： 反序列化
+则： model_tier 默认为 Min（第一个变体），model_id 保留值
+```
+
+#### TC-T3.14：generate_default_agents_with_source 产生空 model_id
+
+```
+前提：generate_default_agents_with_source("test-source")
+当： 检查结果
+则： 所有配置的 model_id==""、按职业设置的 model_tier、api_source_id=="test-source"
+```
+
+#### TC-T3.15：resolve_model 保留所有 AgentConfig 参数
+
+```
+前提：AgentConfig 的 temperature=0.7、max_tokens=16384、reasoning_budget=Some(8192)
+当： resolve_model() 被调用
+则： 返回的 ModelConfig 具有匹配的温度、最大令牌数、推理预算
+```
+
+### 覆盖矩阵
+
+| G3 目标 | 测试 |
+|---------|------|
+| AgentConfig 存储 model_id | TC-T3.11, TC-T3.12, TC-T3.13, TC-T3.14 |
+| 模型层级仅变为显示标签 | TC-T3.7, TC-T3.8（层级仅用于迁移查找） |
+| 前端模型列表选择 | （前端 —— 无法从 Rust 单元测试测试） |
+| resolve_model() 按 model_id | TC-T3.1, TC-T3.2, TC-T3.3, TC-T3.4, TC-T3.5, TC-T3.6, TC-T3.15 |
+| 默认配置引用 model_id | TC-T3.14 |
+| 迁移将层级转换为 model_id | TC-T3.7, TC-T3.8, TC-T3.9, TC-T3.10 |

@@ -2,12 +2,14 @@
 
 ---
 
-## Provider-A1 Unified Provider & Runtime Architecture
-**Status:** done
-**Tags:** stack:backend
-**Depends on:** Provider-G1, Cli-G1
+## Provider-A1 统一提供商与运行时架构
+**Status:** draft
 
-Two separate AI provider implementations (ai.rs for simple chat, forge/ai.rs for tool-enabled chat) created maintenance burden and duplicated SSE parsing logic. The unified provider/ module consolidates both into a single ClaudeProvider with two streaming modes, backed by a robust incremental SSE parser ported from auto-code-rs.
+**状态：** 已完成
+**标签：** stack:backend
+**依赖：** Provider-G1, Cli-G1
+
+两套独立的 AI 提供商实现（ai.rs 用于简单聊天，forge/ai.rs 用于支持工具的聊天）带来了维护负担，并导致 SSE 解析逻辑重复。统一的 provider/ 模块将两者合并为单个 ClaudeProvider，具备两种流式模式，底层采用从 auto-code-rs 移植的鲁棒增量 SSE 解析器。
 
 ```mermaid
 graph TB
@@ -37,17 +39,19 @@ graph TB
     RLY --> TR
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Unified provider/ module (chosen) | Single source of truth, DRY, easy to add providers | All consumers must migrate imports |
-| Keep ai.rs + forge/ai.rs separate | No migration needed | Duplicate SSE logic, divergent error handling |
-| Trait-based provider abstraction | Pluggable providers | Over-engineered for single-provider use case |
+| 统一 provider/ 模块（已选） | 单一事实来源，DRY，易于添加新提供商 | 所有调用方必须迁移导入 |
+| 保持 ai.rs + forge/ai.rs 分离 | 无需迁移 | SSE 逻辑重复，错误处理发散 |
+| 基于 Trait 的提供商抽象 | 可插拔提供商 | 单提供商场景下过度设计 |
 
-- Positive: Single SSE parser handles both `\r\n\r\n` and `\n\n` frame delimiters.
-- Positive: ToolError enum provides structured error classification instead of raw String.
-- Positive: Runtime infrastructure (ContextManager, Session, PermissionPolicy) available to both CLI and web modes.
-- Negative: OpenAI provider not yet ported (only Claude supported currently).
-- Mitigation: provider/ module is structured to accept additional providers without architectural changes.
+- 优点：单一 SSE 解析器同时处理 `\r\n\r\n` 和 `\n\n` 帧分隔符。
+- 优点：ToolError 枚举提供结构化错误分类，替代原始 String。
+- 优点：运行时基础设施（ContextManager、Session、PermissionPolicy）同时对 CLI 和 Web 模式可用。
+- 缺点：OpenAI 提供商尚未移植（当前仅支持 Claude）。
+- 缓解措施：provider/ 模块的结构设计允许在不做架构改动的情况下接入额外提供商。
+
+---
 
 ---
 

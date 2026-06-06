@@ -2,12 +2,14 @@
 
 ---
 
-## Chat-A1 Chat Ephemeral Chrome Architecture
-**Status:** implemented
-**Tags:** stack:frontend
-**Depends on:** Chat-G1
+## Chat-A1 聊天临时 Chrome 架构
+**Status:** draft
 
-Persisting cross-session gate messages into the current session's `ForgeMessage` array would pollute the chat audit trail with foreign conversation state. The backend `ForgeMessage` schema has no `gate` role and should not be extended for UI chrome.
+**状态：** 已实现
+**标签：** stack:frontend
+**依赖：** Chat-G1
+
+将跨会话关卡消息持久化到当前会话的 `ForgeMessage` 数组中会污染聊天审计跟踪，引入外部对话状态。后端 `ForgeMessage` schema 没有 `gate` 角色，不应为 UI chrome 进行扩展。
 
 
 ```mermaid
@@ -18,17 +20,54 @@ graph LR
     D -->|persisted| E
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Ephemeral Vue components (chosen) | Clean backend schema, no migration, chat history is accurate | Secretary messages disappear on refresh unless inbox is hydrated |
-| Persisted `system` role messages | Survives refresh, simple rendering | Pollutes session history with external state; backend schema change |
-| Separate "inbox" message stream | Clean separation | Complex UI: two message streams to render and scroll |
+| 临时 Vue 组件（已选） | 后端 schema 干净，无需迁移，聊天历史准确 | 秘书消息在刷新时消失，除非收件箱已注水 |
+| 持久化 `system` 角色消息 | 刷新后保留，渲染简单 | 污染会话历史，引入外部状态；后端 schema 变更 |
+| 独立的 "收件箱" 消息流 | 分离清晰 | UI 复杂：两个消息流需要渲染和滚动 |
 
-- Positive: Backend `ForgeMessage` schema unchanged.
-- Positive: Chat history export contains only this session's conversation.
-- Negative: Page refresh loses the visual secretary message (but not the gate state, which is in `useGateInbox` and can be rehydrated).
-- Mitigation: On mount, `useGateInbox` fetches `/api/forge/gates/pending` and re-renders any active gates.
+- 优点：后端 `ForgeMessage` schema 不变。
+- 优点：聊天历史导出仅包含本会话的对话。
+- 缺点：页面刷新会丢失视觉秘书消息（但不会丢失关卡状态，它在 `useGateInbox` 中，可以重新注水）。
+- 缓解措施：挂载时，`useGateInbox` 获取 `/api/forge/gates/pending` 并重新渲染任何活动关卡。
 
+## Chat-A4 Thinking 数据流架构
+**Status:** draft
+
+**状态：** 已实现
+**标签：** stack:both
+
+Claude 扩展思考（extended thinking）在 API 响应中以独立的 `thinking` 内容块流式传输。本架构定义该数据从 Provider 到 Chat UI 的完整路径。
+
+```mermaid
+graph LR
+    C[Claude API SSE] -->|ThinkingDelta| P[provider/claude.rs]
+    P -->|ToolChatEvent::ThinkingDelta| F[forge/mod.rs]
+    F -->|ForgeStreamEvent::Thinking| S[SSE /api/forge/stream]
+    S -->|data.type='thinking'| U[useForge.ts]
+    U -->|msg.thinking += delta| M[ForgeMessage]
+    M -->|v-if msg.thinking| B[ThinkingBlock]
+```
+
+| 层级 | 事件类型 | 处理 |
+|---|---|---|
+| Provider | `ContentBlockDelta::ThinkingDelta` | 解析为 `ToolChatEvent::ThinkingDelta` |
+| Forge | `ForgeStreamEvent::Thinking { thinking }` | 通过 SSE 发送到前端 |
+| 前端 Composable | `data.type === 'thinking'` | 追加到当前 assistant 消息的 `thinking` |
+| 前端视图 | `<details>` 折叠块 | 默认折叠，点击展开查看完整推理 |
+
+### 架构决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 累积位置 | `ForgeMessage.thinking` 字段 | 与消息内容同生命周期，历史恢复自然 |
+| 渲染方式 | 原生 `<details>` + `<summary>` | 零 JS 状态，无障碍，样式可控 |
+| 流式指示器 | CSS 脉冲动画 | 纯 CSS，无额外组件开销 |
+| 持久化 | 后端 `ForgeSession` 消息数组 | 聊天历史包含推理过程，便于审计 |
+
+### 与工具调用的关系
+
+ThinkingBlock 渲染在 `message-content` 区域内，位于 StreamingRenderer 之前。若同一条消息同时包含 `thinking` 和 `tool_calls`，两者独立渲染，互不干扰。
 
 ---
 
@@ -45,12 +84,14 @@ graph LR
 ---
 ---
 
-## Chat-A2 Chat-Turn Agent Handoff Architecture
-**Status:** proposed
-**Tags:** stack:both
-**Depends on:** Chat-G6, Relay-G9
+## Chat-A2 聊天轮次智能体交接架构
+**Status:** draft
 
-The relay pipeline (Relay-A1) uses formal `HandoffDocument` generation between steps, but the free-form chat flow has no handoff mechanism. The assistant (Nicole) classifies user intent but cannot act on that classification — she answers everything herself with all tools. The bring-in tool bridges this gap by letting Nicole invoke another agent mid-conversation, passing structured context so the receiving agent doesn't ask the user to repeat.
+**状态：** 提议中
+**标签：** stack:both
+**依赖：** Chat-G6, Relay-G9
+
+中继流水线（Relay-A1）在步骤之间使用正式的 `HandoffDocument` 生成，但自由格式的聊天流没有交接机制。助手（Nicole）可以对用户意图进行分类，但无法根据分类采取行动 —— 她用所有工具自己回答所有问题。bring_in 工具通过让 Nicole 在对话中调用另一个智能体来弥补这一差距，传递结构化上下文，使接收智能体不需要用户重复。
 
 ```mermaid
 graph LR
@@ -66,19 +107,17 @@ graph LR
     ASH -->|continue chat| U
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| bring_in tool with handoff note (chosen) | Seamless, no user action needed, context preserved | LLM must reliably call the tool; adds tool to ReAct loop |
-| Suggest + user @mentions | Simple, no new tool | Nicole can't act autonomously; user must remember to @mention |
-| Automatic backend routing based on classification | No LLM tool call needed | Requires structured classification output; brittle |
+| bring_in 工具带交接备注（已选） | 无缝，无需用户操作，上下文保留 | LLM 必须可靠地调用工具；增加 ReAct 循环中的工具 |
+| 建议 + 用户 @提及 | 简单，无需新工具 | Nicole 无法自主行动；用户必须记住 @提及 |
+| 基于分类的自动后端路由 | 无需 LLM 工具调用 | 需要结构化分类输出；脆弱 |
 
-- Positive: Nicole acts as a real dispatcher — she connects users to the right specialist.
-- Positive: Handoff note preserves context, so the next agent starts informed.
-- Positive: Frontend shows a visual handoff card, not raw tool output.
-- Negative: LLM must reliably call bring_in with correct target; may need prompt tuning.
-- Mitigation: Nicole's soul already instructs classification; bring_in is the natural action after classification. Validation rejects invalid targets (not in handoff_to).
-
----
+- 优点：Nicole 充当真正的调度员 —— 她将用户连接到合适的专家。
+- 优点：交接备注保留上下文，因此下一个智能体开始时就已了解情况。
+- 优点：前端显示视觉交接卡片，而不是原始工具输出。
+- 缺点：LLM 必须可靠地调用 bring_in 并选择正确的目标；可能需要提示调优。
+- 缓解措施：Nicole 的灵魂已指示分类；bring_in 是分类后的自然行动。验证会拒绝无效目标（不在 handoff_to 中）。
 
 ---
 
@@ -91,21 +130,25 @@ graph LR
 ---
 
 ---
+
+---
 ---
 
-## Chat-A3 Streaming Content Renderer Architecture
-**Status:** approved
-**Tags:** stack:frontend
+## Chat-A3 流式内容渲染器架构
+**Status:** draft
 
-| Component | Responsibility |
+**状态：** 已批准
+**标签：** stack:frontend
+
+| 组件 | 职责 |
 |---|---|
-| `useStreamingDocument.ts` | Parses interleaved markdown + JSON blocks from SSE chunks |
-| `StreamingRenderer.vue` | Receives segments array, renders markdown or registered components |
-| `StreamingTable.vue` | Renders JSON table data with sticky headers |
-| `SseParser` (backend) | Handles `\r\n\r\n` and `\n\n` delimiters robustly |
+| `useStreamingDocument.ts` | 从 SSE 块中解析交错的 markdown + JSON 块 |
+| `StreamingRenderer.vue` | 接收段数组，渲染 markdown 或已注册组件 |
+| `StreamingTable.vue` | 渲染带粘性表头的 JSON 表格数据 |
+| `SseParser`（后端） | 稳健处理 `\r\n\r\n` 和 `\n\n` 分隔符 |
 
-- Parser maintains a sticky props cache so partial JSON tables don't lose column definitions
-- Component registry is extensible: add `{ table: StreamingTable }` to support new block types
+- 解析器维护粘性 props 缓存，因此部分 JSON 表格不会丢失列定义
+- 组件注册表可扩展：添加 `{ table: StreamingTable }` 以支持新的块类型
 
 ---
 

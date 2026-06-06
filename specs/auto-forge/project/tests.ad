@@ -2,28 +2,30 @@
 
 ---
 
-## Project-T1 [G13] Multi-provider dispatch routes to correct API format
-**Status:** proposed
-**Test File:** `backend/src/ai.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:both
-**Depends on:** ApiSources-G1, Provider-D1
+## Project-T1 [G13] 多提供商分发路由至正确的 API 格式
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/ai.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:both
+**依赖：** ApiSources-G1、Provider-D1
 
 ```rust
-// Mock HTTP responses for each provider
+// 为每个提供商模拟 HTTP 响应
 let anthropic_source = ApiSource { provider: Anthropic, ... };
 let openai_source = ApiSource { provider: OpenAI, ... };
 ```
 
-1. Call `dispatch_chat(&anthropic_source, "claude-3-5-sonnet", ...)` with mock server
-2. Assert request uses `x-api-key` header, `/v1/messages` path
-3. Assert SSE parsing extracts `delta.text` from `content_block_delta`
-4. Call `dispatch_chat(&openai_source, "gpt-4o", ...)` with mock server
-5. Assert request uses `Authorization: Bearer` header, `/v1/chat/completions` path
-6. Assert SSE parsing extracts `choices[0].delta.content`
+1. 使用 mock server 调用 `dispatch_chat(&anthropic_source, "claude-3-5-sonnet", ...)`
+2. 断言请求使用 `x-api-key` 请求头、`/v1/messages` 路径
+3. 断言 SSE 解析从 `content_block_delta` 中提取 `delta.text`
+4. 使用 mock server 调用 `dispatch_chat(&openai_source, "gpt-4o", ...)`
+5. 断言请求使用 `Authorization: Bearer` 请求头、`/v1/chat/completions` 路径
+6. 断言 SSE 解析提取 `choices[0].delta.content`
 
-- Anthropic provider sends correct auth header and URL.
-- OpenAI provider sends correct auth header and URL.
-- Both SSE formats are parsed into `AIStreamDelta` correctly.
+- Anthropic 提供商发送正确的认证请求头和 URL。
+- OpenAI 提供商发送正确的认证请求头和 URL。
+- 两种 SSE 格式都被正确解析为 `AIStreamDelta`。
 
 
 ---

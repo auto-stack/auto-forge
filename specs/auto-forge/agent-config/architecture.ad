@@ -2,12 +2,14 @@
 
 ---
 
-## AgentConfig-A1 Agent Instance Lifecycle
+## AgentConfig-A1 智能体实例生命周期
 **Status:** draft
-**Tags:** stack:backend
-**Depends on:** AgentConfig-G1, Relay-G1
 
-Long-lived agent processes would accumulate context and state, defeating the token-efficiency goal. By spawning fresh instances per step, each agent starts with a clean, minimal context window. This also simplifies crash recovery — no need to restore agent memory, only the checkpoint.
+**状态：** 草案
+**标签：** stack:backend
+**依赖于：** AgentConfig-G1、Relay-G1
+
+长期运行的智能体进程会累积上下文和状态，违背 Token 效率目标。通过为每个步骤生成新实例，每个智能体都以干净、最小的上下文窗口启动。这也简化了崩溃恢复——无需恢复智能体内存，只需恢复检查点。
 
 ```mermaid
 stateDiagram-v2
@@ -27,27 +29,12 @@ stateDiagram-v2
     Failed --> [*]: Run marked Failed, human notified
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Ephemeral per-step instances | Minimal context, easy recovery, cheap | Agent cannot learn across turns within a step |
-| Long-lived instances with context window | Agent remembers earlier turns | Context grows, recovery harder, more tokens |
-| Persistent agent processes with memory | Cross-run learning possible | Complex state management, not needed for relay |
+| 每步骤的临时实例 | 最小上下文，易于恢复，成本低 | 智能体无法在步骤内的多轮次中学习 |
+| 带上下文窗口的长期实例 | 智能体记住之前的轮次 | 上下文不断增长，恢复更困难，消耗更多 Token |
+| 带内存的持久智能体进程 | 跨运行学习成为可能 | 复杂的状态管理，中继不需要 |
 
-- Positive: Maximum token efficiency.
-- Positive: Crash recovery is trivial — just re-spawn from checkpoint.
-- Negative: If an agent needs 5 turns to complete, each turn re-loads the same Soul + Specs. However, this is cheaper than maintaining a growing context.
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
+- 优点：最大 Token 效率。
+- 优点：崩溃恢复很简单——只需从检查点重新生成。
+- 缺点：如果一个智能体需要 5 轮才能完成，每轮都会重新加载相同的人格 + 规格。然而，这比维护不断增长的上下文更便宜。

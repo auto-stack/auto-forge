@@ -1,20 +1,20 @@
-# Core Flows
+# 核心流程
 
-This document describes cross-module execution flows that span multiple modules. For module-internal details, see each module's `architecture.ad` and `designs.ad`.
+本文档描述跨多个模块的执行流程。模块内部细节请参阅各模块的 `architecture.ad` 和 `designs.ad`。
 
 ---
 
-## Flow-1: Forge Chat Loop
+## Flow-1: Forge 聊天循环
 
-**Modules involved**: chat, provider, runtime, relay
-**Entry**: User sends message in ChatView
-**Exit**: SSE stream delivers assistant response; or Relay is spawned
+**涉及模块**：chat、provider、runtime、relay
+**入口**：用户在 ChatView 中发送消息
+**出口**：SSE 流输出助手回复；或启动 Relay
 
-### Overview
+### 概述
 
-The Forge Chat Loop is the primary user interaction surface. It receives user messages, routes them through the Assistant agent (Isaac), executes any tool calls (including `spawn_relay`), and streams responses back via SSE.
+Forge 聊天循环是主要的用户交互界面。它接收用户消息，通过 Assistant 智能体（Isaac）路由，执行任何工具调用（包括 `spawn_relay`），并通过 SSE 流式返回响应。
 
-### Sequence Diagram
+### 时序图
 
 ```mermaid
 sequenceDiagram
@@ -51,58 +51,58 @@ sequenceDiagram
     useForge->>ChatView: append message / render GateCard
 ```
 
-### Key Steps
+### 关键步骤
 
-#### Step 1: Message Intake
-**Trigger**: User presses Enter in ChatView
-**Processing**: `useForge.sendMessage()` builds JSON payload `{ content, session_id }`
-**Data Flow**: ChatView → `useForge` → Backend API
+#### 步骤 1：消息接收
+**触发条件**：用户在 ChatView 中按 Enter
+**处理过程**：`useForge.sendMessage()` 构建 JSON 负载 `{ content, session_id }`
+**数据流**：ChatView → `useForge` → 后端 API
 
-#### Step 2: Session Processing
-**Trigger**: Backend receives POST to `/api/forge/session/{id}/message`
-**Processing**: `ForgeSession` loads session state, compiles message history, builds context
-**Data Flow**: HTTP request → `ForgeSession` → context compilation
+#### 步骤 2：会话处理
+**触发条件**：后端收到 POST `/api/forge/session/{id}/message`
+**处理过程**：`ForgeSession` 加载会话状态，编译消息历史，构建上下文
+**数据流**：HTTP 请求 → `ForgeSession` → 上下文编译
 
-#### Step 3: Agent Turn
-**Trigger**: Context ready; AgentInstance spawned with profession config
-**Processing**: `AgentInstance.turn()` renders system prompt (soul + profession + tools + constraints), calls LLM via `ClaudeProvider.chat_stream()`
-**Data Flow**: `ForgeSession` → `AgentInstance` → `ClaudeProvider` → Anthropic API
+#### 步骤 3：智能体轮次
+**触发条件**：上下文准备就绪；AgentInstance 随职业配置启动
+**处理过程**：`AgentInstance.turn()` 渲染系统提示词（人格 + 职业 + 工具 + 约束），通过 `ClaudeProvider.chat_stream()` 调用 LLM
+**数据流**：`ForgeSession` → `AgentInstance` → `ClaudeProvider` → Anthropic API
 
-#### Step 4: Tool Execution
-**Trigger**: LLM returns a tool call
-**Processing**: `ToolRegistry.execute()` runs the tool with permission check; result returned to LLM for continued reasoning
-**Data Flow**: `ClaudeProvider` → `AgentInstance` → `ToolRegistry` → tool implementation → result
+#### 步骤 4：工具执行
+**触发条件**：LLM 返回工具调用
+**处理过程**：`ToolRegistry.execute()` 在权限检查下运行工具；结果返回给 LLM 继续推理
+**数据流**：`ClaudeProvider` → `AgentInstance` → `ToolRegistry` → 工具实现 → 结果
 
-#### Step 5: Relay Spawning (optional)
-**Trigger**: Agent calls `spawn_relay` tool
-**Processing**: `ForgeSession` creates a new `PipelineEngine` with the provided FlowSpec; runs in background
-**Data Flow**: `AgentInstance` → `ForgeSession` → `Relay::PipelineEngine`
+#### 步骤 5：Relay 启动（可选）
+**触发条件**：智能体调用 `spawn_relay` 工具
+**处理过程**：`ForgeSession` 使用提供的 FlowSpec 创建新的 `PipelineEngine`；在后台运行
+**数据流**：`AgentInstance` → `ForgeSession` → `Relay::PipelineEngine`
 
-#### Step 6: Response Streaming
-**Trigger**: Final LLM response assembled (or tool results consumed)
-**Processing**: Backend emits SSE events: `Text`, `ToolCall`, `ToolResult`, `AgentHandoff`
-**Data Flow**: Backend → SSE → `useForge` → `ChatView`
+#### 步骤 6：响应流式传输
+**触发条件**：最终 LLM 响应组装完成（或工具结果已消费）
+**处理过程**：后端发出 SSE 事件：`Text`、`ToolCall`、`ToolResult`、`AgentHandoff`
+**数据流**：后端 → SSE → `useForge` → `ChatView`
 
-### Related Specs
-- `Chat-A1` — Ephemeral chrome architecture
-- `Chat-A2` — Chat-Turn Agent Handoff
-- `Chat-D3` — `BringInTool` JSON schema and handoff protocol
-- `Provider-A1` — Unified provider & runtime architecture
-- `Relay-A4` — Automatic Relay Mode
+### 相关规格
+- `Chat-A1` — 临时 chrome 架构
+- `Chat-A2` — 聊天轮次智能体交接
+- `Chat-D3` — `BringInTool` JSON 架构和交接协议
+- `Provider-A1` — 统一提供商与运行时架构
+- `Relay-A4` — 自动中继模式
 
 ---
 
-## Flow-2: Relay Pipeline Execution
+## Flow-2: Relay 流水线执行
 
-**Modules involved**: relay, provider, runtime, specs, chat
-**Entry**: FlowSpec loaded + pipeline started
-**Exit**: Pipeline reaches `Completed` or `Failed` state
+**涉及模块**：relay、provider、runtime、specs、chat
+**入口**：FlowSpec 加载完成 + 流水线启动
+**出口**：流水线达到 `Completed` 或 `Failed` 状态
 
-### Overview
+### 概述
 
-The Relay Pipeline executes a serial flow of agent turns, passing a baton (handoff document) between professions. A deterministic Rust state machine (`PipelineEngine`) orchestrates execution with zero token cost for routing decisions.
+Relay 流水线执行一系列串行的智能体轮次，在职业之间传递接力棒（交接文档）。一个确定性的 Rust 状态机（`PipelineEngine`）编排执行，路由决策零 Token 成本。
 
-### State Machine
+### 状态机
 
 ```mermaid
 stateDiagram-v2
@@ -117,7 +117,7 @@ stateDiagram-v2
     Paused --> Running: resume
 ```
 
-### Sequence Diagram
+### 时序图
 
 ```mermaid
 sequenceDiagram
@@ -150,54 +150,54 @@ sequenceDiagram
     RelayPanel->>User: show run report
 ```
 
-### Key Steps
+### 关键步骤
 
-#### Step 1: Flow Parsing
-**Trigger**: Pipeline created with FlowSpec YAML
-**Processing**: `FlowSpec Parser` reads YAML steps, resolves profession references, validates tool allowlists
-**Data Flow**: YAML file → `FlowSpec` struct → `PipelineEngine`
+#### 步骤 1：流程解析
+**触发条件**：流水线使用 FlowSpec YAML 创建
+**处理过程**：`FlowSpec Parser` 读取 YAML 步骤，解析职业引用，验证工具白名单
+**数据流**：YAML 文件 → `FlowSpec` 结构体 → `PipelineEngine`
 
-#### Step 2: Step Execution Loop
-**Trigger**: `PipelineEngine.advance()` called
-**Processing**: Spawns `AgentInstance` for current step's profession, passes handoff document + scoped specs
-**Data Flow**: `PipelineEngine` → `AgentInstance` → LLM → handoff document
+#### 步骤 2：步骤执行循环
+**触发条件**：调用 `PipelineEngine.advance()`
+**处理过程**：为当前步骤的职业启动 `AgentInstance`，传递交接文档 + 限定规格
+**数据流**：`PipelineEngine` → `AgentInstance` → LLM → 交接文档
 
-#### Step 3: Handoff Processing
-**Trigger**: Agent turn completes
-**Processing**: `HandoffManager` extracts decisions, work products, spec updates, token usage from handoff document
-**Data Flow**: `AgentInstance` → handoff document → `HandoffManager` → `SpecsStore` (if spec updates)
+#### 步骤 3：交接处理
+**触发条件**：智能体轮次完成
+**处理过程**：`HandoffManager` 从交接文档中提取决策、工作成果、规格更新、Token 使用量
+**数据流**：`AgentInstance` → 交接文档 → `HandoffManager` → `SpecsStore`（如有规格更新）
 
-#### Step 4: Checkpoint Persistence
-**Trigger**: After each successful step
-**Processing**: `CheckpointManager` serializes pipeline state + file manifest + git commit
-**Data Flow**: `PipelineEngine` → `CheckpointManager` → JSON file + git snapshot
+#### 步骤 4：检查点持久化
+**触发条件**：每步成功执行后
+**处理过程**：`CheckpointManager` 序列化流水线状态 + 文件清单 + git 提交
+**数据流**：`PipelineEngine` → `CheckpointManager` → JSON 文件 + git 快照
 
-#### Step 5: Gate Resolution
-**Trigger**: Step has `gate: true` (Check mode) or profession has `approval_gates`
-**Processing**: Pipeline pauses; user approves/rejects via GatePanel; rejection can include feedback for retry
-**Data Flow**: `PipelineEngine` → SSE `GatePause` → User → `resolve_gate()` → continue/fail
+#### 步骤 5：关卡解析
+**触发条件**：步骤设有 `gate: true`（Check 模式）或职业具有 `approval_gates`
+**处理过程**：流水线暂停；用户通过 GatePanel 批准/拒绝；拒绝可附带反馈用于重试
+**数据流**：`PipelineEngine` → SSE `GatePause` → 用户 → `resolve_gate()` → 继续/失败
 
-### Related Specs
-- `Relay-A1` — Deterministic Rust orchestrator
-- `Relay-A2` — Checkpoint & State Persistence
-- `Relay-A3` — Boss-First Execution
-- `Relay-D1` — PipelineEngine state machine
-- `Relay-D2` — HandoffDocument generation
-- `Relay-D3` — Checkpoint serialization
+### 相关规格
+- `Relay-A1` — 确定性 Rust 编排器
+- `Relay-A2` — 检查点与状态持久化
+- `Relay-A3` — Boss-First 执行
+- `Relay-D1` — PipelineEngine 状态机
+- `Relay-D2` — HandoffDocument 生成
+- `Relay-D3` — 检查点序列化
 
 ---
 
-## Flow-3: Agent Turn Execution
+## Flow-3: 智能体轮次执行
 
-**Modules involved**: agent-config, provider, runtime, relay
-**Entry**: `AgentInstance::turn()` called with system prompt + context
-**Exit**: `TurnResult` returned with response + tool calls + handoff document
+**涉及模块**：agent-config、provider、runtime、relay
+**入口**：使用系统提示词 + 上下文调用 `AgentInstance::turn()`
+**出口**：返回包含响应 + 工具调用 + 交接文档的 `TurnResult`
 
-### Overview
+### 概述
 
-A single Agent Turn is the atomic unit of agent work. It takes a scoped context (system prompt + relevant specs + handoff history), streams through the LLM, executes any tool calls, and produces a structured result.
+单个智能体轮次是智能体工作的原子单元。它接收限定上下文（系统提示词 + 相关规格 + 交接历史），通过 LLM 流式传输，执行任何工具调用，并生成结构化结果。
 
-### Sequence Diagram
+### 时序图
 
 ```mermaid
 sequenceDiagram
@@ -227,58 +227,58 @@ sequenceDiagram
     AgentInstance-->>PipelineEngine: TurnResult { text, tool_calls, handoff, tokens }
 ```
 
-### Key Steps
+### 关键步骤
 
-#### Step 1: Agent Spawning
-**Trigger**: `PipelineEngine` requests an agent for a step
-**Processing**: `AgentInstance` resolves profession (tools, sections, constraints) + soul (personality) + model (provider/tier)
-**Data Flow**: profession config → `AgentInstance` + `Soul` + `ModelConfig`
+#### 步骤 1：智能体启动
+**触发条件**：`PipelineEngine` 为某一步骤请求智能体
+**处理过程**：`AgentInstance` 解析职业（工具、章节、约束）+ 人格（个性）+ 模型（提供商/层级）
+**数据流**：职业配置 → `AgentInstance` + `Soul` + `ModelConfig`
 
-#### Step 2: System Prompt Rendering
-**Trigger**: Agent instance ready
-**Processing**: Compose system prompt from: soul markdown + profession instructions + owned sections + allowed tools list + skill definitions + constraints
-**Data Flow**: `Soul` + `Profession` + `Skills` → system prompt string
+#### 步骤 2：系统提示词渲染
+**触发条件**：智能体实例就绪
+**处理过程**：由以下部分组成系统提示词：人格 markdown + 职业指令 + 拥有章节 + 允许工具列表 + 技能定义 + 约束
+**数据流**：`Soul` + `Profession` + `Skills` → 系统提示词字符串
 
-#### Step 3: Context Compilation
-**Trigger**: System prompt rendered
-**Processing**: `ContextManager` loads relevant specs (owned + readable sections), compacts if token budget exceeded
-**Data Flow**: `SpecsStore` → `ContextManager` → compacted context messages
+#### 步骤 3：上下文编译
+**触发条件**：系统提示词渲染完成
+**处理过程**：`ContextManager` 加载相关规格（拥有 + 可读章节），如超出 Token 预算则压缩
+**数据流**：`SpecsStore` → `ContextManager` → 压缩后的上下文消息
 
-#### Step 4: LLM Streaming
-**Trigger**: Context ready
-**Processing**: `ClaudeProvider.chat_stream()` sends request to Anthropic/OpenAI/Ollama, parses SSE stream
-**Data Flow**: system prompt + context → API request → SSE stream → `StreamEvent` parsing
+#### 步骤 4：LLM 流式传输
+**触发条件**：上下文准备就绪
+**处理过程**：`ClaudeProvider.chat_stream()` 向 Anthropic/OpenAI/Ollama 发送请求，解析 SSE 流
+**数据流**：系统提示词 + 上下文 → API 请求 → SSE 流 → `StreamEvent` 解析
 
-#### Step 5: Tool Execution
-**Trigger**: LLM requests tool call
-**Processing**: `ToolRegistry.execute()` checks permission policy (`Allow`/`Ask`/`ReadOnly`), runs tool, returns result
-**Data Flow**: tool request → permission check → execution → result → back to LLM
+#### 步骤 5：工具执行
+**触发条件**：LLM 请求工具调用
+**处理过程**：`ToolRegistry.execute()` 检查权限策略（`Allow`/`Ask`/`ReadOnly`），运行工具，返回结果
+**数据流**：工具请求 → 权限检查 → 执行 → 结果 → 返回 LLM
 
-#### Step 6: Handoff Generation
-**Trigger**: LLM turn completes (stop reason = end_turn)
-**Processing**: Extract structured fields: decisions, work products, spec updates, open questions, token usage
-**Data Flow**: turn result → `HandoffDocument` → `PipelineEngine`
+#### 步骤 6：交接文档生成
+**触发条件**：LLM 轮次完成（stop reason = end_turn）
+**处理过程**：提取结构化字段：决策、工作成果、规格更新、待解决问题、Token 使用量
+**数据流**：轮次结果 → `HandoffDocument` → `PipelineEngine`
 
-### Related Specs
-- `AgentConfig-A1` — Agent Instance Lifecycle
-- `AgentConfig-D1` — `AgentInstance` / `SoulConfig` / `ModelConfig` structs
-- `Provider-A1` — Unified provider architecture
-- `Relay-D2` — HandoffDocument generation
-- `Runtime-D1` — `PermissionPolicy` and `ContextManager`
+### 相关规格
+- `AgentConfig-A1` — 智能体实例生命周期
+- `AgentConfig-D1` — `AgentInstance` / `SoulConfig` / `ModelConfig` 结构体
+- `Provider-A1` — 统一提供商架构
+- `Relay-D2` — HandoffDocument 生成
+- `Runtime-D1` — `PermissionPolicy` 与 `ContextManager`
 
 ---
 
-## Flow-4: Spec Document Lifecycle
+## Flow-4: 规格文档生命周期
 
-**Modules involved**: specs, forge (agent tools)
-**Entry**: Agent reads or writes a spec via `read_specs` / `update_spec`
-**Exit**: Spec persisted to `.ad` file with derived statuses and relations
+**涉及模块**：specs、forge（智能体工具）
+**入口**：智能体通过 `read_specs` / `update_spec` 读取或写入规格
+**出口**：规格持久化到 `.ad` 文件，附带派生状态与关联关系
 
-### Overview
+### 概述
 
-Specs are the single source of truth in AutoForge. They follow a strict pyramid (Goals → Architecture → Designs → Plans → Tests → Reviews → Reports) and are maintained by profession-specific agents through structured tools.
+规格是 AutoForge 中的唯一事实来源。它们遵循严格的金字塔结构（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告），由特定职业的智能体通过结构化工具维护。
 
-### Sequence Diagram
+### 时序图
 
 ```mermaid
 sequenceDiagram
@@ -309,53 +309,53 @@ sequenceDiagram
     update_spec-->>Architect: confirmation
 ```
 
-### Key Steps
+### 关键步骤
 
-#### Step 1: Loading
-**Trigger**: `read_specs` tool called
-**Processing**: `SpecsStore` reads module-format `.ad` files, parses markdown into `SpecItem` structs with metadata
-**Data Flow**: Disk → `parse_ad_file()` → `SpecItem` list → agent context
+#### 步骤 1：加载
+**触发条件**：调用 `read_specs` 工具
+**处理过程**：`SpecsStore` 读取模块格式的 `.ad` 文件，将 markdown 解析为带元数据的 `SpecItem` 结构体
+**数据流**：磁盘 → `parse_ad_file()` → `SpecItem` 列表 → 智能体上下文
 
-#### Step 2: Editing
-**Trigger**: `update_spec` tool called
-**Processing**: `SpecsStore` upserts the item; if item ID has module prefix, routes to correct module directory
-**Data Flow**: agent → `update_spec` → `SpecsStore` → module directory
+#### 步骤 2：编辑
+**触发条件**：调用 `update_spec` 工具
+**处理过程**：`SpecsStore` 插入或更新条目；如条目 ID 有模块前缀，则路由到正确的模块目录
+**数据流**：智能体 → `update_spec` → `SpecsStore` → 模块目录
 
-#### Step 3: Status Derivation
-**Trigger**: After spec update
-**Processing**: `derive_statuses()` auto-updates Goal statuses based on related Plans/Tests/Reviews progress
-**Data Flow**: spec changes → `derive_statuses()` → updated statuses
+#### 步骤 3：状态派生
+**触发条件**：规格更新后
+**处理过程**：`derive_statuses()` 根据相关计划/测试/评审进度自动更新目标状态
+**数据流**：规格变更 → `derive_statuses()` → 更新的状态
 
-#### Step 4: Relation Rebuild
-**Trigger**: After status derivation
-**Processing**: `rebuild_relations()` scans `depends_on` fields and content text to build bidirectional `related` links
-**Data Flow**: all items → `rebuild_relations()` → relation graph
+#### 步骤 4：关联关系重建
+**触发条件**：状态派生后
+**处理过程**：`rebuild_relations()` 扫描 `depends_on` 字段和正文文本以构建双向 `related` 链接
+**数据流**：所有条目 → `rebuild_relations()` → 关联关系图
 
-#### Step 5: Persistence
-**Trigger**: After relation rebuild
-**Processing**: `save_module_format()` writes each module's specs back to its `.ad` files
-**Data Flow**: `SpecItem` list → `serialize_section_to_ad()` → Disk
+#### 步骤 5：持久化
+**触发条件**：关联关系重建后
+**处理过程**：`save_module_format()` 将各模块的规格写回其 `.ad` 文件
+**数据流**：`SpecItem` 列表 → `serialize_section_to_ad()` → 磁盘
 
-### Related Specs
-- `Specs-G1` — Spec pyramid taxonomy
-- `Specs-G2` — Bidirectional traceability
-- `Specs-A1` — Goals Hierarchy Architecture
-- `Specs-D1` — Category renderer polymorphism
-- `Specs-D8` — Architect-maintained `overview.ad`
+### 相关规格
+- `Specs-G1` — 规格金字塔分类
+- `Specs-G2` — 双向可追溯性
+- `Specs-A1` — 目标层级架构
+- `Specs-D1` — 分类渲染器多态
+- `Specs-D8` — 架构师维护的 `overview.ad`
 
 ---
 
-## Flow-5: Gate Approval Flow
+## Flow-5: 关卡审批流程
 
-**Modules involved**: relay, chat, ui-system
-**Entry**: Pipeline step has `gate: true` or profession requires approval
-**Exit**: User approves (continue) or rejects (fail/retry)
+**涉及模块**：relay、chat、ui-system
+**入口**：流水线步骤设有 `gate: true` 或职业需要审批
+**出口**：用户批准（继续）或拒绝（失败/重试）
 
-### Overview
+### 概述
 
-Gates are human-in-the-loop approval points. They can operate in two modes: **GSD** (Gate-Skip-Default, boss-first) where the step auto-approves unless flagged, or **Check** where every flagged step pauses for explicit approval.
+关卡是人工介入的审批节点。它们可在两种模式下运行：**GSD**（Gate-Skip-Default，boss-first），步骤自动批准除非被标记；或 **Check** 模式，每个被标记的步骤暂停等待明确审批。
 
-### Sequence Diagram
+### 时序图
 
 ```mermaid
 sequenceDiagram
@@ -387,42 +387,471 @@ sequenceDiagram
     end
 ```
 
-### Key Steps
+### 关键步骤
 
-#### Step 1: Gate Trigger
-**Trigger**: Step config has `gate: true`, or profession has `approval_gates` containing the step type
-**Processing**: `PipelineEngine` pauses, emits `GatePause` SSE event with gate metadata
-**Data Flow**: `PipelineEngine` → SSE → `GateInbox`
+#### 步骤 1：关卡触发
+**触发条件**：步骤配置设有 `gate: true`，或职业的 `approval_gates` 包含该步骤类型
+**处理过程**：`PipelineEngine` 暂停，发出附带关卡元数据的 `GatePause` SSE 事件
+**数据流**：`PipelineEngine` → SSE → `GateInbox`
 
-#### Step 2: Gate Rendering
-**Trigger**: `GateInbox` receives `GatePause` event
-**Processing**: `SecretaryMessage` rendered in ChatView; `GatePanel` adds item to queue; badge counter increments
-**Data Flow**: SSE → `useGateInbox` → `ChatView` + `GatePanel`
+#### 步骤 2：关卡渲染
+**触发条件**：`GateInbox` 接收到 `GatePause` 事件
+**处理过程**：在 ChatView 中渲染 `SecretaryMessage`；`GatePanel` 将条目加入队列；徽标计数器递增
+**数据流**：SSE → `useGateInbox` → `ChatView` + `GatePanel`
 
-#### Step 3: User Decision
-**Trigger**: User clicks Approve/Reject/Edit
-**Processing**: `GateInbox` sends resolution to backend; Chat input remains non-blocking
-**Data Flow**: User → UI → `useGateInbox` → Backend API
+#### 步骤 3：用户决策
+**触发条件**：用户点击 批准/拒绝/编辑
+**处理过程**：`GateInbox` 向后端发送解析结果；聊天输入保持非阻塞
+**数据流**：用户 → UI → `useGateInbox` → 后端 API
 
-#### Step 4: Pipeline Resolution
-**Trigger**: Backend receives gate resolution
-**Processing**: `PipelineEngine.resolve_gate()` either continues (approve), retries with feedback (reject + comment), or fails (reject without retry)
-**Data Flow**: Backend → `PipelineEngine` → next step / retry / fail
+#### 步骤 4：流水线解析
+**触发条件**：后端接收到关卡解析结果
+**处理过程**：`PipelineEngine.resolve_gate()` 继续执行（批准）、附带反馈重试（拒绝 + 评论）、或失败（拒绝且不重试）
+**数据流**：后端 → `PipelineEngine` → 下一步 / 重试 / 失败
 
-### Related Specs
-- `Relay-A3` — Boss-First Execution (GSD vs Check)
-- `Relay-D5` — RelayMode & GSD Flow Control
-- `Relay-D6` — `useGateInbox` State Machine
+### 相关规格
+- `Relay-A3` — Boss-First 执行（GSD vs Check）
+- `Relay-D5` — RelayMode & GSD 流程控制
+- `Relay-D6` — `useGateInbox` 状态机
 - `Relay-D9` — `GatePanel`
-- `Chat-G1` — Chat-First Gate Approval
-- `Chat-D1` — `GateCard` / `SecretaryMessage` props and state machine
+- `Chat-G1` — 聊天优先关卡审批
+- `Chat-D1` — `GateCard` / `SecretaryMessage` 属性与状态机
 
 ---
 
-## Document Navigation
+## 文档导航
 
-These flows complement the module-based specs:
-- **Flows are horizontal**: They show how data moves *across* modules.
-- **Specs are vertical**: They show how each module works *internally*.
+这些流程补充了基于模块的规格：
+- **流程是横向的**：展示数据如何*跨越*模块流动。
+- **规格是纵向的**：展示每个模块*内部*如何工作。
 
-When reading a flow, follow the "Related Specs" links to dive into module-level details.
+阅读流程时，跟随"相关规格"链接深入了解模块级别的细节。[stage] run_soul_finished
+
+[summary]
+# 核心流程
+
+本文档描述跨多个模块的执行流程。模块内部细节请参阅各模块的 `architecture.ad` 和 `designs.ad`。
+
+---
+
+## Flow-1: Forge 聊天循环
+
+**涉及模块**：chat、provider、runtime、relay
+**入口**：用户在 ChatView 中发送消息
+**出口**：SSE 流输出助手回复；或启动 Relay
+
+### 概述
+
+Forge 聊天循环是主要的用户交互界面。它接收用户消息，通过 Assistant 智能体（Isaac）路由，执行任何工具调用（包括 `spawn_relay`），并通过 SSE 流式返回响应。
+
+### 时序图
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ChatView
+    participant useForge
+    participant Backend
+    participant ForgeSession
+    participant AgentInstance
+    participant ClaudeProvider
+    participant ToolRegistry
+    participant Relay
+
+    User->>ChatView: type message + send
+    ChatView->>useForge: sendMessage(content)
+    useForge->>Backend: POST /api/forge/session/{id}/message
+    Backend->>ForgeSession: process_message()
+    ForgeSession->>AgentInstance: turn(system_prompt, messages)
+    AgentInstance->>ClaudeProvider: chat_stream(messages, tools)
+    ClaudeProvider-->>AgentInstance: SSE stream (thinking + tool_call)
+    AgentInstance->>ToolRegistry: execute(tool_name, input)
+    ToolRegistry-->>AgentInstance: result
+
+    alt spawn_relay tool called
+        AgentInstance->>ForgeSession: spawn_relay(flow_spec)
+        ForgeSession->>Relay: start_pipeline()
+        Relay-->>ForgeSession: run_id
+    end
+
+    ClaudeProvider-->>AgentInstance: final response text
+    AgentInstance-->>ForgeSession: TurnResult
+    ForgeSession-->>Backend: SSE events (text, tool_call, tool_result, agent_handoff)
+    Backend-->>useForge: SSE stream
+    useForge->>ChatView: append message / render GateCard
+```
+
+### 关键步骤
+
+#### 步骤 1：消息接收
+**触发条件**：用户在 ChatView 中按 Enter
+**处理过程**：`useForge.sendMessage()` 构建 JSON 负载 `{ content, session_id }`
+**数据流**：ChatView → `useForge` → 后端 API
+
+#### 步骤 2：会话处理
+**触发条件**：后端收到 POST `/api/forge/session/{id}/message`
+**处理过程**：`ForgeSession` 加载会话状态，编译消息历史，构建上下文
+**数据流**：HTTP 请求 → `ForgeSession` → 上下文编译
+
+#### 步骤 3：智能体轮次
+**触发条件**：上下文准备就绪；AgentInstance 随职业配置启动
+**处理过程**：`AgentInstance.turn()` 渲染系统提示词（人格 + 职业 + 工具 + 约束），通过 `ClaudeProvider.chat_stream()` 调用 LLM
+**数据流**：`ForgeSession` → `AgentInstance` → `ClaudeProvider` → Anthropic API
+
+#### 步骤 4：工具执行
+**触发条件**：LLM 返回工具调用
+**处理过程**：`ToolRegistry.execute()` 在权限检查下运行工具；结果返回给 LLM 继续推理
+**数据流**：`ClaudeProvider` → `AgentInstance` → `ToolRegistry` → 工具实现 → 结果
+
+#### 步骤 5：Relay 启动（可选）
+**触发条件**：智能体调用 `spawn_relay` 工具
+**处理过程**：`ForgeSession` 使用提供的 FlowSpec 创建新的 `PipelineEngine`；在后台运行
+**数据流**：`AgentInstance` → `ForgeSession` → `Relay::PipelineEngine`
+
+#### 步骤 6：响应流式传输
+**触发条件**：最终 LLM 响应组装完成（或工具结果已消费）
+**处理过程**：后端发出 SSE 事件：`Text`、`ToolCall`、`ToolResult`、`AgentHandoff`
+**数据流**：后端 → SSE → `useForge` → `ChatView`
+
+### 相关规格
+- `Chat-A1` — 临时 chrome 架构
+- `Chat-A2` — 聊天轮次智能体交接
+- `Chat-D3` — `BringInTool` JSON 架构和交接协议
+- `Provider-A1` — 统一提供商与运行时架构
+- `Relay-A4` — 自动中继模式
+
+---
+
+## Flow-2: Relay 流水线执行
+
+**涉及模块**：relay、provider、runtime、specs、chat
+**入口**：FlowSpec 加载完成 + 流水线启动
+**出口**：流水线达到 `Completed` 或 `Failed` 状态
+
+### 概述
+
+Relay 流水线执行一系列串行的智能体轮次，在职业之间传递接力棒（交接文档）。一个确定性的 Rust 状态机（`PipelineEngine`）编排执行，路由决策零 Token 成本。
+
+### 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: create pipeline
+    Idle --> Running: start()
+    Running --> WaitingForHuman: gate triggered (Check mode)
+    Running --> Completed: all steps done
+    Running --> Failed: error / budget exceeded
+    WaitingForHuman --> Running: approve / reject with feedback
+    WaitingForHuman --> Failed: reject without retry
+    Running --> Paused: user pause
+    Paused --> Running: resume
+```
+
+### 时序图
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant RelayPanel
+    participant PipelineEngine
+    participant FlowSpec
+    participant AgentInstance
+    participant HandoffManager
+    participant CheckpointManager
+    participant SpecsStore
+
+    User->>RelayPanel: click Start
+    RelayPanel->>PipelineEngine: POST /api/relay/{id}/start
+    PipelineEngine->>FlowSpec: parse steps
+    loop For each step
+        PipelineEngine->>AgentInstance: spawn(profession, handoff_doc)
+        AgentInstance->>ClaudeProvider: chat_turn()
+        ClaudeProvider-->>AgentInstance: TurnResult
+        AgentInstance-->>PipelineEngine: return handoff document
+        PipelineEngine->>HandoffManager: process_handoff()
+        HandoffManager->>SpecsStore: update specs (if requested)
+        PipelineEngine->>CheckpointManager: save checkpoint
+        alt Gate triggered (Check mode)
+            PipelineEngine-->>User: SSE: GatePause
+            User->>PipelineEngine: approve / reject
+        end
+    end
+    PipelineEngine-->>RelayPanel: SSE: Completed / Failed
+    RelayPanel->>User: show run report
+```
+
+### 关键步骤
+
+#### 步骤 1：流程解析
+**触发条件**：流水线使用 FlowSpec YAML 创建
+**处理过程**：`FlowSpec Parser` 读取 YAML 步骤，解析职业引用，验证工具白名单
+**数据流**：YAML 文件 → `FlowSpec` 结构体 → `PipelineEngine`
+
+#### 步骤 2：步骤执行循环
+**触发条件**：调用 `PipelineEngine.advance()`
+**处理过程**：为当前步骤的职业启动 `AgentInstance`，传递交接文档 + 限定规格
+**数据流**：`PipelineEngine` → `AgentInstance` → LLM → 交接文档
+
+#### 步骤 3：交接处理
+**触发条件**：智能体轮次完成
+**处理过程**：`HandoffManager` 从交接文档中提取决策、工作成果、规格更新、Token 使用量
+**数据流**：`AgentInstance` → 交接文档 → `HandoffManager` → `SpecsStore`（如有规格更新）
+
+#### 步骤 4：检查点持久化
+**触发条件**：每步成功执行后
+**处理过程**：`CheckpointManager` 序列化流水线状态 + 文件清单 + git 提交
+**数据流**：`PipelineEngine` → `CheckpointManager` → JSON 文件 + git 快照
+
+#### 步骤 5：关卡解析
+**触发条件**：步骤设有 `gate: true`（Check 模式）或职业具有 `approval_gates`
+**处理过程**：流水线暂停；用户通过 GatePanel 批准/拒绝；拒绝可附带反馈用于重试
+**数据流**：`PipelineEngine` → SSE `GatePause` → 用户 → `resolve_gate()` → 继续/失败
+
+### 相关规格
+- `Relay-A1` — 确定性 Rust 编排器
+- `Relay-A2` — 检查点与状态持久化
+- `Relay-A3` — Boss-First 执行
+- `Relay-D1` — PipelineEngine 状态机
+- `Relay-D2` — HandoffDocument 生成
+- `Relay-D3` — 检查点序列化
+
+---
+
+## Flow-3: 智能体轮次执行
+
+**涉及模块**：agent-config、provider、runtime、relay
+**入口**：使用系统提示词 + 上下文调用 `AgentInstance::turn()`
+**出口**：返回包含响应 + 工具调用 + 交接文档的 `TurnResult`
+
+### 概述
+
+单个智能体轮次是智能体工作的原子单元。它接收限定上下文（系统提示词 + 相关规格 + 交接历史），通过 LLM 流式传输，执行任何工具调用，并生成结构化结果。
+
+### 时序图
+
+```mermaid
+sequenceDiagram
+    participant PipelineEngine
+    participant AgentInstance
+    participant Profession
+    participant Soul
+    participant ClaudeProvider
+    participant ContextManager
+    participant ToolRegistry
+
+    PipelineEngine->>AgentInstance: spawn(profession_config)
+    AgentInstance->>Profession: resolve config
+    AgentInstance->>Soul: render_system_prompt()
+    AgentInstance->>ContextManager: compile_context(scoped_specs)
+    AgentInstance->>ClaudeProvider: chat_stream(system_prompt, context, tools)
+
+    loop Tool call loop
+        ClaudeProvider-->>AgentInstance: tool_call request
+        AgentInstance->>ToolRegistry: execute_with_permission(tool, input)
+        ToolRegistry-->>AgentInstance: result
+        AgentInstance->>ClaudeProvider: submit tool_result
+    end
+
+    ClaudeProvider-->>AgentInstance: final text + stop_reason
+    AgentInstance->>AgentInstance: generate_handoff_document()
+    AgentInstance-->>PipelineEngine: TurnResult { text, tool_calls, handoff, tokens }
+```
+
+### 关键步骤
+
+#### 步骤 1：智能体启动
+**触发条件**：`PipelineEngine` 为某一步骤请求智能体
+**处理过程**：`AgentInstance` 解析职业（工具、章节、约束）+ 人格（个性）+ 模型（提供商/层级）
+**数据流**：职业配置 → `AgentInstance` + `Soul` + `ModelConfig`
+
+#### 步骤 2：系统提示词渲染
+**触发条件**：智能体实例就绪
+**处理过程**：由以下部分组成系统提示词：人格 markdown + 职业指令 + 拥有章节 + 允许工具列表 + 技能定义 + 约束
+**数据流**：`Soul` + `Profession` + `Skills` → 系统提示词字符串
+
+#### 步骤 3：上下文编译
+**触发条件**：系统提示词渲染完成
+**处理过程**：`ContextManager` 加载相关规格（拥有 + 可读章节），如超出 Token 预算则压缩
+**数据流**：`SpecsStore` → `ContextManager` → 压缩后的上下文消息
+
+#### 步骤 4：LLM 流式传输
+**触发条件**：上下文准备就绪
+**处理过程**：`ClaudeProvider.chat_stream()` 向 Anthropic/OpenAI/Ollama 发送请求，解析 SSE 流
+**数据流**：系统提示词 + 上下文 → API 请求 → SSE 流 → `StreamEvent` 解析
+
+#### 步骤 5：工具执行
+**触发条件**：LLM 请求工具调用
+**处理过程**：`ToolRegistry.execute()` 检查权限策略（`Allow`/`Ask`/`ReadOnly`），运行工具，返回结果
+**数据流**：工具请求 → 权限检查 → 执行 → 结果 → 返回 LLM
+
+#### 步骤 6：交接文档生成
+**触发条件**：LLM 轮次完成（stop reason = end_turn）
+**处理过程**：提取结构化字段：决策、工作成果、规格更新、待解决问题、Token 使用量
+**数据流**：轮次结果 → `HandoffDocument` → `PipelineEngine`
+
+### 相关规格
+- `AgentConfig-A1` — 智能体实例生命周期
+- `AgentConfig-D1` — `AgentInstance` / `SoulConfig` / `ModelConfig` 结构体
+- `Provider-A1` — 统一提供商架构
+- `Relay-D2` — HandoffDocument 生成
+- `Runtime-D1` — `PermissionPolicy` 与 `ContextManager`
+
+---
+
+## Flow-4: 规格文档生命周期
+
+**涉及模块**：specs、forge（智能体工具）
+**入口**：智能体通过 `read_specs` / `update_spec` 读取或写入规格
+**出口**：规格持久化到 `.ad` 文件，附带派生状态与关联关系
+
+### 概述
+
+规格是 AutoForge 中的唯一事实来源。它们遵循严格的金字塔结构（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告），由特定职业的智能体通过结构化工具维护。
+
+### 时序图
+
+```mermaid
+sequenceDiagram
+    participant Architect
+    participant read_specs
+    participant update_spec
+    participant SpecsStore
+    participant parse_ad_file
+    participant derive_statuses
+    participant rebuild_relations
+    participant Disk
+
+    Architect->>read_specs: read_specs(project="auto-forge", section="architecture")
+    read_specs->>SpecsStore: load_module_format()
+    SpecsStore->>Disk: read *.ad files
+    SpecsStore->>parse_ad_file: parse markdown → SpecItems
+    parse_ad_file-->>SpecsStore: structured items
+    SpecsStore-->>read_specs: return items
+    read_specs-->>Architect: architecture specs
+
+    Architect->>update_spec: update_spec(section="architecture", item_id="A99", ...)
+    update_spec->>SpecsStore: upsert item
+    SpecsStore->>derive_statuses: auto-update Goal statuses
+    SpecsStore->>rebuild_relations: scan depends_on / related
+    SpecsStore->>Disk: save_module_format()
+    Disk-->>SpecsStore: *.ad files written
+    SpecsStore-->>update_spec: success
+    update_spec-->>Architect: confirmation
+```
+
+### 关键步骤
+
+#### 步骤 1：加载
+**触发条件**：调用 `read_specs` 工具
+**处理过程**：`SpecsStore` 读取模块格式的 `.ad` 文件，将 markdown 解析为带元数据的 `SpecItem` 结构体
+**数据流**：磁盘 → `parse_ad_file()` → `SpecItem` 列表 → 智能体上下文
+
+#### 步骤 2：编辑
+**触发条件**：调用 `update_spec` 工具
+**处理过程**：`SpecsStore` 插入或更新条目；如条目 ID 有模块前缀，则路由到正确的模块目录
+**数据流**：智能体 → `update_spec` → `SpecsStore` → 模块目录
+
+#### 步骤 3：状态派生
+**触发条件**：规格更新后
+**处理过程**：`derive_statuses()` 根据相关计划/测试/评审进度自动更新目标状态
+**数据流**：规格变更 → `derive_statuses()` → 更新的状态
+
+#### 步骤 4：关联关系重建
+**触发条件**：状态派生后
+**处理过程**：`rebuild_relations()` 扫描 `depends_on` 字段和正文文本以构建双向 `related` 链接
+**数据流**：所有条目 → `rebuild_relations()` → 关联关系图
+
+#### 步骤 5：持久化
+**触发条件**：关联关系重建后
+**处理过程**：`save_module_format()` 将各模块的规格写回其 `.ad` 文件
+**数据流**：`SpecItem` 列表 → `serialize_section_to_ad()` → 磁盘
+
+### 相关规格
+- `Specs-G1` — 规格金字塔分类
+- `Specs-G2` — 双向可追溯性
+- `Specs-A1` — 目标层级架构
+- `Specs-D1` — 分类渲染器多态
+- `Specs-D8` — 架构师维护的 `overview.ad`
+
+---
+
+## Flow-5: 关卡审批流程
+
+**涉及模块**：relay、chat、ui-system
+**入口**：流水线步骤设有 `gate: true` 或职业需要审批
+**出口**：用户批准（继续）或拒绝（失败/重试）
+
+### 概述
+
+关卡是人工介入的审批节点。它们可在两种模式下运行：**GSD**（Gate-Skip-Default，boss-first），步骤自动批准除非被标记；或 **Check** 模式，每个被标记的步骤暂停等待明确审批。
+
+### 时序图
+
+```mermaid
+sequenceDiagram
+    participant PipelineEngine
+    participant GatePanel
+    participant GateInbox
+    participant User
+    participant ChatView
+
+    PipelineEngine->>PipelineEngine: step has gate=true
+    PipelineEngine-->>GateInbox: SSE: GatePause {step, profession, summary}
+    GateInbox->>ChatView: render SecretaryMessage
+    GateInbox->>GatePanel: add to queue
+
+    alt User approves in Chat
+        User->>ChatView: click Approve
+        ChatView->>GateInbox: approve(gate_id)
+        GateInbox->>PipelineEngine: POST /resolve_gate
+        PipelineEngine->>PipelineEngine: advance to next step
+    else User approves in GatePanel
+        User->>GatePanel: click Approve
+        GatePanel->>GateInbox: approve(gate_id)
+        GateInbox->>PipelineEngine: POST /resolve_gate
+    else User rejects with feedback
+        User->>GatePanel: click Reject + comment
+        GatePanel->>GateInbox: reject(gate_id, feedback)
+        GateInbox->>PipelineEngine: POST /resolve_gate
+        PipelineEngine->>PipelineEngine: retry step with feedback
+    end
+```
+
+### 关键步骤
+
+#### 步骤 1：关卡触发
+**触发条件**：步骤配置设有 `gate: true`，或职业的 `approval_gates` 包含该步骤类型
+**处理过程**：`PipelineEngine` 暂停，发出附带关卡元数据的 `GatePause` SSE 事件
+**数据流**：`PipelineEngine` → SSE → `GateInbox`
+
+#### 步骤 2：关卡渲染
+**触发条件**：`GateInbox` 接收到 `GatePause` 事件
+**处理过程**：在 ChatView 中渲染 `SecretaryMessage`；`GatePanel` 将条目加入队列；徽标计数器递增
+**数据流**：SSE → `useGateInbox` → `ChatView` + `GatePanel`
+
+#### 步骤 3：用户决策
+**触发条件**：用户点击 批准/拒绝/编辑
+**处理过程**：`GateInbox` 向后端发送解析结果；聊天输入保持非阻塞
+**数据流**：用户 → UI → `useGateInbox` → 后端 API
+
+#### 步骤 4：流水线解析
+**触发条件**：后端接收到关卡解析结果
+**处理过程**：`PipelineEngine.resolve_gate()` 继续执行（批准）、附带反馈重试（拒绝 + 评论）、或失败（拒绝且不重试）
+**数据流**：后端 → `PipelineEngine` → 下一步 / 重试 / 失败
+
+### 相关规格
+- `Relay-A3` — Boss-First 执行（GSD vs Check）
+- `Relay-D5` — RelayMode & GSD 流程控制
+- `Relay-D6` — `useGateInbox` 状态机
+- `Relay-D9` — `GatePanel`
+- `Chat-G1` — 聊天优先关卡审批
+- `Chat-D1` — `GateCard` / `SecretaryMessage` 属性与状态机
+
+---
+
+## 文档导航
+
+这些流程补充了基于模块的规格：
+- **流程是横向的**：展示数据如何*跨越*模块流动。
+- **规格是纵向的**：展示每个模块*内部*如何工作。
+

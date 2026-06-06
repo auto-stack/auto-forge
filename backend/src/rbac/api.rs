@@ -101,7 +101,7 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-fn error_response(status: StatusCode, msg: &str) -> (StatusCode, Json<ErrorResponse>) {
+fn error_response(status: StatusCode, msg: impl std::fmt::Display) -> (StatusCode, Json<ErrorResponse>) {
     (status, Json(ErrorResponse { error: msg.to_string() }))
 }
 
@@ -390,6 +390,72 @@ pub async fn remove_role(
 }
 
 // ---------------------------------------------------------------------------
+// Register handler (public self-service registration)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterRequest {
+    pub username: String,
+    pub password: String,
+}
+
+/// POST /api/auth/register — public, self-service user registration.
+/// Creates user with "editor" role.
+pub async fn register(
+    State(state): State<RbacMiddlewareState>,
+    Json(body): Json<RegisterRequest>,
+) -> Result<(StatusCode, Json<LoginResponse>), (StatusCode, Json<ErrorResponse>)> {
+    if body.username.is_empty() || body.password.is_empty() {
+        return Err(error_response(StatusCode::BAD_REQUEST, "Username and password required"));
+    }
+    if body.password.len() < 4 {
+        return Err(error_response(StatusCode::BAD_REQUEST, "Password must be at least 4 characters"));
+    }
+    if state
+        .db
+        .get_user_by_username(&body.username)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?
+        .is_some()
+    {
+        return Err(error_response(StatusCode::CONFLICT, "Username already exists"));
+    }
+
+    let hash = auth::hash_password(&body.password)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+    let user = state
+        .db
+        .create_user(&body.username, &hash)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+
+    // Assign "editor" role to new users
+    if let Some(editor_role) = state
+        .db
+        .get_role_by_name("editor")
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?
+    {
+        let _ = state.db.assign_role(user.id, editor_role.id);
+    }
+
+    let roles = state
+        .db
+        .get_user_roles(user.id)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+    let role_names: Vec<String> = roles.iter().map(|r| r.name.clone()).collect();
+    let token = auth::generate_token(&state.jwt_secret, user.id, &user.username, role_names.clone())
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(LoginResponse {
+            token,
+            user_id: user.id,
+            username: user.username,
+            roles: role_names,
+        }),
+    ))
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -397,8 +463,9 @@ pub async fn remove_role(
 /// These routes should be layered with `auth_middleware` for protected endpoints.
 pub fn rbac_api_routes() -> Router<RbacMiddlewareState> {
     Router::new()
-        // Auth (login is public, me requires auth)
+        // Auth (login and register are public, me requires auth)
         .route("/api/auth/login", post(login))
+        .route("/api/auth/register", post(register))
         .route("/api/auth/me", get(me))
         // Admin — users
         .route("/api/admin/users", get(list_users).post(create_user))

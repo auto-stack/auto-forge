@@ -18,6 +18,8 @@ use serde_json::Value;
 pub enum TurnEvent {
     /// A text delta from the LLM.
     TextDelta { text: String },
+    /// A thinking/reasoning delta from the LLM.
+    ThinkingDelta { thinking: String },
     /// The agent wants to use a tool.
     ToolCall { id: String, name: String, arguments: Value },
     /// Tool execution completed.
@@ -184,7 +186,9 @@ impl AgentTurn {
                         turn_text.push_str(&text);
                         let _ = tx.send(TurnEvent::TextDelta { text: text.clone() });
                     }
-                    ToolChatEvent::ThinkingDelta { .. } => {}
+                    ToolChatEvent::ThinkingDelta { thinking } => {
+                        let _ = tx.send(TurnEvent::ThinkingDelta { thinking: thinking.clone() });
+                    }
                     ToolChatEvent::ToolUse { id, name, input } => {
                         got_tool_use = true;
                         let t_tool = std::time::Instant::now();

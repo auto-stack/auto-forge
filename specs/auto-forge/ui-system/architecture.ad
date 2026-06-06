@@ -2,12 +2,14 @@
 
 ---
 
-## UiSystem-A1 Frontend Composable State Architecture
-**Status:** implemented
-**Tags:** stack:frontend
-**Depends on:** Chat-G1
+## UiSystem-A1 前端可组合状态架构
+**Status:** draft
 
-An LLM-based orchestrator would consume tokens for routing decisions, violating Relay-G2's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
+**状态：** 已实现
+**标签：** stack:frontend
+**依赖：** Chat-G1
+
+基于 LLM 的编排器会为路由决策消耗 Token，违反 Relay-G2 的 Token 效率要求。它还会为流程执行引入非确定性。Rust 中的确定性状态机提供零 Token 协调、可预测的路由和编译时安全性。
 
 ```mermaid
 graph TB
@@ -42,18 +44,16 @@ graph TB
     AC -->|renders| AE
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Vue 3 Composables (singleton refs) | Zero boilerplate, matches existing code, tree-shakable, direct cross-import | No time-travel debugging; state is implicit |
-| Pinia global store | DevTools support, mutations traceable | More boilerplate, refactor cost for existing composables |
-| Redux/Vuex | Time-travel, predictable state updates | Massive overhead for a Vue 3 project |
+| Vue 3 Composables（单例 ref）| 零样板代码，匹配现有代码，支持 Tree-shaking，直接交叉导入 | 不支持时间旅行调试；状态是隐式的 |
+| Pinia 全局 store | 支持 DevTools，mutation 可追溯 | 更多样板代码，现有 composable 的重构成本 |
+| Redux/Vuex | 时间旅行，可预测的状态更新 | 对于 Vue 3 项目开销巨大 |
 
-- Positive: `useGateInbox` can import `useRelay` and `useForge` directly to listen for gate events without event bus indirection.
-- Negative: Composable cross-imports create a soft dependency graph that is not explicitly declared.
-- Mitigation: Document cross-cutting concerns in the Architecture ADR; avoid circular imports by keeping `useGateInbox` as the central hub.
+- 正面：`useGateInbox` 可以直接导入 `useRelay` 和 `useForge` 来监听关卡事件，无需事件总线间接层。
+- 负面：Composable 交叉导入会创建未显式声明的软依赖图。
+- 缓解措施：在架构 ADR 中记录跨领域关注点；通过将 `useGateInbox` 作为中心枢纽来避免循环导入。
 
-
----
 
 ---
 
@@ -66,11 +66,18 @@ graph TB
 ---
 
 ---
+
 ---
 
-## UiSystem-A2 Search & Filter Architecture
+---
+
+---
+
+## UiSystem-A2 搜索与过滤架构
 **Status:** draft
-**Tags:** stack:frontend
+
+**状态：** 草案
+**标签：** stack:frontend
 
 ```typescript
 function filterTree(tree: GoalsTree, query: string): GoalsTree {
@@ -110,16 +117,16 @@ function filterTree(tree: GoalsTree, query: string): GoalsTree {
 }
 ```
 
-| Query | Matches |
+| 查询 | 匹配项 |
 |---|---|
 | `Specs-G7` | Goal ID Specs-G7 |
 | `wiki` | Title or tag value contains "wiki" |
 | `module:wiki` | Tag with kind=module, value=wiki |
 | `team:ui` | Tag with kind=team, value=ui |
 
-- Search is fast (client-side filtering on pre-loaded tree)
-- No server round-trip for each keystroke
-- Auto-expansion ensures users see all matches
+- 搜索速度快（在预加载的树结构上进行客户端过滤）
+- 每次按键无需服务器往返
+- 自动展开确保用户看到所有匹配项
 
 ---
 
@@ -134,11 +141,14 @@ function filterTree(tree: GoalsTree, query: string): GoalsTree {
 ---
 
 ---
+
 ---
 
-## UiSystem-A3 Theme & Accent System Architecture
-**Status:** approved
-**Tags:** stack:frontend
+## UiSystem-A3 主题与强调色系统架构
+**Status:** draft
+
+**状态：** 已批准
+**标签：** stack:frontend
 
 ```mermaid
 graph LR
@@ -148,16 +158,14 @@ graph LR
     ROOT -->|tailwind dark:| UI[All Vue components]
 ```
 
-| Concern | Decision |
+| 关注点 | 决策 |
 |---------|----------|
-| Theme persistence | localStorage key `vitepress-theme-appearance` for compatibility |
-| Accent application | CSS custom properties (`--color-primary-500`, etc.) injected at runtime |
-| System preference | `matchMedia('(prefers-color-scheme: dark)')` with live listener |
+| 主题持久化 | 使用 localStorage 键 `vitepress-theme-appearance` 以保持兼容性 |
+| 强调色应用 | 在运行时注入 CSS 自定义属性（`--color-primary-500` 等）|
+| 系统偏好 | 使用 `matchMedia('(prefers-color-scheme: dark)')` 并添加实时监听器 |
 
-- No server involvement; purely client-side state
-- Both composables are singletons (module-level refs)
-
----
+- 无需服务器参与；纯客户端状态
+- 两个 composable 均为单例（模块级 ref）
 
 ---
 
@@ -169,31 +177,37 @@ graph LR
 
 ---
 
-## UiSystem-A4 i18n Integration Architecture for Remaining Views
-**Status:** approved
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1
+---
 
-## Overview
+---
 
-Six Vue views still contain hardcoded English strings that bypass the i18n system. This creates a mono-lingual UX and prevents localization. The i18n integration replaces all hardcoded strings with `t()` calls keyed to the existing `vue-i18n` translation system (en.json / zh.json). Additionally, the i18n test file has localStorage mocking issues that prevent reliable test execution.
+## UiSystem-A4 剩余视图的 i18n 集成架构
+**Status:** draft
 
-## Scope
+**状态：** 已批准
+**标签：** stack:frontend
+**依赖：** UiSystem-A1
 
-| View | File | Current State | Hardcoded Strings (approx) |
+## 概述
+
+六个 Vue 视图仍然包含绕过 i18n 系统的硬编码英文字符串。这造成了单语言用户体验并阻碍了本地化。i18n 集成将所有硬编码字符串替换为 `t()` 调用，键值对应到现有的 `vue-i18n` 翻译系统（en.json / zh.json）。此外，i18n 测试文件存在 localStorage 模拟问题，阻碍了可靠的测试执行。
+
+## 范围
+
+| 视图 | 文件 | 当前状态 | 硬编码字符串（约）|
 |------|------|---------------|---------------------------|
-| ChatsView | `frontend/src/views/ChatsView.vue` | Partially i18n-ized | ~3 strings remaining |
-| WikiView | `frontend/src/views/WikiView.vue` | Partially i18n-ized | ~25 strings remaining |
-| AgentsConfigView | `frontend/src/views/AgentsConfigView.vue` | Sparse i18n | ~45 strings remaining |
-| ProfessionsView | `frontend/src/views/ProfessionsView.vue` | No i18n | ~40 strings remaining |
-| SkillsView | `frontend/src/views/SkillsView.vue` | No i18n | ~35 strings remaining |
-| ApiSourcesView | `frontend/src/views/ApiSourcesView.vue` | No i18n | ~55 strings remaining |
+| ChatsView | `frontend/src/views/ChatsView.vue` | 部分 i18n 化 | 剩余约 3 个字符串 |
+| WikiView | `frontend/src/views/WikiView.vue` | 部分 i18n 化 | 剩余约 25 个字符串 |
+| AgentsConfigView | `frontend/src/views/AgentsConfigView.vue` | 稀疏 i18n | 剩余约 45 个字符串 |
+| ProfessionsView | `frontend/src/views/ProfessionsView.vue` | 无 i18n | 剩余约 40 个字符串 |
+| SkillsView | `frontend/src/views/SkillsView.vue` | 无 i18n | 剩余约 35 个字符串 |
+| ApiSourcesView | `frontend/src/views/ApiSourcesView.vue` | 无 i18n | 剩余约 55 个字符串 |
 
-## Translation Key Namespace Convention
+## 翻译键命名空间约定
 
-Each view gets a top-level namespace matching its composableView domain:
+每个视图获得一个与其 composableView 域匹配的顶级命名空间：
 
-| Namespace | Keys | Example |
+| 命名空间 | 键 | 示例 |
 |-----------|------|---------|
 | `chat.*` | Chat sidebar, messages, session info | `chat.sessions`, `chat.searchPlaceholder` |
 | `wiki.*` | Wiki sidebar, pages, raw files | `wiki.title`, `wiki.newPage`, `wiki.editing` |
@@ -203,7 +217,7 @@ Each view gets a top-level namespace matching its composableView domain:
 | `apiSources.*` | API source sidebar, detail, scan | `apiSources.title`, `apiSources.testConnection` |
 | `common.*` | Shared across views (already exists) | `common.save`, `common.cancel`, `common.delete` |
 
-## Data Flow
+## 数据流
 
 ```
 [User selects locale]
@@ -241,44 +255,46 @@ graph LR
     VI -->|t\(\)| ASV
 ```
 
-## Trigger Condition
+## 触发条件
 
-Every view mount and every template re-render triggers `t()` evaluation. The i18n plugin is already installed; this work only adds missing `t()` calls and translation keys.
+每次视图挂载和每次模板重新渲染都会触发 `t()` 求值。i18n 插件已安装；此工作仅添加缺失的 `t()` 调用和翻译键。
 
-## Design Highlight
+## 设计亮点
 
-The views that already have partial i18n (ChatsView, WikiView) follow the same pattern — the remaining views simply adopt the established convention. No new infrastructure needed.
+已部分实现 i18n 的视图（ChatsView、WikiView）遵循相同模式——剩余视图只需采用已建立的约定。无需新基础设施。
 
-### Trade-offs
+### 权衡
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Per-view namespaces (chosen) | Clear ownership, easy to find keys, no collisions | Slightly more keys than flat namespace |
-| Flat key namespace | Fewer total keys | Hard to find which view owns a key, collision risk |
-| Per-component namespaces | Maximum granularity | Over-engineered for 6 views |
+| 按视图命名空间（已选）| 所有权清晰，易于查找键，无冲突 | 比扁平命名空间稍多的键 |
+| 扁平键命名空间 | 总键数更少 | 难以查找键属于哪个视图，存在冲突风险 |
+| 按组件命名空间 | 最大粒度 | 对于 6 个视图过于工程化 |
 
-## Test File Fix
+## 测试文件修复
 
-The i18n test file has `localStorage` mocking issues under Vitest/jsdom. The fix pattern:
+i18n 测试文件在 Vitest/jsdom 下存在 `localStorage` 模拟问题。修复模式：
 
 ```typescript
-// BEFORE (broken): direct localStorage mock conflicts with jsdom
+// BEFORE（损坏）：直接模拟 localStorage 与 jsdom 冲突
 vi.stubGlobal('localStorage', { ... })
 
-// AFTER (working): use vi.spyOn on window.localStorage
+// AFTER（正常）：对 window.localStorage 使用 vi.spyOn
 const getItemSpy = vi.spyOn(Storage.prototype, 'getItem')
 const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
 getItemSpy.mockReturnValue('dark')
 ```
 
-This avoids replacing the entire Storage object and works correctly with vue-i18n's internal locale persistence.
+这避免了替换整个 Storage 对象，并能与 vue-i18n 的内部区域设置持久化正确协作。
 
-## UiSystem-A4 i18n View Integration Architecture
-**Status:** approved
-**Tags:** stack:frontend
-**Depends on:** UiSystem-G1
+## UiSystem-A4 i18n 视图集成架构
+**Status:** draft
 
-Six Vue views contain hardcoded English strings that prevent localization. ChatsView and WikiView are partially i18n-ized (some `t()` calls exist), while AgentsConfigView, ProfessionsView, SkillsView, and ApiSourcesView are fully hardcoded. The fix is mechanical: replace every hardcoded string with `t('namespace.key')` using the existing vue-i18n setup.
+**状态：** 已批准
+**标签：** stack:frontend
+**依赖：** UiSystem-G1
+
+六个 Vue 视图包含阻碍本地化的硬编码英文字符串。ChatsView 和 WikiView 已部分 i18n 化（已存在一些 `t()` 调用），而 AgentsConfigView、ProfessionsView、SkillsView 和 ApiSourcesView 则完全为硬编码。修复是机械性的：使用现有的 vue-i18n 设置，将每个硬编码字符串替换为 `t('namespace.key')`。
 
 ```mermaid
 graph TB
@@ -310,167 +326,167 @@ graph TB
     I18N -->|t&#40;&#41;| AS
 ```
 
-### Key Architecture Decisions
+### 关键架构决策
 
-| Decision | Choice | Rationale |
+| 决策 | 选择 | 理由 |
 |----------|--------|-----------|
-| Translation key namespace | Per-view prefix (`agents.`, `professions.`, `skills.`, `apiSources.`, `wiki.`, `chat.`) | Matches existing convention in ChatsView/WikiView |
-| Existing `t()` calls | No changes | ChatsView and WikiView already use correct keys; only fill gaps |
-| Shared keys | Reuse `common.*` for Edit, Save, Cancel, Delete, Loading, etc. | DRY; these already exist |
-| Dynamic strings | Template interpolation `t('key', { count: N })` | vue-i18n built-in; already used for `chat.msgs` |
-| Test fix | Correct `localStorage` mock in vi.beforeEach | Standard vitest pattern |
+| 翻译键命名空间 | 按视图前缀（`agents.`、`professions.`、`skills.`、`apiSources.`、`wiki.`、`chat.`）| 匹配 ChatsView/WikiView 中的现有约定 |
+| 现有 `t()` 调用 | 不做更改 | ChatsView 和 WikiView 已使用正确的键；只需填补空缺 |
+| 共享键 | 复用 `common.*` 表示编辑、保存、取消、删除、加载等 | DRY；这些已存在 |
+| 动态字符串 | 模板插值 `t('key', { count: N })` | vue-i18n 内置；已用于 `chat.msgs` |
+| 测试修复 | 在 vi.beforeEach 中正确模拟 `localStorage` | 标准 vitest 模式 |
 
-### String Inventory Per View
+### 各视图字符串清单
 
-#### ChatsView.vue (1 hardcoded string)
-| Context | Current | Key |
+#### ChatsView.vue（1 个硬编码字符串）
+| 上下文 | 当前内容 | 键 |
 |---------|---------|-----|
-| System welcome | `"Hi! I'm <strong>{{ assistantName }}</strong>..."` | `chat.welcome` |
+| 系统欢迎语 | `"Hi! I'm <strong>{{ assistantName }}</strong>..."` | `chat.welcome` |
 
-#### WikiView.vue (~20 hardcoded strings)
-| Context | Current | Key |
+#### WikiView.vue（约 20 个硬编码字符串）
+| 上下文 | 当前内容 | 键 |
 |---------|---------|-----|
-| Sidebar toggle | `"Toggle sidebar"` | `wiki.toggleSidebar` |
-| Edit heading | `"Editing: "` | `wiki.editing` |
-| New page heading | `"New Page"` | `wiki.newPageTitle` |
-| New folder heading | `"New Folder"` | `wiki.newFolderTitle` |
-| Search placeholder | `"Search pages..."` | `wiki.searchPlaceholder` |
-| Edit button | `"Edit"` | `common.edit` |
-| Delete title | `"Delete page"` | `wiki.deletePage` |
-| Delete raw | `"Delete file"` | `wiki.deleteFile` |
-| Empty state | `"Select a page or file from the sidebar"` | `wiki.emptyState` |
-| Loading | `"Loading..."` | `common.loading` |
-| No pages | `"No pages yet"` | `wiki.noPages` |
-| Viewing raw heading | Uses `activeRawFile` | `wiki.viewingFile` |
-| Create form labels | `"Path"`, `"Title"`, `"Source Type"`, `"Tags (comma-separated)"` | `wiki.path`, `wiki.pageTitle`, `wiki.sourceType`, `wiki.tagsLabel` |
-| Source type options | `"Manual"`, `"Guide"`, `"API Reference"`, `"Custom"` | `wiki.sourceManual`, `wiki.sourceGuide`, `wiki.sourceApiRef`, `wiki.sourceCustom` |
-| Create placeholders | `"guide/getting-started"`, `"Getting Started"`, `"tag1, tag2"` | `wiki.pathPlaceholder`, `wiki.titlePlaceholder`, `wiki.tagsPlaceholder` |
-| New folder | `"New Folder"` in `new-folder` viewState | `wiki.newFolderTitle` |
-| Show sidebar | `"Show sidebar"` | `wiki.showSidebar` |
-| Edit page title | `"Edit page"` title attr | `wiki.editPage` |
+| 侧边栏切换 | `"Toggle sidebar"` | `wiki.toggleSidebar` |
+| 编辑标题 | `"Editing: "` | `wiki.editing` |
+| 新建页面标题 | `"New Page"` | `wiki.newPageTitle` |
+| 新建文件夹标题 | `"New Folder"` | `wiki.newFolderTitle` |
+| 搜索占位符 | `"Search pages..."` | `wiki.searchPlaceholder` |
+| 编辑按钮 | `"Edit"` | `common.edit` |
+| 删除页面标题 | `"Delete page"` | `wiki.deletePage` |
+| 删除原始文件 | `"Delete file"` | `wiki.deleteFile` |
+| 空状态 | `"Select a page or file from the sidebar"` | `wiki.emptyState` |
+| 加载中 | `"Loading..."` | `common.loading` |
+| 无页面 | `"No pages yet"` | `wiki.noPages` |
+| 查看原始文件标题 | 使用 `activeRawFile` | `wiki.viewingFile` |
+| 创建表单标签 | `"Path"`、`"Title"`、`"Source Type"`、`"Tags (comma-separated)"` | `wiki.path`、`wiki.pageTitle`、`wiki.sourceType`、`wiki.tagsLabel` |
+| 来源类型选项 | `"Manual"`、`"Guide"`、`"API Reference"`、`"Custom"` | `wiki.sourceManual`、`wiki.sourceGuide`、`wiki.sourceApiRef`、`wiki.sourceCustom` |
+| 创建占位符 | `"guide/getting-started"`、`"Getting Started"`、`"tag1, tag2"` | `wiki.pathPlaceholder`、`wiki.titlePlaceholder`、`wiki.tagsPlaceholder` |
+| 新建文件夹 | `new-folder` viewState 中的 `"New Folder"` | `wiki.newFolderTitle` |
+| 显示侧边栏 | `"Show sidebar"` | `wiki.showSidebar` |
+| 编辑页面标题 | `"Edit page"` title 属性 | `wiki.editPage` |
 
-#### AgentsConfigView.vue (~30 hardcoded strings)
-| Context | Current | Key |
+#### AgentsConfigView.vue（约 30 个硬编码字符串）
+| 上下文 | 当前内容 | 键 |
 |---------|---------|-----|
-| Header | `"Agent Forge"` | `agents.title` |
-| Reset button | `"Reset Defaults"` | `common.resetDefaults` |
-| Create button | `"Create Agent"` | `agents.createAgent` |
-| Loading | `"Loading agents..."` | `agents.loading` |
-| Empty state | `"No agents configured. Reset defaults to get started."` | `agents.empty` |
-| Advanced | `"Advanced Settings"` | `agents.advancedSettings` |
-| Temperature label | `"Temperature (X.X)"` | `agents.temperature` |
-| Max tokens | `"Max Tokens"` | `agents.maxTokens` |
-| Reasoning budget | `"Reasoning Budget"` | `agents.reasoningBudget` |
-| Thinking toggle | `"Thinking Mode"` / hint | `agents.thinkingMode` / `agents.thinkingHint` |
-| Thinking budget | `"Thinking Budget (N)"` | `agents.thinkingBudget` |
-| Form labels | Various | `agents.*` |
-| Edit panel title | `isNew ? t('agents.createAgent') : editing.name` | Partially done |
-| Delete confirm | Uses `confirm()` | `agents.deleteConfirm` |
-| Reset confirm | Uses `confirm()` | `agents.resetConfirm` |
+| 页眉 | `"Agent Forge"` | `agents.title` |
+| 重置按钮 | `"Reset Defaults"` | `common.resetDefaults` |
+| 创建按钮 | `"Create Agent"` | `agents.createAgent` |
+| 加载中 | `"Loading agents..."` | `agents.loading` |
+| 空状态 | `"No agents configured. Reset defaults to get started."` | `agents.empty` |
+| 高级设置 | `"Advanced Settings"` | `agents.advancedSettings` |
+| Temperature 标签 | `"Temperature (X.X)"` | `agents.temperature` |
+| 最大 Token 数 | `"Max Tokens"` | `agents.maxTokens` |
+| Reasoning 预算 | `"Reasoning Budget"` | `agents.reasoningBudget` |
+| Thinking 开关 | `"Thinking Mode"` / 提示 | `agents.thinkingMode` / `agents.thinkingHint` |
+| Thinking 预算 | `"Thinking Budget (N)"` | `agents.thinkingBudget` |
+| 表单标签 | 各种 | `agents.*` |
+| 编辑面板标题 | `isNew ? t('agents.createAgent') : editing.name` | 部分完成 |
+| 删除确认 | 使用 `confirm()` | `agents.deleteConfirm` |
+| 重置确认 | 使用 `confirm()` | `agents.resetConfirm` |
 
-#### ProfessionsView.vue (~35 hardcoded strings)
-| Context | Current | Key |
+#### ProfessionsView.vue（约 35 个硬编码字符串）
+| 上下文 | 当前内容 | 键 |
 |---------|---------|-----|
-| Header | `"Professions"` | `professions.title` |
-| Reset button | `"Reset Defaults"` | `common.resetDefaults` |
-| Create button | `"Add Profession"` | `professions.addProfession` |
-| Loading | `"Loading professions..."` | `professions.loading` |
-| Empty state | `"No professions defined. Reset defaults to get started."` | `professions.empty` |
-| Stats | `"tools"`, `"turns"`, `"budget"` | `professions.tools`, `professions.turns`, `professions.budget` |
-| Edit button | `"Edit"` | `common.edit` |
-| Create heading | `"Create Profession"` | `professions.createProfession` |
-| Form labels | `"ID"`, `"Name"`, `"Phase"`, `"Max Turns"`, `"Token Budget"`, etc. | `professions.*` |
-| TagInput placeholders | `"Add section..."`, `"Add tool name..."`, etc. | `professions.placeholderSection`, etc. |
-| Save/Cancel | `"Saving..."`, `"Save"`, `"Cancel"` | `common.saving`, `common.save`, `common.cancel` |
-| Delete confirm | Uses `confirm()` | `professions.deleteConfirm` |
-| Reset confirm | Uses `confirm()` | `professions.resetConfirm` |
-| Add card | `"Add Profession"` | `professions.addProfession` |
+| 页眉 | `"Professions"` | `professions.title` |
+| 重置按钮 | `"Reset Defaults"` | `common.resetDefaults` |
+| 创建按钮 | `"Add Profession"` | `professions.addProfession` |
+| 加载中 | `"Loading professions..."` | `professions.loading` |
+| 空状态 | `"No professions defined. Reset defaults to get started."` | `professions.empty` |
+| 统计 | `"tools"`、`"turns"`、`"budget"` | `professions.tools`、`professions.turns`、`professions.budget` |
+| 编辑按钮 | `"Edit"` | `common.edit` |
+| 创建标题 | `"Create Profession"` | `professions.createProfession` |
+| 表单标签 | `"ID"`、`"Name"`、`"Phase"`、`"Max Turns"`、`"Token Budget"` 等 | `professions.*` |
+| TagInput 占位符 | `"Add section..."`、`"Add tool name..."` 等 | `professions.placeholderSection` 等 |
+| 保存/取消 | `"Saving..."`、`"Save"`、`"Cancel"` | `common.saving`、`common.save`、`common.cancel` |
+| 删除确认 | 使用 `confirm()` | `professions.deleteConfirm` |
+| 重置确认 | 使用 `confirm()` | `professions.resetConfirm` |
+| 添加卡片 | `"Add Profession"` | `professions.addProfession` |
 
-#### SkillsView.vue (~25 hardcoded strings)
-| Context | Current | Key |
+#### SkillsView.vue（约 25 个硬编码字符串）
+| 上下文 | 当前内容 | 键 |
 |---------|---------|-----|
-| Header | `"Skills"` | `skills.title` |
-| Reset button | `"Reset Defaults"` | `common.resetDefaults` |
-| Create button | `"Add Skill"` | `skills.addSkill` |
-| Loading | `"Loading skills..."` | `skills.loading` |
-| Empty state | `"No skills defined yet..."` | `skills.empty` |
-| Badge text | `"tools"`, `"turns"` | `skills.tools`, `skills.turns` |
-| Edit button | `"Edit"` | `common.edit` |
-| Create heading | `"Create Skill"` | `skills.createSkill` |
-| Form labels | `"ID"`, `"Name"`, `"Description"`, `"Granted Tools"`, etc. | `skills.*` |
-| Save/Cancel | `"Saving..."`, `"Save"`, `"Cancel"` | `common.saving`, `common.save`, `common.cancel` |
-| Delete confirm | Uses `confirm()` | `skills.deleteConfirm` |
-| Reset confirm | Uses `confirm()` | `skills.resetConfirm` |
-| Hint text | Various | `skills.*` |
+| 页眉 | `"Skills"` | `skills.title` |
+| 重置按钮 | `"Reset Defaults"` | `common.resetDefaults` |
+| 创建按钮 | `"Add Skill"` | `skills.addSkill` |
+| 加载中 | `"Loading skills..."` | `skills.loading` |
+| 空状态 | `"No skills defined yet..."` | `skills.empty` |
+| 徽章文本 | `"tools"`、`"turns"` | `skills.tools`、`skills.turns` |
+| 编辑按钮 | `"Edit"` | `common.edit` |
+| 创建标题 | `"Create Skill"` | `skills.createSkill` |
+| 表单标签 | `"ID"`、`"Name"`、`"Description"`、`"Granted Tools"` 等 | `skills.*` |
+| 保存/取消 | `"Saving..."`、`"Save"`、`"Cancel"` | `common.saving`、`common.save`、`common.cancel` |
+| 删除确认 | 使用 `confirm()` | `skills.deleteConfirm` |
+| 重置确认 | 使用 `confirm()` | `skills.resetConfirm` |
+| 提示文本 | 各种 | `skills.*` |
 
-#### ApiSourcesView.vue (~40 hardcoded strings)
-| Context | Current | Key |
+#### ApiSourcesView.vue（约 40 个硬编码字符串）
+| 上下文 | 当前内容 | 键 |
 |---------|---------|-----|
-| Header | `"API Sources"` | `apiSources.title` |
-| Add button | `"Add API Source"` | `apiSources.addSource` |
-| Loading | `"Loading..."` | `common.loading` |
-| Empty state | `"No API sources configured."` | `apiSources.empty` |
-| Scan button | `"Scan for Configs"` / `"Scanning..."` | `apiSources.scanForConfigs` / `apiSources.scanning` |
-| Add manually | `"Add Manually"` | `apiSources.addManually` |
-| New source | `"(New Source)"` | `apiSources.newSource` |
-| Models count | `"models"` | `apiSources.models` |
-| Test button | `"Test Connection"` / `"Testing..."` | `apiSources.testConnection` / `apiSources.testing` |
-| Save/Cancel/Delete | Various | `common.*` |
-| New heading | `"New API Source"` | `apiSources.newApiSource` |
-| Form labels | `"Provider"`, `"Name"`, `"API Key"`, etc. | `apiSources.*` |
-| Provider options | `"Anthropic (Claude)"`, `"OpenAI (GPT)"`, `"Local / Ollama"` | `apiSources.providerAnthropic`, etc. |
-| Model table headers | `"Model ID"`, `"Display Name"`, `"Tier"` | `apiSources.modelId`, etc. |
-| Add model | `"Add Model"` | `apiSources.addModel` |
-| Missing tiers | `"Missing tier(s):"` | `apiSources.missingTiers` |
-| Import heading | `"Import API Sources"` | `apiSources.importTitle` |
-| Import hint | `"Found existing configurations..."` | `apiSources.importHint` |
-| Import actions | `"Import Selected"` / `"Importing..."` | `apiSources.importSelected` / `apiSources.importing` |
-| Connected | `"Connected to"` | `apiSources.connected` |
-| Detail empty | `"Select an API source or add a new one"` | `apiSources.detailEmpty` |
-| Scan results | `"models detected"` | `apiSources.modelsDetected` |
-| Key hint | `"Key is stored locally..."` | `apiSources.keyHint` |
-| Form hints | Various | `apiSources.*` |
-| Delete confirm | Uses `confirm()` | `apiSources.deleteConfirm` |
+| 页眉 | `"API Sources"` | `apiSources.title` |
+| 添加按钮 | `"Add API Source"` | `apiSources.addSource` |
+| 加载中 | `"Loading..."` | `common.loading` |
+| 空状态 | `"No API sources configured."` | `apiSources.empty` |
+| 扫描按钮 | `"Scan for Configs"` / `"Scanning..."` | `apiSources.scanForConfigs` / `apiSources.scanning` |
+| 手动添加 | `"Add Manually"` | `apiSources.addManually` |
+| 新来源 | `"(New Source)"` | `apiSources.newSource` |
+| 模型数量 | `"models"` | `apiSources.models` |
+| 测试按钮 | `"Test Connection"` / `"Testing..."` | `apiSources.testConnection` / `apiSources.testing` |
+| 保存/取消/删除 | 各种 | `common.*` |
+| 新建标题 | `"New API Source"` | `apiSources.newApiSource` |
+| 表单标签 | `"Provider"`、`"Name"`、`"API Key"` 等 | `apiSources.*` |
+| 提供商选项 | `"Anthropic (Claude)"`、`"OpenAI (GPT)"`、`"Local / Ollama"` | `apiSources.providerAnthropic` 等 |
+| 模型表头 | `"Model ID"`、`"Display Name"`、`"Tier"` | `apiSources.modelId` 等 |
+| 添加模型 | `"Add Model"` | `apiSources.addModel` |
+| 缺失层级 | `"Missing tier(s):"` | `apiSources.missingTiers` |
+| 导入标题 | `"Import API Sources"` | `apiSources.importTitle` |
+| 导入提示 | `"Found existing configurations..."` | `apiSources.importHint` |
+| 导入操作 | `"Import Selected"` / `"Importing..."` | `apiSources.importSelected` / `apiSources.importing` |
+| 已连接 | `"Connected to"` | `apiSources.connected` |
+| 详情为空 | `"Select an API source or add a new one"` | `apiSources.detailEmpty` |
+| 扫描结果 | `"models detected"` | `apiSources.modelsDetected` |
+| 密钥提示 | `"Key is stored locally..."` | `apiSources.keyHint` |
+| 表单提示 | 各种 | `apiSources.*` |
+| 删除确认 | 使用 `confirm()` | `apiSources.deleteConfirm` |
 
-### Test File Fix
+### 测试文件修复
 
-The i18n test file has a `localStorage` mocking issue. The standard vitest fix:
+i18n 测试文件存在 `localStorage` 模拟问题。标准的 vitest 修复：
 
 ```typescript
-// Before each test:
+// 每个测试之前：
 beforeEach(() => {
   vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null)
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {})
 })
 ```
 
-Or use `@vue/test-utils` config to stub `localStorage` globally.
+或使用 `@vue/test-utils` 配置全局 stub `localStorage`。
 
-### Shared `common.*` Keys
+### 共享 `common.*` 键
 
-| Key | English | Used In |
+| 键 | 英文 | 用于 |
 |-----|---------|---------|
-| `common.loading` | `"Loading..."` | Wiki, API Sources |
-| `common.saving` | `"Saving..."` | Professions, Skills, API Sources |
-| `common.save` | `"Save"` | Professions, Skills, API Sources |
-| `common.cancel` | `"Cancel"` | Professions, Skills, API Sources |
-| `common.edit` | `"Edit"` | Wiki, Agents (already exists) |
-| `common.delete` | `"Delete"` | All views |
-| `common.default` | `"Default"` | Agents (already exists) |
-| `common.resetDefaults` | `"Reset Defaults"` | Agents, Professions, Skills |
-| `common.upload` | `"Upload"` | Agents (already exists) |
-| `common.generate` | `"Generate"` | Agents (already exists) |
-| `common.generating` | `"Generating..."` | Agents (already exists) |
-| `common.remove` | `"Remove"` | Agents (already exists) |
+| `common.loading` | `"Loading..."` | Wiki、API Sources |
+| `common.saving` | `"Saving..."` | Professions、Skills、API Sources |
+| `common.save` | `"Save"` | Professions、Skills、API Sources |
+| `common.cancel` | `"Cancel"` | Professions、Skills、API Sources |
+| `common.edit` | `"Edit"` | Wiki、Agents（已存在）|
+| `common.delete` | `"Delete"` | 所有视图 |
+| `common.default` | `"Default"` | Agents（已存在）|
+| `common.resetDefaults` | `"Reset Defaults"` | Agents、Professions、Skills |
+| `common.upload` | `"Upload"` | Agents（已存在）|
+| `common.generate` | `"Generate"` | Agents（已存在）|
+| `common.generating` | `"Generating..."` | Agents（已存在）|
+| `common.remove` | `"Remove"` | Agents（已存在）|
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Per-view namespace keys (chosen) | Organized, no key collisions, easy to audit | More keys to manage |
-| Flat keys (`"loading"`, `"save"`) | Fewer keys | Collisions, unclear scope |
-| Inline string extraction tool | Automated, no manual audit | Tooling overhead, may miss context |
+| 按视图命名空间键（已选）| 有条理，无键冲突，易于审计 | 需要管理更多键 |
+| 扁平键（`"loading"`、`"save"`）| 键数更少 | 冲突，范围不清 |
+| 内联字符串提取工具 | 自动化，无需手动审计 | 工具开销，可能遗漏上下文 |
 
-- Positive: Mechanical change — no logic changes, only string replacement
-- Positive: All 6 views follow the same pattern as existing i18n views
-- Positive: `common.*` keys reduce duplication across views
-- Negative: ~150 new translation keys to add to both en.json and zh.json
-- Mitigation: Keys follow a predictable `viewName.elementName` pattern
+- 正面：机械性变更——无逻辑变更，仅字符串替换
+- 正面：所有 6 个视图遵循与现有 i18n 视图相同的模式
+- 正面：`common.*` 键减少跨视图重复
+- 负面：需要向 en.json 和 zh.json 添加约 150 个新翻译键
+- 缓解措施：键遵循可预测的 `viewName.elementName` 模式

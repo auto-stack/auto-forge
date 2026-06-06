@@ -3,10 +3,12 @@
 ---
 
 ## Relay-D1 PipelineEngine & Flow Execution
-**Status:** implemented
-**Module:** `crates/auto-forge/src/relay/pipeline.rs`
-**Tags:** stack:backend
-**Depends on:** Relay-A1, AgentConfig-D1
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/relay/pipeline.rs`
+**标签：** stack:backend
+**依赖：** Relay-A1, AgentConfig-D1
 
 ```rust
 pub struct PipelineEngine {
@@ -19,22 +21,22 @@ pub struct PipelineEngine {
 }
 
 impl PipelineEngine {
-    /// Load a flow spec and initialize the pipeline.
+    /// 加载 Flow 规格并初始化流水线。
     pub fn new(flow: FlowSpec, run_id: String) -> Self;
 
-    /// Execute the next step in the flow.
+    /// 执行 Flow 中的下一步。
     pub async fn execute_next(&mut self) -> StepResult;
 
-    /// Pause the current run, saving checkpoint.
+    /// 暂停当前运行，保存检查点。
     pub async fn pause(&mut self) -> Result<Checkpoint, PipelineError>;
 
-    /// Resume from a checkpoint.
+    /// 从检查点恢复。
     pub async fn resume(checkpoint: &Checkpoint) -> Result<Self, PipelineError>;
 
-    /// Rollback to a previous checkpoint.
+    /// 回滚到之前的检查点。
     pub async fn rollback(target: u64) -> Result<(), PipelineError>;
 
-    /// Handle human approval/rejection at a gate.
+    /// 在关卡处处理人类审批/拒绝。
     pub async fn resolve_gate(&mut self, decision: GateDecision) -> Result<(), PipelineError>;
 }
 
@@ -72,13 +74,13 @@ stateDiagram-v2
     Completed --> [*]
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| `flow.id` | `String` | Flow specification identifier |
-| `current_step` | `usize` | Index into flow.steps vector |
-| `status` | `PipelineStatus` | Current state machine state |
-| `checkpoints` | `Vec<Checkpoint>` | Ordered list of saved states |
-| `run_id` | `String` | Unique run identifier |
+| `flow.id` | `String` | Flow 规格标识符 |
+| `current_step` | `usize` | flow.steps 向量的索引 |
+| `status` | `PipelineStatus` | 当前状态机状态 |
+| `checkpoints` | `Vec<Checkpoint>` | 有序保存的状态列表 |
+| `run_id` | `String` | 唯一运行标识符 |
 
 ```
 fn execute_next():
@@ -121,13 +123,17 @@ fn execute_next():
 ---
 
 ---
+
+---
 ---
 
 ## Relay-D2 HandoffDocument Generation
-**Status:** implemented
-**Module:** `crates/auto-forge/src/relay/handoff.rs`
-**Tags:** stack:backend
-**Depends on:** Relay-G2, AgentConfig-D1
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/relay/handoff.rs`
+**标签：** stack:backend
+**依赖：** Relay-G2, AgentConfig-D1
 
 ```rust
 pub struct HandoffDocument {
@@ -145,17 +151,17 @@ pub struct HandoffDocument {
 }
 
 impl HandoffDocument {
-    /// Generate from agent turn history and current state.
+    /// 根据智能体轮次历史和当前状态生成。
     pub fn generate(
         agent: &AgentInstance,
         turn_history: &[TurnRecord],
         specs: &SpecsDocument,
     ) -> Result<Self, HandoffError>;
 
-    /// Render as markdown for the next agent's consumption.
+    /// 渲染为 Markdown，供下一个智能体消费。
     pub fn render(&self) -> String;
 
-    /// Compress raw turn history into summary using cheap model or rules.
+    /// 使用低成本模型或规则将原始轮次历史压缩为摘要。
     pub async fn compress_history(
         history: &[TurnRecord],
         model: &ModelConfig,
@@ -186,15 +192,15 @@ stateDiagram-v2
     Rendered --> [*]
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| `summary` | `String` | ≤200 words executive summary |
-| `decisions.id` | `String` | Decision identifier |
+| `summary` | `String` | ≤200 词的执行摘要 |
+| `decisions.id` | `String` | 决策标识符 |
 | `decisions.status` | `String` | made / deferred / rejected |
-| `open_questions.id` | `String` | Question identifier |
-| `spec_updates.section_id` | `String` | Which spec section was modified |
-| `work_product.path` | `String` | File path or artifact location |
-| `work_product.lines` | `u32` | Size indicator for context sizing |
+| `open_questions.id` | `String` | 问题标识符 |
+| `spec_updates.section_id` | `String` | 被修改的规格章节 |
+| `work_product.path` | `String` | 文件路径或产物位置 |
+| `work_product.lines` | `u32` | 上下文大小指示器 |
 
 ```
 fn generate(agent, turn_history, specs):
@@ -233,13 +239,17 @@ fn generate(agent, turn_history, specs):
 ---
 
 ---
+
+---
 ---
 
 ## Relay-D3 Checkpoint Serialization
-**Status:** implemented
-**Module:** `crates/auto-forge/src/relay/checkpoint.rs`
-**Tags:** stack:backend
-**Depends on:** Relay-A2
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/relay/checkpoint.rs`
+**标签：** stack:backend
+**依赖：** Relay-A2
 
 ```rust
 pub struct Checkpoint {
@@ -261,19 +271,19 @@ pub struct FileState {
 }
 
 impl Checkpoint {
-    /// Create checkpoint from current pipeline state.
+    /// 根据当前流水线状态创建检查点。
     pub async fn create(engine: &PipelineEngine) -> Result<Self, CheckpointError>;
 
-    /// Serialize to disk.
+    /// 序列化到磁盘。
     pub fn save(&self, dir: &Path) -> Result<(), CheckpointError>;
 
-    /// Load from disk.
+    /// 从磁盘加载。
     pub fn load(dir: &Path, checkpoint_id: u64) -> Result<Self, CheckpointError>;
 
-    /// Restore file system state from checkpoint.
+    /// 从检查点恢复文件系统状态。
     pub async fn restore_files(&self, project_dir: &Path) -> Result<(), CheckpointError>;
 
-    /// Restore git state.
+    /// 恢复 Git 状态。
     pub async fn restore_git(&self) -> Result<(), CheckpointError>;
 }
 ```
@@ -288,14 +298,16 @@ stateDiagram-v2
     Persisted --> [*]
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| `id` | `u64` | Monotonic within run |
-| `git_commit` | `Option<String>` | Full SHA if auto-commit succeeded |
-| `git_diff` | `Option<String>` | Patch if working tree was dirty |
-| `ledger_state` | `SpecsDocument` | Deep copy of specs at this point |
-| `file_manifest` | `Vec<FileState>` | Hash of every touched file |
+| `id` | `u64` | 运行内单调递增 |
+| `git_commit` | `Option<String>` | 自动提交成功时的完整 SHA |
+| `git_diff` | `Option<String>` | 工作树脏时的补丁 |
+| `ledger_state` | `SpecsDocument` | 此时规格的深拷贝 |
+| `file_manifest` | `Vec<FileState>` | 每个被触碰文件的哈希 |
 
+
+---
 
 ---
 
@@ -313,10 +325,12 @@ stateDiagram-v2
 ---
 
 ## Relay-D4 TokenBudget Enforcement
-**Status:** implemented
-**Module:** `crates/auto-forge/src/relay/budget.rs`
-**Tags:** stack:backend
-**Depends on:** Runtime-G2
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/relay/budget.rs`
+**标签：** stack:backend
+**依赖：** Runtime-G2
 
 ```rust
 pub struct TokenBudget {
@@ -340,13 +354,13 @@ pub struct BudgetTracker {
 }
 
 impl BudgetTracker {
-    /// Record token usage from an API response.
+    /// 从 API 响应记录 Token 使用量。
     pub fn record(&mut self, step: &str, input: u64, output: u64);
 
-    /// Check if current spend triggers any budget action.
+    /// 检查当前消耗是否触发任何预算动作。
     pub fn check(&self, step: &str) -> BudgetAction;
 
-    /// Estimate "parallel cost" for analytics.
+    /// 估算用于分析的"并行成本"。
     pub fn estimate_parallel_cost(&self, num_agents: u32, avg_context: u64) -> u64;
 }
 
@@ -358,13 +372,15 @@ pub enum BudgetAction {
 }
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| `limit` | `u64` | Hard token limit |
-| `warning_at` | `u64` | Percentage (0-1) of limit where warning fires |
-| `strategy` | `BudgetStrategy` | Action when limit reached |
-| `cumulative` | `u64` | Total tokens this run |
-| `per_step` | `HashMap` | Tokens per profession/step |
+| `limit` | `u64` | 硬 Token 上限 |
+| `warning_at` | `u64` | 触发警告的限额百分比 (0-1) |
+| `strategy` | `BudgetStrategy` | 达到限额时的动作 |
+| `cumulative` | `u64` | 本次运行总 Token 数 |
+| `per_step` | `HashMap` | 每个职业/步骤的 Token 数 |
+
+---
 
 ---
 
@@ -382,15 +398,17 @@ pub enum BudgetAction {
 ---
 
 ## Relay-D5 RelayMode & GSD Flow Control
-**Status:** implemented
-**Module:** `crates/auto-forge/src/relay/pipeline.rs`
-**Tags:** stack:backend
-**Depends on:** Runtime-G3, Relay-D1
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/relay/pipeline.rs`
+**标签：** stack:backend
+**依赖：** Runtime-G3, Relay-D1
 
 ```rust
 pub enum RelayMode {
-    GSD,      // Get Shit Done — autonomous, only GoalGate is human
-    Check,    // Human reviews every gate
+    GSD,      // Get Shit Done — 自主模式，只有 GoalGate 是人类
+    Check,    // 人类评审每个关卡
 }
 
 pub enum ForgePhase {
@@ -411,21 +429,21 @@ pub struct PipelineEngine {
     pub checkpoints: Vec<Checkpoint>,
     pub status: PipelineStatus,
     pub run_id: String,
-    pub mode: RelayMode,  // NEW
+    pub mode: RelayMode,  // 新增
 }
 
 impl PipelineEngine {
-    /// Evaluate gate based on RelayMode.
-    /// GSD: only GoalGate triggers human pause.
-    /// Check: every gate triggers human pause.
+    /// 根据 RelayMode 评估关卡。
+    /// GSD: 只有 GoalGate 触发人类暂停。
+    /// Check: 每个关卡都触发人类暂停。
     pub fn evaluate_gate(&self, step: &FlowStep) -> GateDecision;
 }
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| `mode` | `RelayMode` | GSD (default) or Check |
-| `phase` | `ForgePhase` | Extended to 8 phases including Discovery, GoalGate, Design, Planning, Report |
+| `mode` | `RelayMode` | GSD（默认）或 Check |
+| `phase` | `ForgePhase` | 扩展为 8 个阶段，包括 Discovery、GoalGate、Design、Planning、Report |
 
 ```
 fn evaluate_gate(step, mode):
@@ -433,9 +451,11 @@ fn evaluate_gate(step, mode):
         return HumanGate
     if mode == GSD:
         if step.profession == "advisor" and step.exit == "handoff_to_architect":
-            return HumanGate  // Goal approval required
-        return AutoGate  // Everything else autonomous
+            return HumanGate  // 需要目标审批
+        return AutoGate  // 其余全部自主
 ```
+
+---
 
 ---
 
@@ -453,10 +473,12 @@ fn evaluate_gate(step, mode):
 ---
 
 ## Relay-D6 useGateInbox State Machine
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/composables/useGateInbox.ts`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/composables/useGateInbox.ts`
+**标签：** stack:frontend
+**依赖：** UiSystem-A1
 
 ```typescript
 interface PendingGate {
@@ -522,13 +544,17 @@ fn snoozeGate(id, minutes):
 ---
 
 ---
+
+---
 ---
 
 ## Relay-D7 Relay PipelinePanel Node-Graph
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/views/RelayView.vue`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/views/RelayView.vue`
+**标签：** stack:frontend
+**依赖：** UiSystem-A1
 
 ```typescript
 interface PipelineNode {
@@ -549,9 +575,11 @@ interface PipelineEdge {
 }
 ```
 
-- Desktop (`≥1024px`): horizontal flexbox with absolute-positioned SVG connectors
-- Mobile (`<1024px`): vertical timeline with CSS border-left connectors
+- Desktop (`≥1024px`): 水平 flexbox + 绝对定位 SVG 连接线
+- Mobile (`<1024px`): 垂直时间线 + CSS border-left 连接线
 
+
+---
 
 ---
 
@@ -569,10 +597,12 @@ interface PipelineEdge {
 ---
 
 ## Relay-D8 Expanded Node Card
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/components/NodeCard.vue`
-**Tags:** stack:frontend
-**Depends on:** Relay-D7
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/components/NodeCard.vue`
+**标签：** stack:frontend
+**依赖：** Relay-D7
 
 ```typescript
 interface NodeCardProps {
@@ -580,10 +610,12 @@ interface NodeCardProps {
 }
 ```
 
-1. **Overview**: tokens, elapsed time, status, profession icon
-2. **Actions**: chronological tool call history (read_jade, write_file, etc.)
-3. **Output**: specs touched with click-to-jump links
+1. **概览**：Token、耗时、状态、职业图标
+2. **动作**：按时间顺序的工具调用历史（read_jade、write_file 等）
+3. **输出**：被触碰的规格，附带点击跳转链接
 
+
+---
 
 ---
 
@@ -601,10 +633,12 @@ interface NodeCardProps {
 ---
 
 ## Relay-D9 GatePanel (Relay View)
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/components/GatePanel.vue`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1, Relay-D6
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/components/GatePanel.vue`
+**标签：** stack:frontend
+**依赖：** UiSystem-A1, Relay-D6
 
 ```typescript
 interface GatePanelProps {
@@ -613,17 +647,19 @@ interface GatePanelProps {
   professionIcon: string
 }
 
-// Events
+// 事件
 emit('approve', runId: string)
 emit('reject', runId: string)
 emit('reviewInSpecs', sectionId: string)
 ```
 
-- Renders inside `PipelinePanel` when `currentRun.waiting_for_gate` is non-null
-- Shows profession icon, gate title, and elapsed waiting time
-- Provides Approve / Reject / Review in Specs actions
-- Non-blocking: pipeline animation continues in background
+- 当 `currentRun.waiting_for_gate` 非空时，在 `PipelinePanel` 内部渲染
+- 显示职业图标、关卡标题和等待耗时
+- 提供 批准 / 拒绝 / 在规格中评审 动作
+- 非阻塞：流水线动画在后台继续
 
+
+---
 
 ---
 
@@ -641,16 +677,19 @@ emit('reviewInSpecs', sectionId: string)
 ---
 
 ## Relay-D10 SSE Frontend Event Router
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/composables/useEventRouter.ts`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1, Relay-D6
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/composables/useEventRouter.ts`
+**标签：** stack:frontend
+**依赖：** UiSystem-A1, Relay-D6
 
 ```typescript
 interface SSEEvent {
   type: 'run_started' | 'step_advanced' | 'spec_written'
        | 'gate_reached' | 'gate_resolved'
        | 'handoff_submitted' | 'run_completed'
+       | 'turn_thinking'  // ← 新增
   runId: string
   payload: Record<string, unknown>
 }
@@ -660,16 +699,19 @@ function useEventRouter() {
 }
 ```
 
-| Event | Chat View | Specs View | Relay View |
+| 事件 | 聊天视图 | 规格视图 | 中继视图 |
 |---|---|---|---|
-| `run_started` | System message | — | Highlight run |
-| `step_advanced` | **NO action** (ambient only) | — | Animate node |
-| `spec_written` | — | Flash changed section | — |
+| `run_started` | 系统消息 | — | 高亮运行 |
+| `step_advanced` | **无动作**（仅环境感知） | — | 节点动画 |
+| `spec_written` | — | 闪烁变更章节 | — |
 | `gate_reached` | SecretaryMessage | GateBanner | GatePanel |
-| `gate_resolved` | Collapse message | Hide banner | Hide panel |
-| `handoff_submitted` | — | — | Append to Live Log |
-| `run_completed` | ReportCard | Update Reports | Mark run done |
+| `gate_resolved` | 折叠消息 | 隐藏横幅 | 隐藏面板 |
+| `handoff_submitted` | — | — | 追加到实时日志 |
+| `run_completed` | ReportCard | 更新报告 | 标记运行完成 |
+| `turn_thinking` | — | — | Session Log 追加 thinking 条目 |
 
+
+---
 
 ---
 
@@ -687,10 +729,12 @@ function useEventRouter() {
 ---
 
 ## Relay-D11 Spawn Relay Tool & Background Driver
-**Status:** implemented
-**Module:** `backend/src/forge/tools.rs`, `backend/src/relay/driver.rs`, `backend/src/forge/mod.rs`
-**Tags:** stack:backend
-**Depends on:** Relay-G13, Relay-A4, Relay-D1, Chat-D3, Errand-D1
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `backend/src/forge/tools.rs`, `backend/src/relay/driver.rs`, `backend/src/forge/mod.rs`
+**标签：** stack:backend
+**依赖：** Relay-G13, Relay-A4, Relay-D1, Chat-D3, Errand-D1
 
 ### SpawnRelayTool
 
@@ -723,21 +767,21 @@ impl Tool for SpawnRelayTool {
     }
 
     fn execute(&self, args: Value) -> Result<String, ToolError> {
-        // 1. Validate flow_id and mode
-        // 2. Validate caller profession has spawn_relay in allowed_tools
-        // 3. Generate run_id = format!("run-{}", Uuid::new_v4())
-        // 4. Return JSON with relay_spawned, run_id, flow_id, monitor_url
+        // 1. 验证 flow_id 和 mode
+        // 2. 验证调用者职业是否拥有 spawn_relay 权限
+        // 3. 生成 run_id = format!("run-{}", Uuid::new_v4())
+        // 4. 返回包含 relay_spawned、run_id、flow_id、monitor_url 的 JSON
     }
 }
 ```
 
-### Profession Allowlist
+### 职业白名单
 
-| Profession | `spawn_relay` in allowed_tools | Typical use case |
+| 职业 | `spawn_relay` 在 allowed_tools 中 | 典型用例 |
 |---|---|---|
-| assistant | ✅ | Intake complete → spawn standard flow |
-| advisor | ✅ | **Discovery complete → spawn post_discovery flow** |
-| architect | ✅ | Design complete → spawn from planner step |
+| assistant | ✅ | 接收完成 → 生成标准 Flow |
+| advisor | ✅ | **发现完成 → 生成 post_discovery Flow** |
+| architect | ✅ | 设计完成 → 从 planner 步骤生成 |
 | planner | ❌ | — |
 | tester | ❌ | — |
 | coder | ❌ | — |
@@ -747,22 +791,22 @@ impl Tool for SpawnRelayTool {
 ### Forge Stream Handler Interception
 
 ```rust
-// In forge_stream ReAct loop, after tool execution:
+// 在 forge_stream ReAct 循环中，工具执行后：
 if name == "spawn_relay" {
     if let Ok(data) = serde_json::from_str::<Value>(&result_str) {
         if data.get("relay_spawned").and_then(|v| v.as_bool()) == Some(true) {
-            // 1. Build FlowSpec from flow_id
+            // 1. 根据 flow_id 构建 FlowSpec
             let flow = match flow_id.as_str() {
                 "standard" => standard_spec_flow(),
                 "post_discovery" => post_discovery_flow(),
                 // ...
             };
 
-            // 2. Start run in RunStore
+            // 2. 在 RunStore 中启动运行
             start_run(run_store, flow, &run_id);
             set_mode_on_engine(mode);
 
-            // 3. Spawn background driver
+            // 3. 生成后台驱动
             tokio::spawn(relay::driver::drive_run(
                 run_id.clone(),
                 run_store.clone(),
@@ -772,10 +816,10 @@ if name == "spawn_relay" {
                 project_path,
             ));
 
-            // 4. Emit RelaySpawned SSE to chat
+            // 4. 向聊天发送 RelaySpawned SSE
             event_tx.send(ForgeStreamEvent::RelaySpawned { ... });
 
-            // 5. Replace result with friendly message
+            // 5. 将结果替换为友好消息
             result_str = "Relay pipeline started: {run_id}...";
         }
     }
@@ -798,22 +842,22 @@ pub async fn drive_run(
     loop {
         match advance_run(&run_store, &run_id) {
             Some(ExecuteStep { step_id, profession_id, .. }) => {
-                // Build agent from RelayRegistry default config
+                // 从 RelayRegistry 默认配置构建智能体
                 let agent = build_agent(&profession_id);
 
-                // Build messages: task + previous handoff + gate feedback
+                // 构建消息：任务 + 前一次交接 + 关卡反馈
                 let messages = build_step_messages(...);
 
-                // Run AgentTurn
+                // 运行 AgentTurn
                 let mut turn = AgentTurn::new(agent, ToolRegistry::new(), messages);
                 turn.max_turns = turn.agent.profession.max_turns;
                 let result = turn.run(&*provider, event_drain_tx).await;
 
-                // Build and submit handoff
+                // 构建并提交交接
                 let handoff = turn.to_handoff(&result, "next", &run_id, 0);
                 let next = submit_handoff(&run_store, &run_id, handoff);
 
-                // Handle next result...
+                // 处理下一个结果...
             }
             Some(WaitForHuman { .. }) => {
                 wait_for_gate_resolution(&run_store, &run_id, &event_tx).await;
@@ -824,7 +868,7 @@ pub async fn drive_run(
 }
 ```
 
-### Step Message Construction
+### 步骤消息构建
 
 ```
 ## Task
@@ -844,10 +888,10 @@ You are step '{step_id}' ({profession_id}) in a relay pipeline.
 Do your work using available tools. When finished, stop making tool calls.
 ```
 
-### Frontend SSE Events
+### 前端 SSE 事件
 
 ```typescript
-// New ForgeStreamEvent variants
+// 新增 ForgeStreamEvent 变体
 interface ForgeStreamEvent {
   type: 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
   run_id: string
@@ -860,7 +904,7 @@ interface ForgeStreamEvent {
 }
 ```
 
-### Chat UI: Relay Card
+### 聊天 UI：Relay Card
 
 ```vue
 <div class="relay-card">
@@ -888,21 +932,33 @@ interface ForgeStreamEvent {
 ---
 
 ---
+
+---
+
+---
 ---
 
 ## Relay-D12 Cross-View Event Router & Gate Inbox Composables
-**Status:** implemented
-**Module:** `frontend/src/composables/useEventRouter.ts`, `useGateInbox.ts`
-**Tags:** stack:frontend
-**Depends on:** Relay-A5
+**Status:** draft
 
-- Subscribe to relay SSE events and route by type to view callbacks
-- Maintain FIFO gate queue with snooze timer and dismiss state
-- Expose `pendingCount`, `activeGate`, `resolveGate()` to UI
-- Filter errand events by `parent_session_id` to avoid cross-talk
+**状态：** 已实现
+**模块：** `frontend/src/composables/useEventRouter.ts`, `useGateInbox.ts`
+**标签：** stack:frontend
+**依赖：** Relay-A5
 
-- `useRelay.ts` for SSE connection
-- `useForge.ts` for session context
+- 订阅中继 SSE 事件，并按类型路由到视图回调
+- 维护 FIFO 关卡队列，支持暂停计时器和关闭状态
+- 向 UI 暴露 `pendingCount`、`activeGate`、`resolveGate()`
+- 按 `parent_session_id` 过滤差事事件，避免串扰
+
+- `useRelay.ts` 用于 SSE 连接
+- `useForge.ts` 用于会话上下文
+
+---
+
+---
+
+---
 
 ---
 
@@ -913,24 +969,27 @@ interface ForgeStreamEvent {
 ---
 
 ---
-
 ---
 
 ## Relay-D13 PDF Export for Relay Run Reports — Design
 **Status:** draft
 
+**状态：** 草案
+
 ## Relay-D13 PDF Export for Relay Run Reports — Design
-**Status:** proposed
-**File:** `frontend/src/views/RelayView.vue`
-**Module:** `frontend/src/utils/PdfGenerator.ts`, `frontend/src/views/RelayView.vue`
-**Tags:** stack:frontend, module:relay
-**Depends on:** Relay-G15, Relay-A7
+**Status:** draft
 
-### Overview
+**状态：** 提议中
+**文件：** `frontend/src/views/RelayView.vue`
+**模块：** `frontend/src/utils/PdfGenerator.ts`, `frontend/src/views/RelayView.vue`
+**标签：** stack:frontend, module:relay
+**依赖：** Relay-G15, Relay-A7
 
-Client-side PDF export for completed relay runs. Uses `jspdf` + `jspdf-autotable` to generate a multi-page PDF document from existing RunState data. No backend changes required.
+### 概述
 
-### 1. PdfGenerator Utility
+已完成中继运行的客户端 PDF 导出。使用 `jspdf` + `jspdf-autotable` 从现有 RunState 数据生成多页 PDF 文档。无需后端变更。
+
+### 1. PdfGenerator 工具类
 
 
 ```typescript
@@ -1004,10 +1063,10 @@ export class PdfGenerator {
     this.doc.save(`relay-${slug}-${date}.pdf`)
   }
 
-  // --- Page renderers (private) ---
+  // --- 页面渲染器（私有） ---
 
   private renderCover(run: RunStateForPdf): void {
-    // Title block
+    // 标题块
     this.doc.setFontSize(24)
     this.doc.setFont('helvetica', 'bold')
     this.doc.text('Relay Run Report', this.margin, 60)
@@ -1016,7 +1075,7 @@ export class PdfGenerator {
     this.doc.setFont('helvetica', 'normal')
     this.doc.text(run.title || run.run_id, this.margin, 72)
 
-    // Metadata table
+    // 元数据表
     const rows = [
       ['Run ID', run.run_id],
       ['Flow', run.flow_id],
@@ -1065,7 +1124,7 @@ export class PdfGenerator {
       headStyles: { fillColor: [59, 130, 246] },
     })
 
-    // Per-step token breakdown
+    // 每步 Token 细分
     this.sectionTitle('Per-Step Token Usage', 10)
 
     const stepRows = run.steps.map(s => [
@@ -1155,7 +1214,7 @@ export class PdfGenerator {
     })
   }
 
-  // --- Helpers ---
+  // --- 辅助方法 ---
 
   private sectionTitle(text: string, offset = 0): void {
     const y = this.lastY() + 10 + offset
@@ -1169,12 +1228,12 @@ export class PdfGenerator {
   }
 
   private lastY(): number {
-    // jspdf-autotable stores finalY on the doc after each autoTable call
+    // jspdf-autotable 在每次 autoTable 调用后将 finalY 存储在 doc 上
     return (this.doc as any).lastAutoTable?.finalY ?? this.margin
   }
 }
 
-// --- Formatters ---
+// --- 格式化器 ---
 
 function formatTimestamp(iso: string): string {
   if (!iso) return '—'
@@ -1196,7 +1255,7 @@ function formatMs(ms: number): string {
 }
 ```
 
-### 2. State Machine
+### 2. 状态机
 
 ```mermaid
 stateDiagram-v2
@@ -1209,11 +1268,11 @@ stateDiagram-v2
     Error --> Idle: User dismisses error
 ```
 
-### 3. Frontend Integration
+### 3. 前端集成
 
 
 ```vue
-<!-- In run detail header -->
+<!-- 在运行详情头部 -->
 <button
   v-if="selectedRun?.status === 'completed'"
   @click="exportPdf"
@@ -1235,7 +1294,7 @@ async function exportPdf() {
   exporting.value = true
   try {
     const gen = new PdfGenerator()
-    // Map RunState → RunStateForPdf
+    // 将 RunState 映射为 RunStateForPdf
     const pdfData = mapRunState(selectedRun.value)
     gen.generate(pdfData)
     gen.save(pdfData)
@@ -1271,70 +1330,146 @@ function mapRunState(run: RunState): RunStateForPdf {
 }
 ```
 
-### 4. i18n Keys
+### 4. 国际化键值
 
-| Key | en.json | zh.json |
+| 键 | en.json | zh.json |
 |-----|---------|---------|
 | `relay.exportPdf` | `"Export PDF"` | `"导出 PDF"` |
 | `relay.exporting` | `"Exporting..."` | `"导出中..."` |
 
-### 5. Dependencies
+### 5. 依赖
 
-| Package | Version | Purpose |
+| 包 | 版本 | 用途 |
 |---------|---------|---------|
-| `jspdf` | ^2.5.x | PDF document generation |
-| `jspdf-autotable` | ^3.8.x | Table rendering in PDF |
+| `jspdf` | ^2.5.x | PDF 文档生成 |
+| `jspdf-autotable` | ^3.8.x | PDF 中的表格渲染 |
 
-Both are lightweight (~200KB combined gzipped), client-side only, no native dependencies.
+两者均为轻量级（合并 gzip 后约 200KB），纯客户端，无原生依赖。
 
-### 6. Error Handling
+### 6. 错误处理
 
-| Error Case | Handling |
+| 错误场景 | 处理方式 |
 |------------|----------|
-| Run not completed | Export button disabled (only shown for `status === 'completed'`) |
-| jspdf throws during generation | try/catch, log error, show toast notification |
-| RunState missing fields | Default to `—` or `0` in formatters |
-| Large run (50+ steps) | autoTable handles page breaks automatically |
+| 运行未完成 | 导出按钮禁用（仅对 `status === 'completed'` 显示） |
+| 生成过程中 jspdf 抛出异常 | try/catch，记录错误，显示 toast 通知 |
+| RunState 缺少字段 | 在格式化器中默认使用 `—` 或 `0` |
+| 大型运行（50+ 步骤） | autoTable 自动处理分页 |
 
-### 7. Data Lifecycle
+### 7. 数据生命周期
 
 ```
-[User clicks Export]
-    → mapRunState() converts frontend RunState → flat PdfData interface
-    → PdfGenerator.generate(pdfData) builds pages in memory
-    → PdfGenerator.save(pdfData) triggers browser download
-    → No persistence — PDF is a one-time export
-    → No server involvement
+[用户点击导出]
+    → mapRunState() 将前端 RunState 转换为扁平的 PdfData 接口
+    → PdfGenerator.generate(pdfData) 在内存中构建页面
+    → PdfGenerator.save(pdfData) 触发浏览器下载
+    → 无持久化 — PDF 为一次性导出
+    → 无服务器参与
 ```
 
-### 8. PDF Document Structure
+### 8. PDF 文档结构
 
-| Page | Content | Layout |
+| 页码 | 内容 | 布局 |
 |------|---------|--------|
-| 1 — Cover | Title, run metadata table | Centered title, metadata table |
-| 2 — Summary | Metrics overview + per-step token table | Two autoTables |
-| 3 — Timeline | Chronological step execution | autoTable with timestamps |
-| 4 — Spec Changes | Sections modified, actions, item IDs | autoTable (optional) |
-| 5 — Deliverables | Files/specs/reports produced | autoTable (optional) |
+| 1 — 封面 | 标题、运行元数据表 | 居中标题、元数据表 |
+| 2 — 摘要 | 指标概览 + 每步 Token 表 | 两个 autoTable |
+| 3 — 时间线 | 按时间顺序的步骤执行 | 带时间戳的 autoTable |
+| 4 — 规格变更 | 修改的章节、动作、条目 ID | autoTable（可选） |
+| 5 — 交付物 | 生成的文件/规格/报告 | autoTable（可选） |
 
-Pages 4 and 5 are only included if the run has spec_changes or deliverables.
+第 4 和第 5 页仅在运行包含 spec_changes 或 deliverables 时包含。
 
-### 9. Files Modified
+### 9. 修改的文件
 
-| File | Change |
+| 文件 | 变更 |
 |------|--------|
-| `frontend/package.json` | Add `jspdf` and `jspdf-autotable` dependencies |
-| `frontend/src/utils/PdfGenerator.ts` | **New file** — PDF generation utility |
-| `frontend/src/views/RelayView.vue` | Add export button + `exportPdf()` handler |
-| `frontend/src/locales/en.json` | Add `relay.exportPdf`, `relay.exporting` |
-| `frontend/src/locales/zh.json` | Add `relay.exportPdf`, `relay.exporting` |
+| `frontend/package.json` | 添加 `jspdf` 和 `jspdf-autotable` 依赖 |
+| `frontend/src/utils/PdfGenerator.ts` | **新文件** — PDF 生成工具类 |
+| `frontend/src/views/RelayView.vue` | 添加导出按钮 + `exportPdf()` 处理函数 |
+| `frontend/src/locales/en.json` | 添加 `relay.exportPdf`、`relay.exporting` |
+| `frontend/src/locales/zh.json` | 添加 `relay.exportPdf`、`relay.exporting` |
 
-### 10. Quality Checklist
+### 10. 质量检查清单
 
-- [x] Interface defined (RunStateForPdf, step types)
-- [x] State machine defined (Idle → Generating → Downloading)
-- [x] Data model defined (flat PDF-specific types)
-- [x] Error cases handled (disabled for non-completed, try/catch, defaults)
-- [x] Data lifecycle defined (one-time export, no persistence)
-- [x] All file paths are new (no verification needed)
-- [x] No unhandled error cases
+- [x] 接口已定义（RunStateForPdf、步骤类型）
+- [x] 状态机已定义（Idle → Generating → Downloading）
+- [x] 数据模型已定义（扁平的 PDF 专用类型）
+- [x] 错误场景已处理（未完成的禁用、try/catch、默认值）
+- [x] 数据生命周期已定义（一次性导出，无持久化）
+- [x] 所有文件路径均为新建（无需验证）
+- [x] 无未处理的错误场景
+
+## Relay-D14 Session Log Thinking 条目
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `frontend/src/composables/useRelay.ts`, `frontend/src/views/RelayView.vue`
+**标签：** stack:frontend
+**依赖：** Relay-A8
+
+```typescript
+// 新增 SessionLogEntry 类型
+interface SessionLogEntry {
+  id: string
+  time: string
+  profession_id: string
+  type: 'text' | 'tool_call' | 'tool_result' | 'tool' | 'thinking' | 'complete' | 'error' | ...
+  content: string
+  // ...
+}
+```
+
+### 事件流转
+
+后端 `RunEvent::TurnThinking` → 前端 `data.event_type === 'turn_thinking'` → `SessionLogEntry{type:'thinking'}`
+
+```mermaid
+graph LR
+    T[AgentTurn] -->|TurnEvent::ThinkingDelta| D[relay/driver.rs]
+    D -->|RunEvent::TurnThinking| S[RunStore]
+    S -->|SSE turn_thinking| F[useRelay.ts]
+    F -->|_sessionLog.push| L[SessionLogEntry]
+    L -->|entry.type==='thinking'| V[RelayView.vue]
+```
+
+### 渲染
+
+与 Chat ThinkingBlock 风格一致：
+- `<details>` 默认折叠
+- summary 显示 💭 + "思考中" + 脉冲动画
+- 展开后显示 `<pre>` 包裹的推理内容
+
+```vue
+<div v-else-if="entry.type === 'thinking'" class="session-thinking">
+  <details>
+    <summary>
+      <span class="thinking-icon">💭</span>
+      <span>思考中</span>
+      <span class="thinking-pulse"></span>
+    </summary>
+    <pre>{{ entry.content }}</pre>
+  </details>
+</div>
+```
+
+| 属性 | 说明 |
+|---|---|
+| `type` | `'thinking'` |
+| `content` | 完整的推理文本（多段 ThinkingDelta 累积） |
+| `profession_id` | 产生该推理的智能体职业 |
+| `time` | 事件到达时间 |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

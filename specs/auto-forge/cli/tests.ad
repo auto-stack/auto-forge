@@ -2,32 +2,32 @@
 
 ---
 
-## Cli-T1 [G17] BringInTool validates target against handoff_to list
-**Status:** proposed
-**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Relay-G9, Chat-D3
+## Cli-T1 [G17] BringInTool 根据 handoff_to 列表验证目标
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/forge/tools.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖项：** Relay-G9, Chat-D3
 
 ```rust
 let tool = BringInTool;
-// Valid: advisor is in assistant's handoff_to
+// 有效：advisor 在 assistant 的 handoff_to 中
 let valid = tool.execute(json!({"target": "advisor", "reason": "test"}));
-// Invalid: architect is NOT in assistant's handoff_to
+// 无效：architect 不在 assistant 的 handoff_to 中
 let invalid = tool.execute(json!({"target": "architect", "reason": "test"}));
 ```
 
-1. Call `bring_in(target: "advisor")` with assistant as active profession
-2. Assert result is Ok with "Handed off to Isaac (advisor)"
-3. Call `bring_in(target: "architect")` with assistant as active profession
-4. Assert result is Err with "Cannot hand off to 'architect'"
-5. Call `bring_in(target: "advisor")` with advisor already active
-6. Assert result is Err with "Already talking to advisor"
+1. 以 assistant 作为活跃职业调用 `bring_in(target: "advisor")`
+2. 断言结果为 Ok，附带 "Handed off to Isaac (advisor)"
+3. 以 assistant 作为活跃职业调用 `bring_in(target: "architect")`
+4. 断言结果为 Err，附带 "Cannot hand off to 'architect'"
+5. 以 advisor 已是活跃职业调用 `bring_in(target: "advisor")`
+6. 断言结果为 Err，附带 "Already talking to advisor"
 
-- Valid target succeeds.
-- Target not in `handoff_to` is rejected.
-- Target same as current profession is rejected.
-
----
+- 有效目标成功。
+- 不在 `handoff_to` 中的目标被拒绝。
+- 与当前职业相同的目标被拒绝。
 
 ---
 
@@ -39,4 +39,7 @@ let invalid = tool.execute(json!({"target": "architect", "reason": "test"}));
 
 ---
 
+---
+
+---
 ---

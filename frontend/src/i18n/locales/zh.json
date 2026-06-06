@@ -14,6 +14,19 @@
     "skills": "技能",
     "apis": "API"
   },
+  "auth": {
+    "username": "用户名",
+    "password": "密码",
+    "usernamePlaceholder": "请输入用户名",
+    "passwordPlaceholder": "请输入密码",
+    "login": "登录",
+    "register": "注册",
+    "loading": "登录中...",
+    "noAccount": "没有账号？立即注册",
+    "hasAccount": "已有账号？立即登录",
+    "logout": "退出登录",
+    "defaultHint": "默认账号：admin / admin"
+  },
   "settings": {
     "title": "设置",
     "mode": "模式",

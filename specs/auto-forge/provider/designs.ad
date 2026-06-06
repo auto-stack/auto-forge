@@ -2,15 +2,17 @@
 
 ---
 
-## Provider-D1 Multi-Provider AI Dispatch
+## Provider-D1 多提供商 AI 调度
 **Status:** draft
-**Module:** `backend/src/ai.rs`
-**Tags:** stack:backend
-**Depends on:** ApiSources-G1, ApiSources-D1
+
+**状态：** 草案
+**模块：** `backend/src/ai.rs`
+**标签：** stack:backend
+**依赖：** ApiSources-G1, ApiSources-D1
 
 ```rust
-/// Dispatch a streaming chat request to the correct provider.
-/// Returns error message on failure, None on success.
+/// 将流式聊天请求调度到正确的提供商。
+/// 失败时返回错误消息，成功时返回 None。
 pub async fn dispatch_chat(
     source: &ApiSource,
     model: &str,
@@ -19,13 +21,13 @@ pub async fn dispatch_chat(
     tx: UnboundedSender<AIStreamDelta>,
 ) -> Option<String>
 
-/// Build provider-specific request URL.
+/// 构建提供商专属的请求 URL。
 fn build_api_url(source: &ApiSource) -> String
 
-/// Build provider-specific auth headers.
+/// 构建提供商专属的认证请求头。
 fn build_auth_headers(source: &ApiSource) -> HeaderMap
 
-/// Parse provider-specific SSE stream into text deltas.
+/// 将提供商专属的 SSE 流解析为文本增量。
 fn parse_sse_delta(provider: &Provider, data: &str) -> Option<String>
 ```
 
@@ -45,11 +47,11 @@ stateDiagram-v2
     Error --> [*]
 ```
 
-| Provider | Auth Header | API Path | SSE Format |
+| 提供商 | 认证请求头 | API 路径 | SSE 格式 |
 |---|---|---|---|
 | Anthropic | `x-api-key: {key}` | `/v1/messages` | `event: content_block_delta` → `delta.text` |
 | OpenAI | `Authorization: Bearer {key}` | `/v1/chat/completions` | `choices[0].delta.content` |
-| Local | None (or Bearer) | `/v1/chat/completions` | Same as OpenAI (Ollama-compatible) |
+| Local | 无（或 Bearer） | `/v1/chat/completions` | 与 OpenAI 相同（Ollama 兼容） |
 
 ```
 fn dispatch_chat(source, model, system, messages, tx):
@@ -83,10 +85,10 @@ fn parse_sse_delta(provider, data):
         Local => json.choices[0].delta.content  // Ollama compatible
 ```
 
-- `ClaudeProvider::chat_stream()` refactored into `dispatch_chat()`
-- `ToolClaudeProvider` in `forge/ai.rs` generalized to use `dispatch_chat()` with `ApiSource`
-- Existing `ModelConfig::cheap()/standard()/strong()` kept as fallback defaults
-- `ai.rs` `load_api_config()` replaced by `config::resolve_api_key()`
+- `ClaudeProvider::chat_stream()` 重构为 `dispatch_chat()`
+- `forge/ai.rs` 中的 `ToolClaudeProvider` 泛化为使用 `dispatch_chat()` 配合 `ApiSource`
+- 保留现有的 `ModelConfig::cheap()/standard()/strong()` 作为降级默认配置
+- `ai.rs` 中的 `load_api_config()` 替换为 `config::resolve_api_key()`
 
 ---
 
@@ -101,12 +103,15 @@ fn parse_sse_delta(provider, data):
 ---
 
 ---
+
 ---
 
-## Provider-D2 Unified Provider Layer
-**Status:** done
-**Module:** `backend/src/provider/`
-**Tags:** stack:backend
+## Provider-D2 统一提供商层
+**Status:** draft
+
+**状态：** 已完成
+**模块：** `backend/src/provider/`
+**标签：** stack:backend
 
 ```rust
 // provider/claude.rs
@@ -146,11 +151,13 @@ stateDiagram-v2
     Done --> [*]
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| `client` | `reqwest::Client` | Reusable HTTP client |
-| `api_key` | `Option<String>` | Loaded from ~/.claude/settings.json or env |
-| `base_url` | `String` | API endpoint (default: https://api.anthropic.com) |
+| `client` | `reqwest::Client` | 可复用的 HTTP 客户端 |
+| `api_key` | `Option<String>` | 从 ~/.claude/settings.json 或环境变量加载 |
+| `base_url` | `String` | API 端点（默认：https://api.anthropic.com） |
+
+---
 
 ---
 

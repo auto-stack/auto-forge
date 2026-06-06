@@ -2,221 +2,129 @@
 
 ---
 
-## Specs-G1 Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category
+## Specs-G1 规格金字塔支持目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** AgentConfig-G1
 
-- [x] APIs category removed from spec system
-- [x] Interface specs (REST endpoints, schemas) live in Designs under `Interface` section
-- [x] Architect owns Designs (including interfaces), not a separate APIs category
-- [x] Documenter generates public API docs as product, not spec
-- [x] Reports are relay execution summaries (cost, confidence, deliverables)
+- [x] API 类别已移除
+- [x] 接口规格存放在设计下
+- [x] 架构师拥有设计
+- [x] 报告是中继执行总结
 
-Specs are internal decision records (how to build). Products are shipped artifacts (code + public docs). Interface contracts are design specs; public API docs are generated products.
----
-
-## Specs-G2 Specs Workspace with Bidirectional Traceability
+## Specs-G2 规格工作区与双向可追溯性
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Specs-G1, Chat-G1
 
-Specs are not flat documents — they form a live decision pyramid. Every Plan traces back to a Goal, every Test verifies a Design. The frontend makes this traceability the primary navigation model.
----
+- [x] 规格构成实时决策金字塔
+- [x] 每个计划追溯到目标，每个测试验证设计
 
-## Specs-G3 Seven spec categories render with structured per-category editors
+## Specs-G3 七种规格类别通过结构化按类别编辑器渲染
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Specs-G2
 
-- [x] Goals table with inline row editing
-- [x] Architecture cards with Mermaid diagram rendering
-- [x] Designs cards with interface signature preview
-- [x] Plans timeline with Gantt-like phase table
-- [x] Tests cards with pass/fail indicators
-- [x] Reviews cards with criterion counts
-- [x] Reports dashboard with metric bars
----
+- [x] 目标表格、架构卡片、设计卡片、计划时间线、测试卡片、评审卡片、报告仪表板
 
-## Specs-G4 RelationsPanel shows upstream parents and downstream children
+## Specs-G4 关联面板显示上游父项和下游子项
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Specs-G2
 
-- [x] Every expanded item shows Parents (depends_on) and Children (related) lists
-- [x] Each relation entry shows ID, title, section type, and status badge
-- [x] Clicking a relation jumps to target section, expands item, and flashes highlight
-- [x] Backend auto-rebuilds related field on every document save
----
+- [x] 展开条目显示父项和子项列表
+- [x] 点击关联项跳转并高亮
+- [x] 后端自动重建 related 字段
 
-## Specs-G5 AutoLinkContent parses typed IDs into clickable hyperlinks
+## Specs-G5 自动链接内容将类型化 ID 解析为可点击超链接
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Specs-G2
 
-- [x] Regex scans markdown content for typed ID references (`AgentConfig-G1`, `Relay-A1`, `Relay-P1.3`)
-- [x] Matching IDs render as clickable SpecLink components
-- [x] Clicking a link triggers jumpToItem with section switch + scroll + flash
-- [x] Non-ID text renders as normal markdown
----
+- [x] 正则表达式扫描 ID 引用
+- [x] 匹配的 ID 渲染为 SpecLink 组件
 
-## Specs-G6 Drift Check button compares code against specs on demand
+## Specs-G6 偏差检查按钮按需比较代码与规格
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** Specs-G2
 
-- [x] Drift Check button visible in Specs header
-- [x] Runs comparison between Goals and implemented code
-- [x] Flags mismatches with drift status on affected goals
-- [x] Results render in a summary panel with severity indicators
----
+- [x] 偏差检查按钮可见
+- [x] 目标与已实现代码比较
+- [x] 偏差状态标记
 
-## Specs-G7 Hierarchical Goals View
+## Specs-G7 层级目标视图
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Specs-G1
 
-1. **One-Level Goal Hierarchy**
-   - Goals can have parent-child relationships (one level deep only)
-   - Each parent goal can have multiple subgoals
-   - Each subgoal has exactly one parent (or is top-level)
-   - Subgoals detected automatically via dotted ID notation (e.g., `Specs-G3` is child of `Specs-G2`, `G9.1.2` is invalid)
-   - Data model: `parent_id` field derived from ID parsing (not manually set)
+- [x] 一级目标层级
+- [x] 树形可视化，默认折叠
+- [x] 切换区域交互
+- [x] 目标详情弹窗
+- [x] 类型化标签系统
+- [x] 侧边栏筛选
 
-2. **Tree Visualization**
-   - Tree view is the default (and only) view mode
-   - **All branches collapsed by default** - only top-level goals visible on initial load
-   - Visual hierarchy with indentation; root goals and sub-goals have distinct styling
-   - Rendered as `<div>`-based tree nodes (replaced earlier `<table>`-based layout)
-   - Show goal metadata (ID, priority, status, tags) in tree nodes
-   - Expand/collapse state is client-side only (session-scoped)
-
-3. **Toggle Area Interaction**
-   - Fixed-width 2.5rem toggle area on the left of each root goal
-   - Children count badge + expand chevron combined into a single clickable span
-   - **Goals WITH sub-goals**: toggle area visible; clicking expands/collapses; hover shows "N sub-goals"
-   - **Goals WITHOUT sub-goals**: toggle area removed entirely; the whole row click opens the detail modal
-   - Sub-goals (level > 0) render with left indent but no toggle area
-
-4. **Goal Detail Modal**
-   - Centered modal with backdrop blur; opened by clicking any tree row
-   - Header: ID badge + title + close button
-   - Meta bar: priority pill, status badge, tags (shortened, color-coded)
-   - Body: RelationsPanel (parents/children) + description content
-   - Inline edit mode: switches to GoalEditor within the same modal
-   - ESC key or click-outside closes; click on card content prevents close
-
-5. **Typed Tag System**
-   - Tags use `kind:value` format (e.g., `stack:frontend`, `module:specs`)
-   - Multiple tags per spec item; all 7 categories tagged (Goals, Architecture, Designs, Plans, Tests, Reviews, Reports)
-   - Tag display in tree rows: shortened form (`stack:frontend` → `frontend`), color-coded by type
-   - `stack:*` = blue, `module:*` = purple; hover shows full tag text
-   - Sidebar filtering: Stack and Module drawers with multi-select pill filters; AND logic across filter types
-
-6. **Sidebar Filtering (SpecsView)**
-   - Three `<details>` drawer sections in sidebar: Category, Stack, Module
-   - Category drawer switches active section (Goals, Architecture, Designs, etc.)
-   - Stack and Module drawers show tag pills; multi-select with active state
-   - Filtered items use AND logic: item must match at least one selected stack AND at least one selected module
-   - Default expanded state for all drawers
-
-| Decision | Choice |
-|----------|--------|
-| Hierarchy Depth | One level (parent → subgoals only) |
-| Subgoal Detection | Dotted ID notation (e.g., `Specs-G3` is child of `Specs-G2`) |
-| Classification System | Typed tags (`kind:value`) — `stack` and `module` kinds |
-| Default View State | All branches collapsed |
-| View Modes | Tree view only (no flat toggle) |
-| Toggle Area | Fixed 2.5rem; removed entirely for leaf goals |
-| Detail Interaction | Modal (not inline expansion) |
-
-- Tree view renders efficiently for 100+ goals
-- Expand/collapse operations complete in <100ms
-- Existing subgoals automatically detected via ID parsing
-- Tags display correctly as shortened color-coded badges on tree nodes
-- Sidebar filtering works across all categories with Stack/Module drawers
-- All branches collapsed on initial load
----
-
-## Specs-G8 Clean Up Duplicate and Test Goals
+## Specs-G8 清理重复和测试目标
 **Status:** proposed
 **Priority:** P1
 **Tags:** stack:internal, module:specs
 **Depends on:** none
 
-- [ ] Remove duplicate "Clean Up" goals: keep Specs-G8, delete Specs-G9 (exact duplicate)
-- [ ] Audit all "proposed" goals for continued relevance and promote or reject each
-- [ ] Remove ApiSources-A3 duplicate architecture entries (5 copies exist, keep only one)
-- [ ] Verify all cross-references (depends_on fields) point to valid goal IDs
-- [ ] Ensure no orphaned goals exist (goals depending on deleted/rejected items)
+- [ ] 移除重复的 "清理" 目标（保留 Specs-G8）
+- [ ] 审计所有 "提议中" 目标的相关性
+- [ ] 移除重复架构条目
+- [ ] 验证所有交叉引用指向有效目标 ID
+- [ ] 确保不存在孤立目标
 
-## Specs-G9 Clean Up Duplicate and Test Goals
-**Status:** proposed
-**Tags:** stack:internal
-**Depends on:** none
+## Specs-G9 清理重复和测试目标
+**Status:** draft
 
-- [ ] Remove all duplicate "Human-Friendly Relay Run Titles" entries keeping only Specs-G8
-- [ ] Remove all duplicate "PDF Export" entries keeping only Relay-G14
-- [ ] Remove all test/validation goals (G30, G31, G39 and any future test artifacts)
-- [ ] Remove all duplicate "Clean Up" goals keeping only Specs-G9
-- [ ] Goal IDs are continuous and properly numbered after cleanup (AgentConfig-G1–Specs-G9)
+**状态：** 提议中
+**标签：** stack:internal
+**依赖项：** 无
+
+- [ ] 移除所有重复的 "Human-Friendly Relay Run Titles" 条目，仅保留 Specs-G8
+- [ ] 移除所有重复的 "PDF Export" 条目，仅保留 Relay-G14
+- [ ] 移除所有测试/验证目标（G30、G31、G39 及任何未来的测试工件）
+- [ ] 移除所有重复的 "清理" 目标，仅保留 Specs-G9
+- [ ] 清理后目标 ID 连续且正确编号（AgentConfig-G1–Specs-G9）
 
 ---
 
-## Specs-G10 Architect-Maintained Project Overview
+## Specs-G10 架构师维护的项目概述
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** Specs-G4, UiSystem-G1
 
-- [x] `overview.ad` lives at `specs/{project}/overview.ad` as a navigational document (AutoDown/Markdown format)
-- [x] Backend API `GET /api/forge/specs/{project}/overview` serves the markdown content
-- [x] Frontend Specs view renders overview with a dedicated "Overview" sidebar entry
-- [x] Architect profession is granted `write_file` tool access
-- [x] Architect's soul mandates overview regeneration after every Architecture/Design update
-- [x] Overview structure: project summary, Mermaid.js architecture diagram, module index table, navigation guide, ID convention
-- [x] Each module has its own `module.ad` at `specs/{project}/{module}/module.ad`
-- [x] Backend API `GET /api/forge/specs/{project}/module/{module}/outline` serves per-module outline content
-- [x] Frontend sidebar shows module accordion with "Outline" as the first item under each module
+- [x] overview.ad 作为导航文档
+- [x] 后端 API 提供概述内容
+- [x] 前端规格视图渲染概述
+- [x] 架构师人格要求更新概述
 
----
-
-## Specs-G11 Modular Navigation with Per-Module Outlines
+## Specs-G11 模块化导航与每模块大纲
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** Specs-G10, UiSystem-G1
 
-- [x] Specs sidebar groups items by module derived from ID prefix (`AgentConfig-G1` → `agent-config`)
-- [x] Each module accordion shows an "Outline" item that loads the module's `module.ad`
-- [x] Backend exposes `GET /api/forge/specs/{project}/module/{module}/outline` for per-module content
-- [x] Overview is a flat top-level sidebar item and is shown by default on first load
-- [x] Search box moved from sidebar to title bar for better space utilization
-- [x] Breadcrumb path (`Project / Module / Section`) displayed in title bar left side
-- [x] `module:` tags removed from spec items (redundant with directory structure and ID prefix)
----
+- [x] 规格侧边栏按模块分组
+- [x] 每个模块显示大纲条目
+- [x] 搜索框移至标题栏
+- [x] 面包屑路径导航
 
-## Specs-G12 Enriched Module Overviews with Structured Extraction
+## Specs-G12 富化的模块概述与结构化提取
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** Specs-G10, Specs-G11
 
-- [x] `generate_module_overviews.py` extracts structured info from all spec files in a module
-- [x] `module.ad` includes Goals list (first 6 goals with IDs and titles)
-- [x] `module.ad` includes Key Architecture Decisions list (first 5 with Decision summaries)
-- [x] `module.ad` includes Key Designs list (first 7 designs with IDs and titles)
-- [x] `module.ad` includes Module Dependencies (auto-derived from `Depends on` cross-references)
-- [x] Dependencies link to other modules' `module.ad` files
-- [x] All 14 modules regenerated with enriched content
----
+- [x] module.ad 包含目标列表、架构决策、设计列表、模块依赖项
+- [x] 所有 14 个模块已用富化内容重新生成
 
-## Specs-G13 Cross-Module Core Flows Documentation
+## Specs-G13 跨模块核心流程文档
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** Specs-G1, Specs-G12
 
-- [x] New project-level document type: `flows.ad` at `specs/{project}/flows.ad`
-- [x] `flows.ad` describes execution flows that span multiple modules (horizontal perspective)
-- [x] Each flow includes: overview, Mermaid sequence diagram, key steps with trigger/processing/data-flow
-- [x] 5 core flows documented: Forge Chat Loop, Relay Pipeline Execution, Agent Turn Execution, Spec Document Lifecycle, Gate Approval Flow
-- [x] Each flow links back to related spec IDs (e.g. `Relay-A1`, `Chat-D3`)
-- [x] `flows.ad` complements the vertical module-based specs (Goals → Architecture → Designs)
-- [x] Navigation guide in `overview.ad` references `flows.ad`
+- [x] flows.ad 描述跨模块执行流程
+- [x] 5 个核心流程已文档化
+- [x] 每个流程链接回相关规格 ID

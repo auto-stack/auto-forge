@@ -2,36 +2,38 @@
 
 ---
 
-## Wiki-A1 Wiki Knowledge Layer Architecture
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Wiki-G1
+## Wiki-A1 Wiki 知识层架构
+**Status:** draft
 
-Wiki provides a dual-root knowledge storage: `wiki/` for agent-processed markdown pages and `raw/` for original source documents (PDFs, images, text files). Both support multi-level directory hierarchies. Agents (Documenter) process raw resources into structured wiki pages.
+**状态：** 完成
+**标签：** stack:both
+**依赖项：** Wiki-G1
+
+Wiki 提供双根知识存储：`wiki/` 用于智能体处理的 Markdown 页面，`raw/` 用于原始源文档（PDF、图片、文本文件）。两者均支持多级目录层次结构。智能体（Documenter）将原始资源处理为结构化的 wiki 页面。
 
 ```mermaid
 graph TB
-    subgraph "Raw Storage"
-        RD[raw/ directory]
-        UF[File Upload API]
-        DZ[DropZone UI]
+    subgraph "原始存储"
+        RD[raw/ 目录]
+        UF[文件上传 API]
+        DZ[拖放区域 UI]
     end
-    subgraph "Wiki Storage"
-        WS[wiki/ directory]
-        MD[Markdown Pages]
+    subgraph "Wiki 存储"
+        WS[wiki/ 目录]
+        MD[Markdown 页面]
         MF[_manifest.json]
     end
-    subgraph "Tree API"
-        WT[Wiki Tree]
-        RT[Raw Tree]
+    subgraph "树形 API"
+        WT[Wiki 树]
+        RT[原始树]
     end
-    subgraph "Agent Tools"
+    subgraph "智能体工具"
         QW[query_wiki]
         CW[create_wiki_page]
         UW[update_wiki_page]
     end
     subgraph "UI"
-        WTab[Wiki Tab]
+        WTab[Wiki 标签页]
         TV[TreeView]
         WE[MarkdownEditor]
     end
@@ -46,23 +48,23 @@ graph TB
     CW -->|write| WS
     UW -->|write| WS
     WTab --> TV
-    TV -->|wiki tree| WT
-    TV -->|raw tree| RT
+    TV -->|wiki 树| WT
+    TV -->|原始树| RT
     WTab -->|edit| WE
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Dual-root (wiki/ + raw/) with tree navigation (chosen) | Clear separation of raw vs processed, supports drag-drop import, hierarchical organization | Two directory trees to manage |
-| Flat slug list (no directories) | Simpler implementation | Poor organization for large knowledge bases |
-| Single root with source_type tagging | Fewer directories | Mixing raw and processed in same tree is confusing |
-| External wiki (Notion, Confluence) | No storage implementation needed | Network dependency, not offline, API latency |
+| 双根（wiki/ + raw/）配合树形导航（已选） | 原始与处理内容清晰分离，支持拖拽导入，层次化组织 | 需要管理两个目录树 |
+| 扁平 slug 列表（无目录） | 实现更简单 | 大型知识库组织性差 |
+| 单根配合 source_type 标签 | 目录更少 | 在同一棵树中混合原始和处理内容会造成混淆 |
+| 外部 wiki（Notion、Confluence） | 无需存储实现 | 网络依赖，非离线，API 延迟 |
 
-- Positive: Raw/ and wiki/ are clearly separated — agents process raw into wiki.
-- Positive: Tree navigation scales to large knowledge bases with nested folders.
-- Positive: Drag-and-drop upload makes importing resources effortless.
-- Negative: Semantic RAG (vector search) not yet implemented — uses text search for now.
-- Mitigation: RAG can be layered on top of existing wiki pages without restructuring.
+- 正面：Raw/ 和 wiki/ 清晰分离 —— 智能体将原始内容处理为 wiki。
+- 正面：树形导航支持嵌套文件夹，可扩展至大型知识库。
+- 正面：拖拽上传使导入资源变得轻松。
+- 负面：语义 RAG（向量搜索）尚未实现 —— 目前使用文本搜索。
+- 缓解措施：RAG 可以在现有 wiki 页面之上分层实现，无需重构。
 
 ---
 

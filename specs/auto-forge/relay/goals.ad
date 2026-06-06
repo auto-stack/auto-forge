@@ -2,221 +2,138 @@
 
 ---
 
-## Relay-G1 Relay Orchestrator executes serial agent flows with baton passing and gate enforcement
+## Relay-G1 中继编排器执行带接力传递和关卡强制执行的串行智能体流程
 **Status:** implemented
 **Tags:** stack:backend
 **Depends on:** AgentConfig-G1
 
-- [x] Flow specs define ordered steps with professions, gates, loops, and branches
-- [x] Only one agent holds the baton at any time
-- [x] Orchestrator enforces tool availability per profession
-- [x] Orchestrator routes handoffs deterministically without LLM coordination cost
-- [x] Loop bounds and error routing prevent infinite cycles
+- [x] 流程规格定义有序步骤
+- [x] 任意时刻仅一个智能体持有接力棒
+- [x] 编排器按职业强制执行工具可用性
+- [x] 确定性路由，无 LLM 协调成本
 
-The Orchestrator is pure deterministic code (Rust), not an LLM. It reads Flow specs, manages the Pipeline state machine, and routes batons. This eliminates token spend on coordination and makes routing predictable.
----
-
-## Relay-G2 Handoff Protocol compresses context between agents, achieving ~5× token savings vs parallel multi-agent
+## Relay-G2 交接协议在智能体之间压缩上下文，实现约 5 倍 Token 节省
 **Status:** implemented
 **Tags:** stack:backend
 **Depends on:** AgentConfig-G1, Relay-G1
 
-- [x] Handoff documents exclude raw chat history
-- [x] Handoff documents include: summary, decisions, open questions, spec updates, work product, context pointers
-- [x] Context scoping filters specs to only those relevant to the receiving profession
-- [x] Each agent receives ≤9k tokens at spawn (Soul + relevant Specs + Handoff)
-- [x] Agents pull additional context on demand via tools, not via push
+- [x] 交接文档排除原始聊天记录
+- [x] 交接文档包含摘要、决策、待解决问题、规格更新、工作成果
+- [x] 上下文范围限定
+- [x] 每个智能体启动时接收 ≤9k Token
 
-The Handoff Protocol is the core token-efficiency mechanism. By discarding chat history and summarizing work product, agents start each turn with minimal context. Parallel multi-agent systems suffer O(N×K) token overhead; relay reduces this to O(sum of scoped contexts).
----
-
-## Relay-G3 Live Relay Pipeline Visualization
+## Relay-G3 实时中继流水线可视化
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Runtime-G3, Chat-G1
 
-The Relay view is the factory floor CCTV. The boss glances at the session sidebar to know work is happening; engineers open Relay to diagnose handoffs, token burn, and tool call history.
----
+- [x] 中继视图实时展示流水线状态
 
-## Relay-G4 Node-graph renders connected dots with animated handoff lines
+## Relay-G4 节点图渲染带动画交接线的连接点
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Relay-G3
 
-- [x] 9 pipeline steps render as horizontally connected dots on desktop
-- [x] Dots are colored by status: pending=gray, working=amber pulse, done=green, error=red
-- [x] Connectors animate with traveling dot during handoff
-- [x] Mobile collapses to vertical timeline with CSS border-left connectors
----
+- [x] 9 个流水线步骤渲染为水平连接点
+- [x] 点按状态着色
+- [x] 交接动画
+- [x] 移动端折叠为垂直时间线
 
-## Relay-G5 Expanded node cards show real-time token burn and current action
+## Relay-G5 展开的节点卡片显示实时 Token 消耗和当前操作
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Relay-G3
 
-- [x] Clicking a node expands a card below with Overview/Actions/Output tabs
-- [x] Overview tab shows tokens consumed, elapsed time, status, profession icon
-- [x] Actions tab shows chronological tool call history
-- [x] Output tab lists specs touched with click-to-jump links
----
+- [x] 点击节点展开卡片
+- [x] 概述/操作/输出标签页
 
-## Relay-G6 Tester→Coder retry loop visualizes as backward edge with counter
+## Relay-G6 测试员→编码员重试循环可视化为带计数器的反向边
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Relay-G3
 
-- [x] Backward arrow renders between Tester(verify) and Coder nodes
-- [x] Arrow pulses amber when retry is active
-- [x] Coder node shows "Retry N/3" badge during loop
-- [x] After max iterations, error routes to Reviewer instead
----
+- [x] 反向箭头渲染
+- [x] 重试计数器徽章
 
-## Relay-G7 Live Log and Cost Breakdown panels stream relay diagnostics
+## Relay-G7 实时日志和成本明细面板流式传输中继诊断
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Relay-G3
 
-- [x] Live Log streams tool calls in real time with timestamp, profession, action
-- [x] Specs Touched panel shows mutated sections with click-to-jump
-- [x] Cost Breakdown shows per-profession token bars and cumulative spend
-- [x] All panels update via SSE without page refresh
----
+- [x] 实时日志流式传输
+- [x] 触及规格面板
+- [x] 成本明细
 
-## Relay-G8 Cross-View Event Router & Gate Inbox
+## Relay-G8 跨视图事件路由器和关卡收件箱
 **Status:** implemented
 **Tags:** stack:backend
 **Depends on:** Relay-G3, Chat-G1
 
-- [x] `useEventRouter` singleton routes SSE events (`run_started`, `gate_reached`, `spec_written`, `handoff_submitted`, `run_completed`) to appropriate views
-- [x] `useGateInbox` singleton manages cross-view gate queue with approve/reject/snooze/dismiss
-- [x] Secretary promotion logic: gates from other sessions surface in active chat without blocking input
-- [x] Badge counts on nav rail tabs reflect pending gates/errands per view
----
+- [x] useEventRouter 路由 SSE 事件
+- [x] useGateInbox 管理关卡队列
+- [x] 导航栏徽章计数
 
-## Relay-G9 Bring-In Tool enables agents to hand off mid-conversation with structured context transfer
+## Relay-G9 Bring-In 工具使智能体能够在对话中交接
 **Status:** proposed
 **Tags:** stack:backend
 **Depends on:** AgentConfig-G1, Chat-G6
 
-- [ ] `bring_in` tool available to assistant (Nicole) during chat, accepting target profession and reason
-- [ ] Tool switches `session.active_profession` and injects handoff note into chat history before next agent's turn
-- [ ] Handoff note includes: classification, summary of understanding, warnings, and context pointers
-- [ ] Next agent starts with its own system prompt + full conversation history + handoff note (no repeated questions)
-- [ ] Frontend shows handoff event in chat (e.g., "Nicole brought in Isaac" with reason)
-- [ ] Profession `allowed_tools` enforcement — only professions that have `bring_in` in their tool list can invoke it
-- [ ] Handoff restricted to professions listed in `handoff_to` (Nicole can hand off to advisor/coder, not arbitrary targets)
----
+- [ ] bring_in 工具对助手可用
+- [ ] 工具切换 active_profession 并注入交接备注
+- [ ] 交接备注包含分类、摘要、警告和上下文指针
+- [ ] 前端显示交接事件
 
-## Relay-G10 bring_in tool definition and backend handler
+## Relay-G10 bring_in 工具定义和后端处理器
 **Status:** proposed
 **Tags:** stack:backend
 **Depends on:** Relay-G9
 
-- [ ] `BringInTool` struct with parameters: `target` (profession_id), `reason` (string), `classification` (optional enum)
-- [ ] Tool handler switches `session.active_profession`, persists handoff note as a system message
-- [ ] Handoff note rendered from a lightweight HandoffDocument (summary + decisions + context pointers)
-- [ ] Assistant profession `allowed_tools` updated to include `bring_in`
-- [ ] Validation: target must be in caller's `handoff_to` list
-- [ ] Session saved after handoff so state survives reconnects
----
+- [ ] BringInTool 结构体和处理器
+- [ ] 交接备注持久化为系统消息
+- [ ] 验证目标在 handoff_to 列表中
 
-## Relay-G11 Handoff note injection into conversation
+## Relay-G11 交接备注注入对话
 **Status:** proposed
 **Tags:** stack:backend
 **Depends on:** Relay-G10
 
-- [ ] Before the new agent's first turn, backend injects a system message with the handoff note
-- [ ] Handoff note format: "Nicole handed off to you. Classification: NEW_GOAL. Summary: User wants OAuth2 login. Warnings: No existing auth code found."
-- [ ] New agent sees full conversation history + handoff note (does not ask user to repeat)
-- [ ] Handoff system messages excluded from frontend display (shown as handoff card instead)
----
+- [ ] 新智能体轮次前注入交接系统消息
+- [ ] 交接备注格式化
+- [ ] 前端排除交接系统消息
 
-## Relay-G12 Frontend handoff visualization
+## Relay-G12 前端交接可视化
 **Status:** proposed
 **Tags:** stack:frontend
 **Depends on:** Relay-G10
 
-- [ ] Handoff card in chat stream showing "Nicole → Isaac" with reason and classification badge
-- [ ] Active profession badge updates when handoff occurs (phase_change or dedicated SSE event)
-- [ ] Handoff tool_call and tool_result rendered as a compact card, not raw tool output
----
+- [ ] 交接卡片显示 "Nicole → Isaac"
+- [ ] 活跃职业徽章更新
+- [ ] 交接 tool_call 渲染为紧凑卡片
 
-## Relay-G13 Automatic Relay Mode
+## Relay-G13 自动中继模式
 **Status:** implemented
 **Tags:** stack:backend
 **Depends on:** Runtime-G3, Chat-G6
 
-1. **Chat-to-Relay Bridge**
-   - Chat agents (Advisor, Assistant, Architect) can call `spawn_relay` tool to launch an autonomous background relay pipeline
-   - Tool accepts `flow_id` (standard, post_discovery, fast_track, bug_fix), `task`, `mode` (gsd/check), optional `context`
-   - Tool validates that caller's profession has `spawn_relay` in `allowed_tools`
-   - Tool returns `run_id`, `monitor_url`, and confirmation JSON
+- [x] 聊天到中继桥接（spawn_relay 工具）
+- [x] 后台自动驱动器
+- [x] Post-Discovery 流程
+- [x] 前端中继卡片
+- [x] Token 跟踪
 
-2. **Background Auto-Driver**
-   - New `relay/driver.rs` module drives relay runs to completion in background tokio tasks
-   - Loop: `advance_run` → `AgentTurn::run()` → `submit_handoff` → repeat
-   - At `WaitForHuman` gates: driver polls every 2s until gate is resolved via RelayView
-   - Driver sets `CURRENT_PROJECT` thread-local so specs tools work in relay context
-   - Driver constructs step messages from: initial task + previous handoff + gate feedback
-
-3. **New Flow: Post-Discovery**
-   - Skips `intake` and `discover` steps since chat already completed discovery
-   - Pipeline: architect → planner → tester → coder → tester → reviewer → documenter
-   - Loop back from `run-tests` to `code` on failure (max 3 iterations)
-
-4. **Chat Integration**
-   - Forge stream handler intercepts `spawn_relay` tool results
-   - Creates `RunEntry` in `RunStore`, spawns background driver
-   - Emits `RelaySpawned` SSE event to chat frontend
-   - Replaces raw tool JSON with friendly message: "Relay pipeline started: {run_id}"
-
-5. **Frontend Relay Cards**
-   - New `RelaySpawned`, `RelayUpdate`, `RelayGateWaiting`, `RelayComplete` SSE events
-   - Chat header shows "Relay" button when active relay runs exist
-   - Inline relay cards show: flow name, status badge, "Monitor →" link to RelayView
-   - Relay view auto-refreshes on run events
-
-6. **Token Tracking in Relay Turns**
-   - `ToolChatEvent::Usage` wired into `TurnResult::tokens_used`
-   - `AgentTurn::to_handoff()` uses real token counts instead of estimates
-   - Tool guard added to `AgentTurn::run()` to block tools not in profession's `allowed_tools`
-
-| Decision | Choice |
-|----------|--------|
-| Trigger mechanism | Tool-based (`spawn_relay`) not system watcher |
-| Driver concurrency | One background task per relay run |
-| Gate polling | 2-second sleep loop (simple, no extra channels) |
-| Context passing | Initial task string + previous HandoffDocument::render() |
-| Profession allowlist | assistant, advisor, architect can spawn relays |
-
-- Advisor soul updated to teach Isaac when to call `spawn_relay` vs `bring_in`
-- `post_discovery` flow added to built-in flows alongside `standard`, `fast_track`, `bug_fix`
-- Relay API exposes `run_store()` and `event_sender()` for forge module access
----
-
-## Relay-G14 Human-Friendly Relay Run Titles
+## Relay-G14 人性化的中继运行标题
 **Status:** proposed
 **Tags:** stack:both
 **Depends on:** Relay-G13
 
-- [ ] Each relay run displays a human-readable title instead of raw UUID in the Relay view
-- [ ] Title is auto-generated from the task description (first 3–6 words, max 40 chars)
-- [ ] Run ID remains the backend reference and is shown as a subtitle or on hover
-- [ ] Backend exposes title field in RunSummary and RunState API responses
-- [ ] Frontend displays title prominently with run_id as secondary info
-- [ ] Existing runs without titles fall back to displaying run_id
----
+- [ ] 每个中继运行显示人类可读标题
+- [ ] 标题从任务描述自动生成
+- [ ] 后端暴露标题字段
 
-## Relay-G15 PDF Export for Relay Run Reports
+## Relay-G15 中继运行报告 PDF 导出
 **Status:** proposed
 **Tags:** stack:frontend
 **Depends on:** Runtime-G3, Relay-G3
 
-- [ ] Users can export relay run reports as PDF documents from the Relay view
-- [ ] PDF includes run metadata (ID, flow, status, duration, token cost)
-- [ ] PDF includes execution history (handoff timeline, gate approvals, spec changes)
-- [ ] PDF includes work product summaries (files modified, specs updated, deliverables)
-- [ ] PDF is formatted for readability with proper typography and layout
-- [ ] Export button is available in the Relay view header and run detail cards
-
----
+- [ ] 用户可导出中继运行报告为 PDF
+- [ ] PDF 包含运行元数据、执行历史、工作成果

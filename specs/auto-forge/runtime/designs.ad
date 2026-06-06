@@ -2,10 +2,12 @@
 
 ---
 
-## Runtime-D1 Runtime Infrastructure
-**Status:** done
-**Module:** `backend/src/runtime/`
-**Tags:** stack:backend
+## Runtime-D1 运行时基础设施
+**Status:** draft
+
+**状态：** 已完成
+**模块：** `backend/src/runtime/`
+**标签：** stack:backend
 
 ```rust
 // runtime/context.rs
@@ -51,12 +53,14 @@ stateDiagram-v2
     Allow --> Allowed: any tool
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `max_tokens` | `u32` | Token threshold for compaction (default 100k) |
-| `keep_recent` | `usize` | Messages to preserve during compaction |
-| `path` | `PathBuf` | Session directory at ~/.autoforge/sessions/{hash}/ |
+| `max_tokens` | `u32` | 压缩的 Token 阈值（默认 100k） |
+| `keep_recent` | `usize` | 压缩期间保留的消息数 |
+| `path` | `PathBuf` | 会话目录，位于 ~/.autoforge/sessions/{hash}/ |
 
+
+---
 
 ---
 

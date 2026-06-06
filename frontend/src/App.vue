@@ -1,5 +1,7 @@
 <template>
-  <div class="autoforge-app">
+  <!-- Auth guard: show LoginView when unauthenticated -->
+  <LoginView v-if="!isAuthenticated" @auth-success="onAuthSuccess" />
+  <div v-else class="autoforge-app">
     <nav class="view-rail">
       <div class="rail-brand">
         <Flame :size="18" />
@@ -57,7 +59,9 @@ import {
 } from 'lucide-vue-next'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useProject } from '@/composables/useProject'
+import { useAuth } from '@/composables/useAuth'
 import SettingsMenu from '@/components/SettingsMenu.vue'
+import LoginView from './views/LoginView.vue'
 import WelcomeView from './views/WelcomeView.vue'
 import ChatsView from './views/ChatsView.vue'
 import SpecsView from './views/SpecsView.vue'
@@ -72,6 +76,12 @@ import ExplorerView from './views/ExplorerView.vue'
 const { t } = useI18n()
 const { badgeCount: gateBadgeCount, currentSecretary } = useGateInbox()
 const { isOpen, projectName, fetchStatus } = useProject()
+const { isAuthenticated } = useAuth()
+
+function onAuthSuccess() {
+  // Auth state is already reactive in useAuth composable;
+  // this handler just acknowledges the event from LoginView.
+}
 
 const gateAnnouncement = computed(() => {
   if (currentSecretary.value) {

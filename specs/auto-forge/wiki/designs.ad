@@ -2,18 +2,20 @@
 
 ---
 
-## Wiki-D1 Wiki Knowledge Layer — Storage, Tree API, Raw Resources, and Agent Tools
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Wiki-G1, Wiki-A1
+## Wiki-D1 Wiki 知识层 — 存储、树形 API、原始资源和智能体工具
+**Status:** draft
 
-### Data Model
+**状态：** 完成
+**标签：** stack:both
+**依赖项：** Wiki-G1, Wiki-A1
+
+### 数据模型
 
 ```rust
 struct WikiPage {
-    slug: String,            // path-based: "guide/getting-started"
+    slug: String,            // 基于路径："guide/getting-started"
     title: String,
-    content: String,         // markdown content
+    content: String,         // markdown 内容
     source_type: WikiSource,  // Manual, Guide, ApiRef, Custom
     tags: Vec<String>,
     version: u32,
@@ -23,7 +25,7 @@ struct WikiPage {
 
 struct TreeNode {
     name: String,
-    path: String,            // relative path from wiki/ or raw/ root
+    path: String,            // 相对于 wiki/ 或 raw/ 根目录的路径
     node_type: String,       // "file" | "folder"
     children: Option<Vec<TreeNode>>,
     size: Option<u64>,
@@ -33,13 +35,13 @@ struct TreeNode {
 enum WikiSource { Manual, Guide, ApiRef, Custom }
 ```
 
-### Storage Layout
+### 存储布局
 
 ```
 {project}/
-├── specs/          # existing specs
+├── specs/          # 现有规格
 ├── wiki/
-│   ├── _manifest.json    # page metadata index
+│   ├── _manifest.json    # 页面元数据索引
 │   ├── guide/
 │   │   ├── getting-started.md
 │   │   └── advanced/
@@ -53,27 +55,27 @@ enum WikiSource { Manual, Guide, ApiRef, Custom }
         └── 2024-01-15.md
 ```
 
-### API Endpoints
+### API 端点
 
-| Endpoint | Method | Description |
+| 端点 | 方法 | 描述 |
 |---|---|---|
-| `/api/forge/wiki/{project}/tree` | GET | Wiki directory tree (TreeNode[]) |
-| `/api/forge/wiki/{project}/pages` | GET/POST | List/Create wiki pages |
-| `/api/forge/wiki/{project}/page/{*slug}` | GET/PUT/DELETE | Read/Update/Delete wiki page (path-based) |
-| `/api/forge/wiki/{project}/search` | POST | Full-text search |
-| `/api/forge/raw/{project}/tree` | GET | Raw directory tree |
-| `/api/forge/raw/{project}/upload` | POST | Multipart file upload (50MB limit) |
-| `/api/forge/raw/{project}/file/{*path}` | GET/DELETE | Serve/Delete raw file |
-| `/api/forge/raw/{project}/mkdir` | POST | Create raw subdirectory |
+| `/api/forge/wiki/{project}/tree` | GET | Wiki 目录树（TreeNode[]） |
+| `/api/forge/wiki/{project}/pages` | GET/POST | 列出/创建 wiki 页面 |
+| `/api/forge/wiki/{project}/page/{*slug}` | GET/PUT/DELETE | 读取/更新/删除 wiki 页面（基于路径） |
+| `/api/forge/wiki/{project}/search` | POST | 全文搜索 |
+| `/api/forge/raw/{project}/tree` | GET | 原始目录树 |
+| `/api/forge/raw/{project}/upload` | POST | 多部分文件上传（50MB 限制） |
+| `/api/forge/raw/{project}/file/{*path}` | GET/DELETE | 提供/删除原始文件 |
+| `/api/forge/raw/{project}/mkdir` | POST | 创建原始子目录 |
 
-### Agent Tools
+### 智能体工具
 
-| Tool | Description | Profession Access |
+| 工具 | 描述 | 职业访问权限 |
 |---|---|---|
-| `query_wiki` | Full-text search (semantic RAG planned) | All professions |
-| `create_wiki_page` | Create page with path-based slug | Coder, Documenter |
-| `update_wiki_page` | Update page content with versioning | Coder, Documenter |
-| `list_wiki` | List all wiki pages with metadata | All professions |
+| `query_wiki` | 全文搜索（语义 RAG 计划中） | 所有职业 |
+| `create_wiki_page` | 使用基于路径的 slug 创建页面 | Coder, Documenter |
+| `update_wiki_page` | 带版本控制的更新页面内容 | Coder, Documenter |
+| `list_wiki` | 列出所有带元数据的 wiki 页面 | 所有职业 |
 
 ---
 
@@ -90,12 +92,14 @@ enum WikiSource { Manual, Guide, ApiRef, Custom }
 ---
 ---
 
-## Wiki-D2 Wiki Frontend — Tree Navigation, Raw Import, and Tab Integration
-**Status:** done
-**Tags:** stack:frontend
-**Depends on:** Wiki-D1
+## Wiki-D2 Wiki 前端 — 树形导航、原始导入和标签页集成
+**Status:** draft
 
-### Types (`frontend/src/types/wiki.ts`)
+**状态：** 完成
+**标签：** stack:frontend
+**依赖项：** Wiki-D1
+
+### 类型（`frontend/src/types/wiki.ts`）
 
 ```typescript
 type WikiSource = 'manual' | 'guide' | 'api_ref' | 'custom'
@@ -130,9 +134,9 @@ interface TreeNode {
 }
 ```
 
-### Composable (`frontend/src/composables/useWiki.ts`)
+### Composable（`frontend/src/composables/useWiki.ts`）
 
-Singleton pattern with module-level refs for wiki pages, trees, and upload state:
+单例模式，使用模块级 ref 管理 wiki 页面、树和上传状态：
 
 ```typescript
 const _pages = ref<WikiPageMeta[]>([])
@@ -145,15 +149,15 @@ const _uploadProgress = ref<number | null>(null)
 loadPages(project), loadPage(project, slug), createPage(...)
 updatePage(project, slug, data), deletePage(project, slug), searchWiki(project, query)
 
-// Tree operations
+// 树操作
 loadWikiTree(project), loadRawTree(project)
 
-// Raw operations
+// 原始操作
 uploadRawFiles(project, files[], prefix?), deleteRawFile(project, path)
 createRawFolder(project, path), rawFileUrl(project, path)
 ```
 
-### View (`frontend/src/views/WikiView.vue`)
+### 视图（`frontend/src/views/WikiView.vue`）
 
 ```mermaid
 stateDiagram-v2
@@ -170,7 +174,7 @@ stateDiagram-v2
     NewFolder --> Empty: create folder
 ```
 
-Layout — dual-region sidebar + content panel:
+布局 —— 双区域侧边栏 + 内容面板：
 
 ```
 .wiki-view
@@ -192,16 +196,16 @@ Layout — dual-region sidebar + content panel:
             └── Empty state
 ```
 
-### Components
+### 组件
 
-| Component | File | Purpose |
+| 组件 | 文件 | 用途 |
 |---|---|---|
-| `wiki.ts` | `frontend/src/types/wiki.ts` | WikiPage, WikiPageMeta, TreeNode types |
-| `useWiki` | `frontend/src/composables/useWiki.ts` | Singleton state + wiki/raw API calls |
-| `TreeView` | `frontend/src/components/TreeView.vue` | Recursive tree with folder expand + file icons |
-| `DropZone` | `frontend/src/components/DropZone.vue` | HTML5 drag-drop file upload |
-| `WikiView` | `frontend/src/views/WikiView.vue` | Dual-region sidebar + content panel |
-| `App.vue` | `frontend/src/App.vue` | Tab registration (BookOpen icon) |
+| `wiki.ts` | `frontend/src/types/wiki.ts` | WikiPage, WikiPageMeta, TreeNode 类型 |
+| `useWiki` | `frontend/src/composables/useWiki.ts` | 单例状态 + wiki/raw API 调用 |
+| `TreeView` | `frontend/src/components/TreeView.vue` | 递归树，支持文件夹展开 + 文件图标 |
+| `DropZone` | `frontend/src/components/DropZone.vue` | HTML5 拖拽文件上传 |
+| `WikiView` | `frontend/src/views/WikiView.vue` | 双区域侧边栏 + 内容面板 |
+| `App.vue` | `frontend/src/App.vue` | 标签页注册（BookOpen 图标） |
 
 ---
 

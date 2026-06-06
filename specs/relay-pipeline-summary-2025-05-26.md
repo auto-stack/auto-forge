@@ -1,77 +1,77 @@
-# Relay Pipeline Review - Quick Summary
+# 中继流水线评审 - 快速摘要
 
-**Date**: May 26, 2025  
-**Health Score**: 8.5/10 → **10/10** (after multi-provider implementation)
+**日期**：2025 年 5 月 26 日  
+**健康评分**：8.5/10 → **10/10**（多提供商实现后）
 
-## Critical Finding
+## 关键发现
 
-**Architecture documentation is SEVERELY OUTDATED**. Features marked as "proposed" or "not implemented" are already working.
+**架构文档严重过时**。标记为 "提议中" 或 "未实现" 的功能已经运行中。
 
-## Actual Implementation Status
+## 实际实现状态
 
-| Feature | Architecture Status | Actual Status | Action Needed |
+| 功能 | 架构状态 | 实际状态 | 需要行动 |
 |---------|-------------------|---------------|---------------|
-| **bring_in Tool** | "proposed" | ✅ **IMPLEMENTED** | Update docs |
-| **HandoffNote** | "not implemented" | ✅ **IMPLEMENTED** | Update docs |
-| **SSE agent_handoff** | "not implemented" | ✅ **IMPLEMENTED** | Update docs |
-| **HandoffCard UI** | "not implemented" | ✅ **IMPLEMENTED** | Update docs |
-| **ApiSource Config** | "in_progress" | ⚠️ **60% DONE** | Complete dispatch |
-| **5-Tier Models** | "implemented" | ✅ **COMPLETE** | None |
+| **bring_in 工具** | "提议中" | ✅ **已实现** | 更新文档 |
+| **HandoffNote** | "未实现" | ✅ **已实现** | 更新文档 |
+| **SSE agent_handoff** | "未实现" | ✅ **已实现** | 更新文档 |
+| **HandoffCard UI** | "未实现" | ✅ **已实现** | 更新文档 |
+| **ApiSource 配置** | "进行中" | ⚠️ **60% 完成** | 完成调度 |
+| **5 层模型** | "已实现" | ✅ **完整** | 无 |
 
-## What's Actually Missing
+## 实际缺失内容
 
-### Only 1 Critical Gap: Multi-Provider Dispatch
+### 仅 1 个关键差距：多提供商调度
 
-**What's Done**:
-- ✅ ApiSource data structures
-- ✅ ModelTier enum (Min/Lite/Mid/Large/Max)
-- ✅ CRUD operations
-- ✅ Auto-detection of providers
-- ✅ AgentConfig with api_source_id
+**已完成**：
+- ✅ ApiSource 数据结构
+- ✅ ModelTier 枚举（Min/Lite/Mid/Large/Max）
+- ✅ CRUD 操作
+- ✅ 提供商自动检测
+- ✅ 带 api_source_id 的 AgentConfig
 
-**What's Missing**:
-- ❌ `dispatch_chat()` function to route to different providers
-- ❌ OpenAI provider implementation
-- ❌ Local/Ollama provider implementation
-- ❌ Test Connection endpoint
+**缺失**：
+- ❌ `dispatch_chat()` 函数用于路由到不同提供商
+- ❌ OpenAI 提供商实现
+- ❌ Local/Ollama 提供商实现
+- ❌ 测试连接端点
 - ❌ ApiSourcesView.vue UI
 
-**Effort**: 5-8 days
+**工作量**：5-8 天
 
-## Immediate Actions
+## 立即行动
 
-1. **Update Architecture Docs** (2 hours)
-   - Change A9 status: "proposed" → "implemented"
-   - Change A12 status: "draft" → "implemented"
-   - Change A13 status: "draft" → "implemented"
-   - Add "Last Verified: 2025-05-26"
+1. **更新架构文档**（2 小时）
+   - 更改 A9 状态："提议中" → "已实现"
+   - 更改 A12 状态："草案" → "已实现"
+   - 更改 A13 状态："草案" → "已实现"
+   - 添加 "最后验证：2025-05-26"
 
-2. **Implement Multi-Provider Dispatch** (5-8 days)
-   - Create `dispatch_chat()` router
-   - Implement OpenAI provider
-   - Implement Local/Ollama provider
-   - Build ApiSourcesView.vue
-   - Add Test Connection endpoint
+2. **实现多提供商调度**（5-8 天）
+   - 创建 `dispatch_chat()` 路由器
+   - 实现 OpenAI 提供商
+   - 实现 Local/Ollama 提供商
+   - 构建 ApiSourcesView.vue
+   - 添加测试连接端点
 
-## Code Locations
+## 代码位置
 
-**bring_in Tool**: `backend/src/forge/tools.rs:1590-1680`  
-**Handoff Note Injection**: `backend/src/forge/mod.rs:2374-2420`  
-**SSE Event**: `backend/src/forge/mod.rs:2391-2420`  
-**HandoffCard UI**: `frontend/src/views/ChatsView.vue:190-200`  
-**ApiSource Config**: `backend/src/relay/config.rs:17-600`
+**bring_in 工具**：`backend/src/forge/tools.rs:1590-1680`  
+**交接备注注入**：`backend/src/forge/mod.rs:2374-2420`  
+**SSE 事件**：`backend/src/forge/mod.rs:2391-2420`  
+**HandoffCard UI**：`frontend/src/views/ChatsView.vue:190-200`  
+**ApiSource 配置**：`backend/src/relay/config.rs:17-600`
 
-## Impact
+## 影响
 
-**Current**: System is more complete than documentation suggests  
-**Risk**: Developers may waste time reimplementing finished features  
-**Fix**: Update architecture docs to match reality (2 hours)
+**当前**：系统比文档显示的更完整  
+**风险**：开发人员可能浪费时间重新实现已完成的功能  
+**修复**：更新架构文档以匹配现实（2 小时）
 
-## Path to 10/10
+## 通往 10/10 的路径
 
-1. Fix documentation (2 hours) → 9/10
-2. Complete multi-provider dispatch (5-8 days) → 10/10
+1. 修复文档（2 小时）→ 9/10
+2. 完成多提供商调度（5-8 天）→ 10/10
 
 ---
 
-**Next Action**: Update A9, A12, A13 architecture status to "implemented"
+**下一步行动**：更新 A9、A12、A13 架构状态为 "已实现"

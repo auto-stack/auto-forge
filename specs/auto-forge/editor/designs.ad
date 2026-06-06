@@ -2,23 +2,25 @@
 
 ---
 
-## Editor-D1 AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
+## Editor-D1 AutoDown 编辑器 — 基于块的所见即所得，支持 Markdown/AutoDown 序列化
 **Status:** draft
-**Module:** `frontend/src/components/editors/autodown/`
-**Tags:** stack:frontend
-**Depends on:** Editor-A1, Wiki-D2
+
+**状态：** 草稿
+**模块：** `frontend/src/components/editors/autodown/`
+**标签：** stack:frontend
+**依赖项：** Editor-A1, Wiki-D2
 
 ```typescript
 // AutoDownEditor.vue props/events
 interface AutoDownEditorProps {
-  content: string           // Markdown source
+  content: string           // Markdown 源内容
   placeholder?: string
   editable?: boolean
   autofocus?: boolean
 }
 
 interface AutoDownEditorEvents {
-  'update': [markdown: string]     // Debounced on every change
+  'update': [markdown: string]     // 每次变更时防抖触发
   'save': [markdown: string]       // Ctrl+S
   'blur': []
   'focus': []
@@ -56,14 +58,14 @@ stateDiagram-v2
 ```
 
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `editor` | `Editor` | Tiptap Editor instance (ProseMirror wrapper) |
-| `doc` | `JSONContent` | ProseMirror document tree (internal source of truth) |
-| `markdown` | `string` | Serialized persistence format |
-| `slashQuery` | `string` | Current filter text after '/' |
-| `slashRange` | `Range` | ProseMirror selection range when '/' triggered |
-| `bubbleVisible` | `boolean` | Whether bubble menu should render |
+| `editor` | `Editor` | Tiptap Editor 实例（ProseMirror 包装器） |
+| `doc` | `JSONContent` | ProseMirror 文档树（内部事实来源） |
+| `markdown` | `string` | 序列化的持久化格式 |
+| `slashQuery` | `string` | '/' 后的当前过滤文本 |
+| `slashRange` | `Range` | 触发 '/' 时的 ProseMirror 选区范围 |
+| `bubbleVisible` | `boolean` | 气泡菜单是否应渲染 |
 
 
 ```
@@ -87,7 +89,7 @@ fn onKeydown(event):
         event.preventDefault()
         emit('save', editor.storage.markdown.getMarkdown())
     if event.key == 'Mod-a':
-        // Notion-style: first press selects node, second selects all
+        // Notion 风格：第一次按下选中节点，第二次选中全部
         if not selectionCoversFullNode:
             editor.commands.selectTextWithinNodeBoundaries()
             event.preventDefault()

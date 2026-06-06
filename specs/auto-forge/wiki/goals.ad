@@ -2,35 +2,26 @@
 
 ---
 
-## Wiki-G1 Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
+## Wiki-G1 Wiki 模块提供项目范围的知识库
 **Status:** done
 **Tags:** stack:both
 **Depends on:** Project-G1
 
-- [x] Wiki storage in `{project}/wiki/` directory with `_manifest.json` metadata
-- [x] Multi-level directory support (path-based slugs like `guide/getting-started`)
-- [x] Raw resource directory `{project}/raw/` for original documents (PDF, images, text)
-- [x] Tree API for both wiki/ and raw/ directory structures
-- [x] Multipart file upload to raw/ with drag-and-drop UI (DropZone)
-- [x] Raw file serving with MIME type detection and preview (image, PDF, markdown, text)
-- [x] Wiki tab with collapsible sidebar and BookOpen icon in navigation rail
-- [x] Dual-region sidebar: Raw (file tree + DropZone) and Wiki (page tree)
-- [x] View/Edit/Create modes with MarkdownContent and MarkdownEditor
-- [x] Agent wiki tools: `list_wiki`, `create_wiki_page`, `update_wiki_page`
-- [x] Full-text search via `searchWiki` API
-- [ ] Semantic vector indexing (RAG) for semantic retrieval
-- [ ] Version history with revert capability
+- [x] Wiki 存储在 wiki/ 目录，带 _manifest.json
+- [x] 多级目录支持
+- [x] 原始资源目录和文件上传
+- [x] Wiki 标签和双区域侧边栏
+- [x] 查看/编辑/创建模式
+- [x] 智能体 Wiki 工具和全文搜索
+- [ ] 语义向量索引（RAG）
+- [ ] 版本历史
 
-Wiki is AutoForge's **knowledge index & compression layer**. It stores objective, reusable reference material (chip manuals, technical specs, best practices) — separate from Specs which store project-specific engineering constraints. The `raw/` directory holds original documents; agents (Documenter) process raw content into structured wiki pages.
----
-
-## Wiki-G2 Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search
+## Wiki-G2 Wiki 搜索与标签系统
 **Status:** proposed
 **Tags:** stack:both
 **Depends on:** Wiki-G1
 
-- [ ] Full-text search across wiki pages with relevance ranking
-- [ ] Hierarchical tag system with `kind:value` format
-- [ ] Tag cloud navigation for browsing by topic
-- [ ] Search indexing for raw file content (PDF text extraction)
-- [ ] Context-aware search scoped to current project
+- [ ] 全文搜索带相关性排名
+- [ ] 层级标签系统
+- [ ] 标签云导航
+- [ ] 原始文件内容的搜索索引

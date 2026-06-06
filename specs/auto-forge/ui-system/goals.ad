@@ -2,77 +2,57 @@
 
 ---
 
-## UiSystem-G1 Responsive and Accessible Frontend
+## UiSystem-G1 响应式可访问前端
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G1, Specs-G2, Relay-G3
 
-The frontend must work for the boss on a laptop, the engineer on a tablet, and the contributor with a keyboard or screen reader.
----
+- [x] 前端适用于笔记本、平板和移动端
 
-## UiSystem-G2 Layout adapts to desktop, tablet, and mobile breakpoints
+## UiSystem-G2 布局适配桌面、平板和移动端断点
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** UiSystem-G1
 
-- [x] Desktop (≥1280px): full 3-zone layout with sidebar + main + context panel
-- [x] Tablet (1024–1279px): Zone C collapses to toggle drawer
-- [x] Mobile (<1024px): single column with tab nav and bottom sheets
-- [x] No horizontal scroll on any breakpoint
----
+- [x] 桌面三区域布局、平板折叠抽屉、移动端单列
+- [x] 无水平滚动
 
-## UiSystem-G3 Keyboard shortcuts navigate between views without mouse
+## UiSystem-G3 键盘快捷键无需鼠标即可在视图间导航
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** UiSystem-G1
 
-- [x] Ctrl+1 switches to Chat view
-- [x] Ctrl+2 switches to Specs view
-- [x] Ctrl+3 switches to Relay view
-- [x] Ctrl+K opens jump-to-ID dialog
-- [x] Shortcuts work from any focused element
----
+- [x] Ctrl+1/2/3 切换视图
+- [x] Ctrl+K 打开跳转对话框
 
-## UiSystem-G4 Focus management guides users through gate approval flows
+## UiSystem-G4 焦点管理引导用户完成关卡审批流程
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** UiSystem-G1
 
-- [x] GateCard auto-focuses Approve button when it appears
-- [x] Secretary message receives focus on arrival; Escape dismisses
-- [x] Tab order is logical within diff views and expanded cards
-- [x] Focus traps do not prevent reaching browser chrome
----
+- [x] GateCard 自动聚焦、秘书消息接收焦点、Tab 顺序逻辑
 
-## UiSystem-G5 Screen reader annotations describe node graph and relations
+## UiSystem-G5 屏幕阅读器注释描述节点图和关联关系
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** UiSystem-G1
 
-- [x] Pipeline nodes have aria-label with profession + status + elapsed time
-- [x] RelationsPanel announces "X parents, Y children" on expand
-- [x] Live Log announces new entries with polite live region
-- [x] All interactive elements have accessible names
----
+- [x] aria-label、实时区域、可访问名称
 
-## UiSystem-G6 Theme & Accent Color System
+## UiSystem-G6 主题与强调色系统
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** UiSystem-G1
 
-- [x] Dark / light / system theme switching with `localStorage` persistence (VitePress-compatible key)
-- [x] Five curated accent palettes (indigo, coral, ocean, sage, amber) applied via CSS custom properties
-- [x] Theme class syncs to `<html>` element for Tailwind dark mode compatibility
-- [x] Accent color picker accessible from app header/settings area
----
+- [x] 暗色/亮色/系统主题切换
+- [x] 五种强调色板
+- [x] Tailwind 暗色模式兼容
 
-## UiSystem-G7 Explorer Module for VS Code–style File Tree and Content Preview
+## UiSystem-G7 VS Code 风格文件树和内容预览的资源管理器模块
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Project-G1
 
-- [x] Recursive file tree sidebar with collapsible folders, file-type icons, and active path highlighting
-- [x] Content preview pane supports text, images, PDFs, and download links for other file types
-- [x] Client-side search filters tree nodes by filename
-- [x] Close-project button in sidebar toolbar; project indicator in nav rail
-- [x] Keyboard shortcut `Ctrl+0` opens Explorer view
+- [x] 递归文件树侧边栏
+- [x] 内容预览窗格
+- [x] 客户端搜索

@@ -1,5 +1,6 @@
 project auto-forge
 
+module auth
 module agent-config
 module api-sources
 module autodown

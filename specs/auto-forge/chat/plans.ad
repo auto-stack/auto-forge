@@ -2,87 +2,43 @@
 
 ---
 
-## Chat-P1 Chat-First Gates & Smart Secretary
-**Status:** implemented
+## Chat-P1 聊天优先关卡与智能秘书
+**Status:** draft
 **Tags:** stack:both
 **Depends on:** Chat-G1
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
-| Chat-P8.1 | GateCard component with diff rendering and Approve/Reject/Edit actions | Alice | 3 days | — | Done |
-| Chat-P8.2 | SecretaryMessage component with queue UI, snooze, dismiss | Alice | 2 days | Chat-P8.1 | Done |
-| Chat-P8.3 | useGateInbox composable with cross-session registration and badge count | Bob | 2 days | — | Done |
-| Chat-P8.4 | useForge ↔ useRelay gate state integration | Bob | 2 days | Chat-P8.3 | Done |
-| Chat-P8.5 | ReportCard terminal completion component | Alice | 1 day | — | Done |
+| Chat-P8.1 | GateCard 组件，带差异渲染和批准/拒绝/编辑操作 | Alice | 3 天 | — | 已完成 |
+| Chat-P8.2 | SecretaryMessage 组件，带队列 UI、暂停、关闭 | Alice | 2 天 | Chat-P8.1 | 已完成 |
+| Chat-P8.3 | useGateInbox composable，带跨会话注册和徽章计数 | Bob | 2 天 | — | 已完成 |
+| Chat-P8.4 | useForge ↔ useRelay 关卡状态集成 | Bob | 2 天 | Chat-P8.3 | 已完成 |
+| Chat-P8.5 | ReportCard 终端完成组件 | Alice | 1 天 | — | 已完成 |
 
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Chat-P2 Chat Agent Handoff — bring_in Tool
-**Status:** proposed
-**Tags:** stack:both
+## Chat-P2 聊天智能体交接 — bring_in 工具
+**Status:** draft
 **Depends on:** Relay-G9, Chat-D3, Chat-A2
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
-| Chat-P16.1 | BringInTool struct with JSON schema, validation, and execute method | Core | 1 day | Chat-D3 | Proposed |
-| Chat-P16.2 | Update assistant profession `allowed_tools` to include `bring_in` | Core | 0.5 day | Chat-P16.1 | Proposed |
-| Chat-P16.3 | Tool handler: validate target is in `handoff_to`, switch `active_profession`, persist session | Core | 1 day | Chat-P16.1 | Proposed |
-| Chat-P16.4 | HandoffNote struct with render() method for injecting context | Core | 0.5 day | Chat-D3 | Proposed |
-| Chat-P16.5 | Inject HandoffNote as system message before next agent's turn in `forge_stream` | Core | 1 day | Chat-P16.3, Chat-P16.4 | Proposed |
-| Chat-P16.6 | SSE `agent_handoff` event emission after bring_in executes | Core | 0.5 day | Chat-P16.3 | Proposed |
-| Chat-P16.7 | Update Nicole's soul to instruct bring_in usage after classification | Core | 0.5 day | Chat-P16.1 | Proposed |
-| Chat-P16.8 | Frontend: handle `agent_handoff` SSE event, update profession badge | Core | 0.5 day | Chat-P16.6 | Proposed |
-| Chat-P16.9 | Frontend: HandoffCard component for bring_in tool_call rendering | Core | 1 day | Chat-P16.8 | Proposed |
-| Chat-P16.10 | Integration tests: bring_in validation, handoff note injection, SSE event | Core | 1 day | Chat-P16.5, Chat-P16.6 | Proposed |
+| Chat-P16.1 | BringInTool 结构体，带 JSON schema、验证和 execute 方法 | Core | 1 天 | Chat-D3 | proposed |
+| Chat-P16.2 | 更新 assistant 职业 `allowed_tools` 以包含 `bring_in` | Core | 0.5 天 | Chat-P16.1 | proposed |
+| Chat-P16.3 | 工具处理程序：验证 target 在 `handoff_to` 中，切换 `active_profession`，持久化会话 | Core | 1 天 | Chat-P16.1 | proposed |
+| Chat-P16.4 | HandoffNote 结构体，带 render() 方法用于注入上下文 | Core | 0.5 天 | Chat-D3 | proposed |
+| Chat-P16.5 | 在 `forge_stream` 中将 HandoffNote 作为 system message 注入到下一个智能体的轮次之前 | Core | 1 天 | Chat-P16.3, Chat-P16.4 | proposed |
+| Chat-P16.6 | bring_in 执行后发出 SSE `agent_handoff` 事件 | Core | 0.5 天 | Chat-P16.3 | proposed |
+| Chat-P16.7 | 更新 Nicole 的灵魂以指示分类后使用 bring_in | Core | 0.5 天 | Chat-P16.1 | proposed |
+| Chat-P16.8 | 前端：处理 `agent_handoff` SSE 事件，更新职业徽章 | Core | 0.5 天 | Chat-P16.6 | proposed |
+| Chat-P16.9 | 前端：HandoffCard 组件用于 bring_in tool_call 渲染 | Core | 1 天 | Chat-P16.8 | proposed |
+| Chat-P16.10 | 集成测试：bring_in 验证、交接备注注入、SSE 事件 | Core | 1 天 | Chat-P16.5, Chat-P16.6 | proposed |
 
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Chat-P3 Streaming Renderer Integration
-**Status:** done
-**Tags:** stack:frontend
+## Chat-P3 流式渲染器集成
+**Status:** draft
 **Depends on:** Chat-G9, Chat-D4
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
-| Chat-P22.1 | `useStreamingDocument.ts` parser with sticky props cache | UI | 2 days | Done |
-| Chat-P22.2 | `StreamingRenderer.vue` with component registry | UI | 2 days | Done |
-| Chat-P22.3 | `StreamingTable.vue` for JSON table blocks | UI | 1 day | Done |
-| Chat-P22.4 | Integrate into `ChatsView.vue` message stream | UI | 1 day | Done |
-
----
-
----
-
----
-
----
-
----
-
----
+| Chat-P22.1 | `useStreamingDocument.ts` 解析器，带粘性 props 缓存 | UI | 2 天 | done |
+| Chat-P22.2 | `StreamingRenderer.vue`，带组件注册表 | UI | 2 天 | done |
+| Chat-P22.3 | `StreamingTable.vue`，用于 JSON 表格块 | UI | 1 天 | done |
+| Chat-P22.4 | 集成到 `ChatsView.vue` 消息流 | UI | 1 天 | done |

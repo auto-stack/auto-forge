@@ -1,48 +1,48 @@
-# Wiki Module
+# Wiki 模块
 
-## Overview
+## 概述
 
-Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
+Wiki 模块提供项目范围的知识库，支持多级目录树、原始资源导入和 Markdown 编辑
 
-## Goals
+## 目标
 
-- **G1** — Wiki module provides project-scoped knowledge base with multi-level directory tree, raw resource import, and markdown editing
-- **G2** — Wiki Search & Tagging System provides VitePress/VSCode-style context-aware full-text search
+- **G1** — Wiki 模块提供项目范围的知识库，支持多级目录树、原始资源导入和 Markdown 编辑
+- **G2** — Wiki 搜索与标签系统提供 VitePress/VSCode 风格的上下文感知全文搜索
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — Wiki Knowledge Layer Architecture
+- **A1** — Wiki 知识层架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — Wiki Knowledge Layer — Storage, Tree API, Raw Resources, and Agent Tools
-- **D2** — Wiki Frontend — Tree Navigation, Raw Import, and Tab Integration
+- **D1** — Wiki 知识层 — 存储、树形 API、原始资源和智能体工具
+- **D2** — Wiki 前端 — 树形导航、原始导入和标签集成
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [project](project/module.ad)
+依赖项：[project](project/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 2 | [goals.ad](goals.ad) |
-| Architecture | 1 | [architecture.ad](architecture.ad) |
-| Designs | 2 | [designs.ad](designs.ad) |
-| Plans | 1 | [plans.ad](plans.ad) |
-| Tests | 10 | [tests.ad](tests.ad) |
+| 目标 | 2 | [goals.ad](goals.ad) |
+| 架构 | 1 | [architecture.ad](architecture.ad) |
+| 设计 | 2 | [designs.ad](designs.ad) |
+| 计划 | 1 | [plans.ad](plans.ad) |
+| 测试 | 10 | [tests.ad](tests.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Wiki-`** (e.g. `Wiki-G1`, `Wiki-D1`).
+本模块中的规格 ID 使用前缀 **`Wiki-`**（例如 `Wiki-G1`、`Wiki-D1`）。

@@ -1,49 +1,49 @@
-# ApiSources Module
+# ApiSources 模块
 
-## Overview
+## 概述
 
-API Source Configuration supports multi-provider LLM management with auto-detection and model tiers
+API 来源配置支持多提供商 LLM 管理，具备自动检测和模型层级功能。
 
-## Goals
+## 目标
 
-- **G1** — API Source Configuration supports multi-provider LLM management with auto-detection and model tiers
-- **G2** — APIs Documentation View
+- **G1** — API 来源配置支持多提供商 LLM 管理，具备自动检测和模型层级功能
+- **G2** — APIs 文档视图
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — API Source & Multi-Provider Architecture
-- **A2** — APIs Documentation View Architecture
+- **A1** — API 来源与多提供商架构
+- **A2** — APIs 文档视图架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — API Source Configuration
-- **D2** — APIs Documentation View
+- **D1** — API 来源配置
+- **D2** — APIs 文档视图
 
-## Module Dependencies
+## 模块依赖
 
-Depends on: [agent-config](agent-config/module.ad), [provider](provider/module.ad), [runtime](runtime/module.ad)
+依赖：[agent-config](agent-config/module.ad)、[provider](provider/module.ad)、[runtime](runtime/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
-|------|-------|------|
-| Goals | 2 | [goals.ad](goals.ad) |
-| Architecture | 2 | [architecture.ad](architecture.ad) |
-| Designs | 2 | [designs.ad](designs.ad) |
-| Plans | 2 | [plans.ad](plans.ad) |
-| Tests | 3 | [tests.ad](tests.ad) |
+| 类型 | 数量 | 文件 |
+|------|------|------|
+| 目标 | 2 | [goals.ad](goals.ad) |
+| 架构 | 2 | [architecture.ad](architecture.ad) |
+| 设计 | 2 | [designs.ad](designs.ad) |
+| 计划 | 2 | [plans.ad](plans.ad) |
+| 测试 | 3 | [tests.ad](tests.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标**定义模块旨在达成的成果
+- **架构**描述高层设计和组件交互
+- **设计**包含详细的技术规格
+- **计划**跟踪实现任务
+- **测试**列出验收标准
+- **审阅**记录实现后的回顾
+- **报告**包含实现摘要
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`ApiSources-`** (e.g. `ApiSources-G1`, `ApiSources-D1`).
+本模块中的规格 ID 使用前缀 **`ApiSources-`**（例如 `ApiSources-G1`、`ApiSources-D1`）。

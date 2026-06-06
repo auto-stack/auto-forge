@@ -1,0 +1,102 @@
+# Architecture
+
+---
+
+## Auth-A1 User Login & RBAC Integration Architecture
+**Status:** approved
+**Tags:** stack:both, module:auth
+
+## Overview
+
+Wire the existing `backend/src/rbac/` module into the main Axum app and add Vue 3 login/register UI. The RBAC backend is complete (SQLite-backed user/role/permission storage, JWT auth, bcrypt hashing, Axum middleware) — it just needs routing integration and frontend components.
+
+## Problem
+
+AutoForge has no user authentication. Anyone with network access can use the full system. The RBAC module (`backend/src/rbac/`) is fully implemented with SQLite, JWT (`jsonwebtoken` crate), bcrypt password hashing, and Axum middleware — but `main.rs` never imports it and the router never mounts it. The frontend has no login UI, no auth composable, and no JWT token management.
+
+## Solution
+
+Three-layer integration: (1) wire RBAC routes into `main.rs` with middleware layering, (2) add a `useAuth.ts` composable for frontend JWT lifecycle, (3) build LoginView.vue for login/register.
+
+```mermaid
+graph TB
+    subgraph "Backend — main.rs"
+        PUB[Public Routes] --> LOGIN[POST /api/auth/login]
+        PUB --> HEALTH[GET /api/health]
+        PUB --> STATIC[Static /forge assets]
+        
+        AUTH_MW[auth_middleware layer] --> PROTECTED[Protected Routes]
+        PROTECTED --> FORGE[/api/forge/*]
+        PROTECTED --> RELAY[/api/forge/relay/*]
+        PROTECTED --> ADMIN[/api/admin/*]
+        PROTECTED --> ME[GET /api/auth/me]
+    end
+    
+    subgraph "Frontend — useAuth.ts"
+        STORE[localStorage: autoforge_jwt] --> GUARD[Route guard check]
+        LOGIN_UI[LoginView.vue] --> POST_LOGIN[POST /api/auth/login]
+        POST_LOGIN --> SAVE_TOKEN[Save JWT to localStorage]
+        SAVE_TOKEN --> REDIRECT[Redirect to main app]
+        GUARD -->|expired| REFRESH[Redirect to LoginView]
+    end
+
+    LOGIN --> AUTH_MW
+```
+
+### Trigger Condition
+
+Every HTTP request to `/api/forge/*` or `/api/admin/*` routes passes through `auth_middleware`. The middleware extracts the `Authorization: Bearer <token>` header, verifies the JWT, and injects `AuthUser` into request extensions. Unauthenticated requests receive 401.
+
+### Data Flow
+
+```
+[Browser sends request with JWT in Authorization header]
+    → auth_middleware extracts Bearer token
+    → auth::verify_token() decodes JWT, validates signature + expiry
+    → db.get_user_by_id() confirms user still exists
+    → AuthUser { user_id, username, roles } injected into extensions
+    → Handler receives authenticated request
+    → (optional) require_permission("forge:write") checks RBAC
+```
+
+### Design Highlight
+
+The RBAC module already has all the pieces — `RbacState`, `RbacMiddlewareState`, `auth_middleware`, `require_permission()`, and `rbac_api_routes()`. The integration is wiring, not building. This keeps the change small and low-risk.
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Auth state in main.rs | `RbacMiddlewareState` (already defined) | Reuses existing type; no new structs |
+| DB path | `{data_dir}/autoforge/rbac.sqlite` | Matches `db::default_db_path()`; co-located with other autoforge data |
+| JWT secret | Generated on first run, stored in `{data_dir}/autoforge/jwt_secret.txt` | Persists across restarts; no user config needed |
+| Frontend token storage | `localStorage` key `autoforge_jwt` | Simple, works with SPA, survives refresh |
+| Public routes | `/api/health`, `/api/auth/login`, static assets | Minimum viable public surface |
+| First-run experience | Seed default admin user (admin/admin) | Zero-config first login; user changes password immediately |
+| Middleware layering | `auth_middleware` as Axum layer on protected Router | Clean separation; public routes bypass entirely |
+| Permission enforcement | Opt-in via `require_permission()` per route group | Not every route needs fine-grained RBAC; start with auth-only |
+
+### Trade-offs
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Auth middleware on all protected routes** (chosen) | Simple, consistent, all routes protected by default | Every API call needs JWT; slightly more frontend complexity |
+| Public API with opt-in auth | Easier prototyping | Security holes from forgotten auth |
+| Session cookies instead of JWT | Simpler CSRF story | Not SPA-friendly; server state required |
+| OAuth2/SSO | Enterprise-grade | Massive overkill; no external IdP needed |
+
+### Verified Code Evidence
+
+| What | File |
+|------|------|
+| `RbacMiddlewareState` struct | `backend/src/rbac/middleware.rs:56-60` |
+| `auth_middleware` function | `backend/src/rbac/middleware.rs:63-96` |
+| `require_permission` middleware | `backend/src/rbac/middleware.rs:99-125` |
+| `rbac_api_routes()` router builder | `backend/src/rbac/api.rs:389-413` |
+| `RbacDb` with SQLite + migration + seeding | `backend/src/rbac/db.rs` (516 lines) |
+| `auth::generate_token/verify_token` | `backend/src/rbac/auth.rs` (full file) |
+| `RbacState` with `new()` and `new_in_memory()` | `backend/src/rbac/mod.rs` |
+| Dependencies: `rusqlite`, `bcrypt`, `jsonwebtoken`, `chrono` | `backend/Cargo.toml` |
+| `main.rs` current router (no RBAC) | `backend/src/main.rs` |
+| Frontend `App.vue` view switching | `frontend/src/App.vue:50-64` |
+| Frontend uses `useI18n` | `frontend/package.json` (vue-i18n dependency) |

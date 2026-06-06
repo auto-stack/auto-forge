@@ -2,21 +2,19 @@
 
 ---
 
-## UiSystem-T1 [G11] Mobile layout collapses Zone C to bottom sheet
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/e2e/mobile-layout.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Relay-G3, UiSystem-D1
+## UiSystem-T1 [G11] 移动端布局将 Zone C 折叠为底部面板
+**Status:** draft
 
-1. Open Specs view
-2. Select an item with relations
-3. Assert RelationsPanel renders as bottom sheet, not sidebar
-4. Swipe down; assert sheet dismisses
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/e2e/mobile-layout.spec.ts`
+**标签：** stack:frontend
+**依赖：** Relay-G3、UiSystem-D1
 
+1. 打开 Specs 视图
+2. 选择一个带有关联的条目
+3. 断言 RelationsPanel 渲染为底部面板，而非侧边栏
+4. 向下滑动；断言面板关闭
 
----
-
----
 
 ---
 
@@ -27,33 +25,38 @@
 ---
 
 ---
+
 ---
 
-## UiSystem-T2 [G13] ApiSource CRUD operations persist and load correctly
-**Status:** proposed
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:frontend
-**Depends on:** ApiSources-G1, ApiSources-D1
+---
+
+---
+
+## UiSystem-T2 [G13] ApiSource CRUD 操作正确持久化和加载
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:frontend
+**依赖：** ApiSources-G1、ApiSources-D1
 
 ```rust
 let temp_dir = TempDir::new().unwrap();
 let config_dir = temp_dir.path().join("autoforge");
 ```
 
-1. Create `ApiSource { id: "test-anthropic", provider: Anthropic, ... }`
-2. Call `save_api_sources(&[source])`
-3. Call `load_api_sources()`
-4. Assert loaded source matches original
-5. Update source name, call `save_api_sources()`
-6. Reload, assert name updated
-7. Delete by saving empty array, reload, assert empty
+1. 创建 `ApiSource { id: "test-anthropic", provider: Anthropic, ... }`
+2. 调用 `save_api_sources(&[source])`
+3. 调用 `load_api_sources()`
+4. 断言加载的源与原始数据匹配
+5. 更新源名称，调用 `save_api_sources()`
+6. 重新加载，断言名称已更新
+7. 通过保存空数组删除，重新加载，断言为空
 
-- Save and load round-trips without data loss.
-- Multiple sources can be persisted.
-- Empty state loads as empty Vec.
+- 保存和加载往返无数据丢失。
+- 可以持久化多个源。
+- 空状态加载为空 Vec。
 
-
----
 
 ---
 
@@ -66,31 +69,34 @@ let config_dir = temp_dir.path().join("autoforge");
 ---
 
 ---
+
 ---
 
-## UiSystem-T3 [G13] Auto-detection discovers Anthropic key from ~/.claude/settings.json
-**Status:** proposed
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:frontend
-**Depends on:** ApiSources-G1, ApiSources-D1
+---
+
+## UiSystem-T3 [G13] 自动检测从 ~/.claude/settings.json 发现 Anthropic 密钥
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:frontend
+**依赖：** ApiSources-G1、ApiSources-D1
 
 ```rust
-// Set up mock ~/.claude/settings.json with ANTHROPIC_AUTH_TOKEN
+// 使用 ANTHROPIC_AUTH_TOKEN 设置模拟 ~/.claude/settings.json
 let temp_home = TempDir::new().unwrap();
 ```
 
-1. Write `settings.json` with `env.ANTHROPIC_AUTH_TOKEN = "sk-test-key"`
-2. Call `detect_available_providers()`
-3. Assert one Anthropic source returned
-4. Assert source has 3 models (haiku, sonnet, opus) with correct tiers
-5. Assert `is_available == true`
+1. 写入 `settings.json`，设置 `env.ANTHROPIC_AUTH_TOKEN = "sk-test-key"`
+2. 调用 `detect_available_providers()`
+3. 断言返回一个 Anthropic 源
+4. 断言源包含 3 个模型（haiku、sonnet、opus）且层级正确
+5. 断言 `is_available == true`
 
-- Anthropic source detected with correct models.
-- All three tiers (Light/Mid/Heavy) populated.
-- Source is marked available.
+- 检测到 Anthropic 源且模型正确。
+- 三个层级（Light/Mid/Heavy）均已填充。
+- 源被标记为可用。
 
-
----
 
 ---
 
@@ -103,13 +109,18 @@ let temp_home = TempDir::new().unwrap();
 ---
 
 ---
+
 ---
 
-## UiSystem-T4 [G13] API key resolution follows priority order
-**Status:** proposed
-**Test File:** `backend/src/relay/config.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:frontend
-**Depends on:** ApiSources-G1, ApiSources-D1
+---
+
+## UiSystem-T4 [G13] API 密钥解析遵循优先级顺序
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/relay/config.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:frontend
+**依赖：** ApiSources-G1、ApiSources-D1
 
 ```rust
 let source = ApiSource {
@@ -119,17 +130,15 @@ let source = ApiSource {
 };
 ```
 
-1. Set env var `TEST_API_KEY=env-key`; call `resolve_api_key()` → assert "env-key"
-2. Unset env var; call `resolve_api_key()` → assert "stored-key" (decoded from base64)
-3. Set `api_key_env = "settings:ANTHROPIC_API_KEY"` with mock settings → assert settings value
-4. Remove all sources → assert `None`
+1. 设置环境变量 `TEST_API_KEY=env-key`；调用 `resolve_api_key()` → 断言 "env-key"
+2. 取消设置环境变量；调用 `resolve_api_key()` → 断言 "stored-key"（从 base64 解码）
+3. 设置 `api_key_env = "settings:ANTHROPIC_API_KEY"` 并模拟 settings → 断言 settings 值
+4. 移除所有源 → 断言 `None`
 
-- Env var takes priority over stored key.
-- Settings path works as fallback.
-- Returns None when no key is available.
+- 环境变量优先于存储的密钥。
+- Settings 路径作为回退方案。
+- 无可用密钥时返回 None。
 
-
----
 
 ---
 
@@ -143,28 +152,36 @@ let source = ApiSource {
 
 ---
 
-## UiSystem-T5 [UiSystem-D4] i18n integration coverage and hardcoded string detection
+---
+
+---
+
+## UiSystem-T5 [UiSystem-D4] i18n 集成覆盖率和硬编码字符串检测
 **Status:** draft
-**Priority:** P1
-**Module:** ui-system
-**Tags:** stack:frontend, module:ui-system
 
-# Tests
+**状态：** 草案
+**优先级：** P1
+**模块：** ui-system
+**标签：** stack:frontend、module:ui-system
 
-## UiSystem-T5 [UiSystem-D4] i18n integration coverage and hardcoded string detection
+# 测试
+
+## UiSystem-T5 [UiSystem-D4] i18n 集成覆盖率和硬编码字符串检测
 **Status:** draft
-**Test File:** `frontend/src/i18n/__tests__/i18n.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-D4
 
-Updated test file verifies:
+**状态：** 草案
+**测试文件：** `frontend/src/i18n/__tests__/i18n.spec.ts`
+**标签：** stack:frontend
+**依赖：** UiSystem-D4
 
-1. **Key parity**: en.json and zh.json have identical key structures (catches missing zh keys)
-2. **Required sections**: All 18 top-level sections exist in both locales
-3. **View integration**: 6 target views import `useI18n` from `vue-i18n`
-4. **Hardcoded string detection**: Scans 6 target views for untranslated English strings
-5. **localStorage mock**: Uses `vi.spyOn(Storage.prototype, ...)` to avoid jsdom conflicts
-6. **No empty values**: All keys in both locales have non-empty string values
+更新后的测试文件验证：
+
+1. **键对等性**：en.json 和 zh.json 具有相同的键结构（捕获缺失的 zh 键）
+2. **必需分区**：两种语言环境中均存在全部 18 个顶级分区
+3. **视图集成**：6 个目标视图从 `vue-i18n` 导入 `useI18n`
+4. **硬编码字符串检测**：扫描 6 个目标视图中的未翻译英文字符串
+5. **localStorage 模拟**：使用 `vi.spyOn(Storage.prototype, ...)` 避免 jsdom 冲突
+6. **无空值**：两种语言环境中所有键均具有非空字符串值
 
 ```typescript
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -436,50 +453,53 @@ describe('view i18n integration', () => {
 ```
 
 
-1. **ApiSourcesView.vue** — Missing `useI18n` import and zero `t()` calls. Test will fail on `imports useI18n from vue-i18n`.
-2. **ProfessionsView.vue** — Missing `useI18n` import and zero `t()` calls. Test will fail on `imports useI18n from vue-i18n`.
-3. **SkillsView.vue** — Missing `useI18n` import and zero `t()` calls. Test will fail on `imports useI18n from vue-i18n`.
-4. **zh.json missing keys** — `apis.deleteConfirm` and `apis.missingTiersAlert` exist in en.json but NOT in zh.json. Key parity test will catch this.
+1. **ApiSourcesView.vue** — 缺少 `useI18n` 导入且 `t()` 调用数为零。测试将在 `imports useI18n from vue-i18n` 上失败。
+2. **ProfessionsView.vue** — 缺少 `useI18n` 导入且 `t()` 调用数为零。测试将在 `imports useI18n from vue-i18n` 上失败。
+3. **SkillsView.vue** — 缺少 `useI18n` 导入且 `t()` 调用数为零。测试将在 `imports useI18n from vue-i18n` 上失败。
+4. **zh.json 缺失键** — `apis.deleteConfirm` 和 `apis.missingTiersAlert` 存在于 en.json 但不存在于 zh.json。键对等性测试将捕获此问题。
 
 
-| Goal | Covered by Test | Status |
+| 目标 | 测试覆盖 | 状态 |
 |------|-----------------|--------|
-| UiSystem-D4 — ChatsView i18n | view i18n integration suite | ✅ Uses t() |
-| UiSystem-D4 — WikiView i18n | view i18n integration suite | ✅ Uses t() |
-| UiSystem-D4 — AgentsConfigView i18n | view i18n integration suite | ✅ Uses t() |
-| UiSystem-D4 — ProfessionsView i18n | view i18n integration suite | ❌ NOT done |
-| UiSystem-D4 — SkillsView i18n | view i18n integration suite | ❌ NOT done |
-| UiSystem-D4 — ApiSourcesView i18n | view i18n integration suite | ❌ NOT done |
-| Translation key parity | parity test suite | ❌ zh.json missing 2 keys |
+| UiSystem-D4 — ChatsView i18n | 视图 i18n 集成套件 | ✅ 使用 t() |
+| UiSystem-D4 — WikiView i18n | 视图 i18n 集成套件 | ✅ 使用 t() |
+| UiSystem-D4 — AgentsConfigView i18n | 视图 i18n 集成套件 | ✅ 使用 t() |
+| UiSystem-D4 — ProfessionsView i18n | 视图 i18n 集成套件 | ❌ 未完成 |
+| UiSystem-D4 — SkillsView i18n | 视图 i18n 集成套件 | ❌ 未完成 |
+| UiSystem-D4 — ApiSourcesView i18n | 视图 i18n 集成套件 | ❌ 未完成 |
+| 翻译键对等性 | 对等性测试套件 | ❌ zh.json 缺失 2 个键 |
 
-## UiSystem-T5 [D4] i18n key parity: en.json and zh.json have identical key structures
+## UiSystem-T5 [D4] i18n 键对等性：en.json 和 zh.json 具有相同的键结构
 **Status:** draft
-**Test File:** `frontend/src/i18n/__tests__/i18n.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-D4
 
-### Purpose
-Verify that the en.json and zh.json translation files have exactly the same key structure (no missing or extra keys in either file), and that all required sections for the 6 views exist.
+**状态：** 草案
+**测试文件：** `frontend/src/i18n/__tests__/i18n.spec.ts`
+**标签：** stack:frontend
+**依赖：** UiSystem-D4
 
-### Test Cases
+### 目的
 
-1. **Key parity**: Every key in en.json exists in zh.json and vice versa
-2. **Required sections**: All 18 top-level sections exist in both files
-3. **No empty values**: No key maps to an empty string
-4. **Section-specific coverage**: agents, professions, skills, apis sections have minimum required keys
-5. **Common section integrity**: standard action labels (save, cancel, delete, edit, close) exist in both locales
-6. **Brand consistency**: app.brandName stays as "AutoForge" in both locales
+验证 en.json 和 zh.json 翻译文件具有完全相同的键结构（任一文件中均无缺失或额外键），并验证 6 个视图所需的所有分区均存在。
 
-### Implementation
+### 测试用例
+
+1. **键对等性**：en.json 中的每个键都存在于 zh.json 中，反之亦然
+2. **必需分区**：两个文件中均存在全部 18 个顶级分区
+3. **无空值**：没有键映射到空字符串
+4. **分区特定覆盖**：agents、professions、skills、apis 分区具有最低要求的键
+5. **通用分区完整性**：标准操作标签（save、cancel、delete、edit、close）存在于两种语言环境中
+6. **品牌一致性**：app.brandName 在两种语言环境中均保持为 "AutoForge"
+
+### 实现
 
 ```typescript
-// Uses collectKeys() helper to flatten nested objects into dot-notation paths
-// Compares sorted arrays for strict equality
+// 使用 collectKeys() 辅助函数将嵌套对象扁平化为点号表示法路径
+// 比较排序后的数组以进行严格相等性判断
 ```
 
-### Acceptance Criteria
+### 验收标准
 
-- en.json and zh.json have identical flat key structures
-- All 18 sections present: app, nav, settings, common, welcome, chat, specs, wiki, explorer, relay, agents, professions, skills, apis, gate, report, category, detail
-- No empty string values
-- Brand name "AutoForge" in both locales
+- en.json 和 zh.json 具有相同的扁平键结构
+- 全部 18 个分区存在：app、nav、settings、common、welcome、chat、specs、wiki、explorer、relay、agents、professions、skills、apis、gate、report、category、detail
+- 无空字符串值
+- 两种语言环境中的品牌名称均为 "AutoForge"

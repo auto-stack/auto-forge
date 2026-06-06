@@ -2,120 +2,83 @@
 
 ---
 
-## ApiSources-P1 API Source Configuration
-**Status:** proposed
+## ApiSources-P1 API 来源配置
+**Status:** draft
 **Tags:** stack:both
 **Depends on:** ApiSources-G1
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
-| ApiSources-P14.1 | Backend config.rs: ApiSource, ModelDefinition, ModelTier types + CRUD + auto-detect | Core | 2 days | — | Proposed |
-| ApiSources-P14.2 | Extend relay/mod.rs: load api_sources into RelayRegistry, resolve_api_key | Core | 1 day | ApiSources-P14.1 | Proposed |
-| ApiSources-P14.3 | Config API endpoints: CRUD + test connection (5 routes in relay/api.rs) | Core | 1 day | ApiSources-P14.2 | Proposed |
-| ApiSources-P14.4 | Refactor ai.rs: dispatch_chat() with Anthropic/OpenAI/Local provider routing | Core | 3 days | ApiSources-P14.1 | Proposed |
-| ApiSources-P14.5 | Generalize forge/ai.rs ToolClaudeProvider to ToolProviderDispatcher | Core | 2 days | ApiSources-P14.4 | Proposed |
-| ApiSources-P14.6 | Frontend useApiSources.ts composable with singleton state | Core | 1 day | ApiSources-P14.3 | Proposed |
-| ApiSources-P14.7 | ApiSourcesView.vue: source list + detail editor + model management | Core | 3 days | ApiSources-P14.6 | Proposed |
-| ApiSources-P14.8 | App.vue: add APIs tab, remove Demo, import ApiSourcesView | Core | 0.5 day | ApiSources-P14.7 | Proposed |
-| ApiSources-P14.9 | First-startup auto-detection: detect Claude/OpenAI/Ollama and generate defaults | Core | 1 day | ApiSources-P14.1 | Proposed |
-| ApiSources-P14.10 | Integration tests: multi-provider dispatch, CRUD persistence, test connection | Core | 2 days | ApiSources-P14.5, ApiSources-P14.8 | Proposed |
+| ApiSources-P14.1 | Backend config.rs：ApiSource、ModelDefinition、ModelTier 类型 + CRUD + 自动检测 | Core | 2 days | — | proposed |
+| ApiSources-P14.2 | 扩展 relay/mod.rs：将 api_sources 加载到 RelayRegistry，resolve_api_key | Core | 1 day | ApiSources-P14.1 | proposed |
+| ApiSources-P14.3 | Config API 端点：CRUD + 测试连接（relay/api.rs 中的 5 个路由） | Core | 1 day | ApiSources-P14.2 | proposed |
+| ApiSources-P14.4 | 重构 ai.rs：dispatch_chat() 实现 Anthropic/OpenAI/本地 提供商路由 | Core | 3 days | ApiSources-P14.1 | proposed |
+| ApiSources-P14.5 | 泛化 forge/ai.rs 的 ToolClaudeProvider 为 ToolProviderDispatcher | Core | 2 days | ApiSources-P14.4 | proposed |
+| ApiSources-P14.6 | 前端 useApiSources.ts 组合式函数，单例状态 | Core | 1 day | ApiSources-P14.3 | proposed |
+| ApiSources-P14.7 | ApiSourcesView.vue：来源列表 + 详情编辑器 + 模型管理 | Core | 3 days | ApiSources-P14.6 | proposed |
+| ApiSources-P14.8 | App.vue：添加 APIs 标签，移除 Demo，导入 ApiSourcesView | Core | 0.5 day | ApiSources-P14.7 | proposed |
+| ApiSources-P14.9 | 首次启动自动检测：检测 Claude/OpenAI/Ollama 并生成默认值 | Core | 1 day | ApiSources-P14.1 | proposed |
+| ApiSources-P14.10 | 集成测试：多提供商调度、CRUD 持久化、测试连接 | Core | 2 days | ApiSources-P14.5, ApiSources-P14.8 | proposed |
 
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## ApiSources-P2 APIs Documentation View
-**Status:** done
+## ApiSources-P2 APIs 文档视图
+**Status:** draft
 **Tags:** stack:frontend
 **Depends on:** ApiSources-G2, ApiSources-D2
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
-| ApiSources-P24.1 | Structure `specs/apis.ad` with module groupings | Docs | 1 day | Done |
-| ApiSources-P24.2 | Frontend view to render `apis.ad` as endpoint browser | UI | 1 day | Done |
-| ApiSources-P24.3 | Nav rail tab with Plug icon | UI | 0.5 day | Done |
+| ApiSources-P24.1 | 按模块分组构建 `specs/apis.ad` | Docs | 1 day | done |
+| ApiSources-P24.2 | 前端视图将 `apis.ad` 渲染为端点浏览器 | UI | 1 day | done |
+| ApiSources-P24.3 | 导航栏标签使用 Plug 图标 | UI | 0.5 day | done |
 
----
-
----
-
----
-
----
-
----
-
----
-
----
-
-## ApiSources-P3 Model-First Agent Configuration
+## ApiSources-P3 模型优先的智能体配置
 **Status:** draft
 **Tags:** stack:both, module:api-sources
 **Depends on:** ApiSources-G3, ApiSources-A3, ApiSources-D1
 
 | Phase | Task | Owner | Duration | Dependencies | Status | Detail |
 |---|---|---|---|---|---|---|
-| P3.1 | Add `model_id: String` to `AgentConfig` struct | Coder | 1h | — | draft | Add `#[serde(default)] pub model_id: String` field to `AgentConfig` in `backend/src/relay/config.rs` (~line 379). Keep `model_tier` with `#[serde(default)]` for backward compat. Both fields serialize/deserialize without error on old/new JSON. Per D1 §1 AgentConfig. **File:** `backend/src/relay/config.rs` **Deliverable:** struct compiles, existing JSON configs with only `model_tier` still deserialize (model_id defaults to ""). |
-| P3.2 | Simplify `resolve_model()` to direct model_id lookup | Coder | 1h | P3.1 | draft | Replace tier downgrade walk (~lines 548-586) with: (1) find ApiSource by `config.api_source_id`, fallback first source; (2) find ModelDefinition by `config.model_id`, fallback first model + `log::warn!`. Return `ModelConfig { provider, model, temperature, max_tokens, reasoning_budget, fallback_chain }`. Per D1 §1 resolve_model(). **File:** `backend/src/relay/config.rs` **Deliverable:** no tier walk remains; unit test: resolve by model_id returns correct model; resolve with invalid model_id falls back to first model. |
-| P3.3 | Add `assign_model_ids()` migration helper | Coder | 1h | P3.1 | draft | New `pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource])` — for each config where `model_id.is_empty()`, find source, find first model matching `config.model_tier`, fallback first model. Log each migration via `log::info!`. Per D1 §1 assign_model_ids(). **File:** `backend/src/relay/config.rs` **Deliverable:** legacy config with tier but no model_id gets model_id populated after calling this function. |
-| P3.4 | Update `generate_default_agents_with_source()` | Coder | 0.5h | P3.1 | draft | Set `model_id: String::new()` in generated defaults (migration fills it). Keep preferred_tier in `model_tier` field for assign_model_ids to use. Per D1 §1 generate_default_agents_with_source(). **File:** `backend/src/relay/config.rs` **Deliverable:** generated configs have empty model_id; other fields unchanged. |
-| P3.5 | Wire `assign_model_ids()` into `load_or_generate_agent_configs()` | Coder | 0.5h | P3.3, P3.4 | draft | After merge of existing + defaults, call `assign_model_ids(&mut merged, api_sources)` before `save_agent_configs()`. Per D1 §1 load_or_generate_agent_configs(). **File:** `backend/src/relay/config.rs` **Deliverable:** any config loaded from disk without model_id gets it auto-filled on next startup. |
-| P3.6 | Audit `mod.rs` for direct model_tier references | Coder | 0.5h | P3.2 | draft | Confirm `backend/src/relay/mod.rs` calls `resolve_model()` and doesn't reference `model_tier` directly. If any direct tier references exist in spawn logic, update to use resolved ModelConfig. Per A3 §Verified Code Locations. **File:** `backend/src/relay/mod.rs` **Deliverable:** `cargo check` passes; no model_tier reads outside config.rs migration code. |
-| P3.7 | Update `AgentConfigDto` in frontend | Coder | 0.5h | — | draft | Add `model_id: string` to `AgentConfigDto` interface in `frontend/src/composables/useAgentConfigs.ts`. Keep `model_tier` for display badge. Per D1 §2 Frontend Changes. **File:** `frontend/src/composables/useAgentConfigs.ts` **Deliverable:** TypeScript compiles; existing API responses with model_id deserialize correctly. |
-| P3.8 | Add `getModelsForSource()` helper to `useApiSources.ts` | Coder | 0.5h | — | draft | Add exported function `getModelsForSource(sourceId: string): ModelDefinition[]` that finds the ApiSource by ID and returns its models array. Expose from composable return. Per D1 §2 useApiSources. **File:** `frontend/src/composables/useApiSources.ts` **Deliverable:** function returns correct model list for a given source ID, empty array if not found. |
-| P3.9 | Replace tier dropdown with model selector in `AgentsConfigView.vue` | Coder | 3h | P3.7, P3.8 | draft | (1) Compute `availableModels` from selected ApiSource using `getModelsForSource()`. (2) When `api_source_id` changes, auto-select first model and set `agent.model_id`. (3) Replace tier dropdown select with model selector showing `model.name + tierBadge(model.tier)`. (4) On model change, update `agent.model_id` and `agent.model_tier` from selected model. (5) Add tier badge CSS classes: Min=gray(#9ca3af), Lite=green(#22c55e), Mid=blue(#3b82f6), Pro=purple(#a855f7), Max=amber(#f59e0b). Per D1 §2 AgentsConfigView.vue. **File:** `frontend/src/views/AgentsConfigView.vue` **Deliverable:** model selector lists all models from selected source; tier badge shown next to each model; changing source auto-selects first model. |
-| P3.10 | Add i18n keys for model selector | Coder | 0.5h | P3.9 | draft | Add `agents.model` key to `frontend/src/locales/en.json` ("Model") and `frontend/src/locales/zh.json` ("模型"). Rename or add alongside existing `agents.modelTier`. Per architect handoff Q-1. **Files:** `frontend/src/locales/en.json`, `frontend/src/locales/zh.json` **Deliverable:** model selector label uses `t('agents.model')`. |
-| P3.11 | Backend compilation and unit tests | Coder | 1h | P3.1-P3.6 | draft | Run `cargo check -p auto-forge` and `cargo test -p auto-forge`. Write/update unit tests: (1) test resolve_model with valid model_id returns correct model; (2) test resolve_model with invalid model_id falls back to first; (3) test assign_model_ids migrates tier to model_id; (4) test serde round-trip with old JSON (no model_id) and new JSON (with model_id). **Deliverable:** all tests pass. |
-| P3.12 | Frontend build and smoke test | Coder | 1h | P3.7-P3.10 | draft | Run `pnpm build`. Verify: (1) agent config cards show model selector instead of tier dropdown; (2) changing API source refreshes model list and auto-selects first; (3) tier badges render with correct colors; (4) saving config persists model_id to backend. **Deliverable:** build succeeds; manual verification confirms UX matches D1 wireframe. |
+| P3.1 | Add `model_id: String` to AgentConfig struct | Coder | 1h | — | draft | Add `#[serde(default)] pub model_id: String` field to AgentConfig in `backend/src/relay/config.rs`. Keep `model_tier` with `#[serde(default)]` for backward compat. **File:** `backend/src/relay/config.rs` **Deliverable:** struct compiles; legacy JSON with only model_tier deserializes (model_id defaults to ""). |
+| P3.2 | Simplify `resolve_model()` to direct model_id lookup | Coder | 1h | P3.1 | draft | Replace tier-degradation walk with: (1) find ApiSource by `config.api_source_id`, fallback first; (2) find ModelDefinition by `config.model_id`, fallback first model + `log::warn!`. **File:** `backend/src/relay/config.rs` **Deliverable:** no tier walk remains; unit tests pass. |
+| P3.3 | Add `assign_model_ids()` migration helper | Coder | 1h | P3.1 | draft | New `pub fn assign_model_ids(configs, api_sources)` — for each config with empty model_id, find source, find first model matching tier, fallback first model. **File:** `backend/src/relay/config.rs` **Deliverable:** legacy configs get model_id populated. |
+| P3.4 | Update `generate_default_agents_with_source()` | Coder | 0.5h | P3.1 | draft | Set `model_id: String::new()` in generated defaults. Keep preferred_tier in model_tier for assign_model_ids. **File:** `backend/src/relay/config.rs` **Deliverable:** generated configs have empty model_id. |
+| P3.5 | Wire `assign_model_ids()` into `load_or_generate_agent_configs()` | Coder | 0.5h | P3.3, P3.4 | draft | Call `assign_model_ids(&mut merged, api_sources)` after merging, before `save_agent_configs()`. **File:** `backend/src/relay/config.rs` **Deliverable:** legacy configs auto-migrated on next load. |
+| P3.6 | Audit `mod.rs` for direct model_tier references | Coder | 0.5h | P3.2 | draft | Confirm `backend/src/relay/mod.rs` calls `resolve_model()` and does not directly read `model_tier`. **File:** `backend/src/relay/mod.rs` **Deliverable:** `cargo check` passes. |
+| P3.7 | Update frontend `AgentConfigDto` | Coder | 0.5h | — | draft | Add `model_id: string` to `AgentConfigDto` interface. Keep `model_tier` for display. **File:** `frontend/src/composables/useAgentConfigs.ts` **Deliverable:** TypeScript compiles. |
+| P3.8 | Add `getModelsForSource()` helper in useApiSources.ts | Coder | 0.5h | — | draft | Export function that returns models for a given source ID. **File:** `frontend/src/composables/useApiSources.ts` **Deliverable:** function returns correct model list. |
+| P3.9 | Replace tier dropdown with model selector in AgentsConfigView.vue | Coder | 3h | P3.7, P3.8 | draft | Compute `availableModels` from selected ApiSource. Auto-select first model on source change. Replace tier `<select>` with model selector showing name + tier badge. **File:** `frontend/src/views/AgentsConfigView.vue` **Deliverable:** model selector lists all models with tier badges. |
+| P3.10 | Add i18n keys for model selector | Coder | 0.5h | P3.9 | draft | Add `agents.model` key to en.json and zh.json. **Files:** `frontend/src/locales/en.json`, `frontend/src/locales/zh.json` **Deliverable:** model selector label uses `t('agents.model')`. |
+| P3.11 | Backend compile and unit tests | Coder | 1h | P3.1-P3.6 | draft | Run `cargo check` and `cargo test`. Write/update unit tests for resolve_model, assign_model_ids, serde roundtrip. **Deliverable:** all tests pass. |
+| P3.12 | Frontend build and smoke test | Coder | 1h | P3.7-P3.10 | draft | Run `pnpm build`. Verify model selector renders correctly. **Deliverable:** build succeeds. |
 
-### Risks and Mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Legacy JSON configs break on deserialization | Low | High | Both `model_id` and `model_tier` use `#[serde(default)]`; old JSON deserializes with model_id="" and migration fills it |
-| ApiSource has no models matching preferred tier | Medium | Low | `assign_model_ids()` falls back to first model in source; `resolve_model()` falls back to first model with warning log |
-| Frontend model selector shows stale list after source change | Low | Medium | Computed `availableModels` reactively depends on `agent.api_source_id`; watch triggers auto-select of first model |
-| `resolve_model()` called before migration runs | Low | High | `load_or_generate_agent_configs()` calls `assign_model_ids()` before returning; all consumers get configs with model_id filled |
-| `mod.rs` has hidden model_tier references | Medium | Medium | P3.6 explicitly audits `mod.rs` for any direct tier usage and updates to use resolved ModelConfig |
-
-## ApiSources-P3 Model-First Agent Configuration
+## ApiSources-P3 模型优先的智能体配置
 **Status:** draft
-**Tags:** stack:both, module:api-sources
-**Depends on:** ApiSources-G3, ApiSources-A3, ApiSources-D1
 
-| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+**状态：** 草稿
+**标签：** stack:both、module:api-sources
+**依赖：** ApiSources-G3、ApiSources-A3、ApiSources-D1
+
+| 阶段 | 任务 | 负责人 | 工期 | 依赖 | 状态 | 详情 |
 |---|---|---|---|---|---|---|
-| P3.1 | Add `model_id: String` to `AgentConfig` struct | Coder | 1h | — | draft | Add `#[serde(default)] pub model_id: String` field to `AgentConfig` in `backend/src/relay/config.rs` (~line 379). Keep `model_tier` with `#[serde(default)]` for backward compat. Both fields serialize/deserialize without error on old/new JSON. Per D1 §1 AgentConfig. **File:** `backend/src/relay/config.rs` **Deliverable:** struct compiles, existing JSON configs with only `model_tier` still deserialize (model_id defaults to ""). |
-| P3.2 | Simplify `resolve_model()` to direct model_id lookup | Coder | 1h | P3.1 | draft | Replace tier downgrade walk (~lines 548-586) with: (1) find ApiSource by `config.api_source_id`, fallback first source; (2) find ModelDefinition by `config.model_id`, fallback first model + `log::warn!`. Return `ModelConfig { provider, model, temperature, max_tokens, reasoning_budget, fallback_chain }`. Per D1 §1 resolve_model(). **File:** `backend/src/relay/config.rs` **Deliverable:** no tier walk remains; unit test: resolve by model_id returns correct model; resolve with invalid model_id falls back to first model. |
-| P3.3 | Add `assign_model_ids()` migration helper | Coder | 1h | P3.1 | draft | New `pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource])` — for each config where `model_id.is_empty()`, find source, find first model matching `config.model_tier`, fallback first model. Log each migration via `log::info!`. Per D1 §1 assign_model_ids(). **File:** `backend/src/relay/config.rs` **Deliverable:** legacy config with tier but no model_id gets model_id populated after calling this function. |
-| P3.4 | Update `generate_default_agents_with_source()` | Coder | 0.5h | P3.1 | draft | Set `model_id: String::new()` in generated defaults (migration fills it). Keep preferred_tier in `model_tier` field for assign_model_ids to use. Per D1 §1 generate_default_agents_with_source(). **File:** `backend/src/relay/config.rs` **Deliverable:** generated configs have empty model_id; other fields unchanged. |
-| P3.5 | Wire `assign_model_ids()` into `load_or_generate_agent_configs()` | Coder | 0.5h | P3.3, P3.4 | draft | After merge of existing + defaults, call `assign_model_ids(&mut merged, api_sources)` before `save_agent_configs()`. Per D1 §1 load_or_generate_agent_configs(). **File:** `backend/src/relay/config.rs` **Deliverable:** any config loaded from disk without model_id gets it auto-filled on next startup. |
-| P3.6 | Verify `mod.rs` — no changes needed | Coder | 0.5h | P3.2 | draft | Confirm `backend/src/relay/mod.rs` calls `resolve_model()` and doesn't reference `model_tier` directly. If any direct tier references exist in spawn logic, update to use resolved ModelConfig. Per A3 §Verified Code Locations. **File:** `backend/src/relay/mod.rs` **Deliverable:** `cargo check` passes; no model_tier reads outside config.rs migration code. |
-| P3.7 | Update `AgentConfigDto` in frontend | Coder | 0.5h | — | draft | Add `model_id: string` to `AgentConfigDto` interface in `frontend/src/composables/useAgentConfigs.ts`. Keep `model_tier` for display badge. Per D1 §2 Frontend Changes. **File:** `frontend/src/composables/useAgentConfigs.ts` **Deliverable:** TypeScript compiles; existing API responses with model_id deserialize correctly. |
-| P3.8 | Add `getModelsForSource()` helper to `useApiSources.ts` | Coder | 0.5h | — | draft | Add exported function `getModelsForSource(sourceId: string): ModelDefinition[]` that finds the ApiSource by ID and returns its models array. Expose from composable return. Per D1 §2 useApiSources. **File:** `frontend/src/composables/useApiSources.ts` **Deliverable:** function returns correct model list for a given source ID, empty array if not found. |
-| P3.9 | Replace tier dropdown with model selector in `AgentsConfigView.vue` | Coder | 3h | P3.7, P3.8 | draft | (1) Compute `availableModels` from selected ApiSource using `getModelsForSource()`. (2) When `api_source_id` changes, auto-select first model and set `agent.model_id`. (3) Replace tier dropdown `<select>` with model selector `<select>` showing `model.name + tierBadge(model.tier)`. (4) On model change, update `agent.model_id` and `agent.model_tier` from selected model. (5) Add tier badge CSS classes: Min=gray(#9ca3af), Lite=green(#22c55e), Mid=blue(#3b82f6), Pro=purple(#a855f7), Max=amber(#f59e0b). Per D1 §2 AgentsConfigView.vue. **File:** `frontend/src/views/AgentsConfigView.vue` **Deliverable:** model selector lists all models from selected source; tier badge shown next to each model; changing source auto-selects first model. |
-| P3.10 | Add i18n keys for model selector | Coder | 0.5h | P3.9 | draft | Add `agents.model` key to `frontend/src/locales/en.json` ("Model") and `frontend/src/locales/zh.json` ("模型"). Rename or add alongside existing `agents.modelTier`. Per architect handoff Q-1. **Files:** `frontend/src/locales/en.json`, `frontend/src/locales/zh.json` **Deliverable:** model selector label uses `t('agents.model')`. |
-| P3.11 | Backend compilation and unit tests | Coder | 1h | P3.1-P3.6 | draft | Run `cargo check -p auto-forge` and `cargo test -p auto-forge`. Write/update unit tests: (1) test resolve_model with valid model_id returns correct model; (2) test resolve_model with invalid model_id falls back to first; (3) test assign_model_ids migrates tier→model_id; (4) test serde round-trip with old JSON (no model_id) and new JSON (with model_id). **Deliverable:** all tests pass. |
-| P3.12 | Frontend compilation and manual smoke test | Coder | 1h | P3.7-P3.10 | draft | Run `npm run build` (or `pnpm build`). Verify: (1) agent config cards show model selector instead of tier dropdown; (2) changing API source refreshes model list and auto-selects first; (3) tier badges render with correct colors; (4) saving config persists model_id to backend. **Deliverable:** build succeeds; manual verification confirms UX matches D1 wireframe. |
+| P3.1 | 为 `AgentConfig` 结构体添加 `model_id: String` | Coder | 1 小时 | — | 草稿 | 在 `backend/src/relay/config.rs` 的 `AgentConfig` 中添加 `#[serde(default)] pub model_id: String` 字段（约第 379 行）。保留 `model_tier` 并添加 `#[serde(default)]` 以兼容旧版。新旧 JSON 均可正常序列化/反序列化。依据 D1 §1 AgentConfig。**文件：** `backend/src/relay/config.rs` **交付物：** 结构体可编译，仅含 `model_tier` 的旧 JSON 配置仍可反序列化（model_id 默认值为 ""）。 |
+| P3.2 | 简化 `resolve_model()` 为直接 model_id 查找 | Coder | 1 小时 | P3.1 | 草稿 | 替换层级降级遍历（约第 548-586 行）为：(1) 通过 `config.api_source_id` 查找 ApiSource，回退到第一个来源；(2) 通过 `config.model_id` 查找 ModelDefinition，回退到第一个模型并输出 `log::warn!`。返回 `ModelConfig { provider, model, temperature, max_tokens, reasoning_budget, fallback_chain }`。依据 D1 §1 resolve_model()。**文件：** `backend/src/relay/config.rs` **交付物：** 无层级遍历残留；单元测试：通过 model_id 解析返回正确模型；无效 model_id 解析回退到第一个模型。 |
+| P3.3 | 添加 `assign_model_ids()` 迁移辅助函数 | Coder | 1 小时 | P3.1 | 草稿 | 新建 `pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource])` —— 对每个 `model_id.is_empty()` 的配置，查找来源，查找第一个匹配 `config.model_tier` 的模型，回退到第一个模型。通过 `log::info!` 记录每次迁移。依据 D1 §1 assign_model_ids()。**文件：** `backend/src/relay/config.rs` **交付物：** 调用此函数后，无 model_id 的旧版配置会被填充 model_id。 |
+| P3.4 | 更新 `generate_default_agents_with_source()` | Coder | 0.5 小时 | P3.1 | 草稿 | 在生成的默认值中设置 `model_id: String::new()`（由迁移填充）。在 `model_tier` 字段中保留 preferred_tier，供 assign_model_ids 使用。依据 D1 §1 generate_default_agents_with_source()。**文件：** `backend/src/relay/config.rs` **交付物：** 生成的配置具有空 model_id；其他字段不变。 |
+| P3.5 | 将 `assign_model_ids()` 接入 `load_or_generate_agent_configs()` | Coder | 0.5 小时 | P3.3、P3.4 | 草稿 | 在合并现有配置与默认配置后，调用 `assign_model_ids(&mut merged, api_sources)`，再进行 `save_agent_configs()`。依据 D1 §1 load_or_generate_agent_configs()。**文件：** `backend/src/relay/config.rs` **交付物：** 从磁盘加载的无 model_id 配置在下次启动时自动填充。 |
+| P3.6 | 验证 `mod.rs` —— 无需更改 | Coder | 0.5 小时 | P3.2 | 草稿 | 确认 `backend/src/relay/mod.rs` 调用 `resolve_model()` 且不直接引用 `model_tier`。如果 spawn 逻辑中存在直接层级引用，则更新为使用解析后的 ModelConfig。依据 A3 §Verified Code Locations。**文件：** `backend/src/relay/mod.rs` **交付物：** `cargo check` 通过；config.rs 迁移代码之外无 model_tier 读取。 |
+| P3.7 | 更新前端 `AgentConfigDto` | Coder | 0.5 小时 | — | 草稿 | 在 `frontend/src/composables/useAgentConfigs.ts` 的 `AgentConfigDto` 接口中添加 `model_id: string`。保留 `model_tier` 用于显示徽章。依据 D1 §2 Frontend Changes。**文件：** `frontend/src/composables/useAgentConfigs.ts` **交付物：** TypeScript 编译通过；含 model_id 的现有 API 响应可正确反序列化。 |
+| P3.8 | 在 `useApiSources.ts` 中添加 `getModelsForSource()` 辅助函数 | Coder | 0.5 小时 | — | 草稿 | 添加导出函数 `getModelsForSource(sourceId: string): ModelDefinition[]`，通过 ID 查找 ApiSource 并返回其模型数组。从组合式函数返回中暴露。依据 D1 §2 useApiSources。**文件：** `frontend/src/composables/useApiSources.ts` **交付物：** 函数返回给定来源 ID 的正确模型列表，未找到时返回空数组。 |
+| P3.9 | 在 `AgentsConfigView.vue` 中将层级下拉框替换为模型选择器 | Coder | 3 小时 | P3.7、P3.8 | 草稿 | (1) 使用 `getModelsForSource()` 从选定的 ApiSource 计算 `availableModels`。(2) 当 `api_source_id` 变化时，自动选择第一个模型并设置 `agent.model_id`。(3) 将层级下拉框 `<select>` 替换为模型选择器 `<select>`，显示 `model.name + tierBadge(model.tier)`。(4) 模型变更时，从选定模型更新 `agent.model_id` 和 `agent.model_tier`。(5) 添加层级徽章 CSS 类：Min=gray(#9ca3af)、Lite=green(#22c55e)、Mid=blue(#3b82f6)、Pro=purple(#a855f7)、Max=amber(#f59e0b)。依据 D1 §2 AgentsConfigView.vue。**文件：** `frontend/src/views/AgentsConfigView.vue` **交付物：** 模型选择器列出所选来源的所有模型；每个模型旁显示层级徽章；变更来源时自动选择第一个模型。 |
+| P3.10 | 为模型选择器添加 i18n 键 | Coder | 0.5 小时 | P3.9 | 草稿 | 在 `frontend/src/locales/en.json` 中添加 `agents.model` 键（"Model"），在 `frontend/src/locales/zh.json` 中添加（"模型"）。在现有 `agents.modelTier` 旁重命名或添加。依据 architect handoff Q-1。**文件：** `frontend/src/locales/en.json`、`frontend/src/locales/zh.json` **交付物：** 模型选择器标签使用 `t('agents.model')`。 |
+| P3.11 | 后端编译与单元测试 | Coder | 1 小时 | P3.1-P3.6 | 草稿 | 运行 `cargo check -p auto-forge` 和 `cargo test -p auto-forge`。编写/更新单元测试：(1) 测试 resolve_model 通过有效 model_id 返回正确模型；(2) 测试 resolve_model 通过无效 model_id 回退到第一个模型；(3) 测试 assign_model_ids 将层级迁移为 model_id；(4) 测试 serde 往返：旧 JSON（无 model_id）和新 JSON（含 model_id）。**交付物：** 所有测试通过。 |
+| P3.12 | 前端编译与手动冒烟测试 | Coder | 1 小时 | P3.7-P3.10 | 草稿 | 运行 `npm run build`（或 `pnpm build`）。验证：(1) 智能体配置卡片显示模型选择器而非层级下拉框；(2) 变更 API 来源刷新模型列表并自动选择第一个；(3) 层级徽章渲染正确颜色；(4) 保存配置将 model_id 持久化到后端。**交付物：** 构建成功；人工验证确认 UX 符合 D1 线框图。 |
 
-### Risks and Mitigations
+### 风险与缓解
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| Legacy JSON configs break on deserialization | Low | High | Both `model_id` and `model_tier` use `#[serde(default)]`; old JSON deserializes with model_id="" and migration fills it |
-| ApiSource has no models matching preferred tier | Medium | Low | `assign_model_ids()` falls back to first model in source; `resolve_model()` falls back to first model with warning log |
-| Frontend model selector shows stale list after source change | Low | Medium | Computed `availableModels` reactively depends on `agent.api_source_id`; watch triggers auto-select of first model |
-| `resolve_model()` called before migration runs | Low | High | `load_or_generate_agent_configs()` calls `assign_model_ids()` before returning; all consumers get configs with model_id filled |
-| mod.rs has hidden model_tier references | Medium | Medium | P3.6 explicitly audits `mod.rs` for any direct tier usage and updates to use resolved ModelConfig |
+| 风险 | 可能性 | 影响 | 缓解措施 |
+|------|--------|------|----------|
+| 旧版 JSON 配置在反序列化时损坏 | 低 | 高 | `model_id` 和 `model_tier` 均使用 `#[serde(default)]`；旧 JSON 反序列化时 model_id=""，由迁移填充 |
+| ApiSource 无匹配首选层级的模型 | 中 | 低 | `assign_model_ids()` 回退到来源中的第一个模型；`resolve_model()` 回退到第一个模型并输出警告日志 |
+| 来源变更后前端模型选择器显示陈旧列表 | 低 | 中 | 计算的 `availableModels` 响应式依赖 `agent.api_source_id`；watch 触发自动选择第一个模型 |
+| 迁移运行前调用 `resolve_model()` | 低 | 高 | `load_or_generate_agent_configs()` 在返回前调用 `assign_model_ids()`；所有消费者获取的 config 均已填充 model_id |
+| `mod.rs` 存在隐藏的 model_tier 引用 | 中 | 中 | P3.6 明确审查 `mod.rs` 中的直接层级使用，并更新为使用解析后的 ModelConfig |

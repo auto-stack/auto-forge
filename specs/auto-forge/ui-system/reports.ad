@@ -2,27 +2,29 @@
 
 ---
 
-## UiSystem-R1 — Frontend Gap Closure Report (Post-Implementation)
+## UiSystem-R1 — 前端差距关闭报告（实现后）
 **Status:** draft
-**Tags:** stack:frontend
 
-All identified gaps from Specs-R1 have been implemented and verified. The frontend now supports the complete Smart Secretary pattern, live pipeline visualization, specs workspace depth, mode-aware gate filtering, and mobile-responsive accessibility.
+**状态：** 草案
+**标签：** stack:frontend
 
-| Gap | Status | Evidence |
+Specs-R1 中识别的所有差距均已实现并验证。前端现在支持完整的智能秘书模式、实时流水线可视化、规格工作区深度、模式感知关卡筛选和移动响应式可访问性。
+
+| 差距 | 状态 | 证据 |
 |---||---|
-| Chat-P1: ReportCard trigger | ✅ Closed | `setEventCallbacks({ onReport })` in `ChatsView.vue` |
-| Relay-P8: Live Log data | ✅ Closed | `_liveLog` populated from SSE in `useRelay.ts` |
-| Relay-P8: Per-profession Cost Breakdown | ✅ Closed | `professionTokens` ref + bars in `AgentsView.vue` |
-| Specs-P1: Drift check visualization | ✅ Closed | `driftResult` panel with severity colors in `SpecsView.vue` |
-| Relay-P9: Mode toggle filters gates | ✅ Closed | `useForgeMode` + `showGatePanel` computed |
-| Relay-P9: Event router in useForge SSE | ✅ Closed | `useEventRouter` wired into `streamResponse` |
-| UiSystem-P1: Mobile bottom sheets | ✅ Closed | `@media (max-width: 768px)` across all views |
-| UiSystem-P1: Focus management | ✅ Closed | `approveBtnRef` + `onMounted` in `GateCard.vue` |
-| UiSystem-P1: Screen reader annotations | ✅ Closed | `aria-label` on pipeline steps + `aria-live` region |
+| Chat-P1：ReportCard 触发器 | ✅ 已关闭 | `ChatsView.vue` 中的 `setEventCallbacks({ onReport })` |
+| Relay-P8：实时日志数据 | ✅ 已关闭 | `useRelay.ts` 中来自 SSE 的 `_liveLog` |
+| Relay-P8：每职业成本明细 | ✅ 已关闭 | `AgentsView.vue` 中的 `professionTokens` ref + 条 |
+| Specs-P1：偏差检查可视化 | ✅ 已关闭 | `SpecsView.vue` 中带严重度颜色的 `driftResult` 面板 |
+| Relay-P9：模式切换筛选关卡 | ✅ 已关闭 | `useForgeMode` + `showGatePanel` 计算属性 |
+| Relay-P9：useForge SSE 中的事件路由器 | ✅ 已关闭 | 接入 `streamResponse` 的 `useEventRouter` |
+| UiSystem-P1：移动端底部工作表 | ✅ 已关闭 | 所有视图中的 `@media (max-width: 768px)` |
+| UiSystem-P1：焦点管理 | ✅ 已关闭 | `GateCard.vue` 中的 `approveBtnRef` + `onMounted` |
+| UiSystem-P1：屏幕阅读器注释 | ✅ 已关闭 | 流水线步骤上的 `aria-label` + `aria-live` 区域 |
 
 ```
 vue-tsc -b && vite build  ✅  built in 19.67s
 ```
 
-- Vite dev server: `http://localhost:5174/forge/`
-- AutoForge API: `http://localhost:3031`
+- Vite 开发服务器：`http://localhost:5174/forge/`
+- AutoForge API：`http://localhost:3031`

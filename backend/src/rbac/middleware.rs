@@ -65,11 +65,26 @@ pub struct RbacMiddlewareState {
 /// Extracts and validates the Bearer token from the Authorization header.
 /// On success, inserts `AuthUser` into request extensions.
 /// On failure, returns 401.
+/// Public paths that do not require authentication.
+const PUBLIC_PATHS: &[&str] = &[
+    "/api/health",
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/forge/project/status",
+    "/mcp",
+];
+
 pub async fn auth_middleware(
     axum::extract::State(state): axum::extract::State<RbacMiddlewareState>,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AuthErrorKind> {
+    let path = req.uri().path();
+    // Skip auth for public paths and static assets
+    if PUBLIC_PATHS.iter().any(|p| path == *p) || path.starts_with("/forge/") || path.starts_with("/avatars/") {
+        return Ok(next.run(req).await);
+    }
+
     let auth_header = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
@@ -80,14 +95,14 @@ pub async fn auth_middleware(
         .ok_or(AuthErrorKind::InvalidToken("Invalid Authorization header format".to_string()))?;
 
     let claims = auth::verify_token(&state.jwt_secret, token)
-        .map_err(|e| AuthErrorKind::InvalidToken(e))?;
+        .map_err(|e| AuthErrorKind::InvalidToken(e.to_string()))?;
 
     let user_id: i64 = claims.sub.parse()
         .map_err(|_| AuthErrorKind::InvalidToken("Invalid user ID in token".to_string()))?;
 
     // Verify user still exists
     let user = state.db.get_user_by_id(user_id)
-        .map_err(|e| AuthErrorKind::InvalidToken(e))?
+        .map_err(|e| AuthErrorKind::InvalidToken(e.to_string()))?
         .ok_or(AuthErrorKind::UserNotFound)?;
 
     let auth_user = AuthUser {
@@ -116,7 +131,7 @@ pub fn require_permission(permission: &'static str) -> impl Fn(
                 .clone();
 
             let has_perm = state.db.user_has_permission(auth_user.user_id, &perm)
-                .map_err(|e| AuthErrorKind::InvalidToken(e))?;
+                .map_err(|e| AuthErrorKind::InvalidToken(e.to_string()))?;
 
             if !has_perm {
                 return Err(AuthErrorKind::InsufficientPermission(perm));

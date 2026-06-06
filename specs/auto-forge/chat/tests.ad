@@ -2,21 +2,23 @@
 
 ---
 
-## Chat-T1 [G8] GateCard approval flow — approve triggers pipeline advance
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/integration/GateCard.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Chat-G1, Chat-D1
+## Chat-T1 [G8] GateCard 审批流程 — 批准触发流水线推进
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/integration/GateCard.spec.ts`
+**标签：** stack:frontend
+**依赖：** Chat-G1, Chat-D1
 
 ```typescript
 const gate = createPendingGate({ gateType: 'goal', profession: 'advisor' })
 render(<GateCard gate={gate} mode="inline" />)
 ```
 
-1. Click "Approve & Execute" button
-2. Assert `approveSpec()` API is called
-3. Assert gate card transitions to `approved` state
-4. Assert `streamResponse()` resumes
+1. 点击 "Approve & Execute" 按钮
+2. 断言 `approveSpec()` API 被调用
+3. 断言关卡卡片过渡到 `approved` 状态
+4. 断言 `streamResponse()` 恢复
 
 
 
@@ -36,23 +38,25 @@ render(<GateCard gate={gate} mode="inline" />)
 ---
 ---
 
-## Chat-T2 [G8] SecretaryMessage queue — multiple gates enqueue and dequeue correctly
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/integration/SecretaryMessage.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Chat-G1, Relay-D6
+## Chat-T2 [G8] SecretaryMessage 队列 — 多个关卡正确入队和出队
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/integration/SecretaryMessage.spec.ts`
+**标签：** stack:frontend
+**依赖：** Chat-G1, Relay-D6
 
 ```typescript
 const inbox = useGateInbox()
-inbox.registerGate(gateA)  // becomes active
-inbox.registerGate(gateB)  // queued
-inbox.registerGate(gateC)  // queued
+inbox.registerGate(gateA)  // 变为活动状态
+inbox.registerGate(gateB)  // 入队
+inbox.registerGate(gateC)  // 入队
 ```
 
-1. Render `<SecretaryMessage gate={inbox.active} />`
-2. Assert "+2 more" pill is visible
-3. Click pill; assert mini-list shows gateB and gateC
-4. Resolve gateA; assert gateB becomes active
+1. 渲染 `<SecretaryMessage gate={inbox.active} />`
+2. 断言 "+2 more" 药丸可见
+3. 点击药丸；断言迷你列表显示 gateB 和 gateC
+4. 解决 gateA；断言 gateB 变为活动状态
 
 
 
@@ -72,30 +76,30 @@ inbox.registerGate(gateC)  // queued
 ---
 ---
 
-## Chat-T3 [G17] bring_in switches session active_profession and persists
-**Status:** proposed
-**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:both
-**Depends on:** Relay-G9, Chat-D3
+## Chat-T3 [G17] bring_in 切换会话 active_profession 并持久化
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/forge/tools.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:both
+**依赖：** Relay-G9, Chat-D3
 
 ```rust
 let mut session = create_test_session();
 session.active_profession = Some("assistant".into());
-// Execute bring_in
+// 执行 bring_in
 let result = execute_bring_in(&mut session, "advisor", "NEW_GOAL", "User wants OAuth");
 ```
 
-1. Assert `session.active_profession` changed from "assistant" to "advisor"
-2. Assert a new system message was appended containing "Handoff Note"
-3. Assert handoff note contains "Nicole" as from_agent
-4. Assert handoff note contains "NEW_GOAL" as classification
-5. Reload session from disk, assert `active_profession` persisted
+1. 断言 `session.active_profession` 从 "assistant" 变为 "advisor"
+2. 断言新的 system message 被追加，包含 "Handoff Note"
+3. 断言交接备注包含 "Nicole" 作为 from_agent
+4. 断言交接备注包含 "NEW_GOAL" 作为 classification
+5. 从磁盘重新加载会话，断言 `active_profession` 已持久化
 
-- active_profession switches on successful bring_in.
-- Handoff note injected into message history.
-- Session state persists to disk.
-
----
+- active_profession 在成功的 bring_in 时切换。
+- Handoff note 注入消息历史。
+- 会话状态持久化到磁盘。
 
 ---
 
@@ -108,13 +112,17 @@ let result = execute_bring_in(&mut session, "advisor", "NEW_GOAL", "User wants O
 ---
 
 ---
+
+---
 ---
 
-## Chat-T4 [G17] HandoffNote renders correctly for downstream agent
-**Status:** proposed
-**Test File:** `backend/src/forge/mod.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:frontend
-**Depends on:** Relay-G9, Chat-D3
+## Chat-T4 [G17] HandoffNote 为下游智能体正确渲染
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/forge/mod.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:frontend
+**依赖：** Relay-G9, Chat-D3
 
 ```rust
 let note = HandoffNote {
@@ -128,17 +136,15 @@ let note = HandoffNote {
 let rendered = note.render();
 ```
 
-1. Assert rendered contains "Nicole (assistant) handed off to you"
-2. Assert rendered contains "Classification: NEW_GOAL"
-3. Assert rendered contains "OAuth2 login with JWT tokens"
-4. Assert rendered contains "Warnings: No existing auth code found"
-5. Assert rendered contains "do not ask the user to repeat"
+1. 断言 rendered 包含 "Nicole (assistant) handed off to you"
+2. 断言 rendered 包含 "Classification: NEW_GOAL"
+3. 断言 rendered 包含 "OAuth2 login with JWT tokens"
+4. 断言 rendered 包含 "Warnings: No existing auth code found"
+5. 断言 rendered 包含 "do not ask the user to repeat"
 
-- All fields render in the handoff note.
-- Warnings render when present.
-- Instruction to continue without repeating is included.
-
----
+- 所有字段在交接备注中渲染。
+- 警告在存在时渲染。
+- 包含继续而不重复的指令。
 
 ---
 
@@ -151,33 +157,35 @@ let rendered = note.render();
 ---
 
 ---
+
+---
 ---
 
-## Chat-T5 [G17] forge_stream uses new agent after bring_in
-**Status:** proposed
-**Test File:** `backend/src/forge/mod.rs` (integration test)
-**Tags:** stack:backend
-**Depends on:** Relay-G9, Chat-D3, Chat-P16.5
+## Chat-T5 [G17] forge_stream 在 bring_in 后使用新智能体
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `backend/src/forge/mod.rs`（集成测试）
+**标签：** stack:backend
+**依赖：** Relay-G9, Chat-D3, Chat-P16.5
 
 ```rust
-// Create session, send message, let Nicole classify and call bring_in
+// 创建会话，发送消息，让 Nicole 分类并调用 bring_in
 let mut session = create_test_session();
 session.active_profession = Some("advisor".into());
-// Forge_stream should use advisor system prompt for next turn
+// Forge_stream 应该在下一轮次使用 advisor system prompt
 ```
 
-1. Create session with `active_profession: "assistant"`
-2. Send message "I want to add OAuth2"
-3. After Nicole's response (including bring_in call), assert `active_profession` is "advisor"
-4. Send another message
-5. Assert system prompt used for response contains "You are Isaac"
-6. Assert system prompt contains "Soul of the Advisor"
+1. 创建 `active_profession: "assistant"` 的会话
+2. 发送消息 "I want to add OAuth2"
+3. 在 Nicole 的回复（包括 bring_in 调用）后，断言 `active_profession` 是 "advisor"
+4. 发送另一条消息
+5. 断言用于回复的系统提示包含 "You are Isaac"
+6. 断言系统提示包含 "Soul of the Advisor"
 
-- After bring_in, next turn uses target agent's system prompt.
-- Target agent sees handoff note in context.
-- Target agent sees full conversation history.
-
----
+- bring_in 后，下一轮次使用目标智能体的系统提示。
+- 目标智能体在上下文中看到交接备注。
+- 目标智能体看到完整对话历史。
 
 ---
 
@@ -190,28 +198,66 @@ session.active_profession = Some("advisor".into());
 ---
 
 ---
+
+---
 ---
 
-## Chat-T6 [G17] Frontend renders handoff card and updates profession badge
-**Status:** proposed
-**Test File:** `frontend/src/views/ChatsView.vue` (component test)
-**Tags:** stack:backend
-**Depends on:** Relay-G9, Chat-D3, Chat-P16.9
+## Chat-T6 [G17] 前端渲染交接卡片并更新职业徽章
+**Status:** draft
+
+**状态：** 提议中
+**测试文件：** `frontend/src/views/ChatsView.vue`（组件测试）
+**标签：** stack:backend
+**依赖：** Relay-G9, Chat-D3, Chat-P16.9
 
 ```typescript
-// Simulate receiving agent_handoff SSE event
+// 模拟接收 agent_handoff SSE 事件
 const event = { type: 'agent_handoff', from_agent: 'Nicole', to_agent: 'Isaac', ... }
 ```
 
-1. Receive `agent_handoff` event during streaming
-2. Assert HandoffCard component renders with "Nicole → Isaac"
-3. Assert classification badge shows "NEW_GOAL"
-4. Assert active profession badge in input area updates to "Isaac"
-5. Assert bring_in tool_call does NOT render as generic tool output
+1. 在流式传输期间接收 `agent_handoff` 事件
+2. 断言 HandoffCard 组件渲染为 "Nicole → Isaac"
+3. 断言分类徽章显示 "NEW_GOAL"
+4. 断言输入区域的活动职业徽章更新为 "Isaac"
+5. 断言 bring_in tool_call 不渲染为通用工具输出
 
-- Handoff card renders for bring_in tool calls.
-- Profession badge updates on handoff.
-- No duplicate rendering (card replaces tool output).
+- Handoff 卡片为 bring_in 工具调用渲染。
+- 交接时职业徽章更新。
+- 无重复渲染（卡片替代工具输出）。
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Chat-T7 [G18] Wiki 页面 CRUD 操作，支持多级目录
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `backend/tests/wiki_crud.rs`
+**标签：** stack:frontend
+**依赖：** Wiki-G1, Wiki-D1
+
+1. 通过 `create_wiki_page` 工具创建 wiki 页面，带标题、内容、标签
+2. 断言页面文件存在于 `{project}/wiki/{slug}.md`
+3. 断言 manifest.json 已更新页面元数据
+4. 通过 `list_wiki` 读回页面 — 断言条目出现
+5. 通过 `update_wiki_page` 更新页面 — 断言版本递增
+6. 删除页面 — 断言文件已移除，manifest 已更新
+
+- Wiki 页面作为 markdown 文件持久化到磁盘。
+- Manifest.json 跟踪页面元数据和版本历史。
+- 每次更新版本递增。
 
 ---
 
@@ -226,24 +272,32 @@ const event = { type: 'agent_handoff', from_agent: 'Nicole', to_agent: 'Isaac', 
 ---
 
 ---
+
 ---
 
-## Chat-T7 [G18] Wiki page CRUD operations with multi-level directory support
-**Status:** done
-**Test File:** `backend/tests/wiki_crud.rs`
-**Tags:** stack:frontend
-**Depends on:** Wiki-G1, Wiki-D1
+## Chat-T8 ThinkingBlock 正确累积并渲染推理过程
+**Status:** draft
 
-1. Create a wiki page via `create_wiki_page` tool with title, content, tags
-2. Assert page file exists at `{project}/wiki/{slug}.md`
-3. Assert manifest.json updated with page metadata
-4. Read page back via `list_wiki` — assert entry appears
-5. Update page via `update_wiki_page` — assert version incremented
-6. Delete page — assert file removed, manifest updated
+**状态：** 已完成
+**测试文件：** `frontend/src/views/ChatsView.vue`（组件测试）
+**标签：** stack:frontend
+**依赖：** Chat-D5
 
-- Wiki pages persist to disk as markdown files.
-- Manifest.json tracks page metadata and version history.
-- Version increments on each update.
+```typescript
+const messages = ref<ForgeMessage[]>([
+  { id: 'msg-1', role: 'assistant', content: 'Here is the plan.', thinking: 'Let me think...\nFirst, analyze...', timestamp: Date.now() }
+])
+```
+
+1. 渲染消息列表，断言 thinking `<details>` 存在
+2. 断言 summary 显示 💭 和 "思考中"
+3. 点击 summary，断言 `<pre>` 显示完整 thinking 内容
+4. 模拟 SSE `thinking` 事件，断言 `msg.thinking` 追加新文本
+5. 模拟历史加载，断言 `loadHistory()` 保留 `thinking` 字段
+
+- 默认折叠状态。
+- 流式期间 thinking 实时累积。
+- 历史恢复保留 thinking。
 
 ---
 

@@ -2,9 +2,11 @@
 
 ---
 
-## Cli-G1 CLI Mode provides interactive REPL chat as forge chat subcommand
+## Cli-G1 CLI 模式提供交互式 REPL 聊天作为 forge chat 子命令
 **Status:** draft
-**Tags:** stack:backend
-**Depends on:** Provider-G1
 
-CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-driven system — a CLI REPL is not part of its core workflow. The provider, runtime, and tool modules remain; only the CLI entry point and REPL loop were removed.
+**状态：** 草案
+**标签：** stack:backend
+**依赖项：** Provider-G1
+
+CLI 模式从 auto-code-rs 移植而来，但已被移除，因为 AutoForge 是一个 Web UI 驱动的系统 — CLI REPL 不是其核心工作流的一部分。提供商、运行时和工具模块保留；仅移除了 CLI 入口点和 REPL 循环。

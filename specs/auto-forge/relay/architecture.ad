@@ -2,12 +2,14 @@
 
 ---
 
-## Relay-A1 Relay Orchestrator Architecture
+## Relay-A1 中继编排器架构
 **Status:** draft
 **Tags:** stack:backend
 **Depends on:** Relay-G1
 
-An LLM-based orchestrator would consume tokens for routing decisions, violating Relay-G2's token-efficiency mandate. It would also introduce non-determinism into flow execution. A deterministic state machine in Rust provides zero-token coordination, predictable routing, and compile-time safety.
+**状态：** 草案
+
+基于 LLM 的编排器会为路由决策消耗 Token，违反 Relay-G2 的 Token 效率要求。它还会给流程执行引入不确定性。Rust 中的确定性状态机提供零 Token 协调、可预测的路由以及编译时安全性。
 
 ```mermaid
 graph TB
@@ -53,19 +55,17 @@ graph TB
     O -->|load configs| CS
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| Deterministic Rust orchestrator | Zero token cost, predictable, fast, type-safe | Cannot adapt to novel flow patterns without code change |
-| LLM-based orchestrator | Flexible, natural language flow definitions | Token cost per routing decision, non-deterministic, harder to test |
-| Hybrid (LLM plans, Rust executes) | Flexibility + determinism | More complex, LLM still needed for plan generation |
+| 确定性 Rust 编排器 | 零 Token 成本、可预测、快速、类型安全 | 不修改代码就无法适应新的流程模式 |
+| 基于 LLM 的编排器 | 灵活，支持自然语言流程定义 | 每次路由决策都有 Token 成本，不确定性高，更难测试 |
+| 混合方案（LLM 规划，Rust 执行） | 兼具灵活性与确定性 | 更复杂，仍需 LLM 生成规划 |
 
-- Positive: Flow execution is deterministic and unit-testable.
-- Positive: No token spend on coordination.
-- Negative: New flow patterns (e.g., conditional routing based on spec content) require code changes to `PipelineEngine`.
-- Mitigation: FlowSpec supports `branch`, `loop`, and `on_fail` primitives that cover 95% of use cases.
+- 优点：流程执行是确定性的，可进行单元测试。
+- 优点：协调过程不产生 Token 消耗。
+- 缺点：新流程模式（例如基于规格内容的路由条件）需要修改 `PipelineEngine` 代码。
+- 缓解措施：FlowSpec 支持 `branch`、`loop` 和 `on_fail` 原语，可覆盖 95% 的用例。
 
-
----
 
 ---
 
@@ -78,14 +78,18 @@ graph TB
 ---
 
 ---
+
+---
 ---
 
-## Relay-A2 Checkpoint & State Persistence
+## Relay-A2 检查点与状态持久化
 **Status:** draft
 **Tags:** stack:backend
 **Depends on:** Runtime-G1
 
-JSON provides human-readable, version-controllable checkpoints. Git auto-commits provide a robust file-level rollback mechanism that integrates with existing developer workflows. The Ledger is embedded (not referenced) to ensure self-contained checkpoints.
+**状态：** 草案
+
+JSON 提供人类可读、可版本控制的检查点。Git 自动提交提供强大的文件级回滚机制，与现有开发者工作流集成。账本（Ledger）采用内嵌方式（而非引用）以确保检查点自包含。
 
 ```mermaid
 graph LR
@@ -97,18 +101,16 @@ graph LR
     F --> G[Update Run Store]
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| JSON + git | Human-readable, git-native rollback, simple | Large checkpoints for big projects |
-| SQLite + binary blobs | Compact, queryable | Harder to inspect, git-unfriendly |
-| Content-addressed store (IPFS-style) | Deduplication, immutable | Overkill for local orchestration |
+| JSON + git | 人类可读、原生 git 回滚、简单 | 大型项目的检查点体积较大 |
+| SQLite + 二进制 blob | 紧凑、可查询 | 难以检查，对 git 不友好 |
+| 内容寻址存储（类 IPFS） | 去重、不可变 | 对本地编排来说过于复杂 |
 
-- Positive: Checkpoints can be inspected with `cat` or `jq`.
-- Positive: Rollback uses standard git commands.
-- Negative: Large projects may produce multi-MB checkpoint files.
-- Mitigation: File manifest stores hashes, not contents. Only changed files are diffed.
-
----
+- 优点：检查点可通过 `cat` 或 `jq` 查看。
+- 优点：回滚使用标准 git 命令。
+- 缺点：大型项目可能产生数 MB 的检查点文件。
+- 缓解措施：文件清单存储哈希值而非内容。仅对已更改的文件进行差异对比。
 
 ---
 
@@ -121,14 +123,18 @@ graph LR
 ---
 
 ---
+
+---
 ---
 
-## Relay-A3 Boss-First Execution Architecture
-**Status:** approved
+## Relay-A3 Boss-First 执行架构
+**Status:** draft
 **Tags:** stack:backend
 **Depends on:** Runtime-G3
 
-The default workflow for AI assistants requires human approval at every step. This treats the human as a peer reviewer. AutoForge treats the human as a boss who delegates and expects results. GSD mode shifts the default from "ask for permission" to "ask for forgiveness" — the AI executes autonomously and only interrupts the boss when blocked.
+**状态：** 已批准
+
+AI 助手的默认工作流要求人类在每个步骤都进行审批。这实际上将人类视为同行评审者。AutoForge 将人类视为委派任务并期待结果的老板。GSD 模式将默认值从"先请示"转变为"先执行后汇报"——AI 自主执行，仅在遇到阻碍时才中断老板。
 
 ```mermaid
 graph LR
@@ -149,19 +155,17 @@ graph LR
     N --> G
 ```
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| GSD default, Check opt-in | Boss is productive; AI does the work | AI may build wrong thing confidently |
-| Check default, GSD opt-in | Boss reviews every step | Boss is a bottleneck; loses async value |
-| Hybrid (GSD with auto-drifts) | Balance of speed and safety | More complex routing logic |
+| GSD 默认，Check 可选 | 老板保持高效；AI 承担实际工作 | AI 可能自信地构建错误的内容 |
+| Check 默认，GSD 可选 | 老板可以审查每个步骤 | 老板成为瓶颈；失去异步价值 |
+| 混合方案（GSD 带自动漂移检测） | 兼顾速度与安全性 | 路由逻辑更复杂 |
 
-- Positive: Boss gives one order, receives one report.
-- Positive: Reviewer acts as internal QA, not an external gate.
-- Negative: If Advisor writes bad Goals, everything downstream is wrong.
-- Mitigation: GoalGate is the one required human gate in GSD mode. Advisor uses medium/strong model.
+- 优点：老板下达一个指令，收到一份报告。
+- 优点：Reviewer 充当内部 QA，而非外部关卡。
+- 缺点：如果 Advisor 写出的目标（Goal）不好，下游所有环节都会出错。
+- 缓解措施：GoalGate 是 GSD 模式下唯一必需的人工关卡。Advisor 使用中/强模型。
 
-
----
 
 ---
 
@@ -174,14 +178,18 @@ graph LR
 ---
 
 ---
+
+---
 ---
 
-## Relay-A4 Automatic Relay Mode Architecture
-**Status:** approved
+## Relay-A4 自动中继模式架构
+**Status:** draft
 **Tags:** stack:both
 **Depends on:** Relay-G13, Relay-A1, Chat-A2, Errand-A1
 
-`spawn_relay` is the third orchestration primitive alongside `bring_in` (phase transition) and `dispatch` (errand). It bridges the **chat layer** (Forge) and the **pipeline layer** (Relay) by allowing a chat agent to launch an autonomous background pipeline that runs without further chat involvement.
+**状态：** 已批准
+
+`spawn_relay` 是与 `bring_in`（阶段转换）和 `dispatch`（差事）并列的第三种编排原语。它桥接**聊天层**（Forge）和**流水线层**（Relay），允许聊天智能体启动一个无需进一步聊天参与的自主后台流水线。
 
 ```mermaid
 graph TB
@@ -213,15 +221,15 @@ graph TB
     end
 ```
 
-### Three Orchestration Primitives
+### 三种编排原语
 
-| Primitive | Layer | Scope | Chat Pollution | Human Involvement |
+| 原语 | 层级 | 范围 | 聊天污染 | 人类参与 |
 |-----------|-------|-------|----------------|-------------------|
-| `bring_in` | Forge | Switches chat profession | Handoff note injected | Optional gates |
-| `dispatch` | Forge | Isolated errand, master continues | Collapsible errand thread | None |
-| `spawn_relay` | **Forge → Relay** | **Full background pipeline** | **One relay card only** | **Gate approval in RelayView** |
+| `bring_in` | Forge | 切换聊天职业 | 注入交接说明 | 可选关卡 |
+| `dispatch` | Forge | 独立差事，主智能体继续 | 可折叠的差事线程 | 无 |
+| `spawn_relay` | **Forge → Relay** | **完整后台流水线** | **仅一张中继卡片** | **在 RelayView 中关卡审批** |
 
-### Driver Loop
+### 驱动循环
 
 ```
 advance_run() → ExecuteStep { step_id, profession_id }
@@ -241,16 +249,16 @@ submit_handoff(handoff) → AdvanceResult
 └─ Failed → emit run_failed event, exit
 ```
 
-### Key Design Decisions
+### 关键设计决策
 
-| Decision | Choice | Rationale |
+| 决策 | 选择 | 理由 |
 |----------|--------|-----------|
-| Driver location | `relay/driver.rs` (separate module) | Keeps pipeline engine pure; driver is an execution layer |
-| Gate waiting | Polling loop (not channels) | Simple, no deadlock risk, easy to inspect state |
-| Context construction | Initial task + previous handoff render + gate feedback | Gives each agent enough context without full chat history |
-| Tool registry per turn | Fresh `ToolRegistry::new()` | Tools are stateless; no need to share across steps |
-| Project context | `set_tool_context()` thread-local | Reuses existing specs tool infrastructure |
-| Flow selection | `post_discovery` skips chat-done work | Avoids wasting tokens on redundant intake/discover |
+| 驱动器位置 | `relay/driver.rs`（独立模块） | 保持流水线引擎纯净；驱动器是执行层 |
+| 关卡等待 | 轮询循环（非通道） | 简单、无死锁风险、状态易于检查 |
+| 上下文构造 | 初始任务 + 前一次交接渲染 + 关卡反馈 | 为每个智能体提供足够上下文，无需完整聊天记录 |
+| 每轮次工具注册表 | 全新的 `ToolRegistry::new()` | 工具是无状态的；无需在步骤间共享 |
+| 项目上下文 | `set_tool_context()` 线程本地 | 复用现有规格工具基础设施 |
+| 流程选择 | `post_discovery` 跳过聊天已完成的工作 | 避免在冗余的 intake/discover 上浪费 Token |
 
 ---
 
@@ -265,9 +273,11 @@ submit_handoff(handoff) → AdvanceResult
 ---
 ---
 
-## Relay-A5 Cross-View Event Router Architecture
-**Status:** approved
+## Relay-A5 跨视图事件路由架构
+**Status:** draft
 **Tags:** stack:frontend
+
+**状态：** 已批准
 
 ```mermaid
 graph TB
@@ -280,9 +290,9 @@ graph TB
     GI -->|badge count| NR[NavRail]
 ```
 
-- Event router is a singleton that subscribes to `/api/forge/relay/runs/{id}/events`
-- It maps event types to view actions without tight coupling
-- Gate inbox maintains a queue so multiple gates don't overwhelm the user
+- 事件路由器是一个单例，订阅 `/api/forge/relay/runs/{id}/events`
+- 它将事件类型映射到视图操作，而无需紧耦合
+- 关卡收件箱维护一个队列，避免多个关卡同时涌来时压垮用户
 
 ---
 
@@ -296,22 +306,24 @@ graph TB
 
 ---
 
-## Relay-A6 Human-Friendly Relay Run Titles Architecture
-**Status:** approved
+## Relay-A6 人类友好的中继运行标题架构
+**Status:** draft
 **Tags:** stack:both, module:relay
 **Depends on:** Relay-G14, Relay-G13
 
-## Overview
+**状态：** 已批准
 
-Relay runs currently display raw UUIDs (e.g., `run-6ddc1312`) which are meaningless to users. This architecture adds human-readable titles derived from the task description, making relay runs identifiable at a glance in the Relay view, chat cards, and run history.
+## 概述
 
-### Problem
+中继运行目前显示原始 UUID（例如 `run-6ddc1312`），对用户来说毫无意义。本架构添加从任务描述派生的人类可读标题，使中继运行在中继视图、聊天卡片和运行历史中一目了然。
 
-The `RunEntry` struct stores a `run_id` (UUID) but no display title. Every UI surface that references a relay run must either show the raw UUID (unreadable) or the full task description (too long). Neither is good UX.
+### 问题
 
-### Solution
+`RunEntry` 结构体存储 `run_id`（UUID）但没有显示标题。每个引用中继运行的 UI 界面要么显示原始 UUID（不可读），要么显示完整任务描述（太长）。两者都不是良好的用户体验。
 
-Auto-generate a title from the task description at run creation time. Store it alongside `run_id`. Display the title prominently with `run_id` as secondary info.
+### 解决方案
+
+在运行创建时根据任务描述自动生成标题。将其与 `run_id` 一起存储。将标题作为主要信息显示，`run_id` 作为次要信息。
 
 ```mermaid
 graph TB
@@ -331,22 +343,22 @@ graph TB
     end
 ```
 
-### Title Generation Algorithm
+### 标题生成算法
 
 ```
 function title_from_task(task: string) -> string:
-    // 1. Strip leading "## Task\n" or markdown headers if present
+    // 1. 去除开头的 "## Task\n" 或 markdown 标题（如果存在）
     cleaned = task.trim()
     if cleaned starts with "## ":
         cleaned = first line after "## "
     if cleaned starts with "# ":
         cleaned = first line after "# "
 
-    // 2. Take first sentence or first N words
+    // 2. 取第一句或前 N 个词
     first_sentence = split on '. ' or '\n' and take first part
     words = first_sentence.split(' ')
 
-    // 3. Truncate to max 40 chars, break at word boundary
+    // 3. 截断至最多 40 个字符，在单词边界处断开
     if words.join(' ').length > 40:
         result = ""
         for word in words:
@@ -357,176 +369,189 @@ function title_from_task(task: string) -> string:
     return words.join(' ')
 ```
 
-### Data Model Change
+### 数据模型变更
 
 ```rust
-// RunEntry — add title field
+// RunEntry — 添加 title 字段
 pub struct RunEntry {
-    pub run_id: String,        // existing: "run-6ddc1312"
-    pub title: String,         // NEW: "Add OAuth2 login support"
-    pub flow_id: String,       // existing
-    pub status: RunStatus,     // existing
-    // ... rest unchanged
+    pub run_id: String,        // 已有: "run-6ddc1312"
+    pub title: String,         // 新增: "Add OAuth2 login support"
+    pub flow_id: String,       // 已有
+    pub status: RunStatus,     // 已有
+    // ... 其余不变
 }
 ```
 
-Frontend types:
+前端类型：
 
 ```typescript
 interface RunSummary {
   run_id: string      // "run-6ddc1312"
-  title: string       // "Add OAuth2 login support"  ← NEW
+  title: string       // "Add OAuth2 login support"  ← 新增
   flow_id: string
   status: string
-  // ... rest unchanged
+  // ... 其余不变
 }
 ```
 
-### API Changes
+### API 变更
 
-| Endpoint | Change |
+| 端点 | 变更 |
 |----------|--------|
-| `POST /api/forge/relay/runs` (spawn) | Accept/derive `title` from `task` field |
-| `GET /api/forge/relay/runs` | Return `title` in each `RunSummary` |
-| `GET /api/forge/relay/runs/:id` | Return `title` in `RunState` |
+| `POST /api/forge/relay/runs`（spawn） | 从 `task` 字段接受/派生 `title` |
+| `GET /api/forge/relay/runs` | 在每个 `RunSummary` 中返回 `title` |
+| `GET /api/forge/relay/runs/:id` | 在 `RunState` 中返回 `title` |
 
-### Key Architecture Decisions
+### 关键架构决策
 
-| Decision | Choice | Rationale |
+| 决策 | 选择 | 理由 |
 |----------|--------|-----------|
-| Title generation time | At spawn (not lazy) | Consistent, no computation at display time |
-| Title source | Task description first sentence | Most descriptive, user-authored |
-| Max length | 40 characters | Fits in sidebar/cards without truncation |
-| Fallback | Display `run_id` if title empty | Always show something meaningful |
-| Editability | Read-only (auto-generated) | No user confusion about what to name runs |
-| Storage | New `title` field on RunEntry | Simple, no separate lookup |
+| 标题生成时机 | 启动时（非惰性） | 一致，展示时无需计算 |
+| 标题来源 | 任务描述的第一句话 | 最具描述性，由用户撰写 |
+| 最大长度 | 40 个字符 | 适合侧边栏/卡片，无需截断 |
+| 回退策略 | 若 title 为空则显示 `run_id` | 始终展示有意义的内容 |
+| 可编辑性 | 只读（自动生成） | 避免用户对运行命名产生困惑 |
+| 存储方式 | RunEntry 上的新 `title` 字段 | 简单，无需单独查找 |
 
-### Trigger Condition
+### 触发条件
 
-Title is generated when `spawn_relay` tool creates a new `RunEntry`. No other trigger.
+标题在 `spawn_relay` 工具创建新的 `RunEntry` 时生成。无其他触发条件。
 
-### Data Flow
+### 数据流
 
 ```
-[User chat → Advisor → spawn_relay(task: "Add OAuth2 login support")]
+[用户聊天 → Advisor → spawn_relay(task: "Add OAuth2 login support")]
     → title_from_task("Add OAuth2 login support") → "Add OAuth2 login support"
     → RunEntry { run_id: "run-6ddc1312", title: "Add OAuth2 login support", ... }
-    → Persisted to RunStore
-    → Returned in all subsequent API responses
+    → 持久化到 RunStore
+    → 在后续所有 API 响应中返回
 ```
 
-### Design Highlight
+### 设计亮点
 
-By generating the title at spawn time from the task description, we avoid any extra API calls or lazy computation. The title is as good as the task description's first sentence — which the Advisor writes. Since Advisors already write descriptive task summaries, the titles will be meaningful.
+通过在启动时根据任务描述生成标题，我们避免了额外的 API 调用或惰性计算。标题质量取决于任务描述的第一句话——而这由 Advisor 撰写。由于 Advisor 已经撰写了描述性的任务摘要，因此标题将是有意义的。
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| **Auto-generate from task at spawn** (chosen) | Zero user effort, consistent, always available | Depends on good task descriptions |
-| User-entered title | Perfect title | Extra step, users skip it |
-| LLM-generated title | Can be better than task excerpt | Extra token cost, latency |
-| First N chars of task | Simplest | May cut mid-word, ugly |
+| **启动时从任务自动生成**（已选） | 零用户操作、一致、始终可用 | 依赖于良好的任务描述 |
+| 用户输入标题 | 标题完美 | 额外步骤，用户可能跳过 |
+| LLM 生成标题 | 可能比任务摘录更好 | 额外 Token 成本、延迟 |
+| 任务前 N 个字符 | 最简单 | 可能在单词中间截断，不美观 |
 
-### Files Modified
+### 修改的文件
 
-| File | Change |
+| 文件 | 变更 |
 |------|--------|
-| `backend/src/relay/driver.rs` | Add `title_from_task()` helper; pass title to `RunEntry::new()` |
-| `backend/src/relay/run_store.rs` | Add `title` field to `RunEntry`, `RunSummary`, `RunState` |
-| `backend/src/forge/tools.rs` | SpawnRelayTool result includes title |
-| `frontend/src/composables/useRelay.ts` | Add `title` to `RunSummary` type |
-| `frontend/src/views/RelayView.vue` | Display title prominently, run_id as subtitle |
-| `frontend/src/components/RelayCard.vue` | Display title instead of run_id |
+| `backend/src/relay/driver.rs` | 添加 `title_from_task()` 辅助函数；将 title 传给 `RunEntry::new()` |
+| `backend/src/relay/run_store.rs` | 在 `RunEntry`、`RunSummary`、`RunState` 中添加 `title` 字段 |
+| `backend/src/forge/tools.rs` | SpawnRelayTool 结果包含 title |
+| `frontend/src/composables/useRelay.ts` | 在 `RunSummary` 类型中添加 `title` |
+| `frontend/src/views/RelayView.vue` | 标题为主要显示，run_id 为副标题 |
+| `frontend/src/components/RelayCard.vue` | 显示 title 替代 run_id |
 
-## Relay-A7 Relay Report PDF Export Architecture
+## Relay-A7 Relay-A7 Relay Report PDF Export Architecture
 **Status:** proposed
 **Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G15, Relay-A4
 
-## Overview
-
-Relay run reports contain execution metadata, handoff timeline, gate decisions, spec changes, and deliverable summaries. Currently these are only visible in the Relay view UI. Users need to export relay reports as PDF documents for sharing, archiving, and offline review.
-
-### Problem
-
-Relay run data is trapped in the browser. There is no way to:
-- Share a relay report with stakeholders who don't have AutoForge access
-- Archive relay execution history for compliance or retrospectives
-- Generate a printable summary of what an autonomous pipeline did
-
-### Solution
-
-Add a **frontend PDF export** that renders relay run data into a formatted PDF document using the browser's print-to-PDF capability backed by a dedicated `RelayReportView` component. No backend PDF generation needed — the data already exists in the frontend via the relay API.
-
-```mermaid
-graph TB
-    subgraph "Frontend"
-        RE[RelayView — run detail] -->|click Export| RRV[RelayReportView.vue]
-        RRV -->|render formatted| RRD[Report DOM]
-        RRD -->|window.print| PDF[PDF via browser print dialog]
-        RRV -->|html2pdf.js| PDF2[Direct PDF download]
-    end
-    subgraph "Data Source"
-        RS[GET /api/forge/relay/runs/:id] -->|RunState| RRV
-        RH[GET /api/forge/relay/runs/:id/history] -->|HandoffLog| RRV
-    end
-```
-
-### Trigger Condition
-
-User clicks "Export PDF" button in the Relay view header or run detail card. The report view opens in a new tab/window and triggers the browser print dialog (or direct download via html2pdf.js).
-
-### Data Flow
-
-```
-[User clicks Export] → [Fetch RunState + HandoffHistory from API]
-    → [Render RelayReportView with structured data]
-    → [Trigger window.print() or html2pdf.js]
-    → [User saves PDF from browser dialog]
-```
-
-### Design Highlight
-
-By rendering PDF in the browser instead of generating it on the backend, we avoid adding Rust PDF libraries (large dependency), avoid file storage cleanup, and let the user choose their own print settings (portrait/landscape, margins, page range). The report DOM is just another Vue component with print-optimized CSS.
-
-### Key Architecture Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| PDF generation | Frontend (html2pdf.js + print CSS) | Zero backend dependency, no file cleanup, user controls output |
-| Report layout | Dedicated `RelayReportView.vue` component | Separation of concerns, testable, can be previewed before export |
-| Data fetching | Existing relay API endpoints | No new backend endpoints needed |
-| Styling | `@media print` CSS + dedicated print stylesheet | Clean separation of screen and print styles |
-| Library | html2pdf.js (wraps html2canvas + jsPDF) | Small bundle, well-maintained, handles CJK text |
-
-### Trade-offs
-
-| Approach | Pros | Cons |
-|---|---|---|
-| **Frontend html2pdf.js** (chosen) | No backend dependency, user controls output, simple | Large DOMs may be slow to render; browser-dependent quality |
-| Backend Rust PDF generation (genpdf) | Consistent output, no browser dependency | Adds `genpdf` crate (~2MB), file cleanup needed, more code |
-| Browser print() only | Zero dependencies | Inconsistent across browsers, user must know Ctrl+P |
-| Server-side headless Chrome (puppeteer) | Perfect rendering | Requires Chrome runtime, heavy infrastructure |
-
-### API Data Used
-
-| Endpoint | Fields Used |
-|----------|-------------|
-| `GET /api/forge/relay/runs/:id` | `run_id`, `title`, `flow_id`, `status`, `mode`, `created_at`, `completed_at`, `tokens_used`, `steps` |
-| `GET /api/forge/relay/runs/:id/history` | `handoffs[]` with `from`, `to`, `timestamp`, `summary`, `tokens_used` |
-
-No new backend endpoints required.
-
-## Relay-A7 PDF Export Architecture for Relay Run Reports
+## Relay-A7 Relay Report PDF Export Architecture
 **Status:** proposed
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G15, Relay-A4
 
 ### Overview
 
-Users need to export relay run reports as PDF documents for sharing, archival, and offline review. The PDF should include run metadata, execution timeline, spec changes, and deliverable summaries — producing a professional document without requiring any server-side PDF generation library.
+Relay run reports contain execution metadata, handoff timeline, gate decisions, spec changes, and deliverable summaries. Currently these are only visible in the Relay View UI. Users need to export relay reports as PDF documents for sharing, archiving, and offline review.
 
-### Architecture Decision: Client-Side PDF Generation
+### Problem
 
-PDF generation happens entirely in the browser using the `jspdf` library with `jspdf-autotable` for structured table rendering. This avoids backend dependencies, works offline, and produces instant results. The relay run data is already available in the frontend via the RunState API.
+Relay run data is trapped in the browser. There is no way to:
+- Share relay reports with stakeholders who don't have AutoForge access
+- Archive relay execution history for compliance or retrospective
+- Produce a printable summary of what the autonomous pipeline did
+
+### Solution
+
+Add **client-side PDF export** using `jspdf` + `jspdf-autotable`. The relay run data already exists in the frontend via the RunState API — render it into a formatted multi-page PDF entirely in the browser. No backend PDF generation needed.
+
+```mermaid
+graph TB
+    subgraph "Frontend — PDF Generation"
+        EB[Export Button] --> PG[PdfGenerator.ts]
+        PG --> JPDF[jspdf + autotable]
+        PG --> DATA[RunState API data]
+        DATA --> META[Run metadata]
+        DATA --> HIST[Execution history]
+        DATA --> SPECS[Spec changes]
+        DATA --> DELIV[Deliverables]
+    end
+    subgraph "PDF Document"
+        P1[Cover: title, flow, status, dates]
+        P2[Summary: metrics table]
+        P3[Timeline: step-by-step]
+        P4[Specs: sections modified]
+        P5[Deliverables: files list]
+    end
+    JPDF --> P1
+    JPDF --> P2
+    JPDF --> P3
+    JPDF --> P4
+    JPDF --> P5
+```
+
+### Trigger Condition
+
+User clicks "Export PDF" button in relay view header or run detail card. Button only appears when a completed run is selected.
+
+### Data Flow
+
+```
+[User clicks Export PDF]
+    → fetch RunState from GET /api/forge/relay/runs/{id}
+    → PdfGenerator.run(runState)
+    → Build pages: Cover → Summary → Timeline → Specs → Deliverables
+    → jsPDF.save("relay-{title-slug}-{date}.pdf")
+    → Browser downloads PDF
+```
+
+### Key Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Generation location | Client-side (browser) | No server dependency, instant, works offline |
+| PDF library | jspdf + jspdf-autotable | Lightweight (~200KB gzipped), no native deps, built-in table support |
+| Data source | Existing RunState API | No new backend endpoints needed |
+| Trigger | User clicks button | Not automatic; user controls when |
+| File naming | `relay-{title-slug}-{date}.pdf` | Identifiable, sortable by date |
+
+### Trade-offs
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Client-side jspdf** (chosen) | Zero backend deps, instant, offline | Limited styling, custom fonts not easy |
+| Server-side (wkhtmltopdf/WeasyPrint) | Rich HTML→PDF, full CSS support | Backend dependency, latency, resource usage |
+| Print to PDF (window.print()) | Zero code | Unpredictable layout, user must know Ctrl+P |
+| Puppeteer headless | Perfect rendering | Requires Node.js server-side, heavyweight |
+
+## Relay-A7 Relay Report PDF Export Architecture (Consolidated)
+**Status:** approved
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G15
+
+### 概述
+
+用户需要将中继运行报告导出为 PDF 文档，以便分享、归档和离线评审。PDF 应包含运行元数据、执行时间线、规格变更和交付物摘要。使用客户端 `jspdf` + `jspdf-autotable` 生成，无需后端 PDF 库。
+
+### 问题
+
+中继运行数据被困在浏览器中。目前无法：
+- 与没有 AutoForge 访问权限的利益相关者分享中继报告
+- 为合规或复盘归档中继执行历史
+- 生成自主流水线所做工作的可打印摘要
+
+### 解决方案
+
+前端 PDF 导出。数据已存在于前端 RunState 中。`PdfGenerator.ts` 工具类将 RunState 转换为格式化的 PDF 文档。
 
 ```mermaid
 graph TB
@@ -555,48 +580,215 @@ graph TB
     JPDF --> P5
 ```
 
-### Trigger Condition
+### 触发条件
 
-User clicks "Export PDF" button in the Relay view header or run detail card. The button is only enabled when a completed run is selected.
+用户点击中继视图头部或运行详情卡片中的"导出 PDF"按钮。按钮仅在选中已完成的运行时才可用。
 
-### Data Flow
+### 数据流
 
 ```
-[User clicks Export PDF]
+[用户点击导出 PDF]
+    → mapRunState() 将前端 RunState 转换为扁平的 PdfData 接口
+    → PdfGenerator.generate(pdfData) 在内存中构建页面
+    → PdfGenerator.save(pdfData) 触发浏览器下载
+    → 浏览器下载 PDF
+    → 无服务器参与
+```
+
+### 设计亮点
+
+客户端 PDF 生成是交付价值的最简单架构。PDF 所需的每一块中继数据都已加载在前端——我们只需将其序列化为格式化文档。无需后端变更。
+
+### 关键架构决策
+
+| 决策 | 选择 | 理由 |
+|----------|--------|-----------|
+| 生成位置 | 客户端（浏览器） | 无服务端依赖、即时、支持离线 |
+| PDF 库 | jspdf + jspdf-autotable | 轻量（gzip 后约 200KB）、无原生依赖、内置表格支持 |
+| 数据源 | 现有 RunState API | 无需新的后端端点 |
+| 触发方式 | 用户点击按钮 | 不自动生成；用户控制时机 |
+| 文件命名 | `relay-{title-slug}-{date}.pdf` | 可识别、按日期排序 |
+
+### 权衡
+
+| 方案 | 优点 | 缺点 |
+|----------|------|------|
+| **客户端 jspdf**（已选） | 零后端依赖、即时、支持离线 | 样式有限，自定义字体不易 |
+| 服务端（wkhtmltopdf/WeasyPrint） | 丰富的 HTML→PDF、完整 CSS 支持 | 后端依赖、延迟、资源消耗 |
+| 打印到 PDF（window.print()） | 零代码 | 布局不可预测，用户必须知道 Ctrl+P |
+| Puppeteer headless | 渲染完美 | 需要 Node.js 服务端，资源消耗大 |
+
+### 使用的 API 数据
+
+| 端点 | 使用的字段 |
+|----------|------------|
+| `GET /api/forge/relay/runs/:id` | `run_id`, `title`, `flow_id`, `status`, `mode`, `created_at`, `completed_at`, `tokens_used`, `steps` |
+| `GET /api/forge/relay/runs/:id/history` | `handoffs[]` 含 `from`, `to`, `timestamp`, `summary`, `tokens_used` |
+
+无需新的后端端点。
+
+### PDF 文档结构
+
+| 页码 | 内容 | 布局 |
+|------|---------|--------|
+| 1 — 封面 | 标题、运行元数据表 | 居中标题、元数据 autoTable |
+| 2 — 摘要 | 指标概览 + 每步 Token 表 | 两个 autoTable |
+| 3 — 时间线 | 按时间顺序的步骤执行 | 带时间戳的 autoTable |
+| 4 — 规格变更 | 修改的章节、动作、条目 ID | autoTable（可选，仅有变更时显示）|
+| 5 — 交付物 | 生成的文件/规格/报告 | autoTable（可选，仅有交付物时显示）|
+
+## Relay-A7 中继运行报告 PDF 导出架构
+**Status:** draft
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G15, Relay-A4
+
+**状态：** 提议中
+
+### 概述
+
+用户需要将中继运行报告导出为 PDF 文档，以便分享、归档和离线评审。PDF 应包含运行元数据、执行时间线、规格变更和交付物摘要——生成专业文档，无需任何服务端 PDF 生成库。
+
+### 架构决策：客户端 PDF 生成
+
+PDF 生成完全在浏览器中使用 `jspdf` 库，配合 `jspdf-autotable` 进行结构化表格渲染。这避免了后端依赖，支持离线工作，并能即时生成结果。中继运行数据已经通过 RunState API 在前端可用。
+
+```mermaid
+graph TB
+    subgraph "Frontend — PDF Generation"
+        EB[Export Button] --> PG[PdfGenerator.ts]
+        PG --> JPDF[jspdf + autotable]
+        PG --> DATA[RunState API data]
+        DATA --> META[Run metadata]
+        DATA --> HIST[Execution history]
+        DATA --> SPECS[Spec changes]
+        DATA --> DELIV[Deliverables]
+    end
+
+    subgraph "PDF Document"
+        P1[Cover: title, flow, status, dates]
+        P2[Summary: metrics table]
+        P3[Timeline: step-by-step]
+        P4[Specs: sections modified]
+        P5[Deliverables: files list]
+    end
+
+    JPDF --> P1
+    JPDF --> P2
+    JPDF --> P3
+    JPDF --> P4
+    JPDF --> P5
+```
+
+### 触发条件
+
+用户点击中继视图头部或运行详情卡片中的"导出 PDF"按钮。按钮仅在选中已完成的运行时才可用。
+
+### 数据流
+
+```
+[用户点击导出 PDF]
     → fetch RunState from GET /api/forge/relay/runs/{id}
     → PdfGenerator.run(runState)
-    → Build pages: cover → summary → timeline → specs → deliverables
+    → 构建页面: 封面 → 摘要 → 时间线 → 规格 → 交付物
     → jsdoc.save("relay-{run_id}.pdf")
-    → Browser downloads PDF
+    → 浏览器下载 PDF
 ```
 
-### Key Architecture Decisions
+### 关键架构决策
 
-| Decision | Choice | Rationale |
+| 决策 | 选择 | 理由 |
 |----------|--------|-----------|
-| Generation location | Client-side (browser) | No server dependency, instant, works offline |
-| PDF library | jspdf + jspdf-autotable | Lightweight, no native deps, table support built-in |
-| Data source | Existing RunState API | No new backend endpoint needed |
-| Trigger | User-initiated button click | No auto-generation; user controls when |
-| File naming | `relay-{title-slug}-{date}.pdf` | Identifiable, sortable by date |
+| 生成位置 | 客户端（浏览器） | 无服务端依赖、即时、支持离线 |
+| PDF 库 | jspdf + jspdf-autotable | 轻量、无原生依赖、内置表格支持 |
+| 数据源 | 现有 RunState API | 无需新的后端端点 |
+| 触发方式 | 用户点击按钮 | 不自动生成；用户控制时机 |
+| 文件命名 | `relay-{title-slug}-{date}.pdf` | 可识别、按日期排序 |
 
-### Trade-offs
+### 权衡
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |----------|------|------|
-| **Client-side jspdf** (chosen) | Zero backend deps, instant, offline-capable | Limited styling, no custom fonts easily |
-| Server-side (wkhtmltopdf/WeasyPrint) | Rich HTML→PDF, full CSS support | Backend dependency, latency, resource usage |
-| Print-to-PDF (window.print()) | Zero code | Unpredictable layout, user must know Ctrl+P |
-| Puppeteer headless | Perfect rendering | Requires Node.js server, heavy resource usage |
+| **客户端 jspdf**（已选） | 零后端依赖、即时、支持离线 | 样式有限，自定义字体不易 |
+| 服务端（wkhtmltopdf/WeasyPrint） | 丰富的 HTML→PDF、完整 CSS 支持 | 后端依赖、延迟、资源消耗 |
+| 打印到 PDF（window.print()） | 零代码 | 布局不可预测，用户必须知道 Ctrl+P |
+| Puppeteer headless | 渲染完美 | 需要 Node.js 服务端，资源消耗大 |
 
-### Components Involved
+### 涉及的组件
 
-| Component | Role |
+| 组件 | 角色 |
 |-----------|------|
-| `PdfGenerator.ts` | New utility: accepts RunState, produces PDF blob |
-| `RelayView.vue` | Export button in header + run detail card |
-| `useRelay.ts` | Provides runState data (already exists) |
+| `PdfGenerator.ts` | 新工具类：接受 RunState，生成 PDF blob |
+| `RelayView.vue` | 头部和运行详情卡片中的导出按钮 |
+| `useRelay.ts` | 提供 runState 数据（已存在） |
 
-### Design Highlight
+### 设计亮点
 
-Client-side PDF generation is the simplest architecture that delivers value. Every piece of relay data the PDF needs is already loaded in the frontend — we just need to serialize it into a formatted document. No backend changes required.
+客户端 PDF 生成是交付价值的最简单架构。PDF 所需的每一块中继数据都已加载在前端——我们只需将其序列化为格式化文档。无需后端变更。
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Relay-A8 Thinking 事件广播架构
+**Status:** draft
+**Tags:** stack:backend
+
+**状态：** 已实现
+
+在 Agent Turn 执行期间，Claude Provider 可能产生 `ThinkingDelta` 内容块。`relay/driver.rs` 在 turn 事件循环中捕获该事件，将其广播为 `turn_thinking` SSE 事件并持久化到 `RunStore`。
+
+```mermaid
+graph LR
+    T[AgentTurn] -->|TurnEvent::ThinkingDelta| D[relay/driver.rs]
+    D -->|RunEventBroadcast<br>event_type="turn_thinking"| B[broadcast::Sender]
+    D -->|RunEvent::TurnThinking| R[RunStore]
+    B -->|SSE| F[前端 useRelay.ts]
+    R -->|eventsToSessionLog| H[历史恢复]
+```
+
+| 处理阶段 | 行为 |
+|---|---|
+| TurnEvent::ThinkingDelta | 刷新 text buffer，发送 `turn_thinking` 广播 |
+| RunEvent::TurnThinking | 追加到 `RunEntry.events`，调用 `save_run()` |
+| 前端实时 | `subscribeToRun()` 接收 `turn_thinking`，追加到 `_sessionLog` |
+| 前端历史 | `eventsToSessionLog()` 将 `turn_thinking` 转为 `type:'thinking'` 条目 |
+
+### 架构决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 广播与持久化同步 | 同一代码块中先后执行 | 确保实时与历史数据一致 |
+| 与 TextDelta 处理模式 | 一致（flush buffer 后发送） | 避免 thinking 和 text 交错混乱 |
+| 事件格式 | `{ profession_id, thinking }` | 最小有效负载，与 turn_delta 对称 |
+
+### 与 Errand 的关系
+
+`forge/errand.rs` 当前对 `ThinkingDelta` 为空处理 `{}`，未转发。Errand 路径暂不支持 Thinking 展示，不影响 Chat/Relay 主路径。
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

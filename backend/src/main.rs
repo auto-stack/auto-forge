@@ -1,4 +1,6 @@
 use auto_forge::provider::{ClaudeProvider, AIProviderState};
+use auto_forge::rbac::db::RbacDb;
+use auto_forge::rbac::middleware::{auth_middleware, RbacMiddlewareState};
 
 use axum::http::Method;
 use axum::Router;
@@ -21,13 +23,98 @@ impl axum::extract::FromRef<AppState> for AIProviderState {
     }
 }
 
+// ---------------------------------------------------------------------------
+// JWT secret helpers
+// ---------------------------------------------------------------------------
+
+/// Load JWT secret from {data_dir}/autoforge/jwt_secret.txt.
+/// If the file doesn't exist, generate a random 64-char hex string and save it.
+fn load_or_create_jwt_secret() -> String {
+    let dir = dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoforge");
+    std::fs::create_dir_all(&dir).ok();
+    let path = dir.join("jwt_secret.txt");
+
+    if path.exists() {
+        std::fs::read_to_string(&path).unwrap_or_else(|_| generate_random_secret())
+    } else {
+        let secret = generate_random_secret();
+        let _ = std::fs::write(&path, &secret);
+        tracing::info!("Generated new JWT secret at {}", path.display());
+        secret
+    }
+}
+
+fn generate_random_secret() -> String {
+    use std::fmt::Write;
+    let bytes: [u8; 32] = rand::random();
+    let mut hex = String::with_capacity(64);
+    for b in &bytes {
+        write!(&mut hex, "{:02x}", b).unwrap();
+    }
+    hex
+}
+
+// ---------------------------------------------------------------------------
+// Seed default admin user
+// ---------------------------------------------------------------------------
+
+fn seed_default_admin(db: &RbacDb) {
+    // Ensure default roles exist
+    if db.get_role_by_name("admin").ok().flatten().is_none() {
+        let _ = db.create_role("admin", "Administrator with full access");
+    }
+    if db.get_role_by_name("editor").ok().flatten().is_none() {
+        let _ = db.create_role("editor", "Standard editor role");
+    }
+
+    // Create default admin user if not exists
+    if db.get_user_by_username("admin").ok().flatten().is_none() {
+        if let Ok(hash) = auto_forge::rbac::auth::hash_password("admin") {
+            if let Ok(user) = db.create_user("admin", &hash) {
+                if let Some(Some(admin_role)) = db.get_role_by_name("admin").ok() {
+                    let _ = db.assign_role(user.id, admin_role.id);
+                }
+                tracing::info!("Seeded default admin user (admin/admin)");
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Default RBAC database path
+// ---------------------------------------------------------------------------
+
+fn default_rbac_db_path() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoforge")
+        .join("rbac.db")
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter("auto_forge=debug,tower_http=debug")
         .init();
 
-    // AutoForge UI static files
+    // ── RBAC initialization ──────────────────────────────────────────────
+    let jwt_secret = load_or_create_jwt_secret();
+    let rbac_db_path = default_rbac_db_path();
+    if let Some(parent) = rbac_db_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    let rbac_db = RbacDb::open(&rbac_db_path)
+        .expect("Failed to open RBAC database");
+    seed_default_admin(&rbac_db);
+
+    let rbac_mw_state = RbacMiddlewareState {
+        db: rbac_db,
+        jwt_secret: jwt_secret.clone(),
+    };
+
+    // ── App state ────────────────────────────────────────────────────────
     let forge_dist_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("frontend")
@@ -51,16 +138,30 @@ async fn main() {
         ai_provider_warmup.warm_up().await;
     });
 
-    let api_routes = Router::new()
+    // ── Public routes (auth middleware with whitelist for login/register)
+    let public_routes = Router::new()
+        .merge(auto_forge::rbac::api::rbac_api_routes())
+        .with_state(rbac_mw_state.clone())
+        .layer(axum::middleware::from_fn_with_state(
+            rbac_mw_state.clone(),
+            auth_middleware,
+        ));
+
+    // ── Protected routes (auth required) ─────────────────────────────────
+    let protected_routes = Router::new()
         .merge(auto_forge::forge::routes())
-        .with_state(app_state);
+        .with_state(app_state)
+        .layer(axum::middleware::from_fn_with_state(
+            rbac_mw_state.clone(),
+            auth_middleware,
+        ));
 
     let avatars_dir = dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("autoforge")
         .join("avatars");
 
-    let mut app = api_routes;
+    let mut app = public_routes.merge(protected_routes);
     if forge_dist_dir.exists() {
         app = app.nest_service("/forge", tower_http::services::ServeDir::new(&forge_dist_dir));
         tracing::info!("AutoForge UI served at /forge ({})", forge_dist_dir.display());

@@ -1,62 +1,62 @@
-# Specs Module
+# 规格模块
 
-## Overview
+## 概述
 
-Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category
+规格金字塔支持 目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告，不包含 API 类别
 
-## Goals
+## 目标
 
-- **G1** — Spec pyramid supports Goals → Architecture → Designs → Plans → Tests → Reviews → Reports with no APIs category
-- **G2** — Specs Workspace with Bidirectional Traceability
-- **G3** — Seven spec categories render with structured per-category editors
-- **G4** — RelationsPanel shows upstream parents and downstream children
-- **G5** — AutoLinkContent parses typed IDs into clickable hyperlinks
-- **G6** — Drift Check button compares code against specs on demand
-- *...and 7 more*
+- **G1** — 规格金字塔支持 目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告，不包含 API 类别
+- **G2** — 规格工作区与双向可追溯性
+- **G3** — 七种规格类别通过结构化按类别编辑器渲染
+- **G4** — 关联面板显示上游父项和下游子项
+- **G5** — 自动链接内容将类型化 ID 解析为可点击超链接
+- **G6** — 偏差检查按钮按需比较代码与规格
+- *...以及另外 7 个*
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — Goals Hierarchy Architecture
-- **A2** — Specs Document Types and Information Architecture
+- **A1** — 目标层级架构
+- **A2** — 规格文档类型与信息架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — Category Renderer Polymorphism
-- **D2** — RelationsPanel & AutoLinkContent
-- **D3** — GateBanner (Specs View)
-- **D4** — GoalsTable Tree View Component
-- **D5** — GoalDetailModal Component
-- **D6** — Spec Tag Display & Sidebar Filtering
-- **D7** — Backend Flat Mode Project Resolution
-- *...and 4 more*
+- **D1** — 类别渲染器多态
+- **D2** — 关联面板与自动链接内容
+- **D3** — 关卡横幅（规格视图）
+- **D4** — 目标表格树形视图组件
+- **D5** — 目标详情弹窗组件
+- **D6** — 规格标签显示与侧边栏筛选
+- **D7** — 后端扁平模式项目解析
+- *...以及另外 4 个*
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [agent-config](agent-config/module.ad), [chat](chat/module.ad), [relay](relay/module.ad), [ui-system](ui-system/module.ad)
+依赖项：[agent-config](agent-config/module.ad)、[chat](chat/module.ad)、[relay](relay/module.ad)、[ui-system](ui-system/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 13 | [goals.ad](goals.ad) |
-| Architecture | 2 | [architecture.ad](architecture.ad) |
-| Designs | 18 | [designs.ad](designs.ad) |
-| Plans | 2 | [plans.ad](plans.ad) |
-| Tests | 7 | [tests.ad](tests.ad) |
-| Reviews | 1 | [reviews.ad](reviews.ad) |
-| Reports | 1 | [reports.ad](reports.ad) |
+| 目标 | 13 | [goals.ad](goals.ad) |
+| 架构 | 2 | [architecture.ad](architecture.ad) |
+| 设计 | 18 | [designs.ad](designs.ad) |
+| 计划 | 2 | [plans.ad](plans.ad) |
+| 测试 | 7 | [tests.ad](tests.ad) |
+| 评审 | 1 | [reviews.ad](reviews.ad) |
+| 报告 | 1 | [reports.ad](reports.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Specs-`** (e.g. `Specs-G1`, `Specs-D1`).
+本模块中的规格 ID 使用前缀 **`Specs-`**（例如 `Specs-G1`、`Specs-D1`）。

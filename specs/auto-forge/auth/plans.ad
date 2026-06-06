@@ -1,0 +1,43 @@
+# Plans
+
+---
+
+## Auth-P1 User Login & RBAC Integration
+**Status:** draft
+**Tags:** stack:both, module:auth
+**Depends on:** Auth-A1, Auth-D1
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| Auth-P1.1 | Add `register()` handler to `backend/src/rbac/api.rs` | Coder | 1h | — | draft | Add `RegisterRequest` struct and `register()` async handler. Validates non-empty username/password (≥4 chars), checks uniqueness, hashes password, creates user with "editor" role, generates JWT. Add `POST /api/auth/register` to `rbac_api_routes()`. per D1 §1 Register Endpoint. **File:** `backend/src/rbac/api.rs` **Deliverable:** `cargo check` passes; register route returns JWT on 201. |
+| Auth-P1.2 | Wire RBAC into `backend/src/main.rs` | Coder | 2h | Auth-P1.1 | draft | Add imports for `RbacState`, `rbac_api_routes`, `auth_middleware`, `RbacMiddlewareState`. Initialize `RbacState` with `db::default_db_path()` and loaded JWT secret. Build public routes (health + auth routes). Build protected routes (forge routes) with `auth_middleware` layer. Merge public + protected + static files. per D1 §1 Backend main.rs Integration. **File:** `backend/src/main.rs` **Deliverable:** `cargo check` passes; `/api/auth/login` is public; `/api/forge/*` requires JWT. |
+| Auth-P1.3 | Add JWT secret loading and health endpoint to `main.rs` | Coder | 1h | Auth-P1.2 | draft | Implement `load_or_create_jwt_secret()` (reads from `{data_dir}/autoforge/jwt_secret.txt`, generates 64-byte hex if missing). Implement `generate_random_secret()`. Add `async fn health_handler() -> &'static str { "OK" }`. per D1 §1 JWT Secret Loading and Health Endpoint. **File:** `backend/src/main.rs` **Deliverable:** server starts; JWT secret persists across restarts; `/api/health` returns 200. |
+| Auth-P1.4 | Create `frontend/src/composables/useAuth.ts` | Coder | 2h | — | draft | Implement singleton auth composable with `_token`, `_user`, `_loading`, `_error` refs. Implement `login()`, `register()`, `logout()`, `me()`, `validateStoredToken()`. Export `isAuthenticated`, `isAdmin` computed. Implement `authFetch()` wrapper that adds `Authorization: Bearer` header and clears auth on 401. per D1 §2 useAuth.ts. **File:** `frontend/src/composables/useAuth.ts` **NEW** **Deliverable:** composable exports all auth functions; TypeScript compiles. |
+| Auth-P1.5 | Create `frontend/src/views/LoginView.vue` | Coder | 2h | Auth-P1.4 | draft | Login/register form with username + password inputs, submit handler, toggle between login/register modes, error display, i18n via `t()`, Flame icon branding. Styles use project CSS vars (`--af-bg`, `--af-primary`, etc.). per D1 §3 LoginView.vue. **File:** `frontend/src/views/LoginView.vue` **NEW** **Deliverable:** login form renders; toggles to register; shows errors; emits `auth-success`. |
+| Auth-P1.6 | Add auth guard to `frontend/src/App.vue` | Coder | 1h | Auth-P1.4, Auth-P1.5 | draft | Import `useAuth` and `LoginView`. Add `v-if="!isAuthenticated"` guard wrapping LoginView; `v-else` wrapping existing app content. On mount, call `validateStoredToken()`. Add `onAuthSuccess()` to trigger existing mount logic (e.g., `fetchStatus()`). per D1 §4 App.vue Integration. **File:** `frontend/src/App.vue` **Deliverable:** unauthenticated users see LoginView; authenticated users see main app; token validation on mount. |
+| Auth-P1.7 | Add user menu to `frontend/src/App.vue` nav rail | Coder | 0.5h | Auth-P1.6 | draft | In `.rail-footer`, add user indicator with avatar circle (first letter of username) and logout button (LogOut icon from lucide-vue-next). Wire logout button to `useAuth().logout()`. per D1 §6 User Menu. **File:** `frontend/src/App.vue` **Deliverable:** avatar and logout button visible when authenticated; clicking logout returns to LoginView. |
+| Auth-P1.8 | Replace `fetch(` with `authFetch(` in all composables | Coder | 1h | Auth-P1.4 | draft | In each composable that calls the backend API, replace `fetch(` with `authFetch(` from `useAuth.ts`. Files: `useForge.ts`, `useRelay.ts`, `useSpecs.ts`, `useWiki.ts`, `useApiSources.ts`, `useAgentConfigs.ts`, `useProject.ts`. per D1 §5 Auth Interceptor. **Files:** 7 composable files **Deliverable:** all API calls include JWT; 401 responses clear auth state. |
+| Auth-P1.9 | Add i18n keys to en.json and zh.json | Coder | 0.5h | — | draft | Add `auth.username`, `auth.password`, `auth.usernamePlaceholder`, `auth.passwordPlaceholder`, `auth.login`, `auth.register`, `auth.loading`, `auth.noAccount`, `auth.hasAccount`, `auth.logout`, `auth.defaultHint` keys. per D1 §9 i18n Keys. **Files:** `frontend/src/locales/en.json`, `frontend/src/locales/zh.json` **Deliverable:** all auth UI strings are translatable. |
+| Auth-P1.10 | Backend compile and integration smoke test | Coder | 1h | Auth-P1.1, Auth-P1.2, Auth-P1.3 | draft | Run `cargo check -p auto-forge`. Verify: (1) default admin user seeded on first run; (2) `/api/auth/login` with admin/admin returns JWT; (3) `/api/auth/register` creates new user; (4) `/api/forge/*` without JWT returns 401; (5) `/api/forge/*` with valid JWT returns 200. **Deliverable:** all checks pass. |
+| Auth-P1.11 | Frontend build and end-to-end smoke test | Coder | 1h | Auth-P1.4–Auth-P1.9 | draft | Run `pnpm build`. Verify: (1) app shows LoginView when no token; (2) login with admin/admin shows main app; (3) logout returns to LoginView; (4) page refresh preserves session via stored token. **Deliverable:** build succeeds; auth flow works end-to-end. |
+
+### Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| `RbacState::new()` fails if SQLite dir is missing | Low | High | `load_or_create_jwt_secret()` creates `{data_dir}/autoforge/` before init; `db::default_db_path()` also ensures parent dir exists |
+| `RbacMiddlewareState` and `AppState` type conflict in Axum state | Medium | Medium | Protected routes use `auth_middleware` as a layer (not state); forge handlers keep `AppState`; `AuthUser` injected via extensions, not state |
+| `authFetch` import causes circular dependency | Low | Medium | `useAuth.ts` imports no other composables; all other composables import only `authFetch` (a standalone function) |
+| Default admin/admin credential left unchanged by user | High | Low | LoginView shows "Default: admin / admin" hint; first-run experience encourages password change (future: force-change on first login) |
+| Frontend localStorage token cleared by browser | Low | Low | `validateStoredToken()` on mount handles missing/invalid token gracefully — shows LoginView |
+
+### Critical Path
+
+```
+Auth-P1.1 (register handler) → Auth-P1.2 (main.rs wiring) → Auth-P1.3 (JWT secret + health)
+Auth-P1.4 (useAuth composable) → Auth-P1.5 (LoginView) → Auth-P1.6 (App.vue guard)
+Auth-P1.8 (authFetch migration) can run in parallel with Auth-P1.5–P1.7
+Auth-P1.9 (i18n) is independent
+Auth-P1.10 (backend test) blocks on P1.1–P1.3
+Auth-P1.11 (frontend test) blocks on P1.4–P1.9
+```

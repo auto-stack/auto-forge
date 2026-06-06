@@ -182,6 +182,17 @@
               </div>
               <div v-else-if="msg.content" class="user-text" v-html="renderMentions(msg.content)"></div>
             </div>
+            <!-- Thinking block -->
+            <div v-if="msg.role === 'assistant' && msg.thinking" class="thinking-block">
+              <details :open="isStreamingMessage(msg) && msg.content === ''">
+                <summary>
+                  <span class="thinking-icon">💭</span>
+                  <span class="thinking-label">思考中</span>
+                  <span v-if="isStreamingMessage(msg)" class="thinking-pulse"></span>
+                </summary>
+                <pre class="thinking-content">{{ msg.thinking }}</pre>
+              </details>
+            </div>
             <QuestionnaireCard
               v-if="msg.role === 'assistant' && questionnaireFor(msg)?.questions"
               :questions="questionnaireFor(msg)!.questions"
@@ -1701,6 +1712,77 @@ onMounted(async () => {
 
 .message.system .message-content {
   font-size: 0.93rem;
+}
+
+/* ─── Thinking Block ──────────────────────────────────────────────────────── */
+
+.thinking-block {
+  margin-top: 0.3rem;
+  margin-bottom: 0.3rem;
+}
+
+.thinking-block details {
+  border: 1px solid hsl(var(--muted-foreground) / 0.12);
+  border-radius: 8px;
+  background: hsl(var(--muted-foreground) / 0.03);
+  overflow: hidden;
+}
+
+.thinking-block details[open] {
+  background: hsl(var(--muted-foreground) / 0.05);
+}
+
+.thinking-block summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--af-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.thinking-block summary::-webkit-details-marker {
+  display: none;
+}
+
+.thinking-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.thinking-label {
+  font-weight: 500;
+}
+
+.thinking-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--primary) / 0.7);
+  animation: thinkingPulse 1.5s infinite;
+}
+
+@keyframes thinkingPulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.4); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.thinking-content {
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--af-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  background: transparent;
+  border: none;
 }
 
 .system-welcome {

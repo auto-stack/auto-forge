@@ -2,22 +2,24 @@
 
 ---
 
-## Wiki-T1 [G18] Wiki RAG semantic retrieval
-**Status:** proposed
-**Test File:** `backend/tests/wiki_rag.rs`
-**Tags:** stack:both
-**Depends on:** Wiki-G1, Wiki-D1
+## Wiki-T1 [G18] Wiki RAG 语义检索
+**Status:** draft
 
-1. Create 5 wiki pages with distinct technical content
-2. Call `query_wiki("timer register configuration")` tool
-3. Assert top-3 results are semantically relevant (timer/register pages ranked higher)
-4. Assert each result is ≤500 tokens
-5. Verify empty query returns error, not all pages
+**状态：** 提议中
+**测试文件：** `backend/tests/wiki_rag.rs`
+**标签：** stack:both
+**依赖项：** Wiki-G1, Wiki-D1
 
-- Vector similarity search returns relevant passages.
-- Token budget per retrieval is bounded.
-- Empty/malformed queries return errors.
+1. 创建 5 个包含不同技术内容的 wiki 页面
+2. 调用 `query_wiki("timer register configuration")` 工具
+3. 断言前 3 个结果语义相关（timer/register 页面排名更高）
+4. 断言每个结果 ≤500 tokens
+5. 验证空查询返回错误，而非所有页面
 
+- 向量相似性搜索返回相关段落。
+- 每次检索的 token 预算受限制。
+- 空/异常查询返回错误。
+
 ---
 
 ---
@@ -32,20 +34,22 @@
 
 ---
 ---
+
+## Wiki-T2 [G18] Wiki 工具职业访问控制
+**Status:** draft
 
-## Wiki-T2 [G18] Wiki tool profession access control
-**Status:** done
-**Test File:** `backend/tests/wiki_tools.rs`
-**Tags:** stack:both
-**Depends on:** Wiki-G1, Wiki-D1
+**状态：** 完成
+**测试文件：** `backend/tests/wiki_tools.rs`
+**标签：** stack:both
+**依赖项：** Wiki-G1, Wiki-D1
 
-1. Assert all professions can call `query_wiki` and `list_wiki`
-2. Assert only Coder and Documenter can call `create_wiki_page` and `update_wiki_page`
-3. Verify agent with wrong profession gets PermissionDenied on write tools
-4. Verify agent with correct profession succeeds on write tools
+1. 断言所有职业均可调用 `query_wiki` 和 `list_wiki`
+2. 断言仅 Coder 和 Documenter 可调用 `create_wiki_page` 和 `update_wiki_page`
+3. 验证具有错误职业的智能体在写入工具上收到 PermissionDenied
+4. 验证具有正确职业的智能体在写入工具上成功
 
-- Read tools (query, list) available to all professions.
-- Write tools (create, update) restricted to Coder and Documenter.
+- 读取工具（query、list）对所有职业可用。
+- 写入工具（create、update）限制为 Coder 和 Documenter。
 
 ---
 
@@ -62,22 +66,24 @@
 ---
 ---
 
-## Wiki-T3 [G18] Wiki embedding pipeline
-**Status:** proposed
-**Test File:** `backend/tests/wiki_embedding.rs`
-**Tags:** stack:backend
-**Depends on:** Wiki-G1, Wiki-D1
+## Wiki-T3 [G18] Wiki 嵌入流水线
+**Status:** draft
 
-1. Create wiki page with technical content
-2. Assert embedding vector is computed and stored
-3. Update page content — assert embedding recomputed
-4. Verify embedding dimensions match model output
-5. Verify FAISS index updated after page operations
+**状态：** 提议中
+**测试文件：** `backend/tests/wiki_embedding.rs`
+**标签：** stack:backend
+**依赖项：** Wiki-G1, Wiki-D1
 
-- Embeddings computed on page create/update.
-- FAISS index stays in sync with page content.
-- Embedding dimensions are consistent.
+1. 创建包含技术内容的 wiki 页面
+2. 断言嵌入向量已计算并存储
+3. 更新页面内容 —— 断言嵌入重新计算
+4. 验证嵌入维度与模型输出匹配
+5. 验证页面操作后 FAISS 索引已更新
 
+- 页面创建/更新时计算嵌入。
+- FAISS 索引与页面内容保持同步。
+- 嵌入维度一致。
+
 ---
 
 ---
@@ -93,21 +99,23 @@
 ---
 ---
 
-## Wiki-T4 [G18] Wiki tab renders in navigation rail with BookOpen icon
-**Status:** done
-**Test File:** `frontend/src/App.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Wiki-G1, Wiki-D2
+## Wiki-T4 [G18] Wiki 标签页在导航栏中以 BookOpen 图标渲染
+**Status:** draft
 
-1. Render `<App />`
-2. Assert nav rail contains "Wiki" tab with BookOpen icon
-3. Click Wiki tab
-4. Assert `currentView === 'wiki'`
-5. Assert `<WikiView>` component is mounted
+**状态：** 完成
+**测试文件：** `frontend/src/App.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Wiki-G1, Wiki-D2
 
-- Wiki tab appears after Specs and before Relay in nav rail.
-- Clicking switches view to WikiView.
+1. 渲染 `<App />`
+2. 断言导航栏包含带有 BookOpen 图标的 "Wiki" 标签页
+3. 点击 Wiki 标签页
+4. 断言 `currentView === 'wiki'`
+5. 断言 `<WikiView>` 组件已挂载
 
+- Wiki 标签页出现在导航栏中 Specs 之后、Relay 之前。
+- 点击切换视图到 WikiView。
+
 ---
 
 ---
@@ -122,20 +130,22 @@
 
 ---
 ---
+
+## Wiki-T5 [G18] WikiView 侧边栏加载双区域树（Raw + Wiki）并支持搜索过滤
+**Status:** draft
 
-## Wiki-T5 [G18] WikiView sidebar loads dual-region tree (Raw + Wiki) and filters by search
-**Status:** done
-**Test File:** `frontend/src/views/WikiView.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Wiki-G1, Wiki-D2
+**状态：** 完成
+**测试文件：** `frontend/src/views/WikiView.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Wiki-G1, Wiki-D2
 
-1. Render `<WikiView />` with mock API returning 3 pages
-2. Assert sidebar shows 3 page items (title + tags)
-3. Type search query matching only 1 page title
-4. Assert sidebar filters to 1 item
+1. 使用返回 3 个页面的模拟 API 渲染 `<WikiView />`
+2. 断言侧边栏显示 3 个页面项（标题 + 标签）
+3. 输入仅匹配 1 个页面标题的搜索查询
+4. 断言侧边栏过滤为 1 个项
 
-- Page list loads from `GET /api/forge/wiki/{project}/pages`.
-- Search input filters pages client-side by title and tags.
+- 页面列表从 `GET /api/forge/wiki/{project}/pages` 加载。
+- 搜索输入框按标题和标签在客户端过滤页面。
 
 ---
 
@@ -152,21 +162,23 @@
 ---
 ---
 
-## Wiki-T6 [G18] Clicking wiki page loads full content and renders markdown
-**Status:** done
-**Test File:** `frontend/src/views/WikiView.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Wiki-G1, Wiki-D2
+## Wiki-T6 [G18] 点击 wiki 页面加载完整内容并渲染 markdown
+**Status:** draft
 
-1. Render `<WikiView />` with mocked `loadPage`
-2. Click first page in sidebar
-3. Assert `loadPage(project, slug)` called with correct slug
-4. Assert `MarkdownContent` component renders with page content
-5. Assert content header shows page title, source type badge, version
+**状态：** 完成
+**测试文件：** `frontend/src/views/WikiView.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Wiki-G1, Wiki-D2
 
-- Full page content loaded from `GET /api/forge/wiki/{project}/page/{slug}`.
-- Markdown rendered via existing `MarkdownContent.vue`.
+1. 使用模拟的 `loadPage` 渲染 `<WikiView />`
+2. 点击侧边栏中的第一个页面
+3. 断言 `loadPage(project, slug)` 被正确 slug 调用
+4. 断言 `MarkdownContent` 组件渲染页面内容
+5. 断言内容头部显示页面标题、来源类型徽标、版本
 
+- 完整页面内容从 `GET /api/forge/wiki/{project}/page/{slug}` 加载。
+- Markdown 通过现有的 `MarkdownContent.vue` 渲染。
+
 ---
 
 ---
@@ -181,23 +193,25 @@
 
 ---
 ---
+
+## Wiki-T7 [G18] 编辑模式切换为 MarkdownEditor 并保存更新
+**Status:** draft
 
-## Wiki-T7 [G18] Edit mode switches to MarkdownEditor and saves updates
-**Status:** done
-**Test File:** `frontend/src/views/WikiView.vue` (component test)
-**Tags:** stack:both
-**Depends on:** Wiki-G1, Wiki-D2
+**状态：** 完成
+**测试文件：** `frontend/src/views/WikiView.vue`（组件测试）
+**标签：** stack:both
+**依赖项：** Wiki-G1, Wiki-D2
 
-1. Render `<WikiView />`, select a page
-2. Click "Edit" button
-3. Assert `MarkdownEditor` component replaces `MarkdownContent`
-4. Modify content in editor
-5. Click "Save"
-6. Assert `updatePage(project, slug, data)` called with updated content
-7. Assert view returns to `MarkdownContent` with updated content
+1. 渲染 `<WikiView />`，选择一个页面
+2. 点击 "Edit" 按钮
+3. 断言 `MarkdownEditor` 组件替换 `MarkdownContent`
+4. 在编辑器中修改内容
+5. 点击 "Save"
+6. 断言 `updatePage(project, slug, data)` 被更新后的内容调用
+7. 断言视图返回到带更新内容的 `MarkdownContent`
 
-- Edit button toggles between view and edit modes.
-- Save calls `PUT /api/forge/wiki/{project}/page/{slug}` and reloads.
+- 编辑按钮在查看和编辑模式之间切换。
+- 保存调用 `PUT /api/forge/wiki/{project}/page/{slug}` 并重新加载。
 
 ---
 
@@ -214,23 +228,25 @@
 ---
 ---
 
-## Wiki-T8 [G18] Create new page flow with path-based slug creates page and adds to tree
-**Status:** done
-**Test File:** `frontend/src/views/WikiView.vue` (component test)
-**Tags:** stack:both
-**Depends on:** Wiki-G1, Wiki-D2
+## Wiki-T8 [G18] 创建新页面流程使用基于路径的 slug 创建页面并添加到树中
+**Status:** draft
 
-1. Render `<WikiView />`
-2. Click "+" button in sidebar header
-3. Fill slug, title, content in inline form
-4. Click "Create"
-5. Assert `createPage(project, page)` called with correct data
-6. Assert new page appears in sidebar
-7. Assert newly created page is selected and rendered
+**状态：** 完成
+**测试文件：** `frontend/src/views/WikiView.vue`（组件测试）
+**标签：** stack:both
+**依赖项：** Wiki-G1, Wiki-D2
 
-- Create flow calls `POST /api/forge/wiki/{project}/pages`.
-- New page immediately appears in sidebar after creation.
+1. 渲染 `<WikiView />`
+2. 点击侧边栏头部的 "+" 按钮
+3. 在内联表单中填写 slug、标题、内容
+4. 点击 "Create"
+5. 断言 `createPage(project, page)` 被正确数据调用
+6. 断言新页面出现在侧边栏中
+7. 断言新创建的页面被选中并渲染
 
+- 创建流程调用 `POST /api/forge/wiki/{project}/pages`。
+- 新页面创建后立即出现在侧边栏中。
+
 ---
 
 ---
@@ -246,23 +262,25 @@
 ---
 ---
 
-## Wiki-T9 [G18] Delete page removes from tree after confirmation
-**Status:** done
-**Test File:** `frontend/src/views/WikiView.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Wiki-G1, Wiki-D2
+## Wiki-T9 [G18] 删除页面在确认后从树中移除
+**Status:** draft
 
-1. Render `<WikiView />`, select a page
-2. Click "Delete" button
-3. Assert confirmation dialog appears
-4. Confirm deletion
-5. Assert `deletePage(project, slug)` called
-6. Assert page removed from sidebar
-7. Assert empty state shown (no page selected)
+**状态：** 完成
+**测试文件：** `frontend/src/views/WikiView.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Wiki-G1, Wiki-D2
 
-- Delete calls `DELETE /api/forge/wiki/{project}/page/{slug}`.
-- Confirmation dialog prevents accidental deletion.
+1. 渲染 `<WikiView />`，选择一个页面
+2. 点击 "Delete" 按钮
+3. 断言确认对话框出现
+4. 确认删除
+5. 断言 `deletePage(project, slug)` 被调用
+6. 断言页面从侧边栏移除
+7. 断言显示空状态（未选择页面）
 
+- 删除调用 `DELETE /api/forge/wiki/{project}/page/{slug}`。
+- 确认对话框防止意外删除。
+
 ---
 
 ---
@@ -278,23 +296,23 @@
 ---
 ---
 
-## Wiki-T10 [G18] Wiki sidebar collapse state persists to localStorage
-**Status:** done
-**Test File:** `frontend/src/views/WikiView.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Wiki-G1, Wiki-D2
+## Wiki-T10 [G18] Wiki 侧边栏折叠状态持久化到 localStorage
+**Status:** draft
 
-1. Render `<WikiView />`
-2. Click sidebar collapse button
-3. Assert sidebar width reduces to icon-only mode
-4. Assert `localStorage.getItem('autoforge-wiki-sidebar-collapsed') === 'true'`
-5. Reload component
-6. Assert sidebar starts collapsed (reads from localStorage)
+**状态：** 完成
+**测试文件：** `frontend/src/views/WikiView.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Wiki-G1, Wiki-D2
 
-- Collapse state persisted across page reloads.
-- Key: `autoforge-wiki-sidebar-collapsed`.
+1. 渲染 `<WikiView />`
+2. 点击侧边栏折叠按钮
+3. 断言侧边栏宽度缩减为仅图标模式
+4. 断言 `localStorage.getItem('autoforge-wiki-sidebar-collapsed') === 'true'`
+5. 重新加载组件
+6. 断言侧边栏以折叠状态启动（从 localStorage 读取）
 
----
+- 折叠状态在页面重载间持久化。
+- 键：`autoforge-wiki-sidebar-collapsed`。
 
 ---
 

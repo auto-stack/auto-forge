@@ -2,39 +2,18 @@
 
 ---
 
-## Editor-P1 AutoDown Editor — WYSIWYG Block-Based Markdown Editor
+## Editor-P1 AutoDown 编辑器
 **Status:** draft
-**Tags:** stack:frontend
 **Depends on:** Editor-G1, Editor-A1, Editor-D1
 
 | Phase | Task | Owner | Duration | Dependencies | Status |
 |---|---|---|---|---|---|
-| Editor-P18.1 | Add Tiptap dependencies and scaffold directory structure | UI | 1 day | — | Draft |
-| Editor-P18.2 | Create `createExtensions()` factory with StarterKit + Markdown | UI | 1 day | Editor-P18.1 | Draft |
-| Editor-P18.3 | Build `AutoDownEditor.vue` core wrapper with `useEditor` | UI | 1 day | Editor-P18.2 | Draft |
-| Editor-P18.4 | Implement slash command extension + `SlashMenu.vue` | UI | 1 day | Editor-P18.3 | Draft |
-| Editor-P18.5 | Implement bubble menu extension + `BubbleMenu.vue` | UI | 1 day | Editor-P18.3 | Draft |
-| Editor-P18.6 | Integrate drag handle for block reordering | UI | 1 day | Editor-P18.3 | Draft |
-| Editor-P18.7 | Style all blocks with AutoForge CSS variables | UI | 1 day | Editor-P18.4-Editor-P18.6 | Draft |
-| Editor-P18.8 | Replace `MarkdownEditor.vue` in WikiView and Spec views | UI | 1 day | Editor-P18.7 | Draft |
-| Editor-P18.9 | Write round-trip Markdown parse/serialize tests | UI | 1 day | Editor-P18.8 | Draft |
-| Editor-P18.10 | Implement Callout block with `:::type` syntax | UI | 1 day | Editor-P18.9 | Draft |
-| Editor-P18.11 | Implement Math block with KaTeX rendering | UI | 1 day | Editor-P18.9 | Draft |
-| Editor-P18.12 | Implement Mermaid diagram block | UI | 1 day | Editor-P18.9 | Draft |
-| Editor-P18.13 | Implement SpecRef block with `[[AgentConfig-G1]]` syntax | UI | 1 day | Editor-P18.9 | Draft |
-| Editor-P18.14 | Add CodeBlock with language selector and ImageBlock with resize | UI | 1 day | Editor-P18.10-Editor-P18.13 | Draft |
-| Editor-P18.15 | Write AutoDown extension parse/serialize tests | UI | 1 day | Editor-P18.14 | Draft |
-
----
-
----
-
----
-
----
-
----
-
----
-
----
+| Editor-P18.1 | 添加 Tiptap 依赖项并搭建目录结构 | UI | 1 天 | — | draft |
+| Editor-P18.2 | 创建带 StarterKit + Markdown 的 `createExtensions()` 工厂 | UI | 1 天 | Editor-P18.1 | draft |
+| Editor-P18.3 | 构建带 `useEditor` 的 `AutoDownEditor.vue` 核心包装器 | UI | 1 天 | Editor-P18.2 | draft |
+| Editor-P18.4 | 实现斜杠命令扩展 + `SlashMenu.vue` | UI | 1 天 | Editor-P18.3 | draft |
+| Editor-P18.5 | 实现气泡菜单扩展 + `BubbleMenu.vue` | UI | 1 天 | Editor-P18.3 | draft |
+| Editor-P18.6 | 集成块重新排序的拖拽手柄 | UI | 1 天 | Editor-P18.3 | draft |
+| Editor-P18.7 | 使用 AutoForge CSS 变量为所有块设置样式 | UI | 1 天 | Editor-P18.4-18.6 | draft |
+| Editor-P18.8 | 在 WikiView 和规格视图中替换 `MarkdownEditor.vue` | UI | 1 天 | Editor-P18.7 | draft |
+| Editor-P18.9 | 编写往返 Markdown 解析/序列化测试 | UI | 1 天 | Editor-P18.8 | draft |

@@ -2,51 +2,21 @@
 
 ---
 
-## Provider-T1 [G14] Read-only tools correctly report is_read_only()
-**Status:** done
-**Test File:** `backend/src/forge/tools.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Provider-G1, Provider-D2
+## Provider-T1 [G14] 只读工具正确报告 is_read_only()
+**Status:** draft
 
-1. Create `ReadFileTool`, `SearchTool`, `ReadJadeTool`, `ListJadesTool`
-2. Assert all return `is_read_only() == true`
-3. Create `WriteFileTool`, `EditFileTool`, `ShellTool`, `WriteJadeTool`
-4. Assert all return `is_read_only() == false`
+**状态：** 已完成
+**测试文件：** `backend/src/forge/tools.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖：** Provider-G1, Provider-D2
 
-- File-reading tools are classified as read-only.
-- Writing and shell tools are classified as read-write.
+1. 创建 `ReadFileTool`、`SearchTool`、`ReadJadeTool`、`ListJadesTool`
+2. 断言所有工具返回 `is_read_only() == true`
+3. 创建 `WriteFileTool`、`EditFileTool`、`ShellTool`、`WriteJadeTool`
+4. 断言所有工具返回 `is_read_only() == false`
 
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Provider-T2 [G14] ContextManager compacts messages when approaching token limit
-**Status:** done
-**Test File:** `backend/src/runtime/context.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Provider-G1, Runtime-D1
-
-1. Create `ContextManager` with low `max_tokens` (100)
-2. Build messages exceeding threshold
-3. Call `maybe_compact(&mut messages)`
-4. Assert returns `true` and messages were compacted
-5. Call `maybe_compact` again with compacted messages
-6. Assert returns `false`
-
-- Compaction triggers at threshold.
-- Compaction preserves system prompt + recent messages.
-- Second compaction is a no-op.
+- 文件读取工具归类为只读。
+- 写入和 Shell 工具归类为读写。
 
 ---
 
@@ -61,51 +31,94 @@
 ---
 
 ---
----
-
-## Provider-T3 [G14] Session persistence round-trips messages in JSONL format
-**Status:** done
-**Test File:** `backend/src/runtime/session.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Provider-G1, Runtime-D1
-
-1. Create `Session` in temp directory
-2. Append 3 messages
-3. Call `load()`
-4. Assert all 3 messages loaded correctly
-
-- JSONL format preserves message data.
-- Append is incremental.
-- Load returns all messages in order.
 
 ---
 
----
+## Provider-T2 [G14] ContextManager 在接近 Token 限制时压缩消息
+**Status:** draft
 
----
+**状态：** 已完成
+**测试文件：** `backend/src/runtime/context.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖：** Provider-G1, Runtime-D1
 
----
+1. 创建低 `max_tokens`（100）的 `ContextManager`
+2. 构建超过阈值的消息
+3. 调用 `maybe_compact(&mut messages)`
+4. 断言返回 `true` 且消息已被压缩
+5. 再次用已压缩的消息调用 `maybe_compact`
+6. 断言返回 `false`
+
+- 压缩在阈值处触发。
+- 压缩保留系统提示 + 最近的消息。
+- 第二次压缩无操作。
 
 ---
 
 ---
 
 ---
+
 ---
 
-## Provider-T4 [G14] PermissionPolicy enforces modes correctly
-**Status:** done
-**Test File:** `backend/src/runtime/permission.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Provider-G1, Runtime-D1
+---
 
-1. Create `PermissionPolicy { mode: Allow }` → assert all tools allowed
-2. Create `PermissionPolicy { mode: ReadOnly }` → assert write tools denied
-3. Create `PermissionPolicy { mode: Ask }` → assert `AskUser` returned for all
+---
 
-- Allow mode permits everything.
-- ReadOnly mode denies write operations.
-- Ask mode defers to user.
+---
+
+---
+
+## Provider-T3 [G14] Session 持久化以 JSONL 格式往返消息
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `backend/src/runtime/session.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖：** Provider-G1, Runtime-D1
+
+1. 在临时目录创建 `Session`
+2. 追加 3 条消息
+3. 调用 `load()`
+4. 断言 3 条消息均正确加载
+
+- JSONL 格式保留消息数据。
+- 追加是增量的。
+- 加载按顺序返回所有消息。
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Provider-T4 [G14] PermissionPolicy 正确强制执行模式
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `backend/src/runtime/permission.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖：** Provider-G1, Runtime-D1
+
+1. 创建 `PermissionPolicy { mode: Allow }` → 断言所有工具均被允许
+2. 创建 `PermissionPolicy { mode: ReadOnly }` → 断言写入工具被拒绝
+3. 创建 `PermissionPolicy { mode: Ask }` → 断言对所有工具返回 `AskUser`
+
+- Allow 模式允许所有操作。
+- ReadOnly 模式拒绝写入操作。
+- Ask 模式交由用户决定。
+
+---
 
 ---
 

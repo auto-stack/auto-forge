@@ -1,46 +1,46 @@
-# Runtime Module
+# 运行时模块
 
-## Overview
+## 概述
 
-Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss
+检查点与持久化系统使长时间运行的流程能够在崩溃后存活并恢复，无上下文丢失
 
-## Goals
+## 目标
 
-- **G1** — Checkpoint & Durability system enables long-running flows to survive crashes and resume without context loss
-- **G2** — Token Budgeting tracks and enforces per-step spend with cost analytics visible in Agents view
-- **G3** — Boss-first execution: GSD mode runs autonomously with optional Check mode for gate review
+- **G1** — 检查点与持久化系统使长时间运行的流程能够在崩溃后存活并恢复，无上下文丢失
+- **G2** — Token 预算跟踪并强制执行每步消耗，成本分析在智能体视图中可见
+- **G3** — Boss-first 执行：GSD 模式自主运行，可选 Check 模式用于关卡评审
 
-## Key Architecture Decisions
+## 关键架构决策
 
-_No architecture decisions documented yet._
+_尚未记录架构决策。_
 
-## Key Designs
+## 关键设计
 
-- **D1** — Runtime Infrastructure
+- **D1** — 运行时基础设施
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [cli](cli/module.ad), [provider](provider/module.ad), [relay](relay/module.ad)
+依赖项：[cli](cli/module.ad)、[provider](provider/module.ad)、[relay](relay/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 3 | [goals.ad](goals.ad) |
-| Designs | 1 | [designs.ad](designs.ad) |
-| Tests | 3 | [tests.ad](tests.ad) |
+| 目标 | 3 | [goals.ad](goals.ad) |
+| 设计 | 1 | [designs.ad](designs.ad) |
+| 测试 | 3 | [tests.ad](tests.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Runtime-`** (e.g. `Runtime-G1`, `Runtime-D1`).
+本模块中的规格 ID 使用前缀 **`Runtime-`**（例如 `Runtime-G1`、`Runtime-D1`）。

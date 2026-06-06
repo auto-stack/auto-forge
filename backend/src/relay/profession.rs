@@ -436,6 +436,131 @@ pub fn generate_default_professions() -> Vec<Profession> {
             min_tier: ModelTier::Min,
             max_tier: ModelTier::Lite,
         },
+        // ─── Superpower Professions ──────────────────────────────────────────────
+        Profession {
+            id: String::from("super-advisor"),
+            name: String::from("Super Advisor"),
+            phase: ForgePhase::Planning,
+            owned_sections: vec![
+                SectionType::Goals,
+                SectionType::Architecture,
+                SectionType::Designs,
+                SectionType::Plans,
+                SectionType::Tests,
+            ],
+            readable_sections: vec![
+                SectionType::Goals,
+                SectionType::Architecture,
+                SectionType::Designs,
+                SectionType::Plans,
+                SectionType::Tests,
+                SectionType::Reviews,
+                SectionType::Reports,
+            ],
+            allowed_tools: vec![
+                String::from("read_specs"),
+                String::from("write_specs"),
+                String::from("update_spec"),
+                String::from("write_goals"),
+                String::from("list_specs"),
+                String::from("read_file"),
+                String::from("write_file"),
+                String::from("query_wiki"),
+                String::from("list_wiki"),
+                String::from("bring_in"),
+                String::from("dispatch"),
+                String::from("spawn_relay"),
+            ],
+            handoff_to: vec![String::from("super-coder")],
+            approval_gates: vec![String::from("super-coder")],
+            dispatchable_to: vec![String::from("gofer")],
+            max_turns: 50,
+            token_budget: 15_000_000,
+            thinking_enabled: true,
+            thinking_budget: 4096,
+            base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Max,
+        },
+        Profession {
+            id: String::from("super-coder"),
+            name: String::from("Super Coder"),
+            phase: ForgePhase::Execution,
+            owned_sections: vec![],
+            readable_sections: vec![
+                SectionType::Goals,
+                SectionType::Architecture,
+                SectionType::Designs,
+                SectionType::Plans,
+                SectionType::Tests,
+            ],
+            allowed_tools: vec![
+                String::from("read_file"),
+                String::from("write_file"),
+                String::from("edit_file"),
+                String::from("shell"),
+                String::from("search"),
+                String::from("read_specs"),
+                String::from("list_specs"),
+                String::from("query_wiki"),
+                String::from("list_wiki"),
+                String::from("create_wiki_page"),
+                String::from("update_wiki_page"),
+                String::from("dispatch"),
+            ],
+            handoff_to: vec![String::from("super-tester")],
+            approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
+            max_turns: 30,
+            token_budget: 20_000_000,
+            thinking_enabled: true,
+            thinking_budget: 2048,
+            base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Max,
+        },
+        Profession {
+            id: String::from("super-tester"),
+            name: String::from("Super Tester"),
+            phase: ForgePhase::Report,
+            owned_sections: vec![
+                SectionType::Reviews,
+                SectionType::Reports,
+            ],
+            readable_sections: vec![
+                SectionType::Goals,
+                SectionType::Architecture,
+                SectionType::Designs,
+                SectionType::Plans,
+                SectionType::Tests,
+                SectionType::Reviews,
+                SectionType::Reports,
+            ],
+            allowed_tools: vec![
+                String::from("read_file"),
+                String::from("shell"),
+                String::from("search"),
+                String::from("read_specs"),
+                String::from("write_specs"),
+                String::from("update_spec"),
+                String::from("list_specs"),
+                String::from("query_wiki"),
+                String::from("list_wiki"),
+                String::from("create_wiki_page"),
+                String::from("update_wiki_page"),
+                String::from("dispatch"),
+            ],
+            handoff_to: vec![],
+            approval_gates: vec![],
+            dispatchable_to: vec![String::from("gofer")],
+            max_turns: 40,
+            token_budget: 15_000_000,
+            thinking_enabled: true,
+            thinking_budget: 2048,
+            base_skills: Vec::new(),
+            min_tier: ModelTier::Mid,
+            max_tier: ModelTier::Max,
+        },
     ]
 }
 
@@ -602,6 +727,36 @@ mod tests {
     fn test_list_returns_all_builtin() {
         let registry = ProfessionRegistry::new();
         let list = registry.list();
-        assert_eq!(list.len(), 9);
+        assert_eq!(list.len(), 12);
+    }
+
+    #[test]
+    fn test_super_advisor_has_all_design_sections() {
+        let registry = ProfessionRegistry::new();
+        let sa = registry.get("super-advisor").unwrap();
+        assert!(sa.owned_sections.contains(&SectionType::Goals));
+        assert!(sa.owned_sections.contains(&SectionType::Architecture));
+        assert!(sa.owned_sections.contains(&SectionType::Designs));
+        assert!(sa.owned_sections.contains(&SectionType::Plans));
+        assert!(sa.owned_sections.contains(&SectionType::Tests));
+    }
+
+    #[test]
+    fn test_super_tester_has_review_and_report_sections() {
+        let registry = ProfessionRegistry::new();
+        let st = registry.get("super-tester").unwrap();
+        assert!(st.owned_sections.contains(&SectionType::Reviews));
+        assert!(st.owned_sections.contains(&SectionType::Reports));
+    }
+
+    #[test]
+    fn test_super_professions_handoff_chain() {
+        let registry = ProfessionRegistry::new();
+        let sa = registry.get("super-advisor").unwrap();
+        let sc = registry.get("super-coder").unwrap();
+        let st = registry.get("super-tester").unwrap();
+        assert!(sa.handoff_to.contains(&"super-coder".to_string()));
+        assert!(sc.handoff_to.contains(&"super-tester".to_string()));
+        assert!(st.handoff_to.is_empty());
     }
 }

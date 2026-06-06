@@ -1,45 +1,45 @@
-# Errand Module
+# 差事模块
 
-## Overview
+## 概述
 
-Errand Agent Dispatch enables any profession to offload research tasks without context pollution
+差事智能体调度使任何职业都能卸载研究任务，无上下文污染
 
-## Goals
+## 目标
 
-- **G1** — Errand Agent Dispatch enables any profession to offload research tasks without context pollution
+- **G1** — 差事智能体调度使任何职业都能卸载研究任务，无上下文污染
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — Errand Dispatch Architecture
+- **A1** — 差事调度架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — Dispatch Tool & Gofer Profession
+- **D1** — 调度工具与 Gofer 职业
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [agent-config](agent-config/module.ad), [api-sources](api-sources/module.ad), [chat](chat/module.ad), [relay](relay/module.ad)
+依赖项：[agent-config](agent-config/module.ad)、[api-sources](api-sources/module.ad)、[chat](chat/module.ad)、[relay](relay/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 1 | [goals.ad](goals.ad) |
-| Architecture | 1 | [architecture.ad](architecture.ad) |
-| Designs | 3 | [designs.ad](designs.ad) |
-| Plans | 1 | [plans.ad](plans.ad) |
+| 目标 | 1 | [goals.ad](goals.ad) |
+| 架构 | 1 | [architecture.ad](architecture.ad) |
+| 设计 | 3 | [designs.ad](designs.ad) |
+| 计划 | 1 | [plans.ad](plans.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Errand-`** (e.g. `Errand-G1`, `Errand-D1`).
+本模块中的规格 ID 使用前缀 **`Errand-`**（例如 `Errand-G1`、`Errand-D1`）。

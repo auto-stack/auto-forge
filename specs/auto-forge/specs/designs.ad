@@ -2,11 +2,13 @@
 
 ---
 
-## Specs-D1 Category Renderer Polymorphism
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/views/SpecsView.vue`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1
+## Specs-D1 类别渲染器多态
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/views/SpecsView.vue`
+**标签：** stack:frontend
+**依赖于：** UiSystem-A1
 
 ```typescript
 const categoryComponents: Record<SectionType, Component> = {
@@ -20,14 +22,14 @@ const categoryComponents: Record<SectionType, Component> = {
 }
 ```
 
-| Event | Payload | Description |
+| 事件 | 载荷 | 描述 |
 |---|---|---|
-| `toggle` | `{ id: string }` | Expand/collapse item detail |
-| `jump` | `{ id: string }` | Navigate to linked spec ID |
-| `edit` | `{ item: SpecItem }` | Enter edit mode for item |
-| `status-change` | `{ id: string; status: Status }` | Update item status |
-| `save` | `{ item: SpecItem }` | Persist edited item |
-| `delete` | `{ id: string }` | Remove item from section |
+| `toggle` | `{ id: string }` | 展开/折叠项目详情 |
+| `jump` | `{ id: string }` | 导航到关联的规格 ID |
+| `edit` | `{ item: SpecItem }` | 进入项目编辑模式 |
+| `status-change` | `{ id: string; status: Status }` | 更新项目状态 |
+| `save` | `{ item: SpecItem }` | 持久化已编辑的项目 |
+| `delete` | `{ id: string }` | 从章节中移除项目 |
 
 
 ---
@@ -46,10 +48,12 @@ const categoryComponents: Record<SectionType, Component> = {
 ---
 
 ## Specs-D2 RelationsPanel & AutoLinkContent
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/components/`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/components/`
+**标签：** stack:frontend
+**依赖于：** UiSystem-A1
 
 ```typescript
 // RelationsPanel.vue
@@ -64,10 +68,10 @@ interface AutoLinkContentProps {
 // Regex: /\b([GRAPTVXIS]\d+(?:\.\d+)?)\b/
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `parents` | `{ id, title, section_type, status }[]` | Upstream depends_on |
-| `children` | `{ id, title, section_type, status }[]` | Downstream related |
+| `parents` | `{ id, title, section_type, status }[]` | 上游 depends_on |
+| `children` | `{ id, title, section_type, status }[]` | 下游关联 |
 
 ```
 fn render(content):
@@ -95,11 +99,13 @@ fn render(content):
 ---
 ---
 
-## Specs-D3 GateBanner (Specs View)
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/components/GateBanner.vue`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1, Relay-D6
+## Specs-D3 GateBanner（规格视图）
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/components/GateBanner.vue`
+**标签：** stack:frontend
+**依赖于：** UiSystem-A1, Relay-D6
 
 ```typescript
 interface GateBannerProps {
@@ -122,12 +128,12 @@ stateDiagram-v2
     Expanded --> Visible: user collapses diff
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `sectionId` | `string` | Which spec section this banner guards |
-| `gate.profession` | `string` | Who is waiting (e.g., "architect") |
-| `gate.title` | `string` | One-line summary of what needs approval |
-| `gate.since` | `number` | Timestamp when gate was reached |
+| `sectionId` | `string` | 此横幅守卫的规格章节 |
+| `gate.profession` | `string` | 等待者身份（例如 "architect"） |
+| `gate.title` | `string` | 待审批内容的一行摘要 |
+| `gate.since` | `number` | 关卡触发时间戳 |
 
 
 ---
@@ -145,13 +151,15 @@ stateDiagram-v2
 ---
 ---
 
-## Specs-D4 GoalsTable Tree View Component
-**Status:** implemented
-**Module:** `frontend/src/components/category/GoalsTable.vue`
-**Tags:** stack:frontend
-**Depends on:** Specs-G7, Specs-D1
+## Specs-D4 GoalsTable 树形视图组件
+**Status:** draft
 
-### Structure
+**状态：** 已实现
+**模块：** `frontend/src/components/category/GoalsTable.vue`
+**标签：** stack:frontend
+**依赖于：** Specs-G7, Specs-D1
+
+### 结构
 
 ```vue
 <!-- GoalsTable.vue -->
@@ -201,22 +209,22 @@ stateDiagram-v2
 </div>
 ```
 
-### Key Behaviors
+### 关键行为
 
-| Behavior | Implementation |
+| 行为 | 实现 |
 |---|---|
-| Row click | Opens `GoalDetailModal` via `@open-detail` emit |
-| Toggle click | `stopPropagation` + `toggleTree(id)`; only when `hasChildren` |
-| Leaf goals | No toggle area rendered; entire row is clickable |
-| Sub-goals | Indented via `.node-indent`; no toggle area |
-| Expansion | `treeExpanded: Set<string>` controls visibility; `treeRows` recomputed |
+| 行点击 | 通过 `@open-detail` 事件打开 `GoalDetailModal` |
+| 切换点击 | `stopPropagation` + `toggleTree(id)`；仅在 `hasChildren` 时 |
+| 叶子目标 | 不渲染切换区域；整行可点击 |
+| 子目标 | 通过 `.node-indent` 缩进；无切换区域 |
+| 展开 | `treeExpanded: Set<string>` 控制可见性；`treeRows` 重新计算 |
 
-### Styling
+### 样式
 
 - `.goal-node`: `display: flex; align-items: stretch; min-height: 44px`
 - `.node-toggle-area`: `width: 2.5rem; align-self: stretch; cursor: pointer`
-- `.node-left`: fixed left column with `padding-left: 1rem`
-- `.node-right`: `flex: 1` with title ellipsis truncation
+- `.node-left`: 固定左列，`padding-left: 1rem`
+- `.node-right`: `flex: 1`，标题省略截断
 
 ---
 
@@ -233,21 +241,25 @@ stateDiagram-v2
 ---
 
 ---
+
+---
 ---
 
-## Specs-D5 GoalDetailModal Component
-**Status:** implemented
-**Module:** `frontend/src/components/GoalDetailModal.vue`
-**Tags:** stack:frontend
-**Depends on:** Specs-G7, Specs-D2
+## Specs-D5 GoalDetailModal 组件
+**Status:** draft
 
-### Props & Emits
+**状态：** 已实现
+**模块：** `frontend/src/components/GoalDetailModal.vue`
+**标签：** stack:frontend
+**依赖于：** Specs-G7, Specs-D2
+
+### 属性与事件
 
 ```typescript
 interface Props {
-  item: SpecItem      // Goal or sub-goal to display
-  project: string     // Project key for API calls
-  isEditing: boolean  // Inline edit mode state
+  item: SpecItem      // 要展示的目标或子目标
+  project: string     // API 调用的项目键
+  isEditing: boolean  // 内联编辑模式状态
 }
 
 interface Emits {
@@ -257,20 +269,20 @@ interface Emits {
   'cancel-edit': []
   'status-change': [id: string, status: Status]
   'delete': [id: string]
-  'jump': [id: string]  // Navigate to linked spec ID
+  'jump': [id: string]  // 导航到关联的规格 ID
 }
 ```
 
-### Layout
+### 布局
 
 ```
-┌─ modal-overlay (backdrop blur, click to close) ──────────────┐
-│ ┌─ modal-card (click.stop prevents close) ─────────────────┐ │
+┌─ modal-overlay（背景模糊，点击关闭）─────────────────────────────┐
+│ ┌─ modal-card（click.stop 阻止关闭）───────────────────────────┐ │
 │ │ ┌─ modal-header ─────────────────────────────────────────┐ │ │
-│ │ │  [ID badge]  [Title]                          [X]      │ │ │
+│ │ │  [ID 徽章]  [标题]                          [X]      │ │ │
 │ │ └────────────────────────────────────────────────────────┘ │ │
 │ │ ┌─ modal-meta ───────────────────────────────────────────┐ │ │
-│ │ │  [Priority]  [StatusBadge]  [tag chips...]             │ │ │
+│ │ │  [优先级]  [StatusBadge]  [标签芯片...]             │ │ │
 │ │ └────────────────────────────────────────────────────────┘ │ │
 │ │ ┌─ modal-body ───────────────────────────────────────────┐ │ │
 │ │ │  <GoalEditor v-if="isEditing" />                       │ │ │
@@ -283,20 +295,18 @@ interface Emits {
 │ │ │  </template>                                           │ │ │
 │ │ └────────────────────────────────────────────────────────┘ │ │
 │ │ ┌─ modal-footer ─────────────────────────────────────────┐ │ │
-│ │ │  <StatusTransition>  [Edit]  [Delete]                  │ │ │
+│ │ │  <StatusTransition>  [编辑]  [删除]                  │ │ │
 │ │ └────────────────────────────────────────────────────────┘ │ │
 │ └────────────────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-### Interaction
+### 交互
 
-- **Open**: `SpecsView` sets `detailItem = item` → `<Teleport to="body">` renders modal
-- **Close**: ESC key (`onKeydown`), click on `.modal-overlay`, or close button
-- **Edit**: "Edit" button emits `edit` → `SpecsView` sets `detailEditing = true` → switches to `<GoalEditor>`
-- **Save**: GoalEditor emits `save` → `handleSave()` persists → `detailEditing = false`
-
----
+- **打开**：`SpecsView` 设置 `detailItem = item` → `<Teleport to="body">` 渲染模态框
+- **关闭**：ESC 键（`onKeydown`）、点击 `.modal-overlay` 或关闭按钮
+- **编辑**："编辑"按钮触发 `edit` 事件 → `SpecsView` 设置 `detailEditing = true` → 切换至 `<GoalEditor>`
+- **保存**：GoalEditor 触发 `save` 事件 → `handleSave()` 持久化 → `detailEditing = false`
 
 ---
 
@@ -311,17 +321,23 @@ interface Emits {
 ---
 
 ---
+
 ---
 
-## Specs-D6 Spec Tag Display & Sidebar Filtering
-**Status:** implemented
-**Module:** `frontend/src/views/SpecsView.vue`
-**Tags:** stack:frontend
-**Depends on:** Specs-G7, Specs-D1
+---
+---
 
-### Tag Data Model
+## Specs-D6 规格标签展示与侧边栏过滤
+**Status:** draft
 
-Tags are stored as `Vec<String>` on `SpecItem` (backend) / `string[]` (frontend). Format: `kind:value` (e.g., `stack:frontend`, `module:specs`).
+**状态：** 已实现
+**模块：** `frontend/src/views/SpecsView.vue`
+**标签：** stack:frontend
+**依赖于：** Specs-G7, Specs-D1
+
+### 标签数据模型
+
+标签在后端以 `Vec<String>`、前端以 `string[]` 形式存储在 `SpecItem` 上。格式：`kind:value`（例如 `stack:frontend`、`module:specs`）。
 
 ```typescript
 function parseTag(tag: string): { type: string; value: string; full: string } {
@@ -333,45 +349,45 @@ function parseTag(tag: string): { type: string; value: string; full: string } {
 }
 ```
 
-### Tag Display in Rows
+### 行内标签展示
 
-- **Shortened**: `stack:frontend` renders as `frontend`
-- **Color-coded**: `stack:*` = blue (`hsl(200)`), `module:*` = purple (`hsl(280)`)
-- **Tooltip**: hover shows full tag text
-- **Limit**: max 2 tags shown inline; `+N` overflow indicator
-- Applied to: `GoalsTable`, `SpecItemRow` (Architecture, Designs, Plans, Tests, Reviews, Reports)
+- **缩短显示**：`stack:frontend` 渲染为 `frontend`
+- **颜色编码**：`stack:*` = 蓝色（`hsl(200)`），`module:*` = 紫色（`hsl(280)`）
+- **工具提示**：悬停显示完整标签文本
+- **限制**：最多显示 2 个内联标签；`+N` 溢出指示器
+- 应用于：`GoalsTable`、`SpecItemRow`（Architecture、Designs、Plans、Tests、Reviews、Reports）
 
-### Module Accordion Navigation
+### 模块手风琴导航
 
-The sidebar is organized as a module accordion tree:
+侧边栏以模块手风琴树形式组织：
 
 ```
-┌─ Sidebar ──────────────────────────────┐
-│ 📖 Overview                            │
+┌─ 侧边栏 ──────────────────────────────┐
+│ 📖 概览                            │
 │ ─────────────────────────────────────  │
 │ ▼ agent-config                         │
-│   📄 Outline                           │
-│   🎯 Goals (1)                         │
-│   🏗️ Architecture (1)                  │
+│   📄 大纲                           │
+│   🎯 目标 (1)                         │
+│   🏗️ 架构 (1)                  │
 │   ...                                  │
 │ ▼ api-sources                          │
-│   📄 Outline                           │
+│   📄 大纲                           │
 │   ...                                  │
 │ ─────────────────────────────────────  │
-│ <details open> Stack                   │
+│ <details open> 堆栈                   │
 │   [All] [backend] [frontend] [both]    │
 │ </details>                             │
 └────────────────────────────────────────┘
 ```
 
-- **Overview**: flat top-level item; shown by default when Specs view opens
-- **Module drawers**: one `<details>` per module, derived from item ID prefixes (e.g. `AgentConfig-G1` → `agent-config`)
-- **Outline**: first item under each module; loads the module's `module.ad` via `GET /module/{module}/outline`
-- **Type items**: the 7 spec categories (Goals, Architecture, Designs, Plans, Tests, Reviews, Reports) with item counts
+- **概览**：扁平顶级项目；规格视图打开时默认显示
+- **模块抽屉**：每个模块一个 `<details>`，派生自项目 ID 前缀（例如 `AgentConfig-G1` → `agent-config`）
+- **大纲**：每个模块下的第一项；通过 `GET /module/{module}/outline` 加载模块的 `module.ad`
+- **类型项**：7 个规格类别（Goals、Architecture、Designs、Plans、Tests、Reviews、Reports）及其项目数量
 
-### Filter Logic
+### 过滤逻辑
 
-Module filtering is implicit: clicking a type under a module shows only items whose ID prefix matches that module. Stack filtering uses tag pills with AND logic:
+模块过滤是隐式的：点击模块下的类型仅显示 ID 前缀与该模块匹配的项目。堆栈过滤使用标签丸并以 AND 逻辑组合：
 
 ```typescript
 const filteredItems = computed(() => {
@@ -388,10 +404,10 @@ const filteredItems = computed(() => {
 })
 ```
 
-- **Module filter**: derived from `idToModule(item.id)`, not tags; `module:` tags are redundant and have been removed
-- **Stack filter**: item must match at least one selected stack
-- **Empty selection**: counts as "match all" for that filter type
-- Tag pills toggle on click; active state styled with primary color
+- **模块过滤**：派生自 `idToModule(item.id)`，而非标签；`module:` 标签是冗余的，已被移除
+- **堆栈过滤**：项目必须匹配至少一个选中的堆栈
+- **空选择**：对该过滤类型视为"匹配全部"
+- 标签丸点击切换；激活状态以主色样式呈现
 
 ---
 
@@ -408,21 +424,25 @@ const filteredItems = computed(() => {
 ---
 
 ---
+
+---
 ---
 
-## Specs-D7 Backend Flat Mode Project Resolution
-**Status:** implemented
-**Module:** `backend/src/forge/mod.rs`
-**Tags:** stack:backend
-**Depends on:** Specs-G1
+## Specs-D7 后端扁平模式项目解析
+**Status:** draft
 
-### Problem
+**状态：** 已实现
+**模块：** `backend/src/forge/mod.rs`
+**标签：** stack:backend
+**依赖于：** Specs-G1
 
-Frontend calls `/api/forge/specs/{project}` with project name (e.g., `auto-forge`), but flat mode stores the document under key `"."` in `SpecsStore.projects`.
+### 问题
 
-### Solution
+前端使用项目名称（例如 `auto-forge`）调用 `/api/forge/specs/{project}`，但扁平模式将文档存储在 `SpecsStore.projects` 的键 `"."` 下。
 
-`SpecsStore.get_or_default()` falls back to flat mode document when project key not found:
+### 解决方案
+
+`SpecsStore.get_or_default()` 在项目键未找到时回退到扁平模式文档：
 
 ```rust
 pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
@@ -440,13 +460,11 @@ pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
 }
 ```
 
-### Requirements
+### 要求
 
-- `manifest.at` `project` field MUST be `"."` to match API path semantics
-- Any mismatch causes backend to serve default empty docs and overwrite `.ad` files
+- `manifest.at` 的 `project` 字段必须为 `"."` 以匹配 API 路径语义
+- 任何不匹配都会导致后端提供默认空文档并覆盖 `.ad` 文件
 
-
----
 
 ---
 
@@ -459,82 +477,84 @@ pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
 ---
 
 ---
+
+---
 ---
 
-## Specs-D8 Architect-Maintained Project Overview
-**Status:** implemented
-**Module:** `backend/src/relay/souls/architect.md`, `backend/src/relay/profession.rs`
-**Tags:** stack:backend
-**Depends on:** Specs-G4
+## Specs-D8 架构师维护的项目概览
+**Status:** draft
 
-### Problem
+**状态：** 已实现
+**模块：** `backend/src/relay/souls/architect.md`, `backend/src/relay/profession.rs`
+**标签：** stack:backend
+**依赖于：** Specs-G4
 
-The project `overview.ad` is a critical entry point for developers to understand the system. Currently it is handwritten by humans (or the AI assistant), which means:
-- It drifts out of sync as the architecture evolves
-- Module descriptions become stale after redesigns
-- The architecture diagram does not reflect new components
+### 问题
 
-### Solution
+项目的 `overview.ad` 是开发者理解系统的关键入口。目前它由人类（或 AI 助手）手写，这意味着：
+- 随着架构演进，它会逐渐失去同步
+- 重新设计后模块描述变得过时
+- 架构图无法反映新组件
 
-Make the **Architect** profession responsible for generating and maintaining `overview.ad` and per-module `module.ad` files as part of its standard deliverables.
+### 解决方案
 
-#### 1. Tool Access
+让 **Architect** 职业负责生成和维护 `overview.ad` 及各模块的 `module.ad` 文件，作为其标准交付物的一部分。
 
-Architect is granted `write_file` in addition to its existing read-only file access. This is the ONLY file-writing permission given to Architect; all other file mutations remain the Coder's responsibility.
+#### 1. 工具访问
 
-#### 2. Soul Mandate
+Architect 在现有只读文件访问权限之外被授予 `write_file` 权限。这是授予 Architect 的唯一文件写入权限；所有其他文件变更仍由 Coder 负责。
 
-The Architect's soul (`architect.md`) contains an explicit Execution Mandate:
+#### 2. 人格指令
 
-> After updating Architecture and Designs, you MUST also update `overview.ad`. The overview lives at `specs/{project}/overview.ad`. Use `write_file` with `path="specs/{project}/overview.ad"` to rewrite it.
+Architect 的人格（`architect.md`）包含明确的执行指令：
 
-#### 3. Required Overview Structure
+> 更新 Architecture 和 Designs 后，你必须同时更新 `overview.ad`。概览位于 `specs/{project}/overview.ad`。使用 `write_file`，`path="specs/{project}/overview.ad"` 来重写它。
 
-Every `overview.ad` produced by Architect MUST contain:
+#### 3. 要求的概览结构
 
-| Section | Description |
+Architect 生成的每个 `overview.ad` 必须包含：
+
+| 章节 | 描述 |
 |---|---|
-| **Project Summary** | 1–2 sentence elevator pitch of the entire system |
-| **System Architecture** | Mermaid.js diagram showing layers (UI → Orchestrator → Core Services) |
-| **Module Index** | Table of all modules with descriptions, spec counts, and deep links to each `module.ad` |
-| **Navigation Guide** | How to read specs: Goals → Architecture → Designs → Plans → Tests → Reviews → Reports |
-| **ID Convention** | Explanation of `ModulePrefix-TypeNumber` format (e.g. `Relay-G1`, `Chat-D3`) |
+| **项目摘要** | 整个系统的 1–2 句电梯演讲 |
+| **系统架构** | 展示层级（UI → Orchestrator → Core Services）的 Mermaid.js 图表 |
+| **模块索引** | 所有模块的表格，包含描述、规格数量及指向各 `module.ad` 的深层链接 |
+| **导航指南** | 如何阅读规格：Goals → Architecture → Designs → Plans → Tests → Reviews → Reports |
+| **ID 约定** | `ModulePrefix-TypeNumber` 格式的说明（例如 `Relay-G1`、`Chat-D3`） |
 
-#### 4. Per-Module Outline (`module.ad`)
+#### 4. 各模块大纲（`module.ad`）
 
-Each module directory contains a `module.ad` that serves as the module's entry point:
+每个模块目录包含一个 `module.ad`，作为该模块的入口点：
 
-| Section | Description |
+| 章节 | 描述 |
 |---|---|
-| **Module Overview** | 1–2 sentence description of the module's purpose |
-| **Core Components** | Key components and their responsibilities |
-| **Architecture Relationship** | How this module interacts with other modules |
-| **Spec Index** | Table linking to the module's goals, architecture, designs, plans, tests, reviews, reports |
+| **模块概览** | 模块用途的 1–2 句描述 |
+| **核心组件** | 关键组件及其职责 |
+| **架构关系** | 该模块如何与其他模块交互 |
+| **规格索引** | 链接到该模块的 goals、architecture、designs、plans、tests、reviews、reports 的表格 |
 
-#### 5. Trigger Conditions
+#### 5. 触发条件
 
-Architect MUST regenerate `overview.ad` and affected `module.ad` files when any of the following occur:
-- A new module is added or removed
-- A module's goals are significantly rewritten
-- The system architecture diagram changes
-- Module names are refactored (affects ID convention and links)
-- A module's core components or architecture relationships change
+当以下任何情况发生时，Architect 必须重新生成 `overview.ad` 及受影响的 `module.ad` 文件：
+- 新增或移除模块
+- 模块目标被大幅重写
+- 系统架构图变更
+- 模块名称重构（影响 ID 约定和链接）
+- 模块核心组件或架构关系变更
 
-### API Endpoints
+### API 端点
 
-- `GET /api/forge/specs/{project}/overview` returns `{ content: string, exists: boolean }`
-- `GET /api/forge/specs/{project}/module/{module}/outline` returns `{ content: string, exists: boolean }`
+- `GET /api/forge/specs/{project}/overview` 返回 `{ content: string, exists: boolean }`
+- `GET /api/forge/specs/{project}/module/{module}/outline` 返回 `{ content: string, exists: boolean }`
 
-The frontend renders both via `<MarkdownContent />` with Mermaid diagram support.
+前端通过 `<MarkdownContent />` 渲染两者，支持 Mermaid 图表。
 
-### Requirements
+### 要求
 
-- Architect MUST call `write_file` for `overview.ad` BEFORE handing off to Planner
-- Architect SHOULD update `module.ad` when a single module's architecture changes
-- Outdated overviews are treated as bugs and filed as follow-up relay runs
-- The overview is NOT a spec section; it lives outside the 7-type pyramid as a navigational document
-
----
+- Architect 必须在交接给 Planner 之前调用 `write_file` 写入 `overview.ad`
+- 当单个模块架构变更时，Architect 应该更新 `module.ad`
+- 过时的概览被视为缺陷，并作为后续中继运行提交
+- 概览不是规格章节；它作为导航文档存在于 7 类型金字塔之外
 
 ---
 
@@ -551,27 +571,33 @@ The frontend renders both via `<MarkdownContent />` with Mermaid diagram support
 ---
 
 ---
+
 ---
 
-## Specs-D9 Modular Navigation & Module Outline System
-**Status:** implemented
-**Module:** `frontend/src/views/SpecsView.vue`, `backend/src/forge/mod.rs`
-**Tags:** stack:both
-**Depends on:** Specs-G11, Specs-D8
+---
+---
 
-### Problem
+## Specs-D9 模块化导航与模块大纲系统
+**Status:** draft
 
-The original Specs sidebar used three independent filter drawers (Category, Stack, Module) with tag-based filtering. This design had several issues:
-- **Redundant tags**: Every spec item needed a `module:*` tag to participate in module filtering
-- **No module context**: Users could not see which specs belonged to which module at a glance
-- **No module overview**: There was no way to read a module's high-level description without browsing its individual specs
-- **Wasted sidebar space**: The search input occupied valuable vertical real estate
+**状态：** 已实现
+**模块：** `frontend/src/views/SpecsView.vue`, `backend/src/forge/mod.rs`
+**标签：** stack:both
+**依赖于：** Specs-G11, Specs-D8
 
-### Solution
+### 问题
 
-Replace the tag-based filter drawers with a **module accordion tree** that derives module membership directly from spec IDs.
+原始规格侧边栏使用三个独立的过滤抽屉（Category、Stack、Module）并基于标签过滤。该设计存在几个问题：
+- **冗余标签**：每个规格项目需要 `module:*` 标签才能参与模块过滤
+- **缺乏模块上下文**：用户无法一眼看出哪些规格属于哪个模块
+- **没有模块概览**：无法在不浏览单个规格的情况下阅读模块的高层描述
+- **浪费侧边栏空间**：搜索输入框占用了宝贵的垂直空间
 
-#### 1. Module Derivation from IDs
+### 解决方案
+
+用**模块手风琴树**替换基于标签的过滤抽屉，直接从规格 ID 派生模块归属。
+
+#### 1. 从 ID 派生模块
 
 ```typescript
 function idToModule(id: string): string | null {
@@ -596,54 +622,54 @@ function idToModule(id: string): string | null {
 }
 ```
 
-Examples:
-| ID | Module |
+示例：
+| ID | 模块 |
 |---|---|
 | `AgentConfig-G1` | `agent-config` |
 | `Relay-D3` | `relay` |
 | `UiSystem-A1` | `ui-system` |
 | `Chat-V1` | `chat` |
 
-#### 2. Sidebar Structure
+#### 2. 侧边栏结构
 
 ```
-┌─ Sidebar (220px) ──────────────────────┐
-│ Specs                           [≡]    │
+┌─ 侧边栏 (220px) ───────────────────────┐
+│ 规格                           [≡]    │
 │ ─────────────────────────────────────  │
-│ 📖 Overview                            │
+│ 📖 概览                            │
 │ ─────────────────────────────────────  │
 │ ▼ agent-config                    (7)  │
-│   📄 Outline                           │
-│   🎯 Goals                        (1)  │
-│   🏗️ Architecture                 (1)  │
+│   📄 大纲                           │
+│   🎯 目标                        (1)  │
+│   🏗️ 架构                 (1)  │
 │   ...                                  │
 │ ▼ relay                          (65)  │
-│   📄 Outline                           │
+│   📄 大纲                           │
 │   ...                                  │
 │ ─────────────────────────────────────  │
-│ <details open> Stack                   │
+│ <details open> 堆栈                   │
 │   [All] [backend] [frontend] [both]    │
 └────────────────────────────────────────┘
 ```
 
-- **Overview**: flat item at top; `selectOverview()` sets `showOverview = true`; rendered via `<MarkdownContent />`
-- **Module drawers**: `<details>` per module; expand/collapse toggled independently
-- **Outline**: first child of every module drawer; loads `module.ad` content via API
-- **Type items**: the 7 categories, filtered to show only counts for that module
+- **概览**：顶部扁平项；`selectOverview()` 设置 `showOverview = true`；通过 `<MarkdownContent />` 渲染
+- **模块抽屉**：每个模块一个 `<details>`；独立展开/折叠
+- **大纲**：每个模块抽屉的第一个子项；通过 API 加载 `module.ad` 内容
+- **类型项**：7 个类别，过滤后仅显示该模块的数量
 
-#### 3. Title Bar Layout
+#### 3. 标题栏布局
 
 ```
-┌─ Title Bar ──────────────────────────────────────────────────────────┐
-│ [≡] Project / relay / 🏗️ Architecture    [Search...] [Drift] [Links] │
-└──────────────────────────────────────────────────────────────────────┘
+┌─ 标题栏 ─────────────────────────────────────────────────────────┐
+│ [≡] 项目 / relay / 🏗️ 架构    [搜索...] [Drift] [Links] │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-- **Left**: breadcrumb (`ProjectName / ModuleName / SectionTitle`)
-- **Center-right**: search input (filters module names and type titles)
-- **Right**: action buttons (Drift Check, Rebuild Links)
+- **左侧**：面包屑（`ProjectName / ModuleName / SectionTitle`）
+- **中右**：搜索输入（过滤模块名称和类型标题）
+- **右侧**：操作按钮（Drift Check、Rebuild Links）
 
-#### 4. Backend APIs
+#### 4. 后端 API
 
 ```
 GET /api/forge/specs/{project}/overview
@@ -653,31 +679,29 @@ GET /api/forge/specs/{project}/module/{module}/outline
 → { content: string, exists: boolean }
 ```
 
-Both endpoints read `.ad` files from the project specs directory:
+两个端点从项目规格目录读取 `.ad` 文件：
 - `overview.ad` → `{project_dir}/overview.ad`
 - `module.ad` → `{project_dir}/{module}/module.ad`
 
-#### 5. State Model
+#### 5. 状态模型
 
-Three mutually exclusive view states:
+三种互斥的视图状态：
 
-| State | `showOverview` | `activeModuleOutline` | `activeModule` | `activeSection` |
+| 状态 | `showOverview` | `activeModuleOutline` | `activeModule` | `activeSection` |
 |---|---|---|---|---|
-| **Project Overview** | `true` | `null` | `""` | `""` |
-| **Module Outline** | `false` | `"relay"` | `"relay"` | `""` |
-| **Module Section** | `false` | `null` | `"relay"` | `"goals"` |
+| **项目概览** | `true` | `null` | `""` | `""` |
+| **模块大纲** | `false` | `"relay"` | `"relay"` | `""` |
+| **模块章节** | `false` | `null` | `"relay"` | `"goals"` |
 
-#### 6. Default View Behavior
+#### 6. 默认视图行为
 
-On first load (`watch(moduleTree, { immediate: true })`), if no module or overview is active, the view defaults to **Project Overview** (`showOverview = true`). This ensures new users see the high-level system description before diving into individual modules.
+首次加载时（`watch(moduleTree, { immediate: true })`），如果没有激活的模块或概览，视图默认显示**项目概览**（`showOverview = true`）。这确保新用户在深入单个模块之前先看到高层系统描述。
 
-### Requirements
+### 要求
 
-- `module:` tags are deprecated and no longer serialized; module membership is derived from ID prefix only
-- `module.ad` files are static documents; they are NOT loaded into `SpecsDocument` sections and are NOT overwritten by `save_module_format`
-- The module accordion tree is rebuilt dynamically from `document.sections` whenever specs are loaded or saved
-
----
+- `module:` 标签已弃用，不再序列化；模块归属仅从 ID 前缀派生
+- `module.ad` 文件是静态文档；它们不会被加载到 `SpecsDocument` 章节中，也不会被 `save_module_format` 覆盖
+- 模块手风琴树在规格加载或保存时从 `document.sections` 动态重建
 
 ---
 
@@ -697,61 +721,66 @@ On first load (`watch(moduleTree, { immediate: true })`), if no module or overvi
 
 ---
 
-## Specs-D10 Enriched Module Overview Generator
-**Status:** implemented
-**Module:** `scripts/generate_module_overviews.py`
-**Tags:** stack:both
-**Depends on:** Specs-G12, Specs-D8
+---
+---
 
-### Problem
+## Specs-D10 增强的模块概览生成器
+**Status:** draft
 
-The original `generate_module_overviews.py` only extracted the first goal's title as a module description and counted specs per type. This produced `module.ad` files that were too thin to serve as effective module entry points — a developer reading `relay/module.ad` would see "Serial agent flows with baton passing and gate enforcement" plus a spec count table, but would have no idea what the key components, design decisions, or module dependencies were.
+**状态：** 已实现
+**模块：** `scripts/generate_module_overviews.py`
+**标签：** stack:both
+**依赖于：** Specs-G12, Specs-D8
 
-### Solution
+### 问题
 
-Rewrite the script to perform structured extraction from all spec files within a module.
+原始的 `generate_module_overviews.py` 仅提取第一个目标的标题作为模块描述，并按类型统计规格数量。这生成的 `module.ad` 文件过于单薄，无法作为有效的模块入口点——阅读 `relay/module.ad` 的开发者只会看到 "Serial agent flows with baton passing and gate enforcement" 加一个规格数量表，但完全不了解关键组件、设计决策或模块依赖关系。
 
-#### Extraction Strategy
+### 解决方案
 
-| Source File | Extracted Info | Method |
+重写脚本，对模块内所有规格文件执行结构化提取。
+
+#### 提取策略
+
+| 源文件 | 提取信息 | 方法 |
 |-------------|---------------|--------|
-| `goals.ad` | All goal IDs and titles | Regex `^## (?:Prefix-)?(G\d+) (.*)$` |
-| `architecture.ad` | Architecture item IDs, titles, and Decision summaries | Regex headers + `**Decision:**` line extraction |
-| `designs.ad` | All design IDs and titles | Regex `^## (?:Prefix-)?(D\d+) (.*)$` |
-| All `.ad` files | Cross-module dependencies | Regex `**Depends on:**` → parse `ModulePrefix-XX` references |
+| `goals.ad` | 所有目标 ID 和标题 | 正则 `^## (?:Prefix-)?(G\d+) (.*)$` |
+| `architecture.ad` | 架构项 ID、标题及 Decision 摘要 | 正则标题 + `**Decision:**` 行提取 |
+| `designs.ad` | 所有设计 ID 和标题 | 正则 `^## (?:Prefix-)?(D\d+) (.*)$` |
+| 所有 `.ad` 文件 | 跨模块依赖 | 正则 `**Depends on:**` → 解析 `ModulePrefix-XX` 引用 |
 
-#### Generated `module.ad` Structure
+#### 生成的 `module.ad` 结构
 
 ```markdown
-# {Module} Module
+# {Module} 模块
 
-## Overview
+## 概览
 {first goal title}
 
-## Goals
+## 目标
 - **G1** — {title}
 - **G2** — {title}
 ...
 
-## Key Architecture Decisions
+## 关键架构决策
 - **A1** — {title}: *{decision summary}*
 ...
 
-## Key Designs
+## 关键设计
 - **D1** — {title}
 ...
 
-## Module Dependencies
-Depends on: [module-a](module-a/module.ad), [module-b](module-b/module.ad)
+## 模块依赖
+依赖于: [module-a](module-a/module.ad), [module-b](module-b/module.ad)
 
-## Module Specs
-| Type | Count | File |
+## 模块规格
+| 类型 | 数量 | 文件 |
 ...
 ```
 
-#### Dependency Resolution
+#### 依赖解析
 
-Dependencies are derived automatically by scanning all `**Depends on:**` lines in a module's spec files and resolving `ModulePrefix-TypeNumber` references back to module names:
+依赖通过扫描模块规格文件中所有 `**Depends on:**` 行并解析 `ModulePrefix-TypeNumber` 引用回模块名称自动派生：
 
 ```python
 def extract_dependencies(module_dir, all_modules):
@@ -769,26 +798,24 @@ def extract_dependencies(module_dir, all_modules):
     return sorted(deps)
 ```
 
-Examples:
-- `relay/` depends on `agent-config` (via `AgentConfig-G1` in `Depends on`)
-- `relay/` depends on `chat` (via `Chat-G1` in `Depends on`)
-- `relay/` depends on `runtime` (via `Runtime-G1` in `Depends on`)
+示例：
+- `relay/` 依赖于 `agent-config`（通过 `Depends on` 中的 `AgentConfig-G1`）
+- `relay/` 依赖于 `chat`（通过 `Depends on` 中的 `Chat-G1`）
+- `relay/` 依赖于 `runtime`（通过 `Depends on` 中的 `Runtime-G1`）
 
-#### Truncation Rules
+#### 截断规则
 
-To keep `module.ad` concise:
-- Goals: first 6, then "...and N more"
-- Architecture Decisions: first 5, then "...and N more"
-- Designs: first 7, then "...and N more"
-- Decision summaries truncated to 120 chars if too long
+为保持 `module.ad` 简洁：
+- Goals：前 6 个，然后 "...and N more"
+- Architecture Decisions：前 5 个，然后 "...and N more"
+- Designs：前 7 个，然后 "...and N more"
+- 决策摘要过长时截断至 120 字符
 
-### Requirements
+### 要求
 
-- Script runs idempotently: re-running produces the same output if specs haven't changed
-- All 14 modules regenerated in a single command: `python scripts/generate_module_overviews.py`
-- `module.ad` files remain static and are NOT loaded into `SpecsDocument`
-
----
+- 脚本幂等运行：若规格未变更，重新运行产生相同输出
+- 所有 14 个模块通过单个命令重新生成：`python scripts/generate_module_overviews.py`
+- `module.ad` 文件保持静态，不会被加载到 `SpecsDocument` 中
 
 ---
 
@@ -808,30 +835,35 @@ To keep `module.ad` concise:
 
 ---
 
-## Specs-D11 Core Flows Document Format
-**Status:** implemented
-**Module:** `specs/auto-forge/flows.ad`
-**Tags:** stack:both
-**Depends on:** Specs-G13, Specs-A2
+---
+---
 
-### Purpose
+## Specs-D11 核心流程文档格式
+**Status:** draft
 
-`flows.ad` provides a **horizontal perspective** on the system: it describes execution flows that cross module boundaries. This complements the **vertical perspective** of module-based specs ( Goals → Architecture → Designs within a single module).
+**状态：** 已实现
+**模块：** `specs/auto-forge/flows.ad`
+**标签：** stack:both
+**依赖于：** Specs-G13, Specs-A2
 
-### Document Structure
+### 目的
+
+`flows.ad` 提供系统的**水平视角**：它描述跨越模块边界的执行流程。这补充了基于模块的规格的**垂直视角**（单个模块内的 Goals → Architecture → Designs）。
+
+### 文档结构
 
 ```markdown
-# Core Flows
+# 核心流程
 
-## Flow-N: {Flow Name}
-**Modules involved**: {comma-separated module list}
-**Entry**: {what triggers this flow}
-**Exit**: {what marks completion}
+## Flow-N: {流程名称}
+**涉及模块**: {逗号分隔的模块列表}
+**入口**: {什么触发此流程}
+**出口**: {什么标记完成}
 
-### Overview
-{Brief description of the flow}
+### 概览
+{流程的简要描述}
 
-### Sequence Diagram
+### 序列图
 ```mermaid
 sequenceDiagram
     participant A
@@ -839,47 +871,47 @@ sequenceDiagram
     A->>B: message
 ```
 
-### Key Steps
+### 关键步骤
 
-#### Step N: {Step Name}
-**Trigger**: {when this step executes}
-**Processing**: {what happens}
-**Data Flow**: {input} → {processing} → {output}
+#### 步骤 N: {步骤名称}
+**触发条件**: {此步骤何时执行}
+**处理**: {发生什么}
+**数据流**: {输入} → {处理} → {输出}
 
-### Related Specs
-- `Module-A1` — links to architecture decisions
-- `Module-D3` — links to design specs
+### 相关规格
+- `Module-A1` — 链接到架构决策
+- `Module-D3` — 链接到设计规格
 ```
 
-### Flow Catalog
+### 流程目录
 
-| Flow ID | Name | Modules | Span |
+| 流程 ID | 名称 | 模块 | 跨度 |
 |---------|------|---------|------|
-| Flow-1 | Forge Chat Loop | chat, provider, runtime, relay | User message → SSE response |
-| Flow-2 | Relay Pipeline Execution | relay, provider, runtime, specs, chat | FlowSpec → Completed/Failed |
-| Flow-3 | Agent Turn Execution | agent-config, provider, runtime, relay | Agent spawn → Handoff document |
-| Flow-4 | Spec Document Lifecycle | specs, forge | Read → Edit → Derive → Persist |
-| Flow-5 | Gate Approval Flow | relay, chat, ui-system | Gate trigger → User decision → Resume |
+| Flow-1 | Forge Chat Loop | chat, provider, runtime, relay | 用户消息 → SSE 响应 |
+| Flow-2 | Relay Pipeline Execution | relay, provider, runtime, specs, chat | FlowSpec → 已完成/失败 |
+| Flow-3 | Agent Turn Execution | agent-config, provider, runtime, relay | Agent 生成 → 交接文档 |
+| Flow-4 | Spec Document Lifecycle | specs, forge | 读取 → 编辑 → 派生 → 持久化 |
+| Flow-5 | Gate Approval Flow | relay, chat, ui-system | 关卡触发 → 用户决策 → 恢复 |
 
-### Conventions
+### 约定
 
-- Every flow MUST have a Mermaid `sequenceDiagram`
-- Every step MUST document Trigger, Processing, and Data Flow
-- Every flow MUST link to related spec IDs at the bottom
-- Flows do NOT replace module specs; they reference them
-- Flow IDs use `Flow-N` format (not tied to module prefix)
+- 每个流程必须有 Mermaid `sequenceDiagram`
+- 每个步骤必须记录 Trigger、Processing 和 Data Flow
+- 每个流程必须在底部链接到相关规格 ID
+- 流程不替代模块规格；它们引用模块规格
+- 流程 ID 使用 `Flow-N` 格式（不绑定模块前缀）
 
-### Relationship to Module Specs
+### 与模块规格的关系
 
 ```mermaid
 graph LR
-    subgraph "Vertical: Module Specs"
+    subgraph "垂直: 模块规格"
         MG[relay/goals.ad]
         MA[relay/architecture.ad]
         MD[relay/designs.ad]
     end
 
-    subgraph "Horizontal: Flows"
+    subgraph "水平: 流程"
         F1[Flow-1 Chat Loop]
         F2[Flow-2 Relay Pipeline]
     end
@@ -890,37 +922,39 @@ graph LR
     F2 --> MD
 ```
 
-- Module specs answer **"what is this component and how does it work?"**
-- Flow specs answer **"how does data move through the system?"**
+- 模块规格回答**"这个组件是什么，如何工作？"**
+- 流程规格回答**"数据如何在系统中流动？"**
 
 ---
 
 ---
 
-## Specs-D12 Spec View Mode Switcher (List / Card / Kanban)
+## Specs-D12 规格视图模式切换器（列表 / 卡片 / 看板）
 **Status:** draft
-**Module:** `frontend/src/views/SpecsView.vue`, `frontend/src/components/view-mode/`
-**Tags:** stack:frontend
-**Depends on:** Specs-D1, UiSystem-D1
 
-### Problem
+**状态：** 草案
+**模块：** `frontend/src/views/SpecsView.vue`, `frontend/src/components/view-mode/`
+**标签：** stack:frontend
+**依赖于：** Specs-D1, UiSystem-D1
 
-The current Specs view renders every section type with a single hardcoded layout:
-- Goals → tree table
-- Architecture → cards
-- Designs → cards
-- Plans → timeline
-- Tests → cards
-- Reviews → cards
-- Reports → dashboard
+### 问题
 
-Users cannot switch between layouts. This is especially limiting for Goals and Plans, where a Kanban board would provide much better workflow visibility than a flat list or timeline.
+当前规格视图以单一的硬编码布局渲染每种章节类型：
+- Goals → 树形表格
+- Architecture → 卡片
+- Designs → 卡片
+- Plans → 时间线
+- Tests → 卡片
+- Reviews → 卡片
+- Reports → 仪表板
 
-### Solution
+用户无法在布局之间切换。这对 Goals 和 Plans 尤其受限，看板比平面列表或时间线能提供更好的工作流可见性。
 
-Decouple **section type** from **view mode**. Introduce a per-section view-mode registry.
+### 解决方案
 
-#### 1. View Mode Registry
+解耦**章节类型**与**视图模式**。引入每章节视图模式注册表。
+
+#### 1. 视图模式注册表
 
 ```typescript
 type SpecViewMode = 'list' | 'card' | 'kanban'
@@ -937,52 +971,52 @@ const availableModes: Record<SectionType, SpecViewMode[]> = {
 ```
 
 
-#### 2. Component Mapping
+#### 2. 组件映射
 
-Replace the old `categoryComponents` (one component per type) with a two-level registry:
+将旧的 `categoryComponents`（每种类型一个组件）替换为两级注册表：
 
 ```typescript
 const categoryRenderers: Record<SectionType, Partial<Record<SpecViewMode, Component>>> = {
   goals: {
-    list:   GoalsTable,     // existing tree table
-    card:   GoalsCards,     // new: card grid with priority badges
-    kanban: GoalsKanban,    // new: status columns
+    list:   GoalsTable,     // 现有树形表格
+    card:   GoalsCards,     // 新增：带优先级徽章的卡片网格
+    kanban: GoalsKanban,    // 新增：状态列
   },
   plans: {
-    list:   PlansList,      // new: simple list (replaces timeline as default)
-    card:   PlansCards,     // new: card grid
-    kanban: PlansKanban,    // new: status columns
+    list:   PlansList,      // 新增：简单列表（替代时间线作为默认）
+    card:   PlansCards,     // 新增：卡片网格
+    kanban: PlansKanban,    // 新增：状态列
   },
   architecture: {
-    list:   ArchitectureList,  // new: compact list
-    card:   ArchitectureCards, // existing
+    list:   ArchitectureList,  // 新增：紧凑列表
+    card:   ArchitectureCards, // 现有
   },
   // ... etc
 }
 ```
 
-#### 3. View Toggle UI
+#### 3. 视图切换 UI
 
-Placed in the **title bar**, right of the breadcrumb and left of search/actions:
+放置在**标题栏**，面包屑右侧、搜索/操作左侧：
 
 ```
-┌─ Title Bar ─────────────────────────────────────────────────────┐
-│ Project / relay / 🎯 Goals    [列表] [卡片] | [看板]   [Search] │
+┌─ 标题栏 ──────────────────────────────────────────────────────┐
+│ 项目 / relay / 🎯 目标    [列表] [卡片] | [看板]   [Search] │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **List** (`≡`): dense rows, sortable columns, optimal for scanning IDs and titles
-- **Card** (`▦`): larger cards with 2–3 lines of content preview, tags, and status badge
-- **Kanban** (`⊞`): only for Goals/Plans; columnar board (see Specs-D13)
+- **列表**（`≡`）：紧凑行、可排序列，最适合扫描 ID 和标题
+- **卡片**（`▦`）：更大的卡片，含 2–3 行内容预览、标签和状态徽标
+- **看板**（`⊞`）：仅用于 Goals/Plans；分栏板（见 Specs-D13）
 
-Visual style: icon-only toggle buttons, active state uses primary color fill.
+视觉风格：仅图标切换按钮，激活状态使用主色填充。
 
-#### 4. State & Persistence
+#### 4. 状态与持久化
 
 ```typescript
 const currentViewMode = ref<SpecViewMode>('list')
 
-// Persist per section type
+// 按章节类型持久化
 function saveViewMode(section: SectionType, mode: SpecViewMode) {
   const key = `specs-view-mode-${section}`
   localStorage.setItem(key, mode)
@@ -996,21 +1030,19 @@ function loadViewMode(section: SectionType): SpecViewMode {
 }
 ```
 
-When switching sections, `currentViewMode` is restored from `localStorage`.
+切换章节时，`currentViewMode` 从 `localStorage` 恢复。
 
-#### 5. Filtering Integration
+#### 5. 过滤集成
 
-All three view modes share the same `filteredItems` computed (module + stack + text filters). The view mode only affects **rendering**, not **data**.
+三种视图模式共享相同的 `filteredItems` 计算属性（模块 + 堆栈 + 文本过滤）。视图模式仅影响**渲染**，不影响**数据**。
 
-### Requirements
+### 要求
 
-- View toggle must be hidden when `filteredItems.length === 0` (empty state takes priority)
-- Kanban option must be visually disabled (not hidden) for non-Goals/Plans sections, with a tooltip: "Kanban is available for Goals and Plans only"
-- Card view must show at most 2 lines of content preview; overflow ellipsis
-- List view must retain existing sortable column headers
-- View mode transition must be animated (fade, 150ms)
-
----
+- 当 `filteredItems.length === 0` 时必须隐藏视图切换（空状态优先）
+- 非 Goals/Plans 章节的看板选项必须视觉上禁用（而非隐藏），工具提示："Kanban is available for Goals and Plans only"
+- 卡片视图最多显示 2 行内容预览；溢出省略号
+- 列表视图必须保留现有的可排序列标题
+- 视图模式切换必须带动画（淡入淡出，150ms）
 
 ---
 
@@ -1044,17 +1076,37 @@ All three view modes share the same `filteredItems` computed (module + stack + t
 
 ---
 
-## Specs-D13 Test Validation Design — Deduplication Checklist & Procedure
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Specs-D13 测试验证设计——去重检查清单与流程
 **Status:** draft
-**Module:** `frontend/src/components/kanban/`
-**Tags:** stack:both, module:specs
-**Depends on:** Specs-D12, Specs-G7
 
-## Overview
+**状态：** 草案
+**模块：** `frontend/src/components/kanban/`
+**标签：** stack:both, module:specs
+**依赖于：** Specs-D12, Specs-G7
 
-Test validation design defines the concrete checklist and deduplication procedure the Architect applies to test specs before approving pipeline advancement. This is a spec-level quality gate, not a runtime test runner.
+## 概览
 
-### Interface
+测试验证设计定义了 Architect 在批准流水线推进之前应用于测试规格的具体检查清单和去重流程。这是规格级别的质量关卡，不是运行时测试运行器。
+
+### 接口
 
 ```typescript
 interface ValidationResult {
@@ -1075,7 +1127,7 @@ interface ValidationIssue {
 }
 ```
 
-### State Machine
+### 状态机
 
 ```mermaid
 stateDiagram-v2
@@ -1089,83 +1141,85 @@ stateDiagram-v2
     Approved --> [*]
 ```
 
-### Data Model
+### 数据模型
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `duplicateCount` | `number` | Items sharing same ID within a section |
-| `orphanCount` | `number` | Test items with no upstream goal/design |
-| `redundancyCount` | `number` | Test items verifying identical behavior |
-| `issues[].severity` | `'critical' \| 'warning' \| 'info'` | Critical = blocks pipeline |
-| `issues[].action` | `'delete' \| 'merge' \| 'flag' \| 'none'` | Recommended resolution |
+| `duplicateCount` | `number` | 同一章节内共享相同 ID 的项目 |
+| `orphanCount` | `number` | 无上游目标/设计的测试项目 |
+| `redundancyCount` | `number` | 验证相同行为的测试项目 |
+| `issues[].severity` | `'critical' \| 'warning' \| 'info'` | Critical = 阻塞流水线 |
+| `issues[].action` | `'delete' \| 'merge' \| 'flag' \| 'none'` | 建议的解决方案 |
 
-### Deduplication Procedure
+### 去重流程
 
-1. **Scan**: Load all items from each section
-2. **Group by ID**: For each section, group items by `item_id`
-3. **For each group with count > 1**:
-   - Keep the item with highest-quality status (done > approved > draft > proposed)
-   - If tied, keep the most recently updated
-   - Mark all others for deletion
-4. **Trace**: For each remaining test item, verify `depends_on` references exist
-5. **Report**: Output `ValidationResult`
+1. **扫描**：从每个章节加载所有项目
+2. **按 ID 分组**：对每个章节，按 `item_id` 分组项目
+3. **对每个数量 > 1 的组**：
+   - 保留状态质量最高的项目（done > approved > draft > proposed）
+   - 如果平手，保留最近更新的
+   - 标记其余所有项目待删除
+4. **追踪**：对每个剩余的测试项目，验证 `depends_on` 引用存在
+5. **报告**：输出 `ValidationResult`
 
-### Current Scan Results (AutoForge specs)
+### 当前扫描结果（AutoForge 规格）
 
-| Section | Issue | IDs | Recommended Action |
+| 章节 | 问题 | ID | 建议操作 |
 |---------|-------|-----|--------------------|
-| architecture | ApiSources-A3 has 5+ copies | ApiSources-A3 | Keep first approved, delete duplicates |
-| designs | ApiSources-D1 has 4+ copies | ApiSources-D1 | Keep most complete, delete duplicates |
-| designs | UiSystem-D4 has 5+ copies | UiSystem-D4 | Keep most complete, delete duplicates |
-| tests | ApiSources-T3 has 7+ copies | ApiSources-T3 | Keep "done" verified copy, delete duplicates |
-| goals | Specs-G8/G9 duplicate cleanup | Specs-G8, Specs-G9 | Keep Specs-G8, reject Specs-G9 |
+| architecture | ApiSources-A3 有 5+ 个副本 | ApiSources-A3 | 保留第一个已批准的，删除重复项 |
+| designs | ApiSources-D1 有 4+ 个副本 | ApiSources-D1 | 保留最完整的，删除重复项 |
+| designs | UiSystem-D4 有 5+ 个副本 | UiSystem-D4 | 保留最完整的，删除重复项 |
+| tests | ApiSources-T3 有 7+ 个副本 | ApiSources-T3 | 保留 "done" 已验证副本，删除重复项 |
+| goals | Specs-G8/G9 重复清理 | Specs-G8, Specs-G9 | 保留 Specs-G8，拒绝 Specs-G9 |
 
-### Design Highlight
+### 设计亮点
 
-Spec dedup is idempotent — running it multiple times produces the same result. The Architect marks items as `rejected` rather than deleting them, preserving audit trail.
+规格去重是幂等的——多次运行产生相同结果。Architect 将项目标记为 `rejected` 而非删除，保留审计轨迹。
 
-### Trigger Condition
-After Tester drafts tests, before Coder implements. Also triggered manually by `test validation` task.
+### 触发条件
+Tester 起草测试后、Coder 实现前。也可通过 `test validation` 任务手动触发。
 
-### Data Flow
+### 数据流
 ```
 [All spec sections] → [Group items by ID per section] → [Identify duplicates] → [Select best version] → [Mark rest rejected] → [Trace depends_on] → [Flag orphans] → [ValidationResult]
 ```
 
-### Trade-offs
+### 权衡
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |----------|------|------|
-| Mark duplicates as rejected (chosen) | Preserves audit trail; reversible | Spec sections remain large |
-| Delete duplicates | Clean sections; smaller specs | Loses history; irreversible |
-| Keep all duplicates | No data loss | Confusing; violates single-source-of-truth |
+| 将重复项标记为 rejected（已选） | 保留审计轨迹；可逆 | 规格章节保持较大 |
+| 删除重复项 | 干净章节；更小规格 | 丢失历史；不可逆 |
+| 保留所有重复项 | 无数据丢失 | 令人困惑；违反单一真相源 |
 
-## Specs-D14 Spec Deduplication Design — Immediate Cleanup & Prevention
-**Status:** approved
-**Priority:** P0
-**Module:** specs
-**Tags:** stack:both, module:specs
-**Depends on:** Specs-A4, Specs-A3, Specs-G8
+## Specs-D14 规格去重设计——即时清理与预防
+**Status:** draft
 
-## Overview
+**状态：** 已批准
+**优先级：** P0
+**模块：** specs
+**标签：** stack:both, module:specs
+**依赖于：** Specs-A4, Specs-A3, Specs-G8
 
-Concrete design for cleaning up the 10+ duplicate test specs and preventing future duplication. This is the implementation plan for the architecture diagnosed in `Specs-A4`.
+## 概览
 
-### Phase 1: Immediate Cleanup (Manual Spec Edits)
+清理 10 多个重复测试规格并预防未来重复的详细设计。这是 `Specs-A4` 诊断出的架构的实现计划。
 
-Delete all duplicate items, keeping the highest-quality copy per ID. The Coder will execute these deletions.
+### 阶段 1：即时清理（手动规格编辑）
 
-#### Deletion Plan
+删除所有重复项，每个 ID 仅保留最高质量副本。Coder 将执行这些删除。
 
-| Section | Item ID | Copies to Delete | Keep | Rationale |
+#### 删除计划
+
+| 章节 | 项目 ID | 待删除副本 | 保留 | 理由 |
 |---------|---------|------------------|------|-----------|
-| tests | ApiSources-T3 | Delete 9+ copies | Keep the **last "done" copy** with the full coverage matrix and Rust test code | Most complete, verified |
-| designs | ApiSources-D1 | Delete 4+ copies | Keep the **"approved" copy** with `model_id: String` field and verified code evidence table | Authoritative design |
-| designs | UiSystem-D4 | Delete 4+ copies | Keep the **most complete "draft"** copy with all 6 views + test file fix | Only complete version |
-| architecture | ApiSources-A3 | Delete 4+ copies | Keep the **first "proposed" copy** | Only version with content |
-| goals | Specs-G9 | Delete 1 copy | Keep Specs-G8 only | G9 is exact duplicate of G8 |
+| tests | ApiSources-T3 | 删除 9+ 个副本 | 保留**最后一个 "done" 副本**，含完整覆盖率矩阵和 Rust 测试代码 | 最完整，已验证 |
+| designs | ApiSources-D1 | 删除 4+ 个副本 | 保留**"approved" 副本**，含 `model_id: String` 字段和已验证代码证据表 | 权威设计 |
+| designs | UiSystem-D4 | 删除 4+ 个副本 | 保留**最完整的 "draft"**，含所有 6 个视图 + 测试文件修复 | 唯一完整版本 |
+| architecture | ApiSources-A3 | 删除 4+ 个副本 | 保留**第一个 "proposed" 副本** | 唯一有内容的版本 |
+| goals | Specs-G9 | 删除 1 个副本 | 仅保留 Specs-G8 | G9 是 G8 的完全重复 |
 
-#### Selection Algorithm
+#### 选择算法
 
 ```typescript
 function selectBestCopy(items: SpecItem[]): SpecItem {
@@ -1176,19 +1230,19 @@ function selectBestCopy(items: SpecItem[]): SpecItem {
   }
   
   return items.sort((a, b) => {
-    // Primary: highest status
+    // 主排序：最高状态
     const rankA = statusRank[a.status] ?? 0
     const rankB = statusRank[b.status] ?? 0
     if (rankA !== rankB) return rankB - rankA
-    // Secondary: most content
+    // 次排序：最多内容
     return b.content.length - a.content.length
   })[0]
 }
 ```
 
-### Phase 2: Prevention — Relay Driver Dedup Guard
+### 阶段 2：预防——Relay Driver 去重防护
 
-The relay driver (`relay/driver.rs`) must check for existing spec items before creating new ones during the Tester step.
+relay driver（`relay/driver.rs`）必须在 Tester 步骤创建新规格项之前检查现有项。
 
 ```mermaid
 sequenceDiagram
@@ -1207,7 +1261,7 @@ sequenceDiagram
     end
 ```
 
-### Data Flow — Cleanup Execution
+### 数据流——清理执行
 
 ```
 [Read tests section] → [Group items by ID] → [ApiSources-T3: 10 copies found]
@@ -1217,25 +1271,25 @@ sequenceDiagram
   → [Result: 1 authoritative ApiSources-T3 remaining]
 ```
 
-### Files to Modify
+### 需修改的文件
 
-| File | Change |
+| 文件 | 变更 |
 |------|--------|
-| `specs/auto-forge/tests.ad` | Delete duplicate ApiSources-T3 entries (keep 1) |
-| `specs/auto-forge/designs.ad` | Delete duplicate ApiSources-D1 entries (keep 1), UiSystem-D4 entries (keep 1) |
-| `specs/auto-forge/architecture.ad` | Delete duplicate ApiSources-A3 entries (keep 1) |
-| `specs/auto-forge/goals.ad` | Delete Specs-G9 (duplicate of Specs-G8) |
+| `specs/auto-forge/tests.ad` | 删除重复的 ApiSources-T3 条目（保留 1 个） |
+| `specs/auto-forge/designs.ad` | 删除重复的 ApiSources-D1 条目（保留 1 个）、UiSystem-D4 条目（保留 1 个） |
+| `specs/auto-forge/architecture.ad` | 删除重复的 ApiSources-A3 条目（保留 1 个） |
+| `specs/auto-forge/goals.ad` | 删除 Specs-G9（Specs-G8 的重复） |
 
-### Quality Checklist
+### 质量检查清单
 
-- [ ] ApiSources-T3 reduced to exactly 1 copy in tests section
-- [ ] ApiSources-D1 reduced to exactly 1 copy in designs section
-- [ ] UiSystem-D4 reduced to exactly 1 copy in designs section
-- [ ] ApiSources-A3 reduced to exactly 1 copy in architecture section
-- [ ] Specs-G9 deleted (Specs-G8 kept)
-- [ ] All cross-references (depends_on) still resolve correctly after cleanup
-- [ ] No orphaned items (items depending on deleted specs updated)
+- [ ] tests 章节中的 ApiSources-T3 减少至恰好 1 个副本
+- [ ] designs 章节中的 ApiSources-D1 减少至恰好 1 个副本
+- [ ] designs 章节中的 UiSystem-D4 减少至恰好 1 个副本
+- [ ] architecture 章节中的 ApiSources-A3 减少至恰好 1 个副本
+- [ ] Specs-G9 已删除（保留 Specs-G8）
+- [ ] 清理后所有交叉引用（depends_on）仍能正确解析
+- [ ] 无孤立项目（依赖于已删除规格的项目已更新）
 
-### Design Highlight
+### 设计亮点
 
-This is a one-time manual cleanup followed by a prevention rule. The `update_spec` tool already handles upserts correctly for single operations — the duplication happened because relay retries called it multiple times in rapid succession, each appending a new item before the previous one was saved. The fix is deletion of existing duplicates, not a code change.
+这是一次性手动清理，之后跟随预防规则。`update_spec` 工具对单次操作已正确处理 upsert——重复发生是因为 relay 重试在短时间内多次调用它，每次在前一个保存完成前就追加新项目。修复方式是删除现有重复项，而非代码变更。

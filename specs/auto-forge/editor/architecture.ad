@@ -2,12 +2,14 @@
 
 ---
 
-## Editor-A1 AutoDown Editor — Tiptap-Based WYSIWYG Architecture
+## Editor-A1 AutoDown 编辑器 — 基于 Tiptap 的所见即所得架构
 **Status:** draft
-**Tags:** stack:frontend
-**Depends on:** Editor-G1
 
-AutoForge needs a block-based WYSIWYG editor that natively supports Markdown serialization and can be extended with custom Vue components for AutoDown-specific blocks. Tiptap is the only evaluated framework that satisfies all constraints simultaneously: it is headless (no forced UI), has first-class Vue 3 integration via `VueNodeViewRenderer`, provides a native ProseMirror block model, and includes a dedicated `@tiptap/markdown` extension with per-extension `parseMarkdown`/`renderMarkdown` hooks. Novel.sh demonstrates that wrapping Tiptap into a product-grade editor is viable — we adapt its pattern (headless primitives + styled composition) to Vue 3's Composition API without Jotai or React-specific libraries.
+**状态：** 草稿
+**标签：** stack:frontend
+**依赖项：** Editor-G1
+
+AutoForge 需要一款基于块的所见即所得编辑器，原生支持 Markdown 序列化，并能通过自定义 Vue 组件扩展 AutoDown 专属块。Tiptap 是唯一同时满足所有约束条件的评估框架：它是无头的（不强制 UI）、通过 `VueNodeViewRenderer` 提供一流的 Vue 3 集成、提供原生 ProseMirror 块模型，并包含专用的 `@tiptap/markdown` 扩展，带有每个扩展的 `parseMarkdown`/`renderMarkdown` 钩子。Novel.sh 证明了将 Tiptap 包装成产品级编辑器是可行的 —— 我们采用其模式（无头原语 + 样式化组合）适配 Vue 3 的组合式 API，不使用 Jotai 或 React 专用库。
 
 
 ```mermaid
@@ -34,18 +36,18 @@ graph TD
 ```
 
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |---|---|---|
-| **Tiptap + Vue 3** (chosen) | Headless, Vue-native, markdown built-in, large extension ecosystem | Bundle size ~150KB+ for core + extensions |
-| **Native ContentEditable** | Zero dependencies, full control | Must rebuild block model, drag/drop, markdown parser from scratch |
-| **CodeMirror 6** | Excellent for code, modular | Flat document model, not block-oriented; poor WYSIWYG image/table support |
-| **Lexical (Meta)** | Modern, collaborative-ready | React-first; Vue integration is community-maintained and immature |
+| **Tiptap + Vue 3**（已选） | 无头、Vue 原生、内置 Markdown、扩展生态丰富 | 核心 + 扩展的包体积约 150KB+ |
+| **原生 ContentEditable** | 零依赖、完全可控 | 需从零重建块模型、拖拽、Markdown 解析器 |
+| **CodeMirror 6** | 代码编辑优秀、模块化 | 平面文档模型，非块导向；所见即所得的图片/表格支持差 |
+| **Lexical (Meta)** | 现代化、支持协作 | React 优先；Vue 集成由社区维护，尚不成熟 |
 
-- Positive: Custom blocks are real Vue components — reactive, interactive, testable.
-- Positive: Markdown round-trip is solved by Tiptap; no custom parser needed for Phase 1.
-- Positive: Extension system means adding a new block type does not touch core editor code.
-- Negative: Bundle size increase requires code-splitting the editor into a lazy-loaded chunk.
-- Negative: ProseMirror has a learning curve for developers implementing custom node views.
+- 正面：自定义块是真正的 Vue 组件 —— 响应式、可交互、可测试。
+- 正面：Markdown 往返由 Tiptap 解决；第一阶段无需自定义解析器。
+- 正面：扩展系统意味着添加新块类型不需要触碰核心编辑器代码。
+- 负面：包体积增加需要将编辑器代码拆分为懒加载块。
+- 负面：ProseMirror 对实现自定义节点视图的开发者有学习曲线。
 
 ---
 

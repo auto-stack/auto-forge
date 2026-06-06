@@ -2,11 +2,13 @@
 
 ---
 
-## AgentConfig-D1 AgentInstance & Soul Rendering
-**Status:** implemented
-**Module:** `crates/auto-forge/src/relay/agent.rs`
-**Tags:** stack:backend
-**Depends on:** AgentConfig-A1
+## AgentConfig-D1 AgentInstance 与人格渲染
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/relay/agent.rs`
+**标签：** stack:backend
+**依赖于：** AgentConfig-A1
 
 ```rust
 pub struct AgentInstance {
@@ -77,15 +79,15 @@ stateDiagram-v2
     Failed --> [*]
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `id` | `String` | UUID for this agent instance |
-| `profession.id` | `String` | Reference to Profession registry |
-| `soul.id` | `String` | Reference to Soul config file |
-| `model.provider` | `Provider` | API provider enum |
-| `model.fallback_chain` | `Vec<String>` | Ordered list of alternative models |
-| `context.budget_used` | `u64` | Tokens consumed this step |
-| `context.turns_taken` | `u32` | Number of LLM turns this step |
+| `id` | `String` | 此智能体实例的 UUID |
+| `profession.id` | `String` | 对职业注册表的引用 |
+| `soul.id` | `String` | 对人格配置文件的引用 |
+| `model.provider` | `Provider` | API 提供商枚举 |
+| `model.fallback_chain` | `Vec<String>` | 替代模型的有序列表 |
+| `context.budget_used` | `u64` | 此步骤消耗的 Token 数 |
+| `context.turns_taken` | `u32` | 此步骤的 LLM 轮次数 |
 
 
 ---
@@ -101,13 +103,18 @@ stateDiagram-v2
 ---
 
 ---
+
 ---
 
-## AgentConfig-D2 Profession Registry (v2)
-**Status:** implemented
-**Module:** `crates/auto-forge/src/relay/profession.rs`
-**Tags:** stack:backend
-**Depends on:** AgentConfig-G1, Specs-G1
+---
+
+## AgentConfig-D2 职业注册表（v2）
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/relay/profession.rs`
+**标签：** stack:backend
+**依赖于：** AgentConfig-G1、Specs-G1
 
 ```rust
 pub struct Profession {
@@ -125,7 +132,7 @@ pub struct Profession {
 ```
 
 
-| Profession | Phase | Owned Specs | Model Tier | Gate |
+| 职业 | 阶段 | 拥有的规格 | 模型层级 | 关卡 |
 |---|---|---|---|---|
 | Assistant | Intake | None | Light | Auto |
 | Advisor | Discovery | Goals | Medium | Human (GSD) / Human (Check) |
@@ -136,13 +143,13 @@ pub struct Profession {
 | Reviewer | Verification | Reviews | Heavy | Auto |
 | Documenter | Report | Reports | Light | Auto |
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `id` | `String` | profession identifier |
-| `phase` | `ForgePhase` | which phase this profession runs in |
-| `owned_sections` | `Vec<SectionType>` | specs this profession can write |
-| `readable_sections` | `Vec<SectionType>` | specs this profession can read |
-| `approval_gates` | `Vec<String>` | handoff targets that require approval |
+| `id` | `String` | 职业标识符 |
+| `phase` | `ForgePhase` | 该职业运行的阶段 |
+| `owned_sections` | `Vec<SectionType>` | 该职业可以编写的规格 |
+| `readable_sections` | `Vec<SectionType>` | 该职业可以读取的规格 |
+| `approval_gates` | `Vec<String>` | 需要审批的交接目标 |
 
 
 ---
@@ -163,45 +170,49 @@ pub struct Profession {
 
 ---
 
-## AgentConfig-D3 Architect Soul v2 — Code Verification & Quality Constraints
-**Status:** implemented
-**Module:** `backend/src/relay/souls/architect.md`
-**Tags:** stack:backend
-**Depends on:** AgentConfig-D1, AgentConfig-D2, Specs-D8
+---
 
-### Problem
+## AgentConfig-D3 架构师人格 v2 —— 代码验证与质量约束
+**Status:** draft
 
-The original Architect soul mandated reading existing specs and writing Architecture/Designs, but it lacked constraints on:
-- **Accuracy**: Architects could claim tech stacks or file paths without verification
-- **Depth**: Architecture items had structural diagrams but no runtime sequence diagrams
-- **Quality**: No self-checklist before handoff, leading to incomplete deliverables
+**状态：** 已实现
+**模块：** `backend/src/relay/souls/architect.md`
+**标签：** stack:backend
+**依赖于：** AgentConfig-D1、AgentConfig-D2、Specs-D8
 
-### Solution
+### 问题
 
-Enhance the Architect soul with three new constraint blocks: **Code Verification Mandate**, **Depth Requirements**, and **Quality Checklist**.
+原始架构师人格要求读取现有规格并编写架构/设计，但缺乏对以下方面的约束：
+- **准确性**：架构师可以未经核实就声称技术栈或文件路径
+- **深度**：架构项有结构图但没有运行时序列图
+- **质量**：交接前没有自检清单，导致交付物不完整
 
-#### 1. Code Verification Mandate
+### 解决方案
 
-Before writing any Architecture or Designs spec that references source code:
+通过三个新的约束块增强架构师人格：**代码验证强制要求**、**深度要求**和**质量检查清单**。
 
-| Rule | Enforcement |
-|------|-------------|
-| Verify tech stack | Dispatch gofer to read `Cargo.toml` and `package.json` before claiming dependencies |
-| Verify file existence | Dispatch gofer to confirm file paths and line numbers before citing them |
-| Cite code evidence | Every structural conclusion must reference actual code: `backend/src/forge/mod.rs:2024-2076` |
+#### 1. 代码验证强制要求
 
-#### 2. Depth Requirements
+在编写任何引用源代码的架构或设计规格之前：
 
-For every core mechanism described in Architecture:
+| 规则 | 执行方式 |
+|------|----------|
+| 验证技术栈 | 派遣 gofer 在声称依赖之前读取 `Cargo.toml` 和 `package.json` |
+| 验证文件存在性 | 派遣 gofer 在引用之前确认文件路径和行号 |
+| 引用代码证据 | 每个结构结论必须引用实际代码：`backend/src/forge/mod.rs:2024-2076` |
 
-| Requirement | Format |
-|-------------|--------|
-| Sequence Diagram | Mermaid `sequenceDiagram` showing runtime behavior |
-| Trigger Condition | "When X happens, this mechanism executes" |
-| Data Flow | `[input]` → `[processing]` → `[output]` |
-| Design Highlight | 1-2 sentences explaining "why this design" |
+#### 2. 深度要求
 
-#### 3. Quality Checklist (self-check before handoff)
+对于架构中描述的每个核心机制：
+
+| 要求 | 格式 |
+|------|------|
+| 序列图 | Mermaid `sequenceDiagram` 展示运行时行为 |
+| 触发条件 | "当 X 发生时，此机制执行" |
+| 数据流 | `[input]` → `[processing]` → `[output]` |
+| 设计亮点 | 1-2 句话解释"为什么选择此设计" |
+
+#### 3. 质量检查清单（交接前自检）
 
 ```markdown
 - [ ] All tech stack claims verified against config files
@@ -215,28 +226,28 @@ For every core mechanism described in Architecture:
 - [ ] Explicit data lifecycle definitions
 ```
 
-### Impact on Profession Configuration
+### 对职业配置的影响
 
-The Architect profession (`backend/src/relay/profession.rs`) already has:
+架构师职业（`backend/src/relay/profession.rs`）已经具有：
 - `owned_sections: [Architecture, Designs]`
 - `allowed_tools: [read_specs, write_specs, update_spec, list_specs, read_file, write_file, query_wiki, list_wiki, bring_in, spawn_relay]`
 
-No tool changes are required — the soul constraints are enforced via prompt engineering, not tool gating. The `dispatch` tool (already available via `bring_in` / errand mechanism) is used to spawn gofers for code verification.
+无需更改工具——人格约束通过提示工程而非工具门控来执行。`dispatch` 工具（已通过 `bring_in` / 差事机制可用）用于生成 gofer 以进行代码验证。
 
-### Related Skill Enhancements
+### 相关技能增强
 
-The `forge-write-architecture` skill was simultaneously enhanced to require:
-- `Sequence Diagram` section in ADR template
-- `Code Evidence` section with file path + line range
-- `Data Flow` section for runtime behavior
-- `Design Highlight` section explaining rationale
+`forge-write-architecture` 技能同时增强以要求：
+- ADR 模板中的 `Sequence Diagram` 部分
+- 包含文件路径 + 行范围的 `Code Evidence` 部分
+- 运行时行为的 `Data Flow` 部分
+- 解释依据的 `Design Highlight` 部分
 
-### Requirements
+### 要求
 
-- Architect MUST verify tech stack before claiming frameworks
-- Architect MUST verify file paths before citing line numbers
-- Architect MUST include sequence diagrams for runtime mechanisms
-- Architect MUST complete Quality Checklist before handoff
-- Quality violations are treated as handoff blockers
+- 架构师必须在声称框架之前验证技术栈
+- 架构师必须在引用行号之前验证文件路径
+- 架构师必须为运行时机制包含序列图
+- 架构师必须在交接前完成质量检查清单
+- 质量违规被视为交接阻塞项
 
 ---

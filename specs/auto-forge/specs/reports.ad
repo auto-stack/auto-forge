@@ -2,25 +2,27 @@
 
 ---
 
-## Specs-R1 — Spec Conversion Gap Audit (Post-Write)
+## Specs-R1 — 规格转换差距审计（写入后）
 **Status:** draft
-**Tags:** stack:frontend
 
-After converting `docs/design/forge-specs-relay-frontend.md` into formal specs, a gap audit identified missing component designs and an undocumented SSE routing contract.
+**状态：** 草案
+**标签：** stack:frontend
 
-| Gap | Severity | Resolution | Location |
+将 `docs/design/forge-specs-relay-frontend.md` 转换为正式规格后，差距审计识别出缺失的组件设计和未记录的 SSE 路由契约。
+
+| 差距 | 严重度 | 解决方案 | 位置 |
 |---||---|---|
-| `GateBanner` component (Specs view sticky gate banner) | High | New Design Specs-D3 | `designs.ad` |
-| `GatePanel` component (Relay view gate approval) | High | New Design Relay-D9 | `designs.ad` |
-| `ReportCard` component (terminal completion in chat) | High | New Design Chat-D2 | `designs.ad` |
-| SSE Event Map / Frontend Integration | Critical | New Design Relay-D10 | `designs.ad` |
-| Open questions untracked (sound, escalation, persistence, locking) | Medium | Added as plan risks | `plans.ad` (Chat-P1, Relay-P9, UiSystem-P1) |
+| `GateBanner` 组件（规格视图粘性关卡横幅） | 高 | 新设计 Specs-D3 | `designs.ad` |
+| `GatePanel` 组件（中继视图关卡审批） | 高 | 新设计 Relay-D9 | `designs.ad` |
+| `ReportCard` 组件（聊天中的终端完成） | 高 | 新设计 Chat-D2 | `designs.ad` |
+| SSE 事件映射 / 前端集成 | 严重 | 新设计 Relay-D10 | `designs.ad` |
+| 未跟踪的开放问题（声音、升级、持久化、锁定） | 中 | 作为计划风险添加 | `plans.ad`（Chat-P1、Relay-P9、UiSystem-P1） |
 
-- Sound design: opt-in chime for gates?
-- Gate escalation: browser notification after >30min?
-- Secretary queue persistence across refresh (backend dependency)
-- Multi-run document locking (ETag strategy)
+- 声音设计：关卡的可选提示音？
+- 关卡升级：>30 分钟后浏览器通知？
+- 秘书队列跨刷新持久化（后端依赖）
+- 多运行文档锁定（ETag 策略）
 
-All P0 gaps are now closed. The 4 new designs (Specs-D3–Relay-D10) and 3 additional plan risks provide sufficient detail for the Coder to begin implementation.
+所有 P0 差距现已关闭。4 个新设计（Specs-D3–Relay-D10）和 3 个额外计划风险为编码员开始实现提供了足够的细节。
 
 ---

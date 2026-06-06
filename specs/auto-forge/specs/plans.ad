@@ -2,50 +2,28 @@
 
 ---
 
-## Specs-P1 Specs Workspace Depth
-**Status:** implemented
-**Tags:** stack:frontend
+## Specs-P1 规格工作区深度
+**Status:** draft
 **Depends on:** Specs-G2
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| Specs-P10.1 | Category renderers (GoalsTable, ArchitectureCards, PlansTimeline, TestsCards, ReviewCards, ReportDashboard) | Alice | 4 days | — | Done |
-| Specs-P10.2 | RelationsPanel with parent/child lists and jump navigation | Bob | 2 days | Specs-P10.1 | Done |
-| Specs-P10.3 | AutoLinkContent for clickable ID references in markdown | Bob | 2 days | — | Done |
-| Specs-P10.4 | GateBanner sticky banner for sections with active gates | Alice | 1 day | Chat-P8.1 | Done |
-| Specs-P10.5 | Drift Check button with results visualization | Bob | 2 days | Specs-P10.2 | Done |
+| Phase | Task | Owner | Duration | Status |
+|---|---|---|---|---|
+| Specs-P10.1 | 类别渲染器 | Alice | 4 天 | done |
+| Specs-P10.2 | RelationsPanel | Bob | 2 天 | done |
+| Specs-P10.3 | AutoLinkContent | Bob | 2 天 | done |
+| Specs-P10.4 | GateBanner | Alice | 1 天 | done |
+| Specs-P10.5 | 偏差检查 | Bob | 2 天 | done |
 
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Specs-P2 Goals View Refinement — Tree UX, Modal Editor, and Tag System
-**Status:** done
-**Tags:** stack:frontend
+## Specs-P2 目标视图细化
+**Status:** draft
 **Depends on:** Specs-G7, Specs-P1
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
-| Specs-P25.1 | Replace table-based GoalsTable with div-based tree nodes | UI | 1 day | Done |
-| Specs-P25.2 | Implement toggle area: fixed 2.5rem, count+chevron combined, removed for leaf goals | UI | 0.5 day | Done |
-| Specs-P25.3 | GoalDetailModal: centered modal with header/meta/body/footer, inline edit | UI | 1 day | Done |
-| Specs-P25.4 | Tag all 52 goals and 6 other categories with `stack:*` and `module:*` | Docs | 0.5 day | Done |
-| Specs-P25.5 | Tag display: shortened values, color-coded badges (stack=blue, module=purple) | UI | 0.5 day | Done |
-| Specs-P25.6 | Module accordion sidebar: Overview entry + per-module Outline + type navigation, Stack filter retained | UI | 1 day | Done |
-| Specs-P25.7 | Backend flat mode fix: `get_or_default` falls back to flat doc on key miss | Backend | 0.5 day | Done |
-
-- **Outcome**: Goals section now shows a clean hierarchical tree with expandable sub-goals, modal-based detail editing, and sidebar tag filtering.
-- **Risk**: None — incremental UX polish on existing Specs-P1 foundation.
+| GoalsTable 树节点 | UI | 1 天 | done |
+| 切换区域 | UI | 0.5 天 | done |
+| GoalDetailModal | UI | 1 天 | done |
+| 标签系统 | Docs | 0.5 天 | done |
+| 标签显示 | UI | 0.5 天 | done |
+| 模块折叠侧边栏 | UI | 1 天 | done |
+| 扁平模式修复 | Backend | 0.5 天 | done |

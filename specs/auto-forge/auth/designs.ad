@@ -1,0 +1,798 @@
+# Designs
+
+---
+
+## Auth-D1 User Login & RBAC Integration Design
+**Status:** approved
+**File:** `frontend/src/App.vue`
+**Module:** `backend/src/main.rs`, `frontend/src/composables/useAuth.ts`, `frontend/src/views/LoginView.vue`
+**Tags:** stack:both, module:auth
+**Depends on:** Auth-A1
+
+## User Login & RBAC Integration Design
+
+
+### Overview
+
+Wire the fully-implemented `backend/src/rbac/` module into the main app and add Vue 3 login/register pages. The RBAC backend has SQLite storage, JWT auth, bcrypt hashing, and Axum middleware — all tested. The integration is pure wiring: initialize `RbacState` in `main.rs`, mount routes, layer middleware, and build frontend auth composable + views.
+
+### 1. Backend — main.rs Integration
+
+
+#### Current State
+
+`main.rs` creates an `AppState` with `AIProviderState`, builds `api_routes` by merging `auto_forge::forge::routes()`, and serves static files. No RBAC code is imported.
+
+#### Changes
+
+```rust
+// 1. Add import at top of main.rs
+use auto_forge::rbac::RbacState;
+use auto_forge::rbac::api::rbac_api_routes;
+use auto_forge::rbac::middleware::{auth_middleware, RbacMiddlewareState};
+
+// 2. Initialize RbacState before building the router
+let rbac_db_path = auto_forge::rbac::db::default_db_path();
+let jwt_secret = load_or_create_jwt_secret();
+let rbac_state = RbacState::new(
+    rbac_db_path.to_str().unwrap(),
+    &jwt_secret,
+).expect("Failed to initialize RBAC database");
+
+let rbac_mw_state = RbacMiddlewareState {
+    db: rbac_state.db.clone(),
+    jwt_secret: rbac_state.jwt_secret.clone(),
+};
+
+// 3. Build public routes (no auth)
+let public_routes = Router::new()
+    .route("/api/health", get(health_handler))
+    .merge(rbac_api_routes())  // /api/auth/login is public
+    .with_state(rbac_mw_state.clone());
+
+// 4. Build protected routes (auth required)
+let protected_routes = Router::new()
+    .merge(auto_forge::forge::routes())  // /api/forge/*
+    .with_state(app_state.clone())
+    .layer(axum::middleware::from_fn_with_state(
+        rbac_mw_state.clone(),
+        auth_middleware,
+    ));
+
+// 5. Merge everything
+let app = public_routes
+    .merge(protected_routes)
+    // ... existing static file serving ...
+```
+
+#### JWT Secret Loading
+
+```rust
+/// Load JWT secret from {data_dir}/autoforge/jwt_secret.txt.
+/// If file doesn't exist, generate a random 64-byte hex string and save it.
+fn load_or_create_jwt_secret() -> String {
+    let dir = dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoforge");
+    std::fs::create_dir_all(&dir).ok();
+    let path = dir.join("jwt_secret.txt");
+    
+    if path.exists() {
+        std::fs::read_to_string(&path).unwrap_or_else(|_| generate_random_secret())
+    } else {
+        let secret = generate_random_secret();
+        let _ = std::fs::write(&path, &secret);
+        tracing::info!("Generated new JWT secret at {}", path.display());
+        secret
+    }
+}
+
+fn generate_random_secret() -> String {
+    use std::fmt::Write;
+    let bytes: [u8; 32] = rand::random();
+    let mut hex = String::with_capacity(64);
+    for b in &bytes {
+        write!(&mut hex, "{:02x}", b).unwrap();
+    }
+    hex
+}
+```
+
+#### Health Endpoint
+
+```rust
+async fn health_handler() -> &'static str {
+    "OK"
+}
+```
+
+#### New: Register Endpoint
+
+The skeleton has `/api/admin/users` for admin-created users, but no self-service registration. Add to `rbac/api.rs`:
+
+```rust
+#[derive(Debug, Deserialize)]
+pub struct RegisterRequest {
+    pub username: String,
+    pub password: String,
+}
+
+/// POST /api/auth/register — public, self-service user registration.
+/// Creates user with "editor" role.
+pub async fn register(
+    State(state): State<RbacMiddlewareState>,
+    Json(body): Json<RegisterRequest>,
+) -> Result<(StatusCode, Json<LoginResponse>), (StatusCode, Json<ErrorResponse>)> {
+    if body.username.is_empty() || body.password.is_empty() {
+        return Err(error_response(StatusCode::BAD_REQUEST, "Username and password required"));
+    }
+    if body.password.len() < 4 {
+        return Err(error_response(StatusCode::BAD_REQUEST, "Password must be at least 4 characters"));
+    }
+    if state.db.get_user_by_username(&body.username)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?
+        .is_some()
+    {
+        return Err(error_response(StatusCode::CONFLICT, "Username already exists"));
+    }
+
+    let hash = auth::hash_password(&body.password)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+    let user = state.db.create_user(&body.username, &hash)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+
+    // Assign "editor" role to new users
+    if let Some(editor_role) = state.db.get_role_by_name("editor")
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?
+    {
+        let _ = state.db.assign_role(user.id, editor_role.id);
+    }
+
+    let roles = state.db.get_user_roles(user.id)
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+    let role_names: Vec<String> = roles.iter().map(|r| r.name.clone()).collect();
+    let token = auth::generate_token(&state.jwt_secret, user.id, &user.username, role_names.clone())
+        .map_err(|e| error_response(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+
+    Ok((StatusCode::CREATED, Json(LoginResponse {
+        token,
+        user_id: user.id,
+        username: user.username,
+        roles: role_names,
+    })))
+}
+```
+
+Update `rbac_api_routes()` to include the register route:
+
+```rust
+pub fn rbac_api_routes() -> Router<RbacMiddlewareState> {
+    Router::new()
+        .route("/api/auth/login", post(login))
+        .route("/api/auth/register", post(register))  // NEW
+        .route("/api/auth/me", get(me))
+        // ... rest unchanged ...
+}
+```
+
+#### State Compatibility
+
+`auth_middleware` requires `RbacMiddlewareState`, but forge routes use `AppState`. Solution: wrap protected forge routes with the auth middleware layer, which only validates the JWT and injects `AuthUser` into extensions. Forge handlers don't need to change — they can optionally read `AuthUser` from extensions later.
+
+
+### 2. Frontend — useAuth.ts Composable
+
+
+```typescript
+import { ref, computed } from 'vue'
+
+const API_BASE = '/api/auth'
+const TOKEN_KEY = 'autoforge_jwt'
+const USER_KEY = 'autoforge_user'
+
+// ── Singleton state ────────────────────────────────────────────────────────
+const _token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
+const _user = ref<{
+  user_id: number
+  username: string
+  roles: string[]
+  permissions: string[]
+} | null>(null)
+const _loading = ref(false)
+const _error = ref<string | null>(null)
+
+// Restore user from localStorage cache
+try {
+  const cached = localStorage.getItem(USER_KEY)
+  if (cached) _user.value = JSON.parse(cached)
+} catch {}
+
+export function useAuth() {
+  const token = _token
+  const user = _user
+  const loading = _loading
+  const error = _error
+  const isAuthenticated = computed(() => !!_token.value && !!_user.value)
+  const isAdmin = computed(() => _user.value?.roles.includes('admin') ?? false)
+
+  /** Login with username/password. Returns true on success. */
+  async function login(username: string, password: string): Promise<boolean> {
+    _loading.value = true
+    _error.value = null
+    try {
+      const resp = await fetch(`${API_BASE}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({ error: 'Login failed' }))
+        _error.value = data.error || `Login failed (${resp.status})`
+        return false
+      }
+      const data = await resp.json()
+      _token.value = data.token
+      _user.value = {
+        user_id: data.user_id,
+        username: data.username,
+        roles: data.roles,
+        permissions: [],  // fetched by me()
+      }
+      localStorage.setItem(TOKEN_KEY, data.token)
+      localStorage.setItem(USER_KEY, JSON.stringify(_user.value))
+      // Fetch full permissions
+      await me()
+      return true
+    } catch (e) {
+      _error.value = e instanceof Error ? e.message : String(e)
+      return false
+    } finally {
+      _loading.value = false
+    }
+  }
+
+  /** Register a new account. Auto-logins on success. */
+  async function register(username: string, password: string): Promise<boolean> {
+    _loading.value = true
+    _error.value = null
+    try {
+      const resp = await fetch(`${API_BASE}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({ error: 'Registration failed' }))
+        _error.value = data.error || `Registration failed (${resp.status})`
+        return false
+      }
+      const data = await resp.json()
+      _token.value = data.token
+      _user.value = {
+        user_id: data.user_id,
+        username: data.username,
+        roles: data.roles,
+        permissions: [],
+      }
+      localStorage.setItem(TOKEN_KEY, data.token)
+      localStorage.setItem(USER_KEY, JSON.stringify(_user.value))
+      await me()
+      return true
+    } catch (e) {
+      _error.value = e instanceof Error ? e.message : String(e)
+      return false
+    } finally {
+      _loading.value = false
+    }
+  }
+
+  /** Fetch current user info from /api/auth/me. */
+  async function me(): Promise<void> {
+    if (!_token.value) return
+    try {
+      const resp = await authFetch(`${API_BASE}/me`)
+      if (!resp.ok) {
+        logout()
+        return
+      }
+      const data = await resp.json()
+      _user.value = {
+        user_id: data.user_id,
+        username: data.username,
+        roles: data.roles,
+        permissions: data.permissions,
+      }
+      localStorage.setItem(USER_KEY, JSON.stringify(_user.value))
+    } catch {
+      logout()
+    }
+  }
+
+  /** Clear auth state and redirect to login. */
+  function logout() {
+    _token.value = null
+    _user.value = null
+    _error.value = null
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
+  }
+
+  /** Validate stored token on app mount. Returns true if valid. */
+  async function validateStoredToken(): Promise<boolean> {
+    if (!_token.value) return false
+    try {
+      await me()
+      return !!_user.value
+    } catch {
+      return false
+    }
+  }
+
+  return {
+    token, user, loading, error,
+    isAuthenticated, isAdmin,
+    login, register, logout, me, validateStoredToken,
+  }
+}
+
+// ── Auth-aware fetch wrapper ────────────────────────────────────────────────
+
+/**
+ * Drop-in replacement for `fetch()` that adds the Authorization header
+ * and handles 401 responses by clearing auth state.
+ */
+export async function authFetch(
+  input: string | URL | globalThis.Request,
+  init?: RequestInit,
+): Promise<Response> {
+  const token = _token.value
+  const headers = new Headers(init?.headers)
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  
+  const resp = await fetch(input, { ...init, headers })
+  
+  if (resp.status === 401) {
+    // Token expired or invalid — clear auth state
+    _token.value = null
+    _user.value = null
+    localStorage.removeItem('autoforge_jwt')
+    localStorage.removeItem('autoforge_user')
+  }
+  
+  return resp
+}
+```
+
+### 3. Frontend — LoginView.vue
+
+
+```
+┌─────────────────────────────────────────────┐
+│                                             │
+│           🔥 AutoForge                     │
+│                                             │
+│  ┌───────────────────────────────────────┐  │
+│  │  Username                              │  │
+│  │  [________________________]            │  │
+│  │                                        │  │
+│  │  Password                              │  │
+│  │  [________________________]            │  │
+│  │                                        │  │
+│  │  [        Login        ]              │  │
+│  │                                        │  │
+│  │  Don't have an account? Register       │  │
+│  └───────────────────────────────────────┘  │
+│                                             │
+│  Default: admin / admin                     │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useAuth } from '@/composables/useAuth'
+import { useI18n } from 'vue-i18n'
+import { Flame } from 'lucide-vue-next'
+
+const { t } = useI18n()
+const emit = defineEmits<{ 'auth-success': [] }>()
+
+const { login, register, loading, error, isAuthenticated } = useAuth()
+
+const username = ref('')
+const password = ref('')
+const isRegisterMode = ref(false)
+
+async function handleSubmit() {
+  const success = isRegisterMode.value
+    ? await register(username.value, password.value)
+    : await login(username.value, password.value)
+  if (success) {
+    emit('auth-success')
+  }
+}
+
+function toggleMode() {
+  isRegisterMode.value = !isRegisterMode.value
+  error.value = null
+}
+</script>
+
+<template>
+  <div class="login-view">
+    <div class="login-card">
+      <div class="login-brand">
+        <Flame :size="32" />
+        <h1>AutoForge</h1>
+      </div>
+
+      <form @submit.prevent="handleSubmit" class="login-form">
+        <div class="form-group">
+          <label for="username">{{ t('auth.username') }}</label>
+          <input
+            id="username"
+            v-model="username"
+            type="text"
+            autocomplete="username"
+            required
+            :disabled="loading"
+            :placeholder="t('auth.usernamePlaceholder')"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">{{ t('auth.password') }}</label>
+          <input
+            id="password"
+            v-model="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            :disabled="loading"
+            :placeholder="t('auth.passwordPlaceholder')"
+          />
+        </div>
+
+        <div v-if="error" class="login-error" role="alert">
+          {{ error }}
+        </div>
+
+        <button type="submit" class="login-button" :disabled="loading">
+          {{ loading
+            ? t('auth.loading')
+            : isRegisterMode
+              ? t('auth.register')
+              : t('auth.login')
+          }}
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <button class="toggle-mode" @click="toggleMode">
+          {{ isRegisterMode
+            ? t('auth.hasAccount')
+            : t('auth.noAccount')
+          }}
+        </button>
+      </div>
+
+      <div class="login-hint">
+        {{ t('auth.defaultHint') }}
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.login-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: hsl(var(--af-bg));
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 2rem;
+  background: hsl(var(--card));
+  border: 1px solid var(--af-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  color: var(--af-primary);
+}
+
+.login-brand h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--af-muted);
+}
+
+.form-group input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  background: hsl(var(--af-bg));
+  color: var(--af-fg);
+  font-size: 0.95rem;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--af-primary);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
+}
+
+.login-error {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+  font-size: 0.85rem;
+}
+
+.login-button {
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--af-primary);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.login-button:hover { opacity: 0.9; }
+.login-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.login-footer {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.toggle-mode {
+  background: none;
+  border: none;
+  color: var(--af-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.toggle-mode:hover { opacity: 0.8; }
+
+.login-hint {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--af-muted);
+}
+</style>
+```
+
+### 4. Frontend — App.vue Integration
+
+
+Add auth guard at the top of the main template. The app shows LoginView until authenticated:
+
+```vue
+<!-- Inside <template>, wrap existing content: -->
+<LoginView v-if="!isAuthenticated" @auth-success="onAuthSuccess" />
+<div v-else class="autoforge-app">
+  <!-- existing nav-rail + view-main content -->
+</div>
+```
+
+```typescript
+// In <script setup>:
+import { useAuth } from '@/composables/useAuth'
+import LoginView from './views/LoginView.vue'
+
+const { isAuthenticated, validateStoredToken } = useAuth()
+
+// On mount, check for stored token
+onMounted(async () => {
+  const valid = await validateStoredToken()
+  // If invalid, LoginView will show automatically via isAuthenticated
+  if (valid) {
+    // existing mount logic
+    fetchStatus()
+  }
+})
+
+function onAuthSuccess() {
+  // Trigger existing mount logic
+  fetchStatus()
+}
+```
+
+### 5. Frontend — Auth Interceptor for All API Calls
+
+
+
+| Composable File | Change |
+|----------------|--------|
+| `frontend/src/composables/useForge.ts` | `import { authFetch } from './useAuth'` → replace all `fetch(` with `authFetch(` |
+| `frontend/src/composables/useRelay.ts` | Same |
+| `frontend/src/composables/useSpecs.ts` | Same |
+| `frontend/src/composables/useWiki.ts` | Same |
+| `frontend/src/composables/useApiSources.ts` | Same |
+| `frontend/src/composables/useAgentConfigs.ts` | Same |
+| `frontend/src/composables/useProject.ts` | Same |
+
+No other logic changes needed — `authFetch` is a drop-in replacement that adds the `Authorization` header.
+
+### 6. Frontend — User Menu in Nav Rail
+
+Add a small user indicator in `App.vue`'s `.rail-footer`:
+
+```vue
+<div class="rail-footer">
+  <div v-if="user" class="user-indicator" :title="user.username">
+    <span class="user-avatar">{{ user.username[0].toUpperCase() }}</span>
+    <button class="logout-btn" @click="logout" :title="t('auth.logout')">
+      <LogOut :size="14" />
+    </button>
+  </div>
+  <SettingsMenu />
+</div>
+```
+
+```css
+.user-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--af-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.logout-btn {
+  background: none;
+  border: none;
+  color: var(--af-muted);
+  cursor: pointer;
+  padding: 2px;
+}
+.logout-btn:hover { color: var(--af-fg); }
+```
+
+### 7. State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Checking: App mounts
+    Checking --> Authenticated: Stored token is valid
+    Checking --> Unauthenticated: No token or invalid
+    Unauthenticated --> LoginView: Show login form
+    LoginView --> Authenticating: User submits credentials
+    Authenticating --> Authenticated: Login/register success
+    Authenticating --> LoginView: Login fails (show error)
+    Authenticated --> MainApp: Show nav-rail + views
+    Authenticated --> Unauthenticated: 401 response or logout
+    MainApp --> Unauthenticated: Token expires
+```
+
+### 8. Error Handling
+
+| Error Scenario | Backend Response | Frontend Handling |
+|----------------|------------------|-------------------|
+| Missing Authorization header | 401 "Missing Authorization header" | `authFetch` clears token, shows LoginView |
+| Expired JWT | 401 "Invalid token: ExpiredSignature" | Same as above |
+| Invalid JWT signature | 401 "Invalid token: InvalidSignature" | Same as above |
+| User deleted after token issued | 401 "User not found" | Same as above |
+| Wrong username/password | 401 "Invalid credentials" | LoginView shows error message |
+| Username taken on register | 409 "Username already exists" | LoginView shows error message |
+| Password too short | 400 "Password must be at least 4 characters" | LoginView shows error message |
+| Missing RBAC database | 500 on startup | Server won't start (fail-fast) |
+| SQLite locked | 500 "INTERNAL_SERVER_ERROR" | Toast notification |
+
+### 9. i18n Keys
+
+| Key | en.json | zh.json |
+|-----|---------|---------|
+| `auth.username` | `"Username"` | `"用户名"` |
+| `auth.password` | `"Password"` | `"密码"` |
+| `auth.usernamePlaceholder` | `"Enter username"` | `"输入用户名"` |
+| `auth.passwordPlaceholder` | `"Enter password"` | `"输入密码"` |
+| `auth.login` | `"Login"` | `"登录"` |
+| `auth.register` | `"Register"` | `"注册"` |
+| `auth.loading` | `"Signing in..."` | `"登录中..."` |
+| `auth.noAccount` | `"Don't have an account? Register"` | `"没有账户？注册"` |
+| `auth.hasAccount` | `"Already have an account? Login"` | `"已有账户？登录"` |
+| `auth.logout` | `"Log out"` | `"退出登录"` |
+| `auth.defaultHint` | `"Default: admin / admin"` | `"默认：admin / admin"` |
+
+### 10. Modified Files
+
+| File | Change |
+|------|--------|
+| `backend/src/main.rs` | Initialize `RbacState`, build public + protected routers, add health handler |
+| `backend/src/rbac/api.rs` | Add `register()` handler and route |
+| `frontend/src/composables/useAuth.ts` | **NEW** — singleton auth state, `login()`, `register()`, `logout()`, `me()`, `authFetch()` |
+| `frontend/src/views/LoginView.vue` | **NEW** — login/register form |
+| `frontend/src/App.vue` | Add auth guard (LoginView vs main app), user menu in rail-footer |
+| `frontend/src/composables/useForge.ts` | Replace `fetch(` with `authFetch(` |
+| `frontend/src/composables/useRelay.ts` | Replace `fetch(` with `authFetch(` |
+| `frontend/src/composables/useSpecs.ts` | Replace `fetch(` with `authFetch(` |
+| `frontend/src/composables/useWiki.ts` | Replace `fetch(` with `authFetch(` |
+| `frontend/src/composables/useApiSources.ts` | Replace `fetch(` with `authFetch(` |
+| `frontend/src/composables/useAgentConfigs.ts` | Replace `fetch(` with `authFetch(` |
+| `frontend/src/composables/useProject.ts` | Replace `fetch(` with `authFetch(` |
+| `frontend/src/locales/en.json` | Add `auth.*` keys |
+| `frontend/src/locales/zh.json` | Add `auth.*` keys |
+
+### 11. Data Lifecycle
+
+```
+[Server Start]
+  → load_or_create_jwt_secret() reads/generates secret
+  → RbacState::new() opens SQLite, runs migration, seeds data
+  → Default admin user (admin/admin) created on first run only
+
+[First Visit]
+  → App.vue mounts → validateStoredToken() → no token → LoginView shown
+  → User enters admin/admin → POST /api/auth/login → JWT returned
+  → JWT stored in localStorage → main app loads
+
+[Subsequent Visits]
+  → App.vue mounts → validateStoredToken() → token found → GET /api/auth/me
+  → Valid response → main app loads directly
+
+[Token Expiry (24h)]
+  → Any API call returns 401 → authFetch clears token → LoginView shown
+
+[Logout]
+  → User clicks logout → clear localStorage → LoginView shown
+```
+
+### 12. Quality Checklist
+
+- [x] Every backend route is either explicitly public or protected by `auth_middleware`
+- [x] Default admin user seeded on first run (admin/admin)
+- [x] JWT secret persists across server restarts
+- [x] Frontend validates stored token on mount
+- [x] 401 responses clear auth state and redirect to login
+- [x] All existing composables updated to use `authFetch`
+- [x] Login and register forms with error display
+- [x] i18n keys for both English and Chinese
+- [x] No unhandled error cases
+- [x] Explicit data lifecycle (token storage, validation, expiry, logout)

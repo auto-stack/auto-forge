@@ -1,46 +1,46 @@
-# Autodown Module
+# Autodown 模块
 
-## Overview
+## 概述
 
-Block-Based Markdown Editor
+基于块的 Markdown 编辑器
 
-## Goals
+## 目标
 
-- **G1** — Block-Based Markdown Editor
-- **G2** — Table Editor with Resizable Columns and Rows
+- **G1** — 基于块的 Markdown 编辑器
+- **G2** — 带可调整列和行的表格编辑器
 
-## Key Architecture Decisions
+## 关键架构决策
 
-_No architecture decisions documented yet._
+_尚未记录架构决策。_
 
-## Key Designs
+## 关键设计
 
-- **D1** — Editor Extension Architecture
-- **D2** — Table IAL (Inline Attribute List) Storage
+- **D1** — 编辑器扩展架构
+- **D2** — 表格 IAL（内联属性列表）存储
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [ui-system](ui-system/module.ad)
+依赖项：[ui-system](ui-system/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 2 | [goals.ad](goals.ad) |
-| Designs | 2 | [designs.ad](designs.ad) |
-| Tests | 2 | [tests.ad](tests.ad) |
+| 目标 | 2 | [goals.ad](goals.ad) |
+| 设计 | 2 | [designs.ad](designs.ad) |
+| 测试 | 2 | [tests.ad](tests.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Autodown-`** (e.g. `Autodown-G1`, `Autodown-D1`).
+本模块中的规格 ID 使用前缀 **`Autodown-`**（例如 `Autodown-G1`、`Autodown-D1`）。

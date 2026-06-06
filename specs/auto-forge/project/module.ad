@@ -1,48 +1,48 @@
-# Project Module
+# Project 模块
 
-## Overview
+## 概述
 
-Project Concept enables VS Code–style folder opening with persistent workspace
+Project 概念支持类似 VS Code 的文件夹打开方式，并具备持久化工作空间
 
-## Goals
+## 目标
 
-- **G1** — Project Concept enables VS Code–style folder opening with persistent workspace
+- **G1** — Project 概念支持类似 VS Code 的文件夹打开方式，并具备持久化工作空间
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — Backend API Extensions
-- **A2** — Frontend Tree View Architecture
-- **A3** — Explorer Module Architecture
+- **A1** — 后端 API 扩展
+- **A2** — 前端树形视图架构
+- **A3** — Explorer 模块架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — Explorer View & Tree Component
+- **D1** — Explorer 视图与树形组件
 
-## Module Dependencies
+## 模块依赖
 
-Depends on: [api-sources](api-sources/module.ad), [provider](provider/module.ad), [specs](specs/module.ad), [ui-system](ui-system/module.ad)
+依赖：[api-sources](api-sources/module.ad)、[provider](provider/module.ad)、[specs](specs/module.ad)、[ui-system](ui-system/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
-|------|-------|------|
-| Goals | 1 | [goals.ad](goals.ad) |
-| Architecture | 3 | [architecture.ad](architecture.ad) |
-| Designs | 1 | [designs.ad](designs.ad) |
-| Plans | 2 | [plans.ad](plans.ad) |
-| Tests | 1 | [tests.ad](tests.ad) |
+| 类型 | 数量 | 文件 |
+|------|------|------|
+| 目标 | 1 | [goals.ad](goals.ad) |
+| 架构 | 3 | [architecture.ad](architecture.ad) |
+| 设计 | 1 | [designs.ad](designs.ad) |
+| 计划 | 2 | [plans.ad](plans.ad) |
+| 测试 | 1 | [tests.ad](tests.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计与组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Project-`** (e.g. `Project-G1`, `Project-D1`).
+本模块中的规格 ID 使用前缀 **`Project-`**（例如 `Project-G1`、`Project-D1`）。

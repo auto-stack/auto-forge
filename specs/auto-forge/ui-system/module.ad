@@ -1,58 +1,58 @@
-# UiSystem Module
+# UiSystem 模块
 
-## Overview
+## 概述
 
-Responsive and Accessible Frontend
+响应式可访问前端
 
-## Goals
+## 目标
 
-- **G1** — Responsive and Accessible Frontend
-- **G2** — Layout adapts to desktop, tablet, and mobile breakpoints
-- **G3** — Keyboard shortcuts navigate between views without mouse
-- **G4** — Focus management guides users through gate approval flows
-- **G5** — Screen reader annotations describe node graph and relations
-- **G6** — Theme & Accent Color System
-- *...and 1 more*
+- **G1** — 响应式可访问前端
+- **G2** — 布局适配桌面、平板和移动端断点
+- **G3** — 键盘快捷键无需鼠标即可在视图间导航
+- **G4** — 焦点管理引导用户完成关卡审批流程
+- **G5** — 屏幕阅读器注释描述节点图和关联关系
+- **G6** — 主题与强调色系统
+- *...以及另外 1 个*
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — Frontend Composable State Architecture
-- **A2** — Search & Filter Architecture
-- **A3** — Theme & Accent System Architecture
+- **A1** — 前端组合式状态架构
+- **A2** — 搜索与筛选架构
+- **A3** — 主题与强调系统架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — Responsive 3-Zone Layout System
-- **D2** — Theme & Accent Component System
-- **D3** — SpecsView Layout Refactor
+- **D1** — 响应式三区域布局系统
+- **D2** — 主题与强调组件系统
+- **D3** — 规格视图布局重构
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [api-sources](api-sources/module.ad), [chat](chat/module.ad), [project](project/module.ad), [relay](relay/module.ad), [specs](specs/module.ad)
+依赖项：[api-sources](api-sources/module.ad)、[chat](chat/module.ad)、[project](project/module.ad)、[relay](relay/module.ad)、[specs](specs/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 7 | [goals.ad](goals.ad) |
-| Architecture | 3 | [architecture.ad](architecture.ad) |
-| Designs | 3 | [designs.ad](designs.ad) |
-| Plans | 2 | [plans.ad](plans.ad) |
-| Tests | 4 | [tests.ad](tests.ad) |
-| Reviews | 1 | [reviews.ad](reviews.ad) |
-| Reports | 1 | [reports.ad](reports.ad) |
+| 目标 | 7 | [goals.ad](goals.ad) |
+| 架构 | 3 | [architecture.ad](architecture.ad) |
+| 设计 | 3 | [designs.ad](designs.ad) |
+| 计划 | 2 | [plans.ad](plans.ad) |
+| 测试 | 4 | [tests.ad](tests.ad) |
+| 评审 | 1 | [reviews.ad](reviews.ad) |
+| 报告 | 1 | [reports.ad](reports.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`UiSystem-`** (e.g. `UiSystem-G1`, `UiSystem-D1`).
+本模块中的规格 ID 使用前缀 **`UiSystem-`**（例如 `UiSystem-G1`、`UiSystem-D1`）。

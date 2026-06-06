@@ -1,42 +1,42 @@
-# AutoForge Overview
+# AutoForge 概述
 
-AutoForge is an AI-native software engineering platform that orchestrates multiple specialized agents through a serial pipeline to design, implement, and verify software projects. It combines a chat-first interface, a structured specification system, and a relay pipeline that routes tasks between profession-specific agents.
+AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多个专业智能体，以设计、实现和验证软件项目。它融合了聊天优先界面、结构化规格系统，以及一个将任务路由到特定职业智能体的中继流水线。
 
-## Technology Stack
+## 技术栈
 
-### Backend
+### 后端
 
-| Technology | Version | Source | Purpose |
+| 技术 | 版本 | 来源 | 用途 |
 |------------|---------|--------|---------|
-| **Rust** | 1.80+ | `Cargo.toml` | Systems programming, memory safety |
-| **Axum** | 0.8 | `Cargo.toml` | Web framework (REST + WebSocket + SSE) |
-| **Tokio** | 1.x | `Cargo.toml` | Async runtime |
-| **Reqwest** | 0.12 | `Cargo.toml` | HTTP client for LLM APIs |
-| **Serde** | 1.x | `Cargo.toml` | Serialization |
-| **Tower-HTTP** | 0.6 | `Cargo.toml` | CORS, static file serving |
-| **Tracing** | 0.1 | `Cargo.toml` | Observability |
-| **UUID** | 1.x | `Cargo.toml` | Session identifiers |
+| **Rust** | 1.80+ | `Cargo.toml` | 系统编程，内存安全 |
+| **Axum** | 0.8 | `Cargo.toml` | Web 框架（REST + WebSocket + SSE） |
+| **Tokio** | 1.x | `Cargo.toml` | 异步运行时 |
+| **Reqwest** | 0.12 | `Cargo.toml` | LLM API 的 HTTP 客户端 |
+| **Serde** | 1.x | `Cargo.toml` | 序列化 |
+| **Tower-HTTP** | 0.6 | `Cargo.toml` | CORS，静态文件服务 |
+| **Tracing** | 0.1 | `Cargo.toml` | 可观测性 |
+| **UUID** | 1.x | `Cargo.toml` | 会话标识符 |
 
-### Frontend
+### 前端
 
-| Technology | Version | Source | Purpose |
+| 技术 | 版本 | 来源 | 用途 |
 |------------|---------|--------|---------|
-| **Vue 3** | 3.5+ | `package.json` | UI framework (Composition API) |
-| **Vite** | 6.x | `package.json` | Build tool + dev server |
-| **TypeScript** | 5.8+ | `package.json` | Type safety |
-| **TipTap** | 3.23+ | `package.json` | ProseMirror-based block editor |
-| **Mermaid** | 11.15+ | `package.json` | Diagram rendering in specs |
-| **Markstream** | 0.0.14-beta.8 | `package.json` | Streaming Markdown renderer |
+| **Vue 3** | 3.5+ | `package.json` | UI 框架（Composition API） |
+| **Vite** | 6.x | `package.json` | 构建工具 + 开发服务器 |
+| **TypeScript** | 5.8+ | `package.json` | 类型安全 |
+| **TipTap** | 3.23+ | `package.json` | 基于 ProseMirror 的块编辑器 |
+| **Mermaid** | 11.15+ | `package.json` | 规格中的图表渲染 |
+| **Markstream** | 0.0.14-beta.8 | `package.json` | 流式 Markdown 渲染器 |
 
-### AI Providers
+### AI 提供商
 
-| Provider | Models | Configuration |
+| 提供商 | 模型 | 配置 |
 |----------|--------|---------------|
-| **Anthropic** | Claude 3.5 Opus / Sonnet / Haiku | `ANTHROPIC_API_KEY` env or `~/.claude/settings.json` |
-| **OpenAI** | GPT-4o | `OPENAI_API_KEY` env |
-| **Local** | Ollama / custom | Local URL in API Sources config |
+| **Anthropic** | Claude 3.5 Opus / Sonnet / Haiku | `ANTHROPIC_API_KEY` 环境变量或 `~/.claude/settings.json` |
+| **OpenAI** | GPT-4o | `OPENAI_API_KEY` 环境变量 |
+| **Local** | Ollama / 自定义 | API 来源配置中的本地 URL |
 
-## System Architecture
+## 系统架构
 
 ```mermaid
 graph TD
@@ -70,95 +70,260 @@ graph TD
     Orchestrator --> Core
 ```
 
-## Core Concepts
+## 核心概念
 
-| Concept | Definition | Lives In |
+| 概念 | 定义 | 所在位置 |
 |---------|------------|----------|
-| **Soul** | Markdown personality definition for an agent (values, style, rituals) | `agent-config` |
-| **Profession** | Capability contract: owned specs, readable specs, allowed tools, handoff targets | `agent-config` |
-| **Relay** | Serial agent pipeline with baton-passing handoff documents | `relay` |
-| **Gate** | Human-in-the-loop approval point (GSD auto-approve vs Check explicit) | `relay` / `chat` |
-| **Handoff** | Compressed context document passed between agents (~5× token savings) | `relay` |
-| **Spec** | Structured decision record in `.ad` format (Goals → Architecture → Designs → Plans → Tests → Reviews → Reports) | `specs` |
-| **Checkpoint** | JSON + git snapshot for crash recovery without chat history | `runtime` |
-| **Errand** | Fire-and-forget research task in isolated context | `errand` |
+| **人格** | 智能体的 Markdown 人格定义（价值观、风格、仪式） | `agent-config` |
+| **职业** | 能力契约：拥有的规格、可读的规格、允许的工具、交接目标 | `agent-config` |
+| **中继** | 带接力交接文档的串行智能体流水线 | `relay` |
+| **关卡** | 人工介入审批点（GSD 自动批准 vs 检查显式） | `relay` / `chat` |
+| **交接** | 智能体之间传递的压缩上下文文档（约节省 5 倍 Token） | `relay` |
+| **规格** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
+| **检查点** | 用于无聊天记录崩溃恢复的 JSON + git 快照 | `runtime` |
+| **差事** | 在隔离上下文中的即发即弃研究任务 | `errand` |
 
-## Core Flows
+## 核心流程
 
-Five execution flows span multiple modules. See [flows.ad](flows.ad) for full sequence diagrams and step-by-step breakdowns.
+五个执行流程跨越多个模块。完整序列图和分步分解请参阅 [flows.ad](flows.ad)。
 
-| Flow | Entry | Exit | Key Modules |
+| 流程 | 入口 | 出口 | 关键模块 |
 |------|-------|------|-------------|
-| **Forge Chat Loop** | User sends message | SSE delivers response | chat, provider, runtime, relay |
-| **Relay Pipeline** | FlowSpec loaded | Completed / Failed / Paused | relay, provider, runtime, specs |
-| **Agent Turn** | Agent spawned with profession | Handoff document returned | agent-config, provider, runtime |
-| **Spec Lifecycle** | Agent reads/writes spec | Persisted to `.ad` with derived statuses | specs, forge |
-| **Gate Approval** | Step has `gate: true` | User approves/rejects | relay, chat, ui-system |
+| **Forge 聊天循环** | 用户发送消息 | SSE 交付响应 | chat, provider, runtime, relay |
+| **中继流水线** | FlowSpec 加载 | 已完成 / 失败 / 已暂停 | relay, provider, runtime, specs |
+| **智能体轮次** | 以职业启动智能体 | 返回交接文档 | agent-config, provider, runtime |
+| **规格生命周期** | 智能体读取/写入规格 | 持久化到 `.ad` 并派生状态 | specs, forge |
+| **关卡审批** | 步骤设置 `gate: true` | 用户批准/拒绝 | relay, chat, ui-system |
 
-## Module Index
+## 模块索引
 
-| Module | Description | Key Components | Dependencies | Specs |
+| 模块 | 描述 | 关键组件 | 依赖项 | 规格 |
 |--------|-------------|----------------|--------------|-------|
-| **agent-config** | Agent Identity System — Soul, Profession, Model | `AgentInstance`, `SoulConfig`, `Profession`, `ModelConfig` | relay, specs | [module](agent-config/module.ad) · [goals](agent-config/goals.ad) · [architecture](agent-config/architecture.ad) · [designs](agent-config/designs.ad) · [tests](agent-config/tests.ad) |
-| **api-sources** | Multi-provider LLM management | `ApiSource`, `ModelDefinition`, `ModelTier` | — | [module](api-sources/module.ad) · [goals](api-sources/goals.ad) · [architecture](api-sources/architecture.ad) · [designs](api-sources/designs.ad) · [plans](api-sources/plans.ad) · [tests](api-sources/tests.ad) |
-| **autodown** | Block-based Markdown editor with IAL table storage | `AutoDownEditor`, `useAutoDownEditor`, `tableAttributes`, `rowResizing` | ui-system | [module](autodown/module.ad) · [goals](autodown/goals.ad) · [designs](autodown/designs.ad) · [tests](autodown/tests.ad) |
-| **chat** | Chat-First Gate Approval with Smart Secretary | `GateCard`, `SecretaryMessage`, `BringInTool`, `StreamingRenderer` | relay, provider, ui-system | [module](chat/module.ad) · [goals](chat/goals.ad) · [architecture](chat/architecture.ad) · [designs](chat/designs.ad) · [plans](chat/plans.ad) · [reviews](chat/reviews.ad) · [tests](chat/tests.ad) |
-| **cli** | Interactive REPL (legacy) | `run_repl()`, `Settings` | — | [module](cli/module.ad) · [goals](cli/goals.ad) · [designs](cli/designs.ad) · [tests](cli/tests.ad) |
-| **editor** | WYSIWYG block-based editing | `AutoDownEditor.vue`, extension factory, slash menu | ui-system | [module](editor/module.ad) · [goals](editor/goals.ad) · [architecture](editor/architecture.ad) · [designs](editor/designs.ad) · [plans](editor/plans.ad) |
-| **errand** | Fire-and-forget research tasks | `DispatchTool`, `gofer` profession, `ErrandSession` | chat, provider | [module](errand/module.ad) · [goals](errand/goals.ad) · [architecture](errand/architecture.ad) · [designs](errand/designs.ad) · [plans](errand/plans.ad) |
-| **project** | VS Code–style workspace | `ExplorerView`, `TreeView`, `GoalsTree` | ui-system | [module](project/module.ad) · [goals](project/goals.ad) · [architecture](project/architecture.ad) · [designs](project/designs.ad) · [plans](project/plans.ad) · [tests](project/tests.ad) |
-| **provider** | Unified AI communication layer | `ClaudeProvider`, `SseParser`, `dispatch_chat()` | api-sources | [module](provider/module.ad) · [goals](provider/goals.ad) · [architecture](provider/architecture.ad) · [designs](provider/designs.ad) · [plans](provider/plans.ad) · [tests](provider/tests.ad) |
-| **relay** | Serial agent flows with baton passing | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [module](relay/module.ad) · [goals](relay/goals.ad) · [architecture](relay/architecture.ad) · [designs](relay/designs.ad) · [plans](relay/plans.ad) · [reviews](relay/reviews.ad) · [reports](relay/reports.ad) · [tests](relay/tests.ad) |
-| **runtime** | Checkpoint & crash recovery | `ContextManager`, `Session`, `PermissionPolicy` | provider | [module](runtime/module.ad) · [goals](runtime/goals.ad) · [designs](runtime/designs.ad) · [tests](runtime/tests.ad) |
-| **specs** | Spec pyramid and workspace | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [module](specs/module.ad) · [goals](specs/goals.ad) · [architecture](specs/architecture.ad) · [designs](specs/designs.ad) · [plans](specs/plans.ad) · [reviews](specs/reviews.ad) · [reports](specs/reports.ad) · [tests](specs/tests.ad) |
-| **ui-system** | Responsive accessible frontend | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [module](ui-system/module.ad) · [goals](ui-system/goals.ad) · [architecture](ui-system/architecture.ad) · [designs](ui-system/designs.ad) · [plans](ui-system/plans.ad) · [reviews](ui-system/reviews.ad) · [reports](ui-system/reports.ad) · [tests](ui-system/tests.ad) |
-| **wiki** | Project-scoped knowledge base | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [module](wiki/module.ad) · [goals](wiki/goals.ad) · [architecture](wiki/architecture.ad) · [designs](wiki/designs.ad) · [plans](wiki/plans.ad) · [tests](wiki/tests.ad) |
+| **agent-config** | 智能体身份系统 — 人格、职业、模型 | `AgentInstance`, `SoulConfig`, `Profession`, `ModelConfig` | relay, specs | [模块](agent-config/module.ad) · [目标](agent-config/goals.ad) · [架构](agent-config/architecture.ad) · [设计](agent-config/designs.ad) · [测试](agent-config/tests.ad) |
+| **api-sources** | 多提供商 LLM 管理 | `ApiSource`, `ModelDefinition`, `ModelTier` | — | [模块](api-sources/module.ad) · [目标](api-sources/goals.ad) · [架构](api-sources/architecture.ad) · [设计](api-sources/designs.ad) · [计划](api-sources/plans.ad) · [测试](api-sources/tests.ad) |
+| **autodown** | 基于块的 Markdown 编辑器，带 IAL 表格存储 | `AutoDownEditor`, `useAutoDownEditor`, `tableAttributes`, `rowResizing` | ui-system | [模块](autodown/module.ad) · [目标](autodown/goals.ad) · [设计](autodown/designs.ad) · [测试](autodown/tests.ad) |
+| **chat** | 聊天优先关卡审批与智能秘书 | `GateCard`, `SecretaryMessage`, `BringInTool`, `StreamingRenderer` | relay, provider, ui-system | [模块](chat/module.ad) · [目标](chat/goals.ad) · [架构](chat/architecture.ad) · [设计](chat/designs.ad) · [计划](chat/plans.ad) · [评审](chat/reviews.ad) · [测试](chat/tests.ad) |
+| **cli** | 交互式 REPL（遗留） | `run_repl()`, `Settings` | — | [模块](cli/module.ad) · [目标](cli/goals.ad) · [设计](cli/designs.ad) · [测试](cli/tests.ad) |
+| **editor** | 所见即所得的基于块的编辑 | `AutoDownEditor.vue`, extension factory, slash menu | ui-system | [模块](editor/module.ad) · [目标](editor/goals.ad) · [架构](editor/architecture.ad) · [设计](editor/designs.ad) · [计划](editor/plans.ad) |
+| **errand** | 即发即弃的研究任务 | `DispatchTool`, `gofer` profession, `ErrandSession` | chat, provider | [模块](errand/module.ad) · [目标](errand/goals.ad) · [架构](errand/architecture.ad) · [设计](errand/designs.ad) · [计划](errand/plans.ad) |
+| **project** | VS Code 风格的工作区 | `ExplorerView`, `TreeView`, `GoalsTree` | ui-system | [模块](project/module.ad) · [目标](project/goals.ad) · [架构](project/architecture.ad) · [设计](project/designs.ad) · [计划](project/plans.ad) · [测试](project/tests.ad) |
+| **provider** | 统一的 AI 通信层 | `ClaudeProvider`, `SseParser`, `dispatch_chat()` | api-sources | [模块](provider/module.ad) · [目标](provider/goals.ad) · [架构](provider/architecture.ad) · [设计](provider/designs.ad) · [计划](provider/plans.ad) · [测试](provider/tests.ad) |
+| **relay** | 带接力传递的串行智能体流程 | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [模块](relay/module.ad) · [目标](relay/goals.ad) · [架构](relay/architecture.ad) · [设计](relay/designs.ad) · [计划](relay/plans.ad) · [评审](relay/reviews.ad) · [报告](relay/reports.ad) · [测试](relay/tests.ad) |
+| **runtime** | 检查点与崩溃恢复 | `ContextManager`, `Session`, `PermissionPolicy` | provider | [模块](runtime/module.ad) · [目标](runtime/goals.ad) · [设计](runtime/designs.ad) · [测试](runtime/tests.ad) |
+| **specs** | 规格金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
+| **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
+| **wiki** | 项目范围的知识库 | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [模块](wiki/module.ad) · [目标](wiki/goals.ad) · [架构](wiki/architecture.ad) · [设计](wiki/designs.ad) · [计划](wiki/plans.ad) · [测试](wiki/tests.ad) |
 
-## How to Navigate Specs
+## 如何浏览规格
 
-1. **Start with Overview** — Read this document for system-wide context.
-2. **Understand Core Flows** — Read [flows.ad](flows.ad) to see how data moves across modules.
-3. **Pick a Module** — Read its `module.ad` for a quick tour (goals, decisions, designs, dependencies).
-4. **Read Goals** — Each module's `goals.ad` defines what the module aims to achieve.
-5. **Read Architecture** — `architecture.ad` describes high-level design, trade-offs, and component interactions.
-6. **Dive into Designs** — `designs.ad` contains detailed technical specs, interfaces, and data models.
-7. **Follow Plans** — `plans.ad` tracks implementation tasks, durations, and dependencies.
-8. **Verify with Tests** — `tests.ad` lists acceptance criteria and test scenarios.
-9. **Check Reviews** — `reviews.ad` captures post-implementation retrospectives.
-10. **Read Reports** — `reports.ad` contains implementation summaries and gap analyses.
+1. **从概述开始** — 阅读本文档以了解系统范围的上下文。
+2. **理解核心流程** — 阅读 [flows.ad](flows.ad) 以查看数据如何跨模块流动。
+3. **选择一个模块** — 阅读其 `module.ad` 以快速了解（目标、决策、设计、依赖项）。
+4. **阅读目标** — 每个模块的 `goals.ad` 定义了该模块旨在实现的内容。
+5. **阅读架构** — `architecture.ad` 描述了高层设计、权衡和组件交互。
+6. **深入设计** — `designs.ad` 包含详细的技术规格、接口和数据模型。
+7. **跟踪计划** — `plans.ad` 跟踪实现任务、持续时间和依赖项。
+8. **通过测试验证** — `tests.ad` 列出验收标准和测试场景。
+9. **检查评审** — `reviews.ad` 记录实现后的回顾。
+10. **阅读报告** — `reports.ad` 包含实现总结和差距分析。
 
-## ID Convention
+## ID 约定
 
-Spec IDs follow the format `ModulePrefix-TypeNumber`, e.g.:
-- `Relay-G1` — Relay module, Goal #1
-- `Chat-D3` — Chat module, Design #3
-- `AgentConfig-T2` — Agent Config module, Test #2
+规格 ID 遵循格式 `ModulePrefix-TypeNumber`，例如：
+- `Relay-G1` — Relay 模块，目标 #1
+- `Chat-D3` — Chat 模块，设计 #3
+- `AgentConfig-T2` — Agent Config 模块，测试 #2
 
-Type prefixes: **G**oals, **A**rchitecture, **D**esigns, **P**lans, **T**ests, **V**iews (Reviews), **R**eports.
+类型前缀：**G**oals（目标）、**A**rchitecture（架构）、**D**esigns（设计）、**P**lans（计划）、**T**ests（测试）、**V**iews（评审）、**R**eports（报告）。
 
-## Project Layout
+## 项目布局
 
 ```
 auto-forge/
-├── backend/          # Rust (Axum) — REST API, WebSocket, SSE, Relay engine
-│   ├── src/forge/    # Chat loop, spec store, tools
-│   ├── src/relay/    # Pipeline engine, agent spawning, handoffs
-│   ├── src/provider/ # LLM provider abstraction (Claude, OpenAI, Local)
+├── backend/          # Rust (Axum) — REST API, WebSocket, SSE, Relay 引擎
+│   ├── src/forge/    # 聊天循环、规格存储、工具
+│   ├── src/relay/    # 流水线引擎、智能体启动、交接
+│   ├── src/provider/ # LLM 提供商抽象（Claude, OpenAI, Local）
 │   └── Cargo.toml
-├── frontend/         # Vue 3 (Vite) — Chat, Specs, Wiki, Relay panels
+├── frontend/         # Vue 3 (Vite) — 聊天、规格、Wiki、中继面板
 │   ├── src/components/
 │   ├── src/composables/
 │   └── package.json
-├── specs/            # Structured specs (this directory)
-│   └── auto-forge/   # Project specs
-├── wiki/             # Knowledge base (processed markdown)
-├── raw/              # Original imported documents
-└── scripts/          # Python helpers (regenerate_specs, generate_module_overviews)
+├── specs/            # 结构化规格（本目录）
+│   └── auto-forge/   # 项目规格
+├── wiki/             # 知识库（处理后 Markdown）
+├── raw/              # 原始导入文档
+└── scripts/          # Python 辅助脚本（regenerate_specs, generate_module_overviews）
 ```
 
-## Deployment
+## 部署
 
-| Mode | Backend | Frontend | Command |
+| 模式 | 后端 | 前端 | 命令 |
 |------|---------|----------|---------|
-| Development | `:3031` | `:5173` (Vite dev) | `cargo run` + `npm run dev` |
-| Production | `:3031` | served by backend from `frontend/dist/` | `cargo run --release` |
+| 开发 | `:3031` | `:5173` (Vite dev) | `cargo run` + `npm run dev` |
+| 生产 | `:3031` | 由后端从 `frontend/dist/` 提供 | `cargo run --release` |[stage] run_soul_finished
+
+[summary]
+# AutoForge 概述
+
+AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多个专业智能体，以设计、实现和验证软件项目。它融合了聊天优先界面、结构化规格系统，以及一个将任务路由到特定职业智能体的中继流水线。
+
+## 技术栈
+
+### 后端
+
+| 技术 | 版本 | 来源 | 用途 |
+|------------|---------|--------|---------|
+| **Rust** | 1.80+ | `Cargo.toml` | 系统编程，内存安全 |
+| **Axum** | 0.8 | `Cargo.toml` | Web 框架（REST + WebSocket + SSE） |
+| **Tokio** | 1.x | `Cargo.toml` | 异步运行时 |
+| **Reqwest** | 0.12 | `Cargo.toml` | LLM API 的 HTTP 客户端 |
+| **Serde** | 1.x | `Cargo.toml` | 序列化 |
+| **Tower-HTTP** | 0.6 | `Cargo.toml` | CORS，静态文件服务 |
+| **Tracing** | 0.1 | `Cargo.toml` | 可观测性 |
+| **UUID** | 1.x | `Cargo.toml` | 会话标识符 |
+
+### 前端
+
+| 技术 | 版本 | 来源 | 用途 |
+|------------|---------|--------|---------|
+| **Vue 3** | 3.5+ | `package.json` | UI 框架（Composition API） |
+| **Vite** | 6.x | `package.json` | 构建工具 + 开发服务器 |
+| **TypeScript** | 5.8+ | `package.json` | 类型安全 |
+| **TipTap** | 3.23+ | `package.json` | 基于 ProseMirror 的块编辑器 |
+| **Mermaid** | 11.15+ | `package.json` | 规格中的图表渲染 |
+| **Markstream** | 0.0.14-beta.8 | `package.json` | 流式 Markdown 渲染器 |
+
+### AI 提供商
+
+| 提供商 | 模型 | 配置 |
+|----------|--------|---------------|
+| **Anthropic** | Claude 3.5 Opus / Sonnet / Haiku | `ANTHROPIC_API_KEY` 环境变量或 `~/.claude/settings.json` |
+| **OpenAI** | GPT-4o | `OPENAI_API_KEY` 环境变量 |
+| **Local** | Ollama / 自定义 | API 来源配置中的本地 URL |
+
+## 系统架构
+
+```mermaid
+graph TD
+    subgraph UI["User Interface"]
+        Chat[Chat]
+        SpecsView[Specs]
+        WikiView[Wiki]
+        RelayPanel[Relay Pipeline]
+    end
+
+    subgraph Orchestrator["Agent Orchestrator"]
+        Assistant[Assistant<br/>Intake]
+        Advisor[Advisor<br/>Discovery]
+        Architect[Architect<br/>Design]
+        Planner[Planner<br/>Plan]
+        Coder[Coder<br/>Code]
+        Tester[Tester<br/>Verify]
+        Reviewer[Reviewer<br/>Validation]
+        Documenter[Documenter<br/>Report]
+    end
+
+    subgraph Core["Core Services"]
+        Provider[Provider<br/>LLM SSE]
+        Tools[Tools<br/>FS / Shell]
+        ProjectMgr[Project<br/>Workspace]
+        Checkpoint[Checkpoint<br/>Durability]
+        SpecsStore[Specs Store<br/>AD / AT]
+    end
+
+    UI --> Orchestrator
+    Orchestrator --> Core
+```
+
+## 核心概念
+
+| 概念 | 定义 | 所在位置 |
+|---------|------------|----------|
+| **人格** | 智能体的 Markdown 人格定义（价值观、风格、仪式） | `agent-config` |
+| **职业** | 能力契约：拥有的规格、可读的规格、允许的工具、交接目标 | `agent-config` |
+| **中继** | 带接力交接文档的串行智能体流水线 | `relay` |
+| **关卡** | 人工介入审批点（GSD 自动批准 vs 检查显式） | `relay` / `chat` |
+| **交接** | 智能体之间传递的压缩上下文文档（约节省 5 倍 Token） | `relay` |
+| **规格** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
+| **检查点** | 用于无聊天记录崩溃恢复的 JSON + git 快照 | `runtime` |
+| **差事** | 在隔离上下文中的即发即弃研究任务 | `errand` |
+
+## 核心流程
+
+五个执行流程跨越多个模块。完整序列图和分步分解请参阅 [flows.ad](flows.ad)。
+
+| 流程 | 入口 | 出口 | 关键模块 |
+|------|-------|------|-------------|
+| **Forge 聊天循环** | 用户发送消息 | SSE 交付响应 | chat, provider, runtime, relay |
+| **中继流水线** | FlowSpec 加载 | 已完成 / 失败 / 已暂停 | relay, provider, runtime, specs |
+| **智能体轮次** | 以职业启动智能体 | 返回交接文档 | agent-config, provider, runtime |
+| **规格生命周期** | 智能体读取/写入规格 | 持久化到 `.ad` 并派生状态 | specs, forge |
+| **关卡审批** | 步骤设置 `gate: true` | 用户批准/拒绝 | relay, chat, ui-system |
+
+## 模块索引
+
+| 模块 | 描述 | 关键组件 | 依赖项 | 规格 |
+|--------|-------------|----------------|--------------|-------|
+| **agent-config** | 智能体身份系统 — 人格、职业、模型 | `AgentInstance`, `SoulConfig`, `Profession`, `ModelConfig` | relay, specs | [模块](agent-config/module.ad) · [目标](agent-config/goals.ad) · [架构](agent-config/architecture.ad) · [设计](agent-config/designs.ad) · [测试](agent-config/tests.ad) |
+| **api-sources** | 多提供商 LLM 管理 | `ApiSource`, `ModelDefinition`, `ModelTier` | — | [模块](api-sources/module.ad) · [目标](api-sources/goals.ad) · [架构](api-sources/architecture.ad) · [设计](api-sources/designs.ad) · [计划](api-sources/plans.ad) · [测试](api-sources/tests.ad) |
+| **autodown** | 基于块的 Markdown 编辑器，带 IAL 表格存储 | `AutoDownEditor`, `useAutoDownEditor`, `tableAttributes`, `rowResizing` | ui-system | [模块](autodown/module.ad) · [目标](autodown/goals.ad) · [设计](autodown/designs.ad) · [测试](autodown/tests.ad) |
+| **chat** | 聊天优先关卡审批与智能秘书 | `GateCard`, `SecretaryMessage`, `BringInTool`, `StreamingRenderer` | relay, provider, ui-system | [模块](chat/module.ad) · [目标](chat/goals.ad) · [架构](chat/architecture.ad) · [设计](chat/designs.ad) · [计划](chat/plans.ad) · [评审](chat/reviews.ad) · [测试](chat/tests.ad) |
+| **cli** | 交互式 REPL（遗留） | `run_repl()`, `Settings` | — | [模块](cli/module.ad) · [目标](cli/goals.ad) · [设计](cli/designs.ad) · [测试](cli/tests.ad) |
+| **editor** | 所见即所得的基于块的编辑 | `AutoDownEditor.vue`, extension factory, slash menu | ui-system | [模块](editor/module.ad) · [目标](editor/goals.ad) · [架构](editor/architecture.ad) · [设计](editor/designs.ad) · [计划](editor/plans.ad) |
+| **errand** | 即发即弃的研究任务 | `DispatchTool`, `gofer` profession, `ErrandSession` | chat, provider | [模块](errand/module.ad) · [目标](errand/goals.ad) · [架构](errand/architecture.ad) · [设计](errand/designs.ad) · [计划](errand/plans.ad) |
+| **project** | VS Code 风格的工作区 | `ExplorerView`, `TreeView`, `GoalsTree` | ui-system | [模块](project/module.ad) · [目标](project/goals.ad) · [架构](project/architecture.ad) · [设计](project/designs.ad) · [计划](project/plans.ad) · [测试](project/tests.ad) |
+| **provider** | 统一的 AI 通信层 | `ClaudeProvider`, `SseParser`, `dispatch_chat()` | api-sources | [模块](provider/module.ad) · [目标](provider/goals.ad) · [架构](provider/architecture.ad) · [设计](provider/designs.ad) · [计划](provider/plans.ad) · [测试](provider/tests.ad) |
+| **relay** | 带接力传递的串行智能体流程 | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [模块](relay/module.ad) · [目标](relay/goals.ad) · [架构](relay/architecture.ad) · [设计](relay/designs.ad) · [计划](relay/plans.ad) · [评审](relay/reviews.ad) · [报告](relay/reports.ad) · [测试](relay/tests.ad) |
+| **runtime** | 检查点与崩溃恢复 | `ContextManager`, `Session`, `PermissionPolicy` | provider | [模块](runtime/module.ad) · [目标](runtime/goals.ad) · [设计](runtime/designs.ad) · [测试](runtime/tests.ad) |
+| **specs** | 规格金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
+| **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
+| **wiki** | 项目范围的知识库 | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [模块](wiki/module.ad) · [目标](wiki/goals.ad) · [架构](wiki/architecture.ad) · [设计](wiki/designs.ad) · [计划](wiki/plans.ad) · [测试](wiki/tests.ad) |
+
+## 如何浏览规格
+
+1. **从概述开始** — 阅读本文档以了解系统范围的上下文。
+2. **理解核心流程** — 阅读 [flows.ad](flows.ad) 以查看数据如何跨模块流动。
+3. **选择一个模块** — 阅读其 `module.ad` 以快速了解（目标、决策、设计、依赖项）。
+4. **阅读目标** — 每个模块的 `goals.ad` 定义了该模块旨在实现的内容。
+5. **阅读架构** — `architecture.ad` 描述了高层设计、权衡和组件交互。
+6. **深入设计** — `designs.ad` 包含详细的技术规格、接口和数据模型。
+7. **跟踪计划** — `plans.ad` 跟踪实现任务、持续时间和依赖项。
+8. **通过测试验证** — `tests.ad` 列出验收标准和测试场景。
+9. **检查评审** — `reviews.ad` 记录实现后的回顾。
+10. **阅读报告** — `reports.ad` 包含实现总结和差距分析。
+
+## ID 约定
+
+规格 ID 遵循格式 `ModulePrefix-TypeNumber`，例如：
+- `Relay-G1` — Relay 模块，目标 #1
+- `Chat-D3` — Chat 模块，设计 #3
+- `AgentConfig-T2` — Agent Config 模块，测试 #2
+
+类型前缀：**G**oals（目标）、**A**rchitecture（架构）、**D**esigns（设计）、**P**lans（计划）、**T**ests（测试）、**V**iews（评审）、**R**eports（报告）。
+
+## 项目布局
+
+```
+auto-forge/
+├── backend/          # Rust (Axum) — REST API, WebSocket, SSE, Relay 引擎
+│   ├── src/forge/    # 聊天循环、规格存储、工具
+│   ├── src/relay/    # 流水线引擎、智能体启动、交接
+│   ├── src/provider/ # LLM 提供商抽象（Claude, OpenAI, Local）
+│   └── Cargo.toml
+├── frontend/         # Vue 3 (Vite) — 聊天、规格、Wiki、中继面板
+│   ├── src/components/
+│   ├── src/composables/
+│   └── package.json
+├── specs/            # 结构化规格（本目录）
+│   └── auto-forge/   # 项目规格
+├── wiki/             # 知识库（处理后 Markdown）
+├── raw/              # 原始导入文档
+└── scripts/          # Python 辅助脚本（regenerate_specs, generate_module_overviews）
+```
+
+## 部署
+
+| 模式 | 后端 | 前端 | 命令 |
+|------|---------|----------|---------|
+| 开发 | `:3031` | `:5173` (Vite dev) | `cargo run` + `npm run dev` |

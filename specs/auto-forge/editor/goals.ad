@@ -2,54 +2,41 @@
 
 ---
 
-## Editor-G1 AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
+## Editor-G1 AutoDown 编辑器提供所见即所得的基于块的编辑
 **Status:** proposed
 **Tags:** stack:frontend
 **Depends on:** Wiki-G1
 
-- [ ] Block-based WYSIWYG editor replaces split-pane Markdown editor
-- [ ] Native Markdown parse/serialize via Tiptap with bidirectional sync
-- [ ] Slash commands, bubble menu, and drag handle for Notion-like UX
-- [ ] Custom blocks render as Vue components via Tiptap node views
-- [ ] AutoDown extensions: callouts, math, mermaid diagrams, spec references
-- [ ] Used for Wiki content editing initially; extendable to Spec sections
+- [ ] 基于 Tiptap 的块编辑器
+- [ ] 原生 Markdown 解析/序列化，支持双向同步
+- [ ] 斜杠命令、气泡菜单和拖拽手柄
+- [ ] AutoDown 扩展：标注、数学、Mermaid 图表、规格引用
 
-AutoDown Editor is a Tiptap-based rich text editor that presents Markdown content as editable blocks. Each paragraph, heading, list, code block, and custom element is a distinct block with interactive Vue rendering. The editor serializes to clean Markdown for backend persistence and extends to AutoDown syntax for project-specific block types.
----
-
-## Editor-G2 Phase 1 — Markdown WYSIWYG Editor
+## Editor-G2 阶段 1 — Markdown 所见即所得编辑器
 **Status:** proposed
 **Tags:** stack:frontend
 **Depends on:** Editor-G1
 
-- [ ] Tiptap editor core integrated into frontend with Vue 3 composition API
-- [ ] StarterKit blocks: paragraph, heading, list, code block, blockquote, HR, image, link, table, task list
-- [ ] Slash command palette for block insertion via "/"
-- [ ] Bubble menu for inline formatting on text selection
-- [ ] Drag handle for block reordering
-- [ ] Replaces `MarkdownEditor.vue` in Wiki and Spec views
-- [ ] Markdown round-trip: load from string, save to string, no data loss
----
+- [ ] Tiptap 编辑器核心集成到前端
+- [ ] 入门块类型支持
+- [ ] 斜杠命令面板
+- [ ] 气泡菜单和拖拽手柄
+- [ ] Markdown 往返无数据丢失
 
-## Editor-G3 Phase 2 — AutoDown Extensions
+## Editor-G3 阶段 2 — AutoDown 扩展
 **Status:** proposed
 **Tags:** stack:frontend
 **Depends on:** Editor-G2
 
-- [ ] Callout block with info/warning/tip/danger types
-- [ ] Math block with KaTeX rendering
-- [ ] Mermaid diagram block with live rendering
-- [ ] Spec reference block (`[[AgentConfig-G1]]`) with clickable links
-- [ ] Custom `marked` tokenizers for each AutoDown syntax extension
-- [ ] Each extension is a self-contained pair: Tiptap Node + Vue component
----
+- [ ] 标注块、数学块、Mermaid 图表块、规格引用块
+- [ ] 每个扩展自包含：Tiptap 节点 + Vue 组件
 
-## Editor-G4 Phase 3 — Advanced Editing Features
+## Editor-G4 阶段 3 — 高级编辑功能
 **Status:** proposed
 **Tags:** stack:frontend
 **Depends on:** Editor-G3
 
-- [ ] Multi-column layout blocks
-- [ ] Real-time collaborative cursors (Yjs integration)
-- [ ] AI-assisted inline completion
-- [ ] Version diff view between two document states
+- [ ] 多列布局块
+- [ ] 实时协作光标
+- [ ] AI 辅助内联补全
+- [ ] 版本差异视图

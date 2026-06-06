@@ -2,11 +2,13 @@
 
 ---
 
-## Chat-D1 GateCard & SecretaryMessage Components
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/components/`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1, Chat-A1
+## Chat-D1 GateCard & SecretaryMessage 组件
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/components/`
+**标签：** stack:frontend
+**依赖：** UiSystem-A1, Chat-A1
 
 ```typescript
 // GateCard.vue
@@ -36,14 +38,92 @@ stateDiagram-v2
     Resolved --> [*]
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `gate.id` | `string` | session_id or run_id |
-| `gate.type` | `'session' \| 'run'` | source composable |
-| `gate.gateType` | `'goal' \| 'spec' \| 'review'` | approval type |
-| `gate.profession` | `string` | who is waiting |
-| `gate.since` | `number` | timestamp |
+| `gate.id` | `string` | session_id 或 run_id |
+| `gate.type` | `'session' \| 'run'` | 源 composable |
+| `gate.gateType` | `'goal' \| 'spec' \| 'review'` | 审批类型 |
+| `gate.profession` | `string` | 等待者 |
+| `gate.since` | `number` | 时间戳 |
 
+## Chat-D5 ThinkingBlock 推理过程展示组件
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `frontend/src/views/ChatsView.vue`, `frontend/src/composables/useForge.ts`
+**标签：** stack:frontend
+**依赖：** Chat-A3
+
+```typescript
+// 新增 ForgeMessage 字段
+interface ForgeMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system' | 'tool'
+  content: string
+  thinking?: string        // ← 新增：推理过程内容
+  timestamp: number
+  tool_calls?: ToolCallInfo[]
+  profession_id?: string
+}
+```
+
+```typescript
+// 新增 ForgeStreamEvent 变体
+interface ForgeStreamEvent {
+  type: 'turn_start' | 'delta' | 'thinking' | 'tool_call' | 'tool_result' | ...
+  text?: string
+  thinking?: string        // ← 新增
+  // ... 其他字段
+}
+```
+
+### 渲染行为
+
+- **默认折叠**：以 `<details>` 元素呈现，summary 显示 💭 思考中 + 脉冲动画（仅流式传输期间）
+- **点击展开**：显示 `<pre>` 包裹的完整推理内容
+- **流式累积**：SSE `thinking` 事件逐块追加到 `msg.thinking`
+- **历史恢复**：`loadHistory()` 从后端恢复时保留 `thinking` 字段
+
+### 视觉样式
+
+```css
+.thinking-block details {
+  border: 1px solid hsl(var(--muted-foreground) / 0.12);
+  border-radius: 6px;
+  background: hsl(var(--muted-foreground) / 0.03);
+}
+.thinking-block summary {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.83rem;
+  color: var(--af-muted);
+  cursor: pointer;
+}
+.thinking-pulse {
+  animation: thinkingPulse 1.5s infinite;
+}
+.thinking-content {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+```
+
+### 数据来源
+
+Claude Provider 的 `ContentBlockDelta::ThinkingDelta` → `ToolChatEvent::ThinkingDelta` → `ForgeStreamEvent::Thinking` → 前端 SSE `data.type === 'thinking'`
+
+| 层级 | 事件类型 | 处理 |
+|---|---|---|
+| Provider | `ContentBlockDelta::ThinkingDelta` | 解析为 `ToolChatEvent::ThinkingDelta` |
+| Forge | `ForgeStreamEvent::Thinking { thinking }` | 通过 SSE 发送到前端 |
+| 前端 Composable | `data.type === 'thinking'` | 追加到当前 assistant 消息的 `thinking` |
+| 前端视图 | `<details>` 折叠块 | 默认折叠，点击展开查看完整推理 |
 
 ---
 
@@ -60,11 +140,13 @@ stateDiagram-v2
 ---
 ---
 
-## Chat-D2 ReportCard (Chat Terminal)
-**Status:** implemented
-**Module:** `packages/auto-forge-ui/src/components/ReportCard.vue`
-**Tags:** stack:frontend
-**Depends on:** UiSystem-A1
+## Chat-D2 ReportCard（聊天终端）
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `packages/auto-forge-ui/src/components/ReportCard.vue`
+**标签：** stack:frontend
+**依赖：** UiSystem-A1
 
 ```typescript
 interface ReportCardProps {
@@ -80,15 +162,13 @@ interface ReportCardProps {
 }
 ```
 
-- `collapsed` (default): Shows summary line only — "✅ Relay Complete — Report X42"
-- `expanded`: Shows full metrics table, cost breakdown, deliverables list, drift notes
+- `collapsed`（默认）：仅显示摘要行 — "✅ Relay Complete — Report X42"
+- `expanded`：显示完整指标表、成本分解、可交付成果列表、漂移说明
 
-- [View Full Report] → opens Reports section in Specs drawer
-- [Download Markdown] → triggers download of report markdown
-- [Open Changed Files] → opens file diff viewer
+- [View Full Report] → 在 Specs 抽屉中打开 Reports 部分
+- [Download Markdown] → 触发报告 markdown 下载
+- [Open Changed Files] → 打开文件差异查看器
 
-
----
 
 ---
 
@@ -101,13 +181,17 @@ interface ReportCardProps {
 ---
 
 ---
+
+---
 ---
 
-## Chat-D3 bring_in Tool & Chat Handoff
-**Status:** proposed
-**Module:** `backend/src/forge/tools.rs`, `backend/src/forge/mod.rs`
-**Tags:** stack:both
-**Depends on:** Chat-A2, Relay-G9
+## Chat-D3 bring_in 工具与聊天交接
+**Status:** draft
+
+**状态：** 提议中
+**模块：** `backend/src/forge/tools.rs`, `backend/src/forge/mod.rs`
+**标签：** stack:both
+**依赖：** Chat-A2, Relay-G9
 
 ```rust
 // forge/tools.rs — BringInTool
@@ -147,14 +231,14 @@ impl Tool for BringInTool {
 ```
 
 ```rust
-// forge/mod.rs — HandoffNote (lightweight, for chat only)
+// forge/mod.rs — HandoffNote（轻量级，仅用于聊天）
 pub struct HandoffNote {
     pub from_agent: String,       // "Nicole"
     pub from_profession: String,  // "assistant"
     pub to_profession: String,    // "advisor"
     pub classification: String,   // "NEW_GOAL"
-    pub summary: String,          // Agent's summary of conversation so far
-    pub warnings: Vec<String>,    // e.g., "No existing specs found for this topic"
+    pub summary: String,          // 智能体对到目前为止的对话的摘要
+    pub warnings: Vec<String>,    // 例如 "No existing specs found for this topic"
 }
 
 impl HandoffNote {
@@ -197,25 +281,25 @@ sequenceDiagram
     I->>U: "I see you want OAuth2. Let me check existing goals..."
 ```
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |---|---|---|
-| `target` | `String` | Must be in caller's `handoff_to` list, else rejected |
+| `target` | `String` | 必须在调用者的 `handoff_to` 列表中，否则被拒绝 |
 | `classification` | `String` | QUESTION / DIRECT / NEW_GOAL / REQ_UPDATE |
-| `reason` | `String` | Free-text explanation, included in HandoffNote |
-| `from_agent` | `String` | Display name of calling agent (from AgentConfig) |
-| `summary` | `String` | Auto-generated from tool result (LLM's reason field) |
+| `reason` | `String` | 自由文本说明，包含在 HandoffNote 中 |
+| `from_agent` | `String` | 调用智能体的显示名称（来自 AgentConfig） |
+| `summary` | `String` | 从工具结果自动生成（LLM 的 reason 字段） |
 
-### Validation Rules
+### 验证规则
 
-1. `target` must exist in `ProfessionRegistry`
-2. `target` must be in calling agent's `handoff_to` list (from Profession config)
-3. `target` must differ from current `active_profession`
-4. On validation failure: tool returns error, LLM continues in current role
+1. `target` 必须存在于 `ProfessionRegistry` 中
+2. `target` 必须在调用智能体的 `handoff_to` 列表中（来自 Profession 配置）
+3. `target` 必须与当前 `active_profession` 不同
+4. 验证失败时：工具返回错误，LLM 继续当前角色
 
-### SSE Events
+### SSE 事件
 
 ```json
-// New event type: agent_handoff
+// 新事件类型：agent_handoff
 {
   "type": "agent_handoff",
   "from_agent": "Nicole",
@@ -227,15 +311,13 @@ sequenceDiagram
 }
 ```
 
-### Frontend Rendering
+### 前端渲染
 
-The `tool_call` for `bring_in` renders as a HandoffCard instead of a generic tool result:
-- Shows "Nicole → Isaac" with arrow icon
-- Shows classification badge (NEW_GOAL)
-- Shows reason text
-- Active profession badge updates to show Isaac
-
----
+`bring_in` 的 `tool_call` 渲染为 HandoffCard，而不是通用工具结果：
+- 显示 "Nicole → Isaac" 带箭头图标
+- 显示分类徽章（NEW_GOAL）
+- 显示 reason 文本
+- 活动职业徽章更新为显示 Isaac
 
 ---
 
@@ -248,21 +330,25 @@ The `tool_call` for `bring_in` renders as a HandoffCard instead of a generic too
 ---
 
 ---
+
+---
 ---
 
-## Chat-D4 Streaming Content Renderer & Document Parser
-**Status:** implemented
-**Module:** `frontend/src/composables/useStreamingDocument.ts`, `components/StreamingRenderer.vue`
-**Tags:** stack:frontend
-**Depends on:** Chat-A3
+## Chat-D4 流式内容渲染器与文档解析器
+**Status:** draft
 
-- Split raw SSE text into markdown segments and JSON component blocks
-- Cache partial JSON props across chunks to prevent flicker
-- Render markdown via `markstream-vue`
-- Dispatch JSON blocks to registered Vue components by `type` field
+**状态：** 已实现
+**模块：** `frontend/src/composables/useStreamingDocument.ts`, `components/StreamingRenderer.vue`
+**标签：** stack:frontend
+**依赖：** Chat-A3
 
-- `markstream-vue` for incremental markdown
-- `StreamingTable.vue` for table component rendering
+- 将原始 SSE 文本拆分为 markdown 段和 JSON 组件块
+- 跨块缓存部分 JSON props，防止闪烁
+- 通过 `markstream-vue` 渲染 markdown
+- 按 `type` 字段将 JSON 块分派到已注册的 Vue 组件
+
+- `markstream-vue` 用于增量 markdown
+- `StreamingTable.vue` 用于表格组件渲染
 
 ---
 

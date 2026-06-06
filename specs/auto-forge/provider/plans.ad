@@ -2,19 +2,23 @@
 
 ---
 
-## Provider-P1 Merge auto-code-rs into auto-forge
-**Status:** done
-**Tags:** stack:backend
-**Depends on:** —
+## Provider-P1 将 auto-code-rs 合并到 auto-forge
+**Status:** draft
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
+**状态：** 已完成
+**标签：** stack:backend
+**依赖：** —
+
+| 阶段 | 任务 | 负责人 | 工期 | 依赖 | 状态 |
 |---|---|---|---|---|---|
-| Provider-P15.1 | Unified provider layer (ClaudeProvider + SseParser + unified types) | Core | 3 days | — | Done |
-| Provider-P15.2 | Unified tool system (ToolError, ToolRegistry, is_read_only) | Core | 1 day | Provider-P15.1 | Done |
-| Provider-P15.3 | Runtime infrastructure (ContextManager, Session, PermissionPolicy) | Core | 1 day | Provider-P15.1 | Done |
-| Provider-P15.4 | CLI mode (clap dispatch, REPL, settings) | Core | 1 day | Provider-P15.2, Provider-P15.3 | Done |
-| Provider-P15.5 | Move Auto language assets to auto-lang monorepo | Core | 1 day | — | Done |
-| Provider-P15.6 | Cleanup: archive auto-code-rs, update docs, verify tests | Core | 0.5 day | Provider-P15.1-Provider-P15.5 | Done |
+| Provider-P15.1 | 统一提供商层（ClaudeProvider + SseParser + 统一类型） | Core | 3 天 | — | 已完成 |
+| Provider-P15.2 | 统一工具系统（ToolError、ToolRegistry、is_read_only） | Core | 1 天 | Provider-P15.1 | 已完成 |
+| Provider-P15.3 | 运行时基础设施（ContextManager、Session、PermissionPolicy） | Core | 1 天 | Provider-P15.1 | 已完成 |
+| Provider-P15.4 | CLI 模式（clap 调度、REPL、settings） | Core | 1 天 | Provider-P15.2, Provider-P15.3 | 已完成 |
+| Provider-P15.5 | 将 Auto 语言资源迁移到 auto-lang monorepo | Core | 1 天 | — | 已完成 |
+| Provider-P15.6 | 清理：归档 auto-code-rs，更新文档，验证测试 | Core | 0.5 天 | Provider-P15.1–Provider-P15.5 | 已完成 |
+
+---
 
 ---
 

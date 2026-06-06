@@ -2,23 +2,116 @@
 
 ---
 
-## Relay-P1 Agents Relay — Foundation
-**Status:** done
-**Tags:** stack:both
-**Depends on:** AgentConfig-G1, Relay-G1, Relay-G2, AgentConfig-D1, Relay-D2
+## Relay-P1 智能体中继 — 基础
+**Status:** draft
+**Depends on:** AgentConfig-G1, Relay-G1, Relay-G2
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
+| Phase | Task | Owner | Duration | Status |
+|---|---|---|---|---|
+| Relay-P1.1 | 人格 + 职业数据模型和注册表 | Core | 3 天 | done |
+| Relay-P1.2 | 内置职业 | Core | 2 天 | done |
+| Relay-P1.3 | 默认人格配置 | Core | 2 天 | done |
+| Relay-P1.4 | ModelConfig | Core | 2 天 | done |
+| Relay-P1.5 | 可复用的 AgentTurn 引擎 | Core | 3 天 | done |
+| Relay-P1.6 | HandoffDocument | Core | 3 天 | done |
+| Relay-P1.7 | 上下文范围限定 | Core | 2 天 | done |
+| Relay-P1.8 | 交接压缩 | Core | 2 天 | done |
+| Relay-P1.9 | 单元测试 | Core | 2 天 | done |
+
+## Relay-P2 智能体中继 — 流程引擎
+**Status:** draft
+**Depends on:** Relay-G1, Runtime-G3, Relay-D1
+
+| Phase | Task | Owner | Duration | Status |
+|---|---|---|---|---|
+| Relay-P2.1 | FlowSpec 解析器 | Core | 3 天 | done |
+| Relay-P2.2 | PipelineEngine 状态机 | Core | 3 天 | done |
+| Relay-P2.3 | 步骤执行 | Core | 2 天 | done |
+| Relay-P2.4 | 流程分支 | Core | 2 天 | done |
+| Relay-P2.5 | 流程循环 | Core | 2 天 | done |
+| Relay-P2.6 | 人工关卡 | Core | 3 天 | done |
+| Relay-P2.7 | 关卡拒绝路由 | Core | 2 天 | done |
+| Relay-P2.8 | 集成测试 | Core | 2 天 | done |
+
+## Relay-P3 智能体中继 — 检查点与持久化
+**Status:** draft
+**Depends on:** Runtime-G1, Relay-D3
+
+| Phase | Task | Owner | Duration | Status |
+|---|---|---|---|---|
+| Relay-P3.1 | 检查点数据模型和 JSON 序列化 | Core | 2 天 | done |
+| Relay-P3.2 | 文件清单捕获 | Core | 2 天 | done |
+| Relay-P3.3 | Git 集成 | Core | 2 天 | done |
+| Relay-P3.4 | 检查点保存/加载 | Core | 2 天 | done |
+| Relay-P3.5 | 恢复 | Core | 3 天 | done |
+| Relay-P3.6 | 重新水合智能体 | Core | 2 天 | done |
+| Relay-P3.7 | 回滚 | Core | 2 天 | done |
+| Relay-P3.8 | 分叉 | Core | 2 天 | done |
+| Relay-P3.9 | 崩溃恢复测试 | Core | 2 天 | done |
+
+## Relay-P4 智能体中继 — Token 预算
+**Status:** draft
+**Depends on:** Runtime-G2, Relay-D4
+
+| Phase | Task | Owner | Duration | Status |
+|---|---|---|---|---|
+| Relay-P4.1 | TokenBudget 和 BudgetTracker | Core | 2 天 | done |
+| Relay-P4.2 | 每步/每运行跟踪 | Core | 2 天 | done |
+| Relay-P4.3 | 预算强制执行 | Core | 2 天 | done |
+| Relay-P4.4 | 模型升级回退 | Core | 2 天 | done |
+| Relay-P4.5 | 成本分析 API | Core | 2 天 | done |
+| Relay-P4.6 | 节省估算 | Core | 2 天 | done |
+| Relay-P4.7 | 单元测试 | Core | 2 天 | done |
+
+## Relay-P5 智能体中继 — 前端视图
+**Status:** draft
+**Depends on:** Runtime-G2, Runtime-G3
+
+| Phase | Task | Owner | Duration | Status |
+|---|---|---|---|---|
+| Relay-P5.1 | 流水线可视化 | UI | 3 天 | done |
+| Relay-P5.2 | 运行卡片 | UI | 2 天 | done |
+| Relay-P5.3 | 检查点时间线 | UI | 2 天 | done |
+| Relay-P5.4 | 成本图表 | UI | 2 天 | done |
+| Relay-P5.5 | 职业配置面板 | UI | 2 天 | done |
+| Relay-P5.6 | 人工关卡审批 UI | UI | 3 天 | done |
+| Relay-P5.7 | 运行控制按钮 | UI | 2 天 | done |
+| Relay-P5.8 | 前端集成测试 | UI | 2 天 | done |
+
+## Relay-P6 智能体中继 — 集成
+**Status:** draft
+**Depends on:** Relay-P1–P5
+
+| Phase | Task | Owner | Duration | Status |
+|---|---|---|---|---|
+| Relay-P6.1 | 端到端流程 | Core | 3 天 | done |
+| Relay-P6.2 | 模块设计迁移 | Core | 2 天 | done |
+| Relay-P6.3 | 自举 | Core | 5 天 | done |
+| Relay-P6.4 | 偏差检测 | Core | 2 天 | done |
+| Relay-P6.5 | 文档和教程 | Core | 2 天 | done |
+
+## Relay-P7 中继重构 — 新设计 v2
+**Status:** draft
+
+**状态：** 已完成
+**标签：** stack:both
+**依赖项：** Runtime-G3, Specs-G1, Relay-D5, AgentConfig-D2
+
+| 阶段 | 任务 | 负责人 | 持续时间 | 依赖项 | 状态 |
 |---|---|---|---|---|---|
-| Relay-P1.1 | Soul + Profession data model and registry | Tooling | 3 days | AgentConfig-D1 | Done |
-| Relay-P1.2 | Built-in professions (Intaker, Planner, Architect, Coder, Tester, Reviewer) | Tooling | 2 days | Relay-P1.1 | Done |
-| Relay-P1.3 | Default Soul configs in `.autoforge/souls/` | Tooling | 2 days | Relay-P1.1 | Done |
-| Relay-P1.4 | ModelConfig with provider abstraction and fallback chain | Tooling | 2 days | Relay-P1.1 | Done |
-| Relay-P1.5 | Refactor existing Forge into reusable `AgentTurn` engine | Tooling | 3 days | Relay-P1.2 | Done |
-| Relay-P1.6 | HandoffDocument schema and generation | Tooling | 3 days | Relay-D2 | Done |
-| Relay-P1.7 | Context scoping: filter specs by profession | Tooling | 2 days | Relay-P1.6 | Done |
-| Relay-P1.8 | Handoff compression (cheap model or rule-based) | Tooling | 2 days | Relay-P1.6 | Done |
-| Relay-P1.9 | Unit tests for AgentInstance and Handoff generation | Tooling | 2 days | Relay-P1.5, Relay-P1.6 | Done |
-
+| Relay-P7.1 | 将 `Intaker` 职业重命名为 `Assistant`；更新 `profession.rs` 注册表 | 工具 | 1 天 | AgentConfig-D2 | 已完成 |
+| Relay-P7.2 | 添加带目标所有权和发现阶段的 `Advisor` 职业 | 工具 | 1 天 | AgentConfig-D2 | 已完成 |
+| Relay-P7.3 | 向 `pipeline.rs` 和 `session` 模型添加 `RelayMode` 枚举（`GSD` / `Check`） | 工具 | 1 天 | Relay-D5 | 已完成 |
+| Relay-P7.4 | 扩展 `ForgePhase` 枚举：添加 Discovery、GoalGate、Design、Planning、Report | 工具 | 1 天 | Relay-D5 | 已完成 |
+| Relay-P7.5 | 更新 `PipelineEngine` 关卡逻辑：GSD 仅在 GoalGate 暂停；Check 在所有关卡暂停 | 工具 | 2 天 | Relay-D5, Relay-P7.3 | 已完成 |
+| Relay-P7.6 | 从 `SectionType` 和架构师的 `owned_sections` 中移除 `APIs` | 工具 | 0.5 天 | Specs-G1 | 已完成 |
+| Relay-P7.7 | 更新所有人格文件：重命名 `intaker.md` → `assistant.md`；添加 `advisor.md`；移除 API 引用 | 工具 | 1 天 | Relay-P7.1, Relay-P7.2 | 已完成 |
+| Relay-P7.8 | 更新 `FlowSpec` 默认流程：Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter | 工具 | 1 天 | Relay-P7.1-Relay-P7.5 | 已完成 |
+| Relay-P7.9 | 更新前端：移除 `ApisSchema` 组件；添加 `RelayMode` 切换（GSD/Check） | UI | 2 天 | Relay-P7.3 | 已完成 |
+| Relay-P7.10 | 更新前端流水线可视化以显示 8 个职业 | UI | 1 天 | Relay-P7.8 | 已完成 |
+| Relay-P7.11 | 更新 `design/docs` 以匹配新的规格类别（已完成） | 工具 | 0.5 天 | — | 已完成 |
+| Relay-P7.12 | 为新流程编写集成测试（S7.1–S7.4） | 工具 | 2 天 | Relay-P7.1-Relay-P7.10 | 已完成 |
+| Relay-P7.13 | 运行完整测试套件：`cargo check -p auto-forge` 和 `cargo test -p auto-forge` | 工具 | 0.5 天 | Relay-P7.12 | 已完成 |
 
 
 ---
@@ -36,25 +129,24 @@
 ---
 ---
 
-## Relay-P2 Agents Relay — Flow Engine
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Relay-G1, Runtime-G3, Relay-D1, Relay-P1
+## Relay-P8 实时流水线节点图
+**Status:** draft
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
+**状态：** 已实现
+**标签：** stack:frontend
+**依赖项：** Relay-G3
+
+| 阶段 | 任务 | 负责人 | 持续时间 | 依赖项 | 状态 |
 |---|---|---|---|---|---|
-| Relay-P2.1 | FlowSpec parser (AutoDown-based DSL) | Tooling | 3 days | Relay-D1 | Done |
-| Relay-P2.2 | PipelineEngine state machine | Tooling | 3 days | Relay-D1 | Done |
-| Relay-P2.3 | Step execution: spawn agent, run turn, collect result | Tooling | 2 days | Relay-P1.5, Relay-P2.2 | Done |
-| Relay-P2.4 | Flow branching: Intaker → DIRECT vs full pipeline | Tooling | 2 days | Relay-P2.2 | Done |
-| Relay-P2.5 | Flow looping: Coder ↔ Tester with max iteration bound | Tooling | 2 days | Relay-P2.2 | Done |
-| Relay-P2.6 | Human gates: pause, notify, approve/reject/edit | Tooling | 3 days | Relay-D1 | Done |
-| Relay-P2.7 | Gate rejection routing back to drafting profession | Tooling | 2 days | Relay-P2.6 | Done |
-| Relay-P2.8 | Deterministic orchestrator unit tests | Tooling | 2 days | Relay-P2.1-Relay-P2.7 | Done |
+| Relay-P9.1 | PipelinePanel 节点图布局（点、连接器、状态颜色） | Bob | 3 天 | — | 已完成 |
+| Relay-P9.2 | 展开的节点卡片，带 Token 消耗、触及规格、当前操作 | Bob | 2 天 | Relay-P9.1 | 已完成 |
+| Relay-P9.3 | 带迭代计数器的重试循环反向边 | Alice | 1 天 | Relay-P9.1 | 已完成 |
+| Relay-P9.4 | 实时流式传输工具调用的日志面板 | Alice | 2 天 | — | 已完成 |
+| Relay-P9.5 | 带点击跳转的触及规格面板 | Alice | 1 天 | Relay-P9.4 | 已完成 |
+| Relay-P9.6 | 带每职业 Token 条的成本明细面板 | Bob | 1 天 | — | 已完成 |
 
 
 
----
 
 ---
 
@@ -67,24 +159,24 @@
 ---
 
 ---
+
+---
 ---
 
-## Relay-P3 Agents Relay — Checkpoint & Durability
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Runtime-G1, Relay-D3, Relay-P2
+## Relay-P9 模式感知与集成
+**Status:** draft
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
+**状态：** 已实现
+**标签：** stack:both
+**依赖项：** Chat-G1, Specs-G2, Relay-G3
+
+| 阶段 | 任务 | 负责人 | 持续时间 | 依赖项 | 状态 |
 |---|---|---|---|---|---|
-| Relay-P3.1 | Checkpoint data model and JSON serialization | Tooling | 2 days | Relay-D3 | Done |
-| Relay-P3.2 | File manifest capture (hash, size) | Tooling | 2 days | Relay-D3 | Done |
-| Relay-P3.3 | Git integration: auto-commit or diff capture | Tooling | 2 days | Relay-D3 | Done |
-| Relay-P3.4 | Checkpoint save/load on disk | Tooling | 2 days | Relay-P3.1 | Done |
-| Relay-P3.5 | Resume from checkpoint: restore files, ledger, state | Tooling | 3 days | Relay-P3.4 | Done |
-| Relay-P3.6 | Rehydrate agent from checkpoint (no chat history) | Tooling | 2 days | Relay-P3.5 | Done |
-| Relay-P3.7 | Rollback to previous checkpoint | Tooling | 2 days | Relay-P3.4 | Done |
-| Relay-P3.8 | Fork run from checkpoint with different parameters | Tooling | 2 days | Relay-P3.7 | Done |
-| Relay-P3.9 | Crash recovery integration tests | Tooling | 2 days | Relay-P3.5-Relay-P3.8 | Done |
+| Relay-P11.1 | AppHeader 中的 GSD / Check 模式切换 | Alice | 1 天 | — | 已完成 |
+| Relay-P11.2 | 条件关卡渲染（所有关卡 vs 仅目标关卡） | Alice | 2 天 | Relay-P11.1 | 已完成 |
+| Relay-P11.3 | spec_written、handoff_submitted、gate_reached、gate_resolved 的 SSE 事件处理器 | Bob | 2 天 | Chat-P8.4, Relay-P9.1 | 已完成 |
+| Relay-P11.4 | 中继规格变更时 useSpecs 文档缓存失效 | Bob | 1 天 | Relay-P11.3 | 已完成 |
+
 
 
 
@@ -103,22 +195,19 @@
 ---
 ---
 
-## Relay-P4 Agents Relay — Token Budgeting & Analytics
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Runtime-G2, Relay-D4, Relay-P2
+## Relay-P10 事件路由器与关卡收件箱集成
+**Status:** draft
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| Relay-P4.1 | TokenBudget and BudgetTracker data model | Tooling | 2 days | Relay-D4 | Done |
-| Relay-P4.2 | Per-step and per-run token tracking | Tooling | 2 days | Relay-D4 | Done |
-| Relay-P4.3 | Budget enforcement: warning, compression, hard-stop | Tooling | 2 days | Relay-P4.2 | Done |
-| Relay-P4.4 | Model escalation fallback on budget exceed | Tooling | 2 days | Relay-P4.3 | Done |
-| Relay-P4.5 | Cost analytics API (per run, per profession, cumulative) | Tooling | 2 days | Relay-P4.2 | Done |
-| Relay-P4.6 | "Savings vs parallel" estimation heuristic | Tooling | 2 days | Relay-P4.5 | Done |
-| Relay-P4.7 | Unit tests for budget enforcement | Tooling | 2 days | Relay-P4.3 | Done |
+**状态：** 已完成
+**标签：** stack:frontend
+**依赖项：** Relay-G8, Relay-D12
 
-
+| 任务 | 负责人 | 持续时间 | 状态 |
+|---|---|---|---|
+| Relay-P21.1 | `useEventRouter.ts` 单例，带类型到回调的映射 | UI | 2 天 | 已完成 |
+| Relay-P21.2 | `useGateInbox.ts`，带队列、暂停、关闭 | UI | 2 天 | 已完成 |
+| Relay-P21.3 | `SecretaryMessage.vue` 与关卡操作的集成 | UI | 1 天 | 已完成 |
+| Relay-P21.4 | 待处理关卡的导航栏徽章计数 | UI | 1 天 | 已完成 |
 
 ---
 
@@ -133,262 +222,49 @@
 ---
 
 ---
----
 
-## Relay-P5 Agents Relay — Frontend Agents View
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Runtime-G2, Runtime-G3, Relay-P2, Relay-P3, Relay-P4
+## Relay-P11 智能体响应速度优化
+**Status:** draft
+**Depends on:** Relay-P1, Relay-P2, Runtime-G2
 
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| Relay-P5.1 | Pipeline visualization component (horizontal flow) | UI | 3 days | Relay-P2.2 | Done |
-| Relay-P5.2 | Run cards with live status and token spend | UI | 2 days | Relay-P4.5 | Done |
-| Relay-P5.3 | Checkpoint timeline viewer | UI | 2 days | Relay-P3.4 | Done |
-| Relay-P5.4 | Cost charts (per run, per profession, cumulative) | UI | 2 days | Relay-P4.5 | Done |
-| Relay-P5.5 | Role/Profession config panel | UI | 2 days | Relay-P1.2 | Done |
-| Relay-P5.6 | Human gate approval UI (diff view, approve/reject/edit) | UI | 3 days | Relay-P2.6 | Done |
-| Relay-P5.7 | Run control buttons: pause, resume, rollback, fork | UI | 2 days | Relay-P3.5, Relay-P3.7, Relay-P3.8 | Done |
-| Relay-P5.8 | Frontend integration tests | UI | 2 days | Relay-P5.1-Relay-P5.7 | Done |
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-P6 Agents Relay — Integration & Dogfooding
-**Status:** done
-**Tags:** stack:both
-**Depends on:** AgentConfig-G1, Relay-G1, Relay-G2, Runtime-G1, Runtime-G2, Runtime-G3, Relay-P1, Relay-P2, Relay-P3, Relay-P4, Relay-P5
-
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| Relay-P6.1 | End-to-end flow: Intake → Planner → Architect → Coder → Tester → Reviewer | Tooling | 3 days | Relay-P1-Relay-P5 | Done |
-| Relay-P6.2 | Migrate Agents module design into Ledger specs | Tooling | 2 days | Relay-P6.1 | Done |
-| Relay-P6.3 | Dogfooding: use Forge to implement Relay-P1-Relay-P5 specs | Tooling | 5 days | Relay-P6.2 | Done |
-| Relay-P6.4 | Drift detection on Agents module specs | Tooling | 2 days | Relay-P6.3 | Done |
-| Relay-P6.5 | Documentation and tutorial for custom flows | Tooling | 2 days | Relay-P6.1 | Done |
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-P7 Relay Refactor — New Design v2
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Runtime-G3, Specs-G1, Relay-D5, AgentConfig-D2
-
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| Relay-P7.1 | Rename `Intaker` profession to `Assistant`; update `profession.rs` registry | Tooling | 1 day | AgentConfig-D2 | Done |
-| Relay-P7.2 | Add `Advisor` profession with Goals ownership and Discovery phase | Tooling | 1 day | AgentConfig-D2 | Done |
-| Relay-P7.3 | Add `RelayMode` enum (`GSD` / `Check`) to `pipeline.rs` and `session` model | Tooling | 1 day | Relay-D5 | Done |
-| Relay-P7.4 | Extend `ForgePhase` enum: add Discovery, GoalGate, Design, Planning, Report | Tooling | 1 day | Relay-D5 | Done |
-| Relay-P7.5 | Update `PipelineEngine` gate logic: GSD only pauses at GoalGate; Check pauses at all gates | Tooling | 2 days | Relay-D5, Relay-P7.3 | Done |
-| Relay-P7.6 | Remove `APIs` from `SectionType` and Architect's `owned_sections` | Tooling | 0.5 day | Specs-G1 | Done |
-| Relay-P7.7 | Update all soul files: rename `intaker.md` → `assistant.md`; add `advisor.md`; remove API references | Tooling | 1 day | Relay-P7.1, Relay-P7.2 | Done |
-| Relay-P7.8 | Update `FlowSpec` default flow: Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter | Tooling | 1 day | Relay-P7.1-Relay-P7.5 | Done |
-| Relay-P7.9 | Update frontend: remove `ApisSchema` component; add `RelayMode` toggle (GSD/Check) | UI | 2 days | Relay-P7.3 | Done |
-| Relay-P7.10 | Update frontend pipeline visualization to show 8 professions | UI | 1 day | Relay-P7.8 | Done |
-| Relay-P7.11 | Update `design/docs` to match new spec categories (already done) | Tooling | 0.5 day | — | Done |
-| Relay-P7.12 | Write integration tests for new flow (S7.1–S7.4) | Tooling | 2 days | Relay-P7.1-Relay-P7.10 | Done |
-| Relay-P7.13 | Run full test suite: `cargo check -p auto-forge` and `cargo test -p auto-forge` | Tooling | 0.5 day | Relay-P7.12 | Done |
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-P8 Live Pipeline Node-Graph
-**Status:** implemented
-**Tags:** stack:frontend
-**Depends on:** Relay-G3
-
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| Relay-P9.1 | PipelinePanel node-graph layout (dots, connectors, status colors) | Bob | 3 days | — | Done |
-| Relay-P9.2 | Expanded node card with token burn, specs touched, current action | Bob | 2 days | Relay-P9.1 | Done |
-| Relay-P9.3 | Retry loop backward edge with iteration counter | Alice | 1 day | Relay-P9.1 | Done |
-| Relay-P9.4 | Live Log panel streaming tool calls | Alice | 2 days | — | Done |
-| Relay-P9.5 | Specs Touched panel with click-to-jump | Alice | 1 day | Relay-P9.4 | Done |
-| Relay-P9.6 | Cost Breakdown panel with per-profession token bars | Bob | 1 day | — | Done |
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-P9 Mode Awareness & Integration
-**Status:** implemented
-**Tags:** stack:both
-**Depends on:** Chat-G1, Specs-G2, Relay-G3
-
-| Phase | Task | Owner | Duration | Dependencies | Status |
-|---|---|---|---|---|---|
-| Relay-P11.1 | GSD / Check mode toggle in AppHeader | Alice | 1 day | — | Done |
-| Relay-P11.2 | Conditional gate rendering (all gates vs Goal Gate only) | Alice | 2 days | Relay-P11.1 | Done |
-| Relay-P11.3 | SSE event handlers for spec_written, handoff_submitted, gate_reached, gate_resolved | Bob | 2 days | Chat-P8.4, Relay-P9.1 | Done |
-| Relay-P11.4 | useSpecs document cache invalidation on relay spec mutations | Bob | 1 day | Relay-P11.3 | Done |
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-P10 Event Router & Gate Inbox Integration
-**Status:** done
-**Tags:** stack:frontend
-**Depends on:** Relay-G8, Relay-D12
+**Phase 1 & 2 completed; Phase 3 in progress.**
 
 | Task | Owner | Duration | Status |
 |---|---|---|---|
-| Relay-P21.1 | `useEventRouter.ts` singleton with type-to-callback map | UI | 2 days | Done |
-| Relay-P21.2 | `useGateInbox.ts` with queue, snooze, dismiss | UI | 2 days | Done |
-| Relay-P21.3 | `SecretaryMessage.vue` integration with gate actions | UI | 1 day | Done |
-| Relay-P21.4 | Nav rail badge counts for pending gates | UI | 1 day | Done |
+| 记忆化 RelayRegistry | Core | 2 天 | done |
+| 记忆化 ToolRegistry | Core | 1 天 | done |
+| 预渲染系统提示词 | Core | 1 天 | done |
+| RunStore RwLock | Core | 2 天 | done |
+| save_run 后台任务 | Core | 1 天 | done |
+| shell 工具异步 | Core | 1 天 | done |
+| search 工具异步 | Core | 2 天 | done |
+| 连接预热 | Core | 1 天 | in progress |
+| 连接池调整 | Core | 0.5 天 | pending |
+| Arc messages | Core | 2 天 | pending |
+| Notify 关卡通知 | Core | 1 天 | pending |
 
----
+## Relay-P12 MCP 服务器集成计划
+**Status:** draft
 
----
+**状态：** 已计划
+**标签：** stack:backend
+**依赖项：** Relay-P6, Chat-P1
 
----
+在现有 REST API 之上实现完整的 MCP（模型上下文协议）服务器，使 AI 智能体能够以编程方式发现和控制 AutoForge。
 
----
+### 技术选择
 
----
-
----
-
-## Relay-P11 Agent Response Speed Optimization
-**Status:** in_progress
-**Tags:** stack:backend
-**Depends on:** Relay-P1, Relay-P2, Runtime-G2
-
-Systematic optimization of Relay Pipeline latency. Phase 1 and 2 completed; Phase 3 partially completed.
-
-### Root Cause Analysis
-
-| Priority | Issue | Location | Estimated Impact |
-|----------|-------|----------|-----------------|
-| P0 | Agent recreated per step (ephemeral design) | `drive_run` → `build_agent()` | 50–500ms handoff overhead |
-| P0 | `std::sync::Mutex` blocks tokio worker threads | `RunStore` definition | Thread starvation under concurrency |
-| P1 | Synchronous I/O in async runtime | `shell`, `search`, `list_symbols` tools | 10s+ stalls (`cargo test`) |
-| P2 | No connection warm-up | `ClaudeProvider::new()` | 50–300ms TLS handshake per first request |
-| P2 | Deep clone of messages/tools per ReAct turn | `ToolChatRequest` construction | Grows with conversation length |
-| P3 | Gate polling busy-wait | `tokio::time::sleep(2s)` | Minor, tolerable |
-
-### Phase 1 — Agent Lifecycle Optimization (Completed)
-
-| Task | Owner | Duration | Status |
-|------|-------|----------|--------|
-| Relay-P11.1 | Profile handoff overhead: `build_agent`, `RelayRegistry::new`, `ToolRegistry::new` | Core | 1 day | Done |
-| Relay-P11.2 | Memoize `RelayRegistry` — cache parsed configs across steps | Core | 2 days | Done |
-| Relay-P11.3 | Memoize `ToolRegistry` — build once per profession, reuse | Core | 1 day | Done |
-| Relay-P11.4 | Pre-render system prompts — cache soul + spec context | Core | 1 day | Done |
-
-### Phase 2 — Concurrency & I/O Optimization (Completed)
-
-| Task | Owner | Duration | Status |
-|------|-------|----------|--------|
-| Relay-P11.5 | Replace `std::sync::Mutex` with `tokio::sync::RwLock` in `RunStore` | Core | 2 days | Done |
-| Relay-P11.6 | Move `save_run` disk I/O out of lock — use background task | Core | 1 day | Done |
-| Relay-P11.7 | Make `shell` tool async (`tokio::process::Command`) | Core | 1 day | Done |
-| Relay-P11.8 | Make `search` tool async (streaming walk + yield) | Core | 2 days | Done |
-
-### Phase 3 — Connection & Memory Optimization (In Progress)
-
-| Task | Owner | Duration | Status |
-|------|-------|----------|--------|
-| Relay-P11.9 | Add connection warm-up request in `ClaudeProvider::new()` | Core | 1 day | In Progress |
-| Relay-P11.10 | Tune `reqwest::Client` connection pool for high concurrency | Core | 0.5 day | Pending |
-| Relay-P11.11 | Replace deep clone with `Arc<Messages>` + cow pattern | Core | 2 days | Pending |
-| Relay-P11.12 | Gate notification via `tokio::sync::Notify` instead of polling | Core | 1 day | Pending |
-
-### References
-
-- ClaudeCode Bootstrap design: Fast-path dispatch, module-level parallel I/O, promise parallelism, memoized init
-- Key insight: ClaudeCode's Agent is long-lived (one query loop); AutoForge's Agent is per-step. Move toward "warm-up and reuse" model.
-
----
-
-## Relay-P12 MCP Server Integration Plan
-**Status:** planned
-**Tags:** stack:backend
-**Depends on:** Relay-P6, Chat-P1
-
-Implement a full MCP (Model Context Protocol) Server on top of existing REST APIs, enabling AI Agents to discover and control AutoForge programmatically.
-
-### Technology Choices
-
-| Option | Decision |
+| 选项 | 决策 |
 |--------|----------|
-| SDK | `rmcp` (official Anthropic Rust SDK) |
-| Transport | stdio + HTTP (SSE) |
-| Integration | Direct module integration (no HTTP proxy layer) |
+| SDK | `rmcp`（官方 Anthropic Rust SDK） |
+| 传输 | stdio + HTTP (SSE) |
+| 集成 | 直接模块集成（无 HTTP 代理层） |
 
-### Module Structure
+### 模块结构
 
 ```
 backend/src/mcp/
-├── mod.rs          # McpServer struct, #[tool] macros
+├── mod.rs          # McpServer 结构体，#[tool] 宏
 ├── tools/
 │   ├── chat.rs     # forge_create_session, forge_send_message, ...
 │   ├── relay.rs    # forge_start_relay_run, forge_poll_run_phase, ...
@@ -396,29 +272,29 @@ backend/src/mcp/
 │   ├── config.rs   # forge_list_api_sources, forge_test_api_connection
 │   └── system.rs   # forge_get_performance_logs, forge_browse_directory
 ├── resources/      # forge://specs/{project}, forge://runs/{run_id}
-├── prompts/        # Analysis, review, batch-test templates
-└── transport.rs    # stdio / HTTP configuration
+├── prompts/        # 分析、评审、批量测试模板
+└── transport.rs    # stdio / HTTP 配置
 ```
 
-### Tools Registry (30 tools implemented)
+### 工具注册表（30 个工具已实现）
 
-**Chat:** `forge_create_session`, `forge_send_message`, `forge_poll_chat_status`, `forge_get_session`, `forge_delete_session`
+**聊天：** `forge_create_session`, `forge_send_message`, `forge_poll_chat_status`, `forge_get_session`, `forge_delete_session`
 
-**Relay:** `forge_start_relay_run`, `forge_poll_run_phase`, `forge_get_run`, `forge_list_runs`, `forge_advance_run`, `forge_submit_handoff`, `forge_resolve_gate`, `forge_batch_start_runs`, `forge_batch_get_results`
+**中继：** `forge_start_relay_run`, `forge_poll_run_phase`, `forge_get_run`, `forge_list_runs`, `forge_advance_run`, `forge_submit_handoff`, `forge_resolve_gate`, `forge_batch_start_runs`, `forge_batch_get_results`
 
-**Specs:** `forge_read_specs`, `forge_update_spec`, `forge_list_specs_sections`
+**规格：** `forge_read_specs`, `forge_update_spec`, `forge_list_specs_sections`
 
-**Config:** `forge_list_api_sources`, `forge_test_api_connection`, `forge_open_project`, `forge_close_project`, `forge_get_project_status`
+**配置：** `forge_list_api_sources`, `forge_test_api_connection`, `forge_open_project`, `forge_close_project`, `forge_get_project_status`
 
-**System:** `forge_read_file`, `forge_write_file`, `forge_browse_directory`, `forge_shell`, `forge_search`, `forge_get_performance_logs`
+**系统：** `forge_read_file`, `forge_write_file`, `forge_browse_directory`, `forge_shell`, `forge_search`, `forge_get_performance_logs`
 
-### Phase Plan
+### 阶段计划
 
-| Phase | Task | Duration | Status |
+| 阶段 | 任务 | 持续时间 | 状态 |
 |-------|------|----------|--------|
-| Phase 1 | Backend event emission — `relay_complete`, `RunMetadata` | 2 days | Planned |
-| Phase 2 | Chat integration — `ForgeStreamEvent::RelayComplete`, SSE routing | 2 days | Planned |
-| Phase 3 | Frontend UI — system message bubble, "View Report" button | 2 days | Planned |
-| Phase 4 | Report link — `?report_id=` navigation, Specs highlight | 1 day | Planned |
+| 阶段 1 | 后端事件发出 — `relay_complete`, `RunMetadata` | 2 天 | 已计划 |
+| 阶段 2 | 聊天集成 — `ForgeStreamEvent::RelayComplete`, SSE 路由 | 2 天 | 已计划 |
+| 阶段 3 | 前端 UI — 系统消息气泡，"查看报告" 按钮 | 2 天 | 已计划 |
+| 阶段 4 | 报告链接 — `?report_id=` 导航，规格高亮 | 1 天 | 已计划 |
 
 ---

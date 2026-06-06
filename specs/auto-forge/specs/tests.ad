@@ -2,21 +2,23 @@
 
 ---
 
-## Specs-T1 [G8] useGateInbox snooze — snoozed gate reappears after timeout
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/unit/useGateInbox.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Chat-G1, Relay-D6
+## Specs-T1 [G8] useGateInbox 暂停 — 暂停的关卡在超时后重新出现
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/unit/useGateInbox.spec.ts`
+**标签：** stack:frontend
+**依赖项：** Chat-G1, Relay-D6
 
 ```typescript
 const inbox = useGateInbox()
 inbox.registerGate(gateA)
 ```
 
-1. Call `inbox.snoozeGate(gateA.id, 0.1)` (100ms for test)
-2. Assert active secretary is null
-3. Wait 150ms
-4. Assert gateA is back as active
+1. 调用 `inbox.snoozeGate(gateA.id, 0.1)`（测试用 100ms）
+2. 断言活跃秘书为 null
+3. 等待 150ms
+4. 断言 gateA 重新变为活跃
 
 
 
@@ -36,82 +38,21 @@ inbox.registerGate(gateA)
 ---
 ---
 
-## Specs-T2 [G9] Category renderers switch correctly per section_type
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/integration/CategoryRenderers.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Specs-G2, Specs-D1
-
-1. Render `<SpecsView />`
-2. Click each sidebar section
-3. Assert correct renderer component mounts
-4. Assert `GoalsTable` renders div-based tree; `ArchitectureCards` renders cards
-
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Specs-T3 [G9] RelationsPanel resolves parents and children across sections
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/integration/RelationsPanel.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Specs-G2, Specs-D2
-
-1. Select AgentConfig-G1 in GoalsTable
-2. Assert RelationsPanel shows "Children: Relay-A1, AgentConfig-D1, AgentConfig-T1"
-3. Click Relay-A1; assert section switches to Architecture, Relay-A1 expands
-4. Assert Relay-A1 RelationsPanel shows "Parents: AgentConfig-G1"
-
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Specs-T4 [G21] GoalsTable renders hierarchical tree with toggle interaction
+## Specs-T2 [G9] 类别渲染器按 section_type 正确切换
 **Status:** draft
-**Test File:** `frontend/src/components/category/GoalsTable.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Specs-G7, Specs-D4
 
-1. Render `GoalsTable` with parent goal `Chat-G1` and sub-goal `Chat-G2`
-2. Assert `Chat-G1` row has `.node-toggle-area` (has children)
-3. Assert `Chat-G2` row has `.node-indent` but no `.node-toggle-area`
-4. Click toggle area on `Chat-G1` → assert `Chat-G2` row appears in DOM
-5. Click toggle area again → assert `Chat-G2` row removed from DOM
-6. Click `Chat-G1` row (outside toggle) → assert `@open-detail` emitted with `Chat-G1`
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/integration/CategoryRenderers.spec.ts`
+**标签：** stack:frontend
+**依赖项：** Specs-G2, Specs-D1
 
----
+1. 渲染 `<SpecsView />`
+2. 点击每个侧边栏章节
+3. 断言正确挂载渲染器组件
+4. 断言 `GoalsTable` 渲染基于 div 的树；`ArchitectureCards` 渲染卡片
 
----
 
----
+
 
 ---
 
@@ -122,25 +63,27 @@ inbox.registerGate(gateA)
 ---
 
 ---
+
 ---
 
-## Specs-T5 [G21] GoalDetailModal opens, edits, and closes correctly
+---
+---
+
+## Specs-T3 [G9] RelationsPanel 跨章节解析父项和子项
 **Status:** draft
-**Test File:** `frontend/src/components/GoalDetailModal.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Specs-G7, Specs-D5
 
-1. Render `GoalDetailModal` with a goal item
-2. Assert modal overlay and card are present
-3. Assert header shows ID badge and title
-4. Assert meta bar shows priority, status, and tag chips
-5. Assert RelationsPanel rendered in body
-6. Click "Edit" button → assert `@edit` emitted, `GoalEditor` mounts
-7. Press ESC → assert `@close` emitted
-8. Click overlay backdrop → assert `@close` emitted
-9. Click modal card → assert no `@close` emitted (click.stop)
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/integration/RelationsPanel.spec.ts`
+**标签：** stack:frontend
+**依赖项：** Specs-G2, Specs-D2
 
----
+1. 在 GoalsTable 中选择 AgentConfig-G1
+2. 断言 RelationsPanel 显示 "子项：Relay-A1, AgentConfig-D1, AgentConfig-T1"
+3. 点击 Relay-A1；断言章节切换为架构，Relay-A1 展开
+4. 断言 Relay-A1 RelationsPanel 显示 "父项：AgentConfig-G1"
+
+
+
 
 ---
 
@@ -157,22 +100,20 @@ inbox.registerGate(gateA)
 ---
 ---
 
-## Specs-T6 [G21] Sidebar Stack/Module filters apply AND logic
+## Specs-T4 [G21] GoalsTable 渲染带切换交互的层级树
 **Status:** draft
-**Test File:** `frontend/src/views/SpecsView.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Specs-G7, Specs-D6
 
-1. Render `SpecsView` with mixed-tag items (stack:frontend+module:specs, stack:backend+module:relay)
-2. Select "frontend" in Stack drawer → assert only frontend items shown
-3. Also select "specs" in Module drawer → assert only frontend+specs items shown
-4. Deselect all Module tags → assert all frontend items shown (stack filter only)
-5. Deselect all Stack tags → assert all items shown (no filters)
-6. Select a non-matching combination → assert empty state shown
+**状态：** 草案
+**测试文件：** `frontend/src/components/category/GoalsTable.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Specs-G7, Specs-D4
 
----
-
----
+1. 渲染 `GoalsTable`，父目标为 `Chat-G1`，子目标为 `Chat-G2`
+2. 断言 `Chat-G1` 行有 `.node-toggle-area`（有子项）
+3. 断言 `Chat-G2` 行有 `.node-indent` 但无 `.node-toggle-area`
+4. 点击 `Chat-G1` 上的切换区域 → 断言 `Chat-G2` 行出现在 DOM 中
+5. 再次点击切换区域 → 断言 `Chat-G2` 行从 DOM 中移除
+6. 点击 `Chat-G1` 行（切换区域外）→ 断言 `@open-detail` 以 `Chat-G1` 触发
 
 ---
 
@@ -185,17 +126,90 @@ inbox.registerGate(gateA)
 ---
 
 ---
+
 ---
 
-## Specs-T7 [G21] Tag badges display shortened color-coded values
+---
+---
+
+## Specs-T5 [G21] GoalDetailModal 正确打开、编辑和关闭
 **Status:** draft
-**Test File:** `frontend/src/components/category/GoalsTable.vue` (component test)
-**Tags:** stack:frontend
-**Depends on:** Specs-G7, Specs-D6
 
-1. Render `GoalsTable` with item tagged `stack:frontend, module:specs`
-2. Assert tag chips show text "frontend" and "specs" (not full `kind:value`)
-3. Assert `stack` chip has `.tag-stack` class (blue styling)
-4. Assert `module` chip has `.tag-module` class (purple styling)
-5. Hover chip → assert `title` attribute contains full tag text `stack:frontend`
-6. Add 3+ tags → assert only first 2 render inline, overflow shows `+N`
+**状态：** 草案
+**测试文件：** `frontend/src/components/GoalDetailModal.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Specs-G7, Specs-D5
+
+1. 渲染 `GoalDetailModal`，带一个目标条目
+2. 断言弹窗遮罩和卡片存在
+3. 断言头部显示 ID 徽章和标题
+4. 断言元数据栏显示优先级、状态和标签胶囊
+5. 断言 RelationsPanel 在主体中渲染
+6. 点击 "编辑" 按钮 → 断言 `@edit` 触发，`GoalEditor` 挂载
+7. 按 ESC → 断言 `@close` 触发
+8. 点击遮罩背景 → 断言 `@close` 触发
+9. 点击弹窗卡片 → 断言未触发 `@close`（click.stop）
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Specs-T6 [G21] 侧边栏 Stack/Module 筛选器应用 AND 逻辑
+**Status:** draft
+
+**状态：** 草案
+**测试文件：** `frontend/src/views/SpecsView.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Specs-G7, Specs-D6
+
+1. 渲染 `SpecsView`，带混合标签条目（stack:frontend+module:specs, stack:backend+module:relay）
+2. 在 Stack 抽屉中选择 "frontend" → 断言仅显示 frontend 条目
+3. 同时在 Module 抽屉中选择 "specs" → 断言仅显示 frontend+specs 条目
+4. 取消所有 Module 标签 → 断言显示所有 frontend 条目（仅 stack 筛选器）
+5. 取消所有 Stack 标签 → 断言显示所有条目（无筛选器）
+6. 选择不匹配的组合 → 断言显示空状态
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Specs-T7 [G21] 标签徽章显示缩短的颜色编码值
+**Status:** draft
+
+**状态：** 草案
+**测试文件：** `frontend/src/components/category/GoalsTable.vue`（组件测试）
+**标签：** stack:frontend
+**依赖项：** Specs-G7, Specs-D6
+
+1. 渲染 `GoalsTable`，条目标签为 `stack:frontend, module:specs`
+2. 断言标签芯片显示文本 "frontend" 和 "specs"（非完整 `kind:value`）
+3. 断言 `stack` 芯片有 `.tag-stack` 类（蓝色样式）
+4. 断言 `module` 芯片有 `.tag-module` 类（紫色样式）
+5. 悬停芯片 → 断言 `title` 属性包含完整标签文本 `stack:frontend`
+6. 添加 3+ 标签 → 断言仅前 2 个内联渲染，溢出显示 `+N`

@@ -2,19 +2,21 @@
 
 ---
 
-## Project-D1 Explorer View & Tree Component
-**Status:** implemented
-**Module:** `frontend/src/views/ExplorerView.vue`, `components/TreeView.vue`
-**Tags:** stack:frontend
-**Depends on:** Project-A3
+## Project-D1 Explorer 视图与树形组件
+**Status:** draft
 
-- Fetch and display recursive project file tree
-- Handle node expand/collapse with chevron animation
-- Filter tree client-side by search query
-- Render file previews by MIME type (text, image, PDF, download)
+**状态：** 已实现
+**模块：** `frontend/src/views/ExplorerView.vue`、`components/TreeView.vue`
+**标签：** stack:frontend
+**依赖：** Project-A3
 
-- `useProject.ts` for project path and close action
-- `TreeNode` type from `@/types/wiki`
+- 获取并显示递归的项目文件树
+- 处理节点展开/折叠，并带有 chevron 动画
+- 通过搜索查询在客户端过滤树
+- 按 MIME 类型渲染文件预览（文本、图片、PDF、下载）
+
+- `useProject.ts` 用于项目路径和关闭操作
+- `TreeNode` 类型来自 `@/types/wiki`
 
 ---
 

@@ -2,11 +2,13 @@
 
 ---
 
-## Relay-T1 [G2] PipelineEngine executes flow steps in order
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/pipeline.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Relay-G1, Relay-D1
+## Relay-T1 [G2] PipelineEngine 按顺序执行流程步骤
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/pipeline.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Relay-G1, Relay-D1
 
 ```rust
 let flow = FlowSpec::parse(r#"
@@ -17,18 +19,16 @@ let flow = FlowSpec::parse(r#"
 let mut engine = PipelineEngine::new(flow, "test-run-1".into());
 ```
 
-1. Mock all agent turns to return immediate handoff.
-2. Call `engine.execute_next()` three times.
-3. Record profession of each spawned agent.
+1. 模拟所有智能体轮次以立即返回交接。
+2. 调用 `engine.execute_next()` 三次。
+3. 记录每个被创建智能体的职业。
 
-- Step 1 spawns Planner.
-- Step 2 spawns Architect.
-- Step 3 spawns Coder.
-- No step is skipped or reordered.
+- 第 1 步创建 Planner。
+- 第 2 步创建 Architect。
+- 第 3 步创建 Coder。
+- 没有步骤被跳过或重新排序。
 
 
-
----
 
 ---
 
@@ -41,13 +41,17 @@ let mut engine = PipelineEngine::new(flow, "test-run-1".into());
 ---
 
 ---
+
+---
 ---
 
-## Relay-T2 [G2] Flow branching routes DIRECT intent to single Coder step
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/pipeline.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Relay-G1, Relay-D1
+## Relay-T2 [G2] 流程分支将 DIRECT 意图路由到单个 Coder 步骤
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/pipeline.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Relay-G1, Relay-D1
 
 ```rust
 let flow = FlowSpec::parse(r#"
@@ -60,17 +64,15 @@ let flow = FlowSpec::parse(r#"
 let mut engine = PipelineEngine::new(flow, "test-run-2".into());
 ```
 
-1. Mock Intaker to classify intent as `DIRECT`.
-2. Call `engine.execute_next()`.
-3. Observe which profession runs next.
+1. 模拟 Intaker 将意图分类为 `DIRECT`。
+2. 调用 `engine.execute_next()`。
+3. 观察接下来运行哪个职业。
 
-- Intaker classifies `DIRECT`.
-- Flow branches to Coder step, skipping Planner.
-- Total steps executed: 2 (Intaker + Coder).
+- Intaker 分类为 `DIRECT`。
+- 流程分支到 Coder 步骤，跳过 Planner。
+- 总共执行的步骤：2（Intaker + Coder）。
 
 
-
----
 
 ---
 
@@ -83,13 +85,17 @@ let mut engine = PipelineEngine::new(flow, "test-run-2".into());
 ---
 
 ---
+
+---
 ---
 
-## Relay-T3 [G3] Handoff document excludes raw chat history
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/handoff.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Relay-G2, Relay-D2
+## Relay-T3 [G3] 交接文档排除原始聊天记录
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/handoff.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Relay-G2, Relay-D2
 
 ```rust
 let agent = create_test_agent("coder");
@@ -101,17 +107,15 @@ let history = vec![
 ];
 ```
 
-1. Call `HandoffDocument::generate(&agent, &history, &specs)`.
-2. Inspect rendered handoff markdown.
-3. Search for raw chat phrases.
+1. 调用 `HandoffDocument::generate(&agent, &history, &specs)`。
+2. 检查渲染后的交接 Markdown。
+3. 搜索原始聊天短语。
 
-- Handoff contains summary like "Coder implemented auth module."
-- Handoff does NOT contain "I'll start by..." or raw file contents.
-- Handoff lists `work_product: ["src/auth.rs"]` instead of inlining code.
+- 交接包含类似 "Coder implemented auth module." 的摘要。
+- 交接不包含 "I'll start by..." 或原始文件内容。
+- 交接列出 `work_product: ["src/auth.rs"]`，而非内联代码。
 
 
-
----
 
 ---
 
@@ -124,30 +128,32 @@ let history = vec![
 ---
 
 ---
+
+---
 ---
 
-## Relay-T4 [G3] Context scope filters specs by profession
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/handoff.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Relay-G2, Relay-D2
+## Relay-T4 [G3] 上下文范围按职业过滤规格
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/handoff.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Relay-G2, Relay-D2
 
 ```rust
 let specs = load_test_specs(); // Contains Goals, Architecture, Designs, Plans, Tests
 let coder_profession = ProfessionRegistry::new().get("coder").unwrap();
 ```
 
-1. Call `ContextPointers::build(&coder_profession, &specs)`.
-2. Count sections included in rendered context.
+1. 调用 `ContextPointers::build(&coder_profession, &specs)`。
+2. 统计渲染上下文中包含的章节数量。
 
-- Context includes Plans and Designs (readable by Coder).
-- Context includes Tests (readable by Coder).
-- Context excludes Architecture (not in Coder's readable_sections).
-- Context excludes Reviews (not in Coder's readable_sections).
+- 上下文包含 Plans 和 Designs（Coder 可读）。
+- 上下文包含 Tests（Coder 可读）。
+- 上下文排除 Architecture（不在 Coder 的 readable_sections 中）。
+- 上下文排除 Reviews（不在 Coder 的 readable_sections 中）。
 
 
-
----
 
 ---
 
@@ -160,13 +166,17 @@ let coder_profession = ProfessionRegistry::new().get("coder").unwrap();
 ---
 
 ---
+
+---
 ---
 
-## Relay-T5 [G4] Checkpoint restores after simulated crash
-**Status:** done
-**Test File:** `crates/auto-forge/tests/checkpoint_recovery.rs`
-**Tags:** stack:backend
-**Depends on:** Runtime-G1, Relay-D3
+## Relay-T5 [G4] 检查点在模拟崩溃后恢复
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/tests/checkpoint_recovery.rs`
+**标签：** stack:backend
+**依赖：** Runtime-G1, Relay-D3
 
 ```rust
 let temp_dir = TempDir::new().unwrap();
@@ -174,20 +184,18 @@ let project_dir = temp_dir.path().join("project");
 // Create test files and ledger
 ```
 
-1. Run PipelineEngine through 3 steps.
-2. Capture checkpoint after step 2.
-3. Simulate crash: drop engine, delete in-memory state.
-4. Create new engine from checkpoint.
-5. Resume execution.
+1. 运行 PipelineEngine 通过 3 个步骤。
+2. 在第 2 步后捕获检查点。
+3. 模拟崩溃：丢弃引擎，删除内存状态。
+4. 从检查点创建新引擎。
+5. 恢复执行。
 
-- New engine resumes at step 3 (Architect handoff).
-- File system state matches checkpoint (files at step 2 state).
-- Ledger state matches checkpoint.
-- No chat history from step 1 or 2 is present.
+- 新引擎在第 3 步恢复（Architect 交接）。
+- 文件系统状态与检查点匹配（文件处于第 2 步状态）。
+- 账本状态与检查点匹配。
+- 不存在第 1 步或第 2 步的聊天历史。
 
 
-
----
 
 ---
 
@@ -200,29 +208,31 @@ let project_dir = temp_dir.path().join("project");
 ---
 
 ---
+
+---
 ---
 
-## Relay-T6 [G4] Resume rehydrates agent without chat history
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/checkpoint.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Runtime-G1, Relay-D3
+## Relay-T6 [G4] 恢复时重新填充智能体，不含聊天历史
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/checkpoint.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Runtime-G1, Relay-D3
 
 ```rust
 let checkpoint = load_test_checkpoint("step-2-checkpoint.json");
 ```
 
-1. Call `PipelineEngine::resume(&checkpoint)`.
-2. Inspect the spawned agent's context.
-3. Check `agent.context.messages`.
+1. 调用 `PipelineEngine::resume(&checkpoint)`。
+2. 检查被创建智能体的上下文。
+3. 检查 `agent.context.messages`。
 
-- Agent context contains Soul + relevant Specs + Handoff Document.
-- Agent context does NOT contain raw messages from Planner or Architect turns.
-- `agent.context.turns_taken` is 0 (fresh start).
+- 智能体上下文包含 Soul + 相关 Specs + 交接文档。
+- 智能体上下文不包含来自 Planner 或 Architect 轮次的原始消息。
+- `agent.context.turns_taken` 为 0（全新开始）。
 
 
-
----
 
 ---
 
@@ -235,13 +245,17 @@ let checkpoint = load_test_checkpoint("step-2-checkpoint.json");
 ---
 
 ---
+
+---
 ---
 
-## Relay-T7 [G5] Token budget hard-stops at limit
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/budget.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Runtime-G2, Relay-D4
+## Relay-T7 [G5] Token 预算在限制处硬停止
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/budget.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Runtime-G2, Relay-D4
 
 ```rust
 let budget = TokenBudget {
@@ -252,17 +266,15 @@ let budget = TokenBudget {
 let mut tracker = BudgetTracker::new(budget);
 ```
 
-1. Record 600 tokens → check action.
-2. Record 300 more tokens (total 900) → check action.
-3. Record 200 more tokens (total 1100) → check action.
+1. 记录 600 Token → 检查动作。
+2. 再记录 300 Token（总计 900）→ 检查动作。
+3. 再记录 200 Token（总计 1100）→ 检查动作。
 
-- At 600: `BudgetAction::None`.
-- At 900: `BudgetAction::Warning { remaining: 100 }`.
-- At 1100: `BudgetAction::HardStop`.
+- 在 600：`BudgetAction::None`。
+- 在 900：`BudgetAction::Warning { remaining: 100 }`。
+- 在 1100：`BudgetAction::HardStop`。
 
 
-
----
 
 ---
 
@@ -275,13 +287,17 @@ let mut tracker = BudgetTracker::new(budget);
 ---
 
 ---
+
+---
 ---
 
-## Relay-T8 [G6] Human gate pauses until approval received
-**Status:** done
-**Test File:** `crates/auto-forge/tests/human_gate.rs`
-**Tags:** stack:backend
-**Depends on:** Runtime-G3, Relay-D1
+## Relay-T8 [G6] 人工关卡在收到批准前暂停
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/tests/human_gate.rs`
+**标签：** stack:backend
+**依赖：** Runtime-G3, Relay-D1
 
 ```rust
 let flow = FlowSpec::parse(r#"
@@ -291,21 +307,19 @@ let flow = FlowSpec::parse(r#"
 let mut engine = PipelineEngine::new(flow, "test-run-gate".into());
 ```
 
-1. Mock Planner turn to return handoff.
-2. Call `engine.execute_next()`.
-3. Assert status is `WaitingForHuman`.
-4. Wait 100ms (simulate human delay).
-5. Call `engine.resolve_gate(GateDecision::Approve)`.
-6. Assert status transitions to `Running` with Architect.
+1. 模拟 Planner 轮次返回交接。
+2. 调用 `engine.execute_next()`。
+3. 断言状态为 `WaitingForHuman`。
+4. 等待 100ms（模拟人工延迟）。
+5. 调用 `engine.resolve_gate(GateDecision::Approve)`。
+6. 断言状态转换为 `Running` 并伴随 Architect。
 
-- After Planner step: `PipelineStatus::WaitingForHuman`.
-- Before approval: no Architect spawned.
-- After approval: Architect step begins.
-- After rejection: Planner step restarts with feedback.
+- Planner 步骤之后：`PipelineStatus::WaitingForHuman`。
+- 批准之前：未创建 Architect。
+- 批准之后：Architect 步骤开始。
+- 拒绝之后：Planner 步骤以反馈重新启动。
 
 
-
----
 
 ---
 
@@ -318,33 +332,35 @@ let mut engine = PipelineEngine::new(flow, "test-run-gate".into());
 ---
 
 ---
+
+---
 ---
 
-## Relay-T9 [G6] End-to-end standard flow with human gates and budget tracking
-**Status:** done
-**Test File:** `crates/auto-forge/tests/relay_integration.rs`
-**Tags:** stack:backend
-**Depends on:** AgentConfig-G1-Runtime-G3, Relay-P6
+## Relay-T9 [G6] 带人工关卡和预算跟踪的端到端标准流程
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/tests/relay_integration.rs`
+**标签：** stack:backend
+**依赖：** AgentConfig-G1-Runtime-G3, Relay-P6
 
 ```rust
 let flow = standard_spec_flow(); // 6 steps: Intaker → Planner → Architect → Coder → Tester → Reviewer
 let store = new_run_store();
 ```
 
-1. Start run with standard flow.
-2. Execute Intaker step, submit handoff.
-3. Approve Planner gate, execute Planner, submit handoff.
-4. Approve Architect gate, execute Architect, submit handoff.
-5. Execute Coder, Tester, Reviewer steps with handoffs.
-6. Verify final status is Completed.
+1. 使用标准流程启动运行。
+2. 执行 Intaker 步骤，提交交接。
+3. 批准 Planner 关卡，执行 Planner，提交交接。
+4. 批准 Architect 关卡，执行 Architect，提交交接。
+5. 执行 Coder、Tester、Reviewer 步骤并提交交接。
+6. 验证最终状态为 Completed。
 
-- All 6 steps complete in order.
-- Budget tracks cumulative tokens across all steps.
-- Savings vs parallel estimate is positive.
+- 全部 6 个步骤按顺序完成。
+- 预算跟踪所有步骤的累计 Token。
+- 与并行估算相比的节省为正。
 
 
-
----
 
 ---
 
@@ -357,29 +373,31 @@ let store = new_run_store();
 ---
 
 ---
+
+---
 ---
 
-## Relay-T10 [G6] Gate rejection routes back to same profession with feedback
-**Status:** done
-**Test File:** `crates/auto-forge/tests/relay_integration.rs`
-**Tags:** stack:backend
-**Depends on:** Runtime-G3, Relay-D1
+## Relay-T10 [G6] 关卡拒绝将路由回同一职业并附带反馈
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/tests/relay_integration.rs`
+**标签：** stack:backend
+**依赖：** Runtime-G3, Relay-D1
 
 ```rust
 let flow = standard_spec_flow();
 let store = new_run_store();
 ```
 
-1. Execute Intaker step, submit handoff.
-2. Reject Planner gate with feedback.
-3. Verify engine re-enters Planner step.
+1. 执行 Intaker 步骤，提交交接。
+2. 以反馈拒绝 Planner 关卡。
+3. 验证引擎重新进入 Planner 步骤。
 
-- After rejection, current_step remains on Planner.
-- Feedback is stored in engine.gate_feedback.
+- 拒绝后，current_step 保持在 Planner。
+- 反馈存储在 engine.gate_feedback 中。
 
 
-
----
 
 ---
 
@@ -392,30 +410,32 @@ let store = new_run_store();
 ---
 
 ---
+
+---
 ---
 
-## Relay-T11 [G4] Checkpoint created during flow and resumed
-**Status:** done
-**Test File:** `crates/auto-forge/tests/relay_integration.rs`
-**Tags:** stack:backend
-**Depends on:** Runtime-G1, Relay-D3
+## Relay-T11 [G4] 在流程期间创建检查点并恢复
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/tests/relay_integration.rs`
+**标签：** stack:backend
+**依赖：** Runtime-G1, Relay-D3
 
 ```rust
 let flow = standard_spec_flow();
 let store = new_run_store();
 ```
 
-1. Run through 3 steps of standard flow.
-2. Create Checkpoint from engine state.
-3. Drop original engine.
-4. Resume from checkpoint with PipelineEngine::from_checkpoint().
-5. Continue execution from step 4.
+1. 运行标准流程的 3 个步骤。
+2. 从引擎状态创建检查点。
+3. 丢弃原始引擎。
+4. 使用 PipelineEngine::from_checkpoint() 从检查点恢复。
+5. 从第 4 步继续执行。
 
-- Checkpoint captures current_step = 3, step_history len = 3.
-- Resumed engine has Idle status, no chat history.
-- Can advance to Coder step.
-
----
+- 检查点捕获 current_step = 3，step_history 长度为 3。
+- 恢复的引擎状态为 Idle，无聊天历史。
+- 可以推进到 Coder 步骤。
 
 ---
 
@@ -428,13 +448,17 @@ let store = new_run_store();
 ---
 
 ---
+
+---
 ---
 
-## Relay-T12 [G6] GSD mode auto-approves all gates except GoalGate
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/pipeline.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Runtime-G3, Relay-D5, Relay-P7.3, Relay-P7.5
+## Relay-T12 [G6] GSD 模式自动批准除 GoalGate 外的所有关卡
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/pipeline.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Runtime-G3, Relay-D5, Relay-P7.3, Relay-P7.5
 
 ```rust
 let flow = gsd_flow(); // Advisor (human gate) → Architect (auto) → Planner (auto) → ...
@@ -442,18 +466,16 @@ let mut engine = PipelineEngine::new(flow, "test-gsd".into());
 engine.mode = RelayMode::GSD;
 ```
 
-1. Execute Advisor step.
-2. Assert status is `WaitingForHuman` (GoalGate).
-3. Approve GoalGate.
-4. Execute Architect step.
-5. Assert status is `Running` (NOT WaitingForHuman).
-6. Execute Planner, Coder, Tester, Reviewer, Documenter.
+1. 执行 Advisor 步骤。
+2. 断言状态为 `WaitingForHuman`（GoalGate）。
+3. 批准 GoalGate。
+4. 执行 Architect 步骤。
+5. 断言状态为 `Running`（非 WaitingForHuman）。
+6. 执行 Planner、Coder、Tester、Reviewer、Documenter。
 
-- Only GoalGate pauses in GSD mode.
-- All other gates proceed automatically.
-- Final status is `Completed` without further human interaction.
-
----
+- 在 GSD 模式中只有 GoalGate 暂停。
+- 所有其他关卡自动继续。
+- 最终状态为 `Completed`，无需进一步人工交互。
 
 ---
 
@@ -466,13 +488,17 @@ engine.mode = RelayMode::GSD;
 ---
 
 ---
+
+---
 ---
 
-## Relay-T13 [G6] Check mode pauses at every human-configured gate
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/pipeline.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Runtime-G3, Relay-D5, Relay-P7.3, Relay-P7.5
+## Relay-T13 [G6] Check 模式在每个配置为人工的关卡处暂停
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/pipeline.rs` (内联 `#[cfg(test)]`)
+**标签：** stack:backend
+**依赖：** Runtime-G3, Relay-D5, Relay-P7.3, Relay-P7.5
 
 ```rust
 let flow = check_flow(); // Advisor (human) → Architect (human) → Planner (human) → ...
@@ -480,15 +506,13 @@ let mut engine = PipelineEngine::new(flow, "test-check".into());
 engine.mode = RelayMode::Check;
 ```
 
-1. Execute Advisor step → assert `WaitingForHuman`.
-2. Approve → execute Architect → assert `WaitingForHuman`.
-3. Approve → execute Planner → assert `WaitingForHuman`.
-4. Approve → execute remaining steps.
+1. 执行 Advisor 步骤 → 断言 `WaitingForHuman`。
+2. 批准 → 执行 Architect → 断言 `WaitingForHuman`。
+3. 批准 → 执行 Planner → 断言 `WaitingForHuman`。
+4. 批准 → 执行剩余步骤。
 
-- Every gate with `gate: human` pauses the engine.
-- All 3 human gates are exercised.
-
----
+- 每个 `gate: human` 的关卡都会暂停引擎。
+- 全部 3 个人工关卡都被执行。
 
 ---
 
@@ -501,60 +525,37 @@ engine.mode = RelayMode::Check;
 ---
 
 ---
+
+---
 ---
 
-## Relay-T14 [G7] New end-to-end flow executes in correct order
-**Status:** done
-**Test File:** `crates/auto-forge/tests/relay_integration.rs`
-**Tags:** stack:backend
-**Depends on:** AgentConfig-G1-Specs-G1, Relay-P7
+## Relay-T14 [G7] 新的端到端流程按正确顺序执行
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/tests/relay_integration.rs`
+**标签：** stack:backend
+**依赖：** AgentConfig-G1-Specs-G1, Relay-P7
 
 ```rust
 let flow = new_v2_flow(); // Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter
 let store = new_run_store();
 ```
 
-1. Start run in GSD mode.
-2. Execute all steps with mocked handoffs.
-3. Record profession order.
+1. 在 GSD 模式下启动运行。
+2. 使用模拟交接执行所有步骤。
+3. 记录职业顺序。
 
-- Step 1: Assistant.
-- Step 2: Advisor.
-- Step 3: Architect.
-- Step 4: Planner.
-- Step 5: Tester (drafts tests).
-- Step 6: Coder.
-- Step 7: Tester (runs tests).
-- Step 8: Reviewer.
-- Step 9: Documenter.
-- Total 9 steps in order.
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-T15 [G9] AutoLinkContent parses IDs and emits jump events
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/unit/AutoLinkContent.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Specs-G2, Specs-D2
-
-1. Render `<AutoLinkContent content={content} />`
-2. Assert 3 `<a class="spec-link">` elements rendered
-3. Click AgentConfig-G1 link; assert `jump(id)` event emitted with `"AgentConfig-G1"`
-
+- 第 1 步：Assistant。
+- 第 2 步：Advisor。
+- 第 3 步：Architect。
+- 第 4 步：Planner。
+- 第 5 步：Tester（起草测试）。
+- 第 6 步：Coder。
+- 第 7 步：Tester（运行测试）。
+- 第 8 步：Reviewer。
+- 第 9 步：Documenter。
+- 总共 9 个步骤，按顺序执行。
 
 
 
@@ -573,123 +574,161 @@ let store = new_run_store();
 ---
 ---
 
-## Relay-T16 [G10] Node graph renders 9-step linear pipeline correctly
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/integration/PipelinePanel.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Relay-G3, Relay-D7
-
-1. Render `<PipelinePanel nodes={nodes} edges={edges} />`
-2. Assert 9 dots are visible
-3. Assert 3 green, 1 amber pulse, 5 gray
-4. Assert 8 connecting lines between dots
-
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-T17 [G10] Expanded node card shows correct token burn and specs touched
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/integration/NodeCard.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Relay-G3, Relay-D8
-
-1. Click Architect dot in PipelinePanel
-2. Assert expanded card shows "8,100 tokens"
-3. Assert card shows "architecture, designs (2 writes)"
-4. Click "View written specs →"; assert Specs drawer opens
-
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-T18 [G10] Retry loop backward edge renders and pulses on test failure
-**Status:** done
-**Test File:** `packages/auto-forge-ui/tests/integration/PipelinePanel.retry.spec.ts`
-**Tags:** stack:frontend
-**Depends on:** Relay-G3, Relay-D7
-
-1. Render PipelinePanel with retry edge
-2. Assert backward arrow is visible between Tester and Coder
-3. Assert arrow pulses amber
-4. Assert Coder node shows "Retry 2/3" badge
-
-
-
-
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Relay-T19 Relay Run Completion Notification in Chat
+## Relay-T15 [G9] AutoLinkContent 解析 ID 并触发跳转事件
 **Status:** draft
 
-**Priority**: P0  
-**Status**: Draft  
-**Stakeholder**: UI Team, Core Team  
-**Related Goals**: Relay-G13 (Automatic Relay Mode), Chat-G1 (Chat-First Gate Approval)
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/unit/AutoLinkContent.spec.ts`
+**标签：** stack:frontend
+**依赖：** Specs-G2, Specs-D2
 
-### Test Case
+1. 渲染 `<AutoLinkContent content={content} />`
+2. 断言渲染了 3 个 `<a class="spec-link">` 元素
+3. 点击 AgentConfig-G1 链接；断言触发 `jump(id)` 事件并携带 `"AgentConfig-G1"`
 
-When a Relay Run completes, the Assistant posts a notification message in the originating chat session where the relay was spawned, informing the user that the run has finished. If the relay produced a Report, the notification includes a clickable link to view that report.
 
-### Preconditions
 
-1. User has an active chat session with an agent (e.g., Planner)
-2. The agent has spawned a Relay Run using the `spawn_relay` tool
-3. The Relay Run ID is `run-abc123-def4-5678-90ab-cdef` and flow is `standard`
-4. The originating chat session ID is `forge-session-456`
-5. Chat SSE connection is active
 
-### Test Steps
+---
 
-#### Scenario 1: Successful Completion without Report
+---
 
-1. Relay Run spawns from chat via `spawn_relay` tool
-2. Run progresses through all steps (advisor → architect → planner → coder → tester)
-3. Pipeline status changes from `Running` to `Completed`
-4. Backend emits `RunEvent::RunCompleted` event
-5. Chat SSE stream receives `relay_complete` event
-6. Frontend renders system message bubble
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-T16 [G10] 节点图正确渲染 9 步线性流水线
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/integration/PipelinePanel.spec.ts`
+**标签：** stack:frontend
+**依赖：** Relay-G3, Relay-D7
+
+1. 渲染 `<PipelinePanel nodes={nodes} edges={edges} />`
+2. 断言可见 9 个点
+3. 断言 3 个绿色、1 个琥珀色脉冲、5 个灰色
+4. 断言点之间有 8 条连接线
+
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-T17 [G10] 展开的节点卡片显示正确的 Token 消耗和触及的规格
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/integration/NodeCard.spec.ts`
+**标签：** stack:frontend
+**依赖：** Relay-G3, Relay-D8
+
+1. 点击 PipelinePanel 中的 Architect 点
+2. 断言展开卡片显示 "8,100 tokens"
+3. 断言卡片显示 "architecture, designs (2 writes)"
+4. 点击 "View written specs →"；断言规格抽屉打开
+
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-T18 [G10] 重试循环的反向边在测试失败时渲染并脉冲
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `packages/auto-forge-ui/tests/integration/PipelinePanel.retry.spec.ts`
+**标签：** stack:frontend
+**依赖：** Relay-G3, Relay-D7
+
+1. 使用重试边渲染 PipelinePanel
+2. 断言 Tester 和 Coder 之间的反向箭头可见
+3. 断言箭头呈琥珀色脉冲
+4. 断言 Coder 节点显示 "Retry 2/3" 徽章
+
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+---
+
+## Relay-T19 聊天中的中继运行完成通知
+**Status:** draft
+
+**状态：** 草案
+
+**优先级**：P0  
+**状态**：草案  
+**利益相关方**：UI 团队, 核心团队  
+**相关目标**：Relay-G13 (Automatic Relay Mode), Chat-G1 (Chat-First Gate Approval)
+
+### 测试用例
+
+当中继运行完成时，Assistant 在创建该中继的原始聊天会话中发布通知消息，告知用户运行已完成。如果该中继生成了报告，通知将包含一个可点击的链接以查看该报告。
+
+### 前置条件
+
+1. 用户与智能体（例如 Planner）有一个活跃的聊天会话
+2. 智能体已使用 `spawn_relay` 工具创建了一个中继运行
+3. 中继运行 ID 为 `run-abc123-def4-5678-90ab-cdef`，流程为 `standard`
+4. 原始聊天会话 ID 为 `forge-session-456`
+5. 聊天 SSE 连接处于活跃状态
+
+### 测试步骤
+
+#### 场景 1：无报告的成功完成
+
+1. 中继运行通过 `spawn_relay` 工具从聊天中创建
+2. 运行推进所有步骤（advisor → architect → planner → coder → tester）
+3. 流水线状态从 `Running` 变为 `Completed`
+4. 后端发出 `RunEvent::RunCompleted` 事件
+5. 聊天 SSE 流接收到 `relay_complete` 事件
+6. 前端渲染系统消息气泡
 
 ```json
 {
@@ -703,20 +742,20 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 }
 ```
 
-- [ ] Chat UI displays a system message bubble with distinct styling (gray background, info icon)
-- [ ] Message includes run title (auto-generated) and truncated run ID
-- [ ] No "View Report" button is shown
-- [ ] Message appears immediately after completion (no polling delay)
-- [ ] Run title matches auto-generated title from `relay::title::generate_title()`
+- [ ] 聊天 UI 显示具有独特样式的系统消息气泡（灰色背景、信息图标）
+- [ ] 消息包含运行标题（自动生成）和截断的运行 ID
+- [ ] 不显示 "View Report" 按钮
+- [ ] 消息在完成时立即出现（无轮询延迟）
+- [ ] 运行标题与 `relay::title::generate_title()` 生成的自动标题匹配
 
 
-#### Scenario 2: Successful Completion with Report
+#### 场景 2：带报告的成功完成
 
-1. Relay Run includes `documenter` as final step
-2. Documenter agent writes report via `write_specs` tool
-3. Report saved to `specs/reports.ad` section with ID `R1`
-4. Pipeline completes successfully
-5. Notification includes report link
+1. 中继运行包含 `documenter` 作为最后一步
+2. Documenter 智能体通过 `write_specs` 工具编写报告
+3. 报告保存到 `specs/reports.ad` 的 `R1` 章节
+4. 流水线成功完成
+5. 通知包含报告链接
 
 ```json
 {
@@ -734,19 +773,19 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 }
 ```
 
-- [ ] "View Report" button appears in notification
-- [ ] Button is clickable and styled as primary action
-- [ ] Clicking link navigates to Specs view at Reports section
-- [ ] Report R1 is highlighted/scroll into view
-- [ ] URL query parameter `?report_id=R1` is present
-- [ ] Report title matches the one written by documenter
+- [ ] 通知中出现 "View Report" 按钮
+- [ ] 按钮可点击，样式为主操作
+- [ ] 点击链接导航到规格视图的报告章节
+- [ ] 报告 R1 高亮/滚动到视图中
+- [ ] URL 查询参数 `?report_id=R1` 存在
+- [ ] 报告标题与 documenter 编写的标题匹配
 
 
-#### Scenario 3: Failed Relay Run
+#### 场景 3：失败的中继运行
 
-1. Relay Run encounters error (e.g., budget exceeded)
-2. Pipeline status changes to `Failed`
-3. Error details captured in `RunEvent::RunFailed`
+1. 中继运行遇到错误（例如预算超限）
+2. 流水线状态变为 `Failed`
+3. 错误详情捕获在 `RunEvent::RunFailed` 中
 
 ```json
 {
@@ -765,67 +804,67 @@ When a Relay Run completes, the Assistant posts a notification message in the or
 }
 ```
 
-- [ ] Chat UI displays error notification with red/warning styling
-- [ ] Error message is user-friendly (no raw stack traces)
-- [ ] No report link is shown (failed runs don't produce reports)
-- [ ] User can click to view relay run details for debugging
+- [ ] 聊天 UI 显示带有红色/警告样式的错误通知
+- [ ] 错误消息对用户友好（无原始堆栈跟踪）
+- [ ] 不显示报告链接（失败的运行不产生报告）
+- [ ] 用户可以点击查看中继运行详情以进行调试
 
 
-#### Scenario 4: Multiple Concurrent Runs
+#### 场景 4：多个并发运行
 
-1. User spawns Run A from chat
-2. User spawns Run B from same chat
-3. Run A completes, then Run B completes
+1. 用户从聊天中创建运行 A
+2. 用户从同一聊天中创建运行 B
+3. 运行 A 完成，然后运行 B 完成
 
-- [ ] Each run sends its own `relay_complete` event
-- [ ] Two separate notification messages appear in chat
-- [ ] Messages appear in completion order (A then B)
-- [ ] Run IDs are distinct and correctly associated
-
-
-#### Scenario 5: SSE Reconnection After Completion
-
-1. Relay Run is executing
-2. SSE connection temporarily disconnects
-3. Run completes while disconnected
-4. Client reconnects to SSE stream
-
-- [ ] `relay_complete` event is replayed from `RunEntry.events` log
-- [ ] Notification appears upon reconnection
-- [ ] No events are lost
-- [ ] Client-side deduplication prevents duplicate messages
+- [ ] 每次运行发送各自的 `relay_complete` 事件
+- [ ] 聊天中出现两条独立通知消息
+- [ ] 消息按完成顺序出现（A 然后 B）
+- [ ] 运行 ID 不同且正确关联
 
 
-### Acceptance Criteria
+#### 场景 5：完成后的 SSE 重连
 
-#### Backend Requirements
-- [ ] `relay::driver` emits `relay_complete` event when pipeline status is `Completed` or `Failed`
-- [ ] Event includes: `run_id`, `status`, `title`, `message`, `report_link` (optional), `timestamp`
-- [ ] `run_id` is truncated to first 8 characters for display
-- [ ] `title` uses auto-generated title from `relay::title::generate_title()`
-- [ ] If Report was generated, `report_link` includes `url`, `report_id`, and `report_title`
-- [ ] Error messages are sanitized and user-friendly
-- [ ] Event is persisted in `RunEntry.events` for SSE replay
+1. 中继运行正在执行
+2. SSE 连接临时断开
+3. 运行在完成期间断开
+4. 客户端重新连接到 SSE 流
 
-#### Frontend Requirements
-- [ ] Chat SSE listener handles `relay_complete` event type
-- [ ] System message bubble has distinct styling (gray background, info icon)
-- [ ] Success messages show ✅ emoji, failures show ❌
-- [ ] "View Report" button only appears when `report_link` is present
-- [ ] Button is styled as primary action (blue/primary color)
-- [ ] Clicking report link navigates to `/specs/reports?report_id={id}`
-- [ ] Specs view highlights the report and scrolls it into view
-- [ ] Multiple notifications create separate message bubbles
-- [ ] Notifications are not editable (system messages)
-
-#### Integration Requirements
-- [ ] `relay::driver` communicates with chat module via event broadcast
-- [ ] Event includes `chat_session_id` to route to correct chat
-- [ ] Report detection checks `HandoffDocument` for `generated_report` field OR queries specs store
-- [ ] Run metadata stores originating `chat_session_id` for routing
+- [ ] `relay_complete` 事件从 `RunEntry.events` 日志重放
+- [ ] 重连时出现通知
+- [ ] 无事件丢失
+- [ ] 客户端去重防止重复消息
 
 
-### Test Data
+### 验收标准
+
+#### 后端需求
+- [ ] `relay::driver` 在流水线状态为 `Completed` 或 `Failed` 时发出 `relay_complete` 事件
+- [ ] 事件包含：`run_id`、`status`、`title`、`message`、`report_link`（可选）、`timestamp`
+- [ ] `run_id` 截断为前 8 个字符用于显示
+- [ ] `title` 使用 `relay::title::generate_title()` 生成的自动标题
+- [ ] 如果生成了报告，`report_link` 包含 `url`、`report_id` 和 `report_title`
+- [ ] 错误消息经过清理且对用户友好
+- [ ] 事件持久化存储在 `RunEntry.events` 中用于 SSE 重放
+
+#### 前端需求
+- [ ] 聊天 SSE 监听器处理 `relay_complete` 事件类型
+- [ ] 系统消息气泡具有独特样式（灰色背景、信息图标）
+- [ ] 成功消息显示 ✅ 表情符号，失败显示 ❌
+- [ ] 仅在 `report_link` 存在时显示 "View Report" 按钮
+- [ ] 按钮样式为主操作（蓝色/主色）
+- [ ] 点击报告链接导航到 `/specs/reports?report_id={id}`
+- [ ] 规格视图高亮报告并将其滚动到视图中
+- [ ] 多条通知创建独立的消息气泡
+- [ ] 通知不可编辑（系统消息）
+
+#### 集成需求
+- [ ] `relay::driver` 通过事件广播与聊天模块通信
+- [ ] 事件包含 `chat_session_id` 以路由到正确的聊天
+- [ ] 报告检测检查 `HandoffDocument` 的 `generated_report` 字段或查询规格存储
+- [ ] 运行元数据存储原始 `chat_session_id` 用于路由
+
+
+### 测试数据
 
 ```rust
 RunEvent::RunCompleted
@@ -855,36 +894,36 @@ pub struct RunMetadata {
 ```
 
 
-### Integration Points
+### 集成点
 
-| Module | Responsibility | Changes Needed |
+| 模块 | 职责 | 所需变更 |
 |--------|---------------|----------------|
-| `relay::driver` | Detect completion, emit notification | ✅ Add `relay_complete` event emission |
-| `relay::store` | Persist run events, metadata | ✅ Add `RunMetadata` to `RunEntry` |
-| `relay::handoff` | Report generation metadata | ✅ Add `generated_report` field |
-| `relay::title` | Auto-generate run titles | ✅ Already implemented |
-| `forge::mod` | Chat SSE event routing | ✅ Add `relay_complete` to `ForgeStreamEvent` |
-| Frontend Chat | Render notification UI | ✅ Handle `relay_complete` event |
-| Frontend Specs | Navigate to report | ✅ Parse `?report_id=` query param |
+| `relay::driver` | 检测完成，发出通知 | ✅ 添加 `relay_complete` 事件发送 |
+| `relay::store` | 持久化运行事件、元数据 | ✅ 向 `RunEntry` 添加 `RunMetadata` |
+| `relay::handoff` | 报告生成元数据 | ✅ 添加 `generated_report` 字段 |
+| `relay::title` | 自动生成运行标题 | ✅ 已实现 |
+| `forge::mod` | 聊天 SSE 事件路由 | ✅ 向 `ForgeStreamEvent` 添加 `relay_complete` |
+| 前端聊天 | 渲染通知 UI | ✅ 处理 `relay_complete` 事件 |
+| 前端规格 | 导航到报告 | ✅ 解析 `?report_id=` 查询参数 |
 
 
-### Edge Cases and Error Handling
+### 边缘情况和错误处理
 
-| Scenario | Expected Behavior |
+| 场景 | 预期行为 |
 |----------|------------------|
-| Run completed before chat reconnection | Notification replayed from `RunEntry.events` |
-| Report generation failed | Run completes but `report_link` is `null` |
-| Chat session closed during run | Notification queued; appears on next open |
-| Run spawned from different chat | Notification goes to originating chat only |
-| Multiple runs from same chat | Each run sends separate notification |
-| Run title generation fails | Fallback to truncated `run_id` as title |
-| Report link points to non-existent report | Link still shown; Specs shows "Report not found" |
-| SSE event delivery fails | Event logged; frontend may poll as fallback |
+| 聊天重连前运行已完成 | 从 `RunEntry.events` 重放通知 |
+| 报告生成失败 | 运行完成但 `report_link` 为 `null` |
+| 运行期间聊天会话关闭 | 通知排队；下次打开时显示 |
+| 从不同聊天创建的运运行 | 通知仅发送到原始聊天 |
+| 同一聊天中的多次运行 | 每次运行发送独立通知 |
+| 运行标题生成失败 | 回退到截断的 `run_id` 作为标题 |
+| 报告链接指向不存在的报告 | 仍显示链接；规格显示 "Report not found" |
+| SSE 事件发送失败 | 事件已记录；前端可作为后备进行轮询 |
 
 
-### Unit Tests
+### 单元测试
 
-**Test: `relay::driver::tests::test_emits_completion_event_on_success`**
+**测试：`relay::driver::tests::test_emits_completion_event_on_success`**
 ```rust
 #[test]
 fn test_emits_completion_event_on_success() {
@@ -896,7 +935,7 @@ fn test_emits_completion_event_on_success() {
 }
 ```
 
-**Test: `relay::driver::tests::test_emits_completion_event_on_failure`**
+**测试：`relay::driver::tests::test_emits_completion_event_on_failure`**
 ```rust
 #[test]
 fn test_emits_completion_event_on_failure() {
@@ -907,7 +946,7 @@ fn test_emits_completion_event_on_failure() {
 }
 ```
 
-**Test: `relay::driver::tests::test_includes_report_link_when_generated`**
+**测试：`relay::driver::tests::test_includes_report_link_when_generated`**
 ```rust
 #[test]
 fn test_includes_report_link_when_generated() {
@@ -917,7 +956,7 @@ fn test_includes_report_link_when_generated() {
 }
 ```
 
-**Test: `forge::mod::tests::test_relay_complete_event_routing`**
+**测试：`forge::mod::tests::test_relay_complete_event_routing`**
 ```rust
 #[test]
 fn test_relay_complete_event_routing() {
@@ -929,9 +968,9 @@ fn test_relay_complete_event_routing() {
 ```
 
 
-### Integration Tests
+### 集成测试
 
-**Test: `e2e_relay_completion_with_report`**
+**测试：`e2e_relay_completion_with_report`**
 ```rust
 #[tokio::test]
 async fn e2e_relay_completion_with_report() {
@@ -944,7 +983,7 @@ async fn e2e_relay_completion_with_report() {
 }
 ```
 
-**Test: `e2e_relay_failure_notification`**
+**测试：`e2e_relay_failure_notification`**
 ```rust
 #[tokio::test]
 async fn e2e_relay_failure_notification() {
@@ -956,164 +995,166 @@ async fn e2e_relay_failure_notification() {
 ```
 
 
-### Manual Testing Checklist
+### 手动测试清单
 
-- [ ] Open chat, spawn relay, observe completion notification
-- [ ] Verify run title is auto-generated (e.g., "Cache Module" from "Build a cache module")
-- [ ] Click report link, verify navigation to Specs
-- [ ] Test failed run scenario (exceed budget)
-- [ ] Test with multiple concurrent runs from same chat
-- [ ] Test SSE reconnection after completion
-- [ ] Verify notification persists across chat session close/reopen
-- [ ] Verify notification appears in originating chat only
-- [ ] Test with different flows (standard, post_discovery, fast_track)
-- [ ] Verify emoji indicators (✅ success, ❌ failure)
-
-
-### Open Questions
-
-1. **Report Metadata Storage**: Should `SpecItem` for reports include `run_id` field?
-   - **Recommendation**: Yes, add `run_id` to `SpecItem` for traceability
-
-2. **Notification Persistence**: Should notifications persist as system messages in `ForgeSession.messages`?
-   - **Recommendation**: Yes, store as system messages for chat history
-
-3. **Run Metadata**: Where to store originating `chat_session_id`?
-   - **Recommendation**: Add `RunMetadata` struct to `RunEntry` with `originating_chat_session` field
-
-4. **Legacy Runs**: How to handle runs completed before notification feature?
-   - **Recommendation**: Feature flag; only emit for runs created after deployment
-
-5. **Notification Preferences**: Should users be able to disable notifications?
-   - **Recommendation**: Add user preference flag (future enhancement, not P0)
+- [ ] 打开聊天，创建中继，观察完成通知
+- [ ] 验证运行标题是自动生成的（例如，从 "Build a cache module" 生成 "Cache Module"）
+- [ ] 点击报告链接，验证导航到规格
+- [ ] 测试失败运行场景（超出预算）
+- [ ] 测试同一聊天中的多个并发运行
+- [ ] 测试完成后的 SSE 重连
+- [ ] 验证通知在聊天会话关闭/重新打开后仍然存在
+- [ ] 验证通知仅出现在原始聊天中
+- [ ] 使用不同流程测试（standard、post_discovery、fast_track）
+- [ ] 验证表情符号指示器（✅ 成功，❌ 失败）
 
 
-### Implementation Plan
+### 未决问题
 
-#### Phase 1: Backend Event Emission
-1. Add `RelayCompleteNotification` event struct
-2. Modify `relay::driver` to emit on completion/failure
-3. Add `RunMetadata` to `RunEntry` (store chat_session_id, title)
-4. Add `generated_report` field to `HandoffDocument`
-5. Persist notification in `RunEntry.events`
+1. **报告元数据存储**：报告的 `SpecItem` 是否应该包含 `run_id` 字段？
+   - **建议**：是，向 `SpecItem` 添加 `run_id` 以实现可追溯性
 
-#### Phase 2: Chat Integration
-1. Add `RelayComplete` variant to `ForgeStreamEvent`
-2. Route events to originating chat session
-3. Emit via SSE to connected clients
-4. Handle SSE replay on reconnection
+2. **通知持久化**：通知是否应该作为系统消息持久化存储在 `ForgeSession.messages` 中？
+   - **建议**：是，作为系统消息存储以保留聊天历史
 
-#### Phase 3: Frontend UI
-1. Add `relay_complete` event handler in chat component
-2. Render system message bubble with styling
-3. Add "View Report" button when `report_link` present
-4. Implement navigation to Specs with report highlight
+3. **运行元数据**：原始 `chat_session_id` 存储在哪里？
+   - **建议**：向 `RunEntry` 添加 `RunMetadata` 结构体，包含 `originating_chat_session` 字段
 
-#### Phase 4: Report Link
-1. Add `run_id` field to `SpecItem` for reports
-2. Implement report detection logic
-3. Generate link with `?report_id=` query param
-4. Handle navigation in Specs view
+4. **遗留运行**：如何处理通知功能部署之前已完成的运行？
+   - **建议**：功能开关；仅为部署后创建的运行发出通知
+
+5. **通知偏好**：用户是否应该能够禁用通知？
+   - **建议**：添加用户偏好标志（未来增强，非 P0）
 
 
-### References
+### 实现计划
 
-- **Relay Module**: `backend/src/relay/mod.rs`
-- **Relay Driver**: `backend/src/relay/driver.rs`
-- **Relay Store**: `backend/src/relay/store.rs` - `RunEntry`, `RunEvent`
-- **Pipeline**: `backend/src/relay/pipeline.rs` - `PipelineStatus`
-- **Handoff**: `backend/src/relay/handoff.rs` - `HandoffDocument`
-- **Chat Module**: `backend/src/forge/mod.rs` - `ForgeStreamEvent`, `ForgeSession`
-- **Title Generation**: `backend/src/relay/title.rs` - `generate_title()`
-- **Relay API**: `backend/src/relay/api.rs` - SSE event broadcasting
+#### 阶段 1：后端事件发送
+1. 添加 `RelayCompleteNotification` 事件结构体
+2. 修改 `relay::driver` 以在完成/失败时发出通知
+3. 向 `RunEntry` 添加 `RunMetadata`（存储 chat_session_id、title）
+4. 向 `HandoffDocument` 添加 `generated_report` 字段
+5. 将通知持久化存储在 `RunEntry.events` 中
 
----
+#### 阶段 2：聊天集成
+1. 向 `ForgeStreamEvent` 添加 `RelayComplete` 变体
+2. 将事件路由到原始聊天会话
+3. 通过 SSE 向已连接客户端发送
+4. 处理重连时的 SSE 重放
+
+#### 阶段 3：前端 UI
+1. 在聊天组件中添加 `relay_complete` 事件处理器
+2. 渲染带样式的系统消息气泡
+3. 当 `report_link` 存在时添加 "View Report" 按钮
+4. 实现导航到带报告高亮的规格视图
+
+#### 阶段 4：报告链接
+1. 向报告添加 `run_id` 字段到 `SpecItem`
+2. 实现报告检测逻辑
+3. 生成带 `?report_id=` 查询参数的链接
+4. 在规格视图中处理导航
+
+
+### 参考
+
+- **中继模块**：`backend/src/relay/mod.rs`
+- **中继驱动器**：`backend/src/relay/driver.rs`
+- **中继存储**：`backend/src/relay/store.rs` - `RunEntry`, `RunEvent`
+- **流水线**：`backend/src/relay/pipeline.rs` - `PipelineStatus`
+- **交接**：`backend/src/relay/handoff.rs` - `HandoffDocument`
+- **聊天模块**：`backend/src/forge/mod.rs` - `ForgeStreamEvent`, `ForgeSession`
+- **标题生成**：`backend/src/relay/title.rs` - `generate_title()`
+- **中继 API**：`backend/src/relay/api.rs` - SSE 事件广播
 
 ---
 
-## Relay-T20 MCP End-to-End Test Scenario
-**Status:** implemented
-**Tags:** stack:backend, module:mcp
-**Depends on:** Relay-P6, Chat-P1
+---
 
-Complete validation workflow exercising AutoForge entirely through the MCP interface. Covers project setup, chat sessions, Relay Run execution, gate resolution, handoff submission, and state verification.
+## Relay-T20 MCP 端到端测试场景
+**Status:** draft
 
-### Phase 1: Project Setup
+**状态：** 已实现
+**标签：** stack:backend, module:mcp
+**依赖：** Relay-P6, Chat-P1
 
-| Step | Tool | Expected Result |
+通过 MCP 接口完整验证 AutoForge 的完整工作流。涵盖项目设置、聊天会话、中继运行执行、关卡解析、交接提交和状态验证。
+
+### 阶段 1：项目设置
+
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
 | 1.1 | `forge_get_project_status` | `{ "project_open": false }` |
-| 1.2 | `forge_open_project` | Project metadata with root path |
+| 1.2 | `forge_open_project` | 包含根路径的项目元数据 |
 | 1.3 | `forge_get_project_status` | `{ "project_open": true, ... }` |
-| 1.4 | `forge_read_specs` | Specs document with sections |
+| 1.4 | `forge_read_specs` | 带章节的规格文档 |
 
-### Phase 2: Chat Session Lifecycle
+### 阶段 2：聊天会话生命周期
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
 | 2.1 | `forge_create_session` | `{ "id": "fs-<uuid>", "status": "Idle" }` |
 | 2.2 | `forge_poll_chat_status` | `{ "status": "Idle", "message_count": 0 }` |
-| 2.3 | `forge_send_message` | Assistant reply present |
+| 2.3 | `forge_send_message` | 存在 Assistant 回复 |
 | 2.4 | `forge_poll_chat_status` | `message_count >= 2` |
-| 2.5 | `forge_get_session` (with history) | Messages array with roles |
-| 2.6 | `forge_get_session` (without history) | `message_count` present, messages omitted |
+| 2.5 | `forge_get_session` (含历史) | 带角色的消息数组 |
+| 2.6 | `forge_get_session` (不含历史) | 显示 `message_count`，消息被省略 |
 
-### Phase 3: Relay Run Full Lifecycle
+### 阶段 3：中继运行完整生命周期
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
-| 3.1 | `forge_list_professions` | Professions array |
+| 3.1 | `forge_list_professions` | 职业数组 |
 | 3.2 | `forge_start_relay_run` | `{ "run_id": "run-<uuid>", "status": "pending" }` |
-| 3.3 | `forge_poll_run_phase` | Status "pending" or "running" |
-| 3.4 | `forge_poll_run_phase` (poll loop) | Status transitions through steps |
-| 3.5 | `forge_get_run` | Complete RunState |
-| 3.6 | `forge_list_runs` | Array containing new run |
+| 3.3 | `forge_poll_run_phase` | 状态为 "pending" 或 "running" |
+| 3.4 | `forge_poll_run_phase` (轮询循环) | 状态按步骤转换 |
+| 3.5 | `forge_get_run` | 完整的 RunState |
+| 3.6 | `forge_list_runs` | 包含新运行的数组 |
 
-### Phase 4: Manual Run Control
+### 阶段 4：手动运行控制
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
 | 4.1 | `forge_advance_run` | `ExecuteStep { ... }` |
-| 4.2 | `forge_poll_run_phase` | `current_step` incremented |
-| 4.3 | `forge_submit_handoff` | Handoff accepted |
-| 4.4 | `forge_resolve_gate` (approve) | Gate resolved, run continues |
-| 4.5 | `forge_resolve_gate` (reject) | Run routes back to same step |
+| 4.2 | `forge_poll_run_phase` | `current_step` 递增 |
+| 4.3 | `forge_submit_handoff` | 交接被接受 |
+| 4.4 | `forge_resolve_gate` (批准) | 关卡已解析，运行继续 |
+| 4.5 | `forge_resolve_gate` (拒绝) | 运行路由回同一步骤 |
 
-### Phase 5: Batch Operations
+### 阶段 5：批量操作
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
-| 5.1 | `forge_batch_start_runs` | Multiple `run_ids` returned |
-| 5.2 | `forge_batch_get_results` | Array of RunBrief objects |
+| 5.1 | `forge_batch_start_runs` | 返回多个 `run_ids` |
+| 5.2 | `forge_batch_get_results` | RunBrief 对象数组 |
 
-### Phase 6: Spec Workflow Integration
+### 阶段 6：规格工作流集成
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
-| 6.1 | `forge_send_message` (spec update) | Message accepted |
+| 6.1 | `forge_send_message` (规格更新) | 消息被接受 |
 | 6.2 | `forge_poll_chat_status` | `pending_changes = true` |
-| 6.3 | `forge_approve_spec` | Changes applied |
-| 6.4 | `forge_reject_spec` | Changes discarded |
-| 6.5 | `forge_read_specs` | Updated specs document |
+| 6.3 | `forge_approve_spec` | 变更已应用 |
+| 6.4 | `forge_reject_spec` | 变更已丢弃 |
+| 6.5 | `forge_read_specs` | 更新后的规格文档 |
 
-### Phase 7: File System Operations
+### 阶段 7：文件系统操作
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
-| 7.1 | `forge_browse_directory` | Directory entries |
-| 7.2 | `forge_read_file` | File content and metadata |
+| 7.1 | `forge_browse_directory` | 目录条目 |
+| 7.2 | `forge_read_file` | 文件内容和元数据 |
 
-### Phase 8: Performance & Diagnostics
+### 阶段 8：性能与诊断
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
-| 8.1 | `forge_get_performance_logs` | Recent backend.log lines |
-| 8.2 | `forge_list_api_sources` | Configured API sources |
+| 8.1 | `forge_get_performance_logs` | 最近的 backend.log 行 |
+| 8.2 | `forge_list_api_sources` | 已配置的 API 来源 |
 | 8.3 | `forge_test_api_connection` | ConnectionTestResult |
 
-### Phase 9: Cleanup
+### 阶段 9：清理
 
-| Step | Tool | Expected Result |
+| 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
 | 9.1 | `forge_delete_session` | `{ "deleted": true }` |
 | 9.2 | `forge_get_session` | "Session not found" |
@@ -1121,21 +1162,80 @@ Complete validation workflow exercising AutoForge entirely through the MCP inter
 
 ---
 
-## Relay-T21 Chat → spawn_relay → Relay Run Automation Verification
-**Status:** completed
-**Tags:** stack:backend
-**Depends on:** Relay-T20
+## Relay-T21 聊天 → spawn_relay → 中继运行自动化验证
+**Status:** draft
 
-Validation checklist for the Chat-triggered Relay Run pipeline after fixes.
+**状态：** 已完成
+**标签：** stack:backend
+**依赖：** Relay-T20
 
-| # | Check | Method | Result |
+修复后聊天触发的中继运行流水线的验证清单。
+
+| # | 检查项 | 方法 | 结果 |
 |---|-------|--------|--------|
-| 1 | Only 1 Relay Run spawned per Chat session | Code review + live test | `spawn_relay_done` flag breaks ReAct loop after first success |
-| 2 | Tokens count exactly once per turn | Event log analysis | 38 `token_spend` events, 0 duplicates |
-| 3 | Discover step auto-flows without human gate | Live run observation | Run progressed through `discover` with `gate=auto` |
-| 4 | `step_completed` step_id is correct | Event log analysis | Exactly 1 event per step, correct `step_id` |
-| 5 | `relay_update` events broadcast and persist | Event log analysis | Events present after each step transition |
-| 6 | `forge_poll_run_phase` returns correct profession | API response check | `current_profession` matches active step |
-| 7 | `/api/health` endpoint responds | `curl` test | `{"status":"ok"}` |
+| 1 | 每个聊天会话仅创建 1 个中继运行 | 代码审查 + 实机测试 | `spawn_relay_done` 标志在首次成功后打断 ReAct 循环 |
+| 2 | 每轮 Token 计数恰好一次 | 事件日志分析 | 38 个 `token_spend` 事件，0 个重复 |
+| 3 | Discover 步骤无需人工关卡自动流动 | 实机运行观察 | 运行以 `gate=auto` 推进 `discover` |
+| 4 | `step_completed` 的 `step_id` 正确 | 事件日志分析 | 每步恰好 1 个事件，正确的 `step_id` |
+| 5 | `relay_update` 事件广播并持久化 | 事件日志分析 | 每次步骤转换后都存在事件 |
+| 6 | `forge_poll_run_phase` 返回正确的职业 | API 响应检查 | `current_profession` 与活动步骤匹配 |
+| 7 | `/api/health` 端点响应 | `curl` 测试 | `{"status":"ok"}` |
+
+---
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Relay-T20 Session Log 正确显示 thinking 条目
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `frontend/src/views/RelayView.vue`（组件测试）
+**标签：** stack:frontend
+**依赖：** Relay-D14
+
+```typescript
+const log: SessionLogEntry[] = [
+  { id: 'l1', time: '10:00', profession_id: 'advisor', type: 'thinking', content: 'Analyzing requirements...' }
+]
+```
+
+1. 渲染 Session Log，断言 thinking 条目存在
+2. 断言 thinking 条目默认折叠（`<details>` 未展开）
+3. 点击展开，断言 `<pre>` 显示推理内容
+4. 模拟 `turn_thinking` SSE 事件，断言实时追加到 `_sessionLog`
+5. 从 RunState 历史恢复，断言 `eventsToSessionLog()` 生成 `type:'thinking'` 条目
+
+- Session Log 支持 `thinking` 类型渲染。
+- 实时事件与历史恢复数据一致。
+- 视觉风格与 Chat ThinkingBlock 统一。
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
 
 ---

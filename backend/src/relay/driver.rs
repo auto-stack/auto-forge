@@ -182,6 +182,26 @@ pub async fn drive_run(
                                     Some(crate::relay::turn::TurnEvent::TextDelta { text }) => {
                                         text_buffer.push_str(&text);
                                     }
+                                    Some(crate::relay::turn::TurnEvent::ThinkingDelta { thinking }) => {
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_thinking".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                                "thinking": &thinking,
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnThinking {
+                                                    timestamp: now_secs(),
+                                                    profession_id: profession_id_fwd.clone(),
+                                                    thinking: thinking.clone(),
+                                                });
+                                                crate::relay::store::save_run(entry);
+                                            }
+                                        }
+                                    }
                                     Some(crate::relay::turn::TurnEvent::ToolCall { id, name, arguments }) => {
                                         flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
                                         let _ = event_tx_fwd.send(RunEventBroadcast {
@@ -347,7 +367,30 @@ pub async fn drive_run(
                 });
 
                 let turn_start = std::time::Instant::now();
-                let turn_result = turn.run(provider.clone(), turn_tx).await;
+                let turn_result = match tokio::time::timeout(
+                    tokio::time::Duration::from_secs(900),
+                    turn.run(provider.clone(), turn_tx)
+                ).await {
+                    Ok(result) => result,
+                    Err(_) => {
+                        tracing::error!(
+                            run_id = %run_id,
+                            profession_id = %profession_id,
+                            "AgentTurn timed out after 300s — submitting empty handoff to unblock pipeline"
+                        );
+                        crate::relay::turn::TurnResult {
+                            assistant_text: "Turn timed out after 300 seconds.".to_string(),
+                            tool_calls: Vec::new(),
+                            input_tokens: 0,
+                            output_tokens: 0,
+                            handoff_requested: true,
+                            decisions: Vec::new(),
+                            open_questions: Vec::new(),
+                            files_touched: Vec::new(),
+                            spec_updates: Vec::new(),
+                        }
+                    }
+                };
                 let turn_elapsed_ms = turn_start.elapsed().as_millis() as u64;
                 tracing::info!(
                     run_id = %run_id,

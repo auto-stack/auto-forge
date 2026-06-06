@@ -2,10 +2,12 @@
 
 ---
 
-## Cli-D1 CLI REPL Interface
-**Status:** done
-**Module:** `backend/src/cli/`
-**Tags:** stack:backend
+## Cli-D1 CLI REPL 接口
+**Status:** draft
+
+**状态：** 已完成
+**模块：** `backend/src/cli/`
+**标签：** stack:backend
 
 ```rust
 // cli/repl.rs
@@ -39,12 +41,12 @@ stateDiagram-v2
     Prompt --> [*]: :quit
 ```
 
-| Command | Action |
+| 命令 | 操作 |
 |---|---|
-| `:quit` / `:q` | Exit REPL |
-| `:help` | Show available commands |
-| `:reset` | Clear conversation history |
-| `:messages` | Show message count |
+| `:quit` / `:q` | 退出 REPL |
+| `:help` | 显示可用命令 |
+| `:reset` | 清除对话历史 |
+| `:messages` | 显示消息计数 |
 
 ---
 
@@ -58,4 +60,5 @@ stateDiagram-v2
 
 ---
 
+---
 ---

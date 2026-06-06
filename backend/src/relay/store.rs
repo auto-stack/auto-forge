@@ -69,6 +69,7 @@ pub enum RunEvent {
     TurnError { #[serde(default)] timestamp: u64, profession_id: String, message: String },
     TurnBudgetWarning { #[serde(default)] timestamp: u64, profession_id: String, remaining: u64 },
     TurnBudgetExceeded { #[serde(default)] timestamp: u64, profession_id: String },
+    TurnThinking { #[serde(default)] timestamp: u64, profession_id: String, thinking: String },
 }
 
 /// Summary of a run for listing.

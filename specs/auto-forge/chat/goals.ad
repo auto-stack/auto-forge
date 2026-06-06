@@ -2,103 +2,84 @@
 
 ---
 
-## Chat-G1 Chat-First Gate Approval with Smart Secretary
+## Chat-G1 聊天优先关卡审批与智能秘书
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Runtime-G3, Specs-G1
 
-The chat is the boss's office. All gates, regardless of origin, are delivered here. The secretary only enters when a signature is needed or the job is done.
----
+- [x] 聊天就是老板的办公室，所有关卡在这里交付
+- [x] 秘书只在需要签名或任务完成时出现
 
-## Chat-G2 Inline GateCard renders diff view with Approve/Reject/Edit
+## Chat-G2 内联 GateCard 渲染差异视图，带批准/拒绝/编辑
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G1
 
-- [x] GateCard appears at the bottom of chat for current-session gates
-- [x] Diff view shows what changed vs previous version with inline highlighting
-- [x] Approve button advances pipeline; Reject button prompts for reason and routes back to Advisor
-- [x] Edit escape hatch opens Specs drawer without losing gate state
----
+- [x] GateCard 出现在聊天底部
+- [x] 差异视图显示变更内容，带内联高亮
+- [x] 批准/拒绝/编辑操作
 
-## Chat-G3 SecretaryMessage delivers cross-session gates without blocking input
+## Chat-G3 SecretaryMessage 跨会话交付关卡，不阻塞输入
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G1
 
-- [x] Ephemeral messenger renders above input bar for gates from other sessions/runs
-- [x] Input bar remains usable; secretary waits without interrupting
-- [x] Message shows profession, session ID, and summary of proposed items
-- [x] Resolved messages collapse to compact audit line after 3 seconds
----
+- [x] 临时信使渲染来自其他会话/运行的关卡
+- [x] 输入栏保持可用
+- [x] 已解决的消息在 3 秒后折叠
 
-## Chat-G4 Gate queue enforces one-at-a-time delivery with snooze and dismiss
+## Chat-G4 关卡队列强制执行一次一个交付，支持暂停和关闭
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G1
 
-- [x] Only one secretary message is active at a time; additional gates enqueue
-- [x] Queue pill shows "+N more" with expandable mini-list
-- [x] Snooze moves gate to back of queue with configurable timer
-- [x] Dismiss removes gate from active view but does not resolve it
----
+- [x] 同时只有一个秘书消息处于活动状态
+- [x] 队列药丸显示 "+N more"
+- [x] 暂停和关闭功能
 
-## Chat-G5 Ambient progress indicators keep chat history free of status spam
+## Chat-G5 环境进度指示器保持聊天历史无状态垃圾信息
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G1
 
-- [x] Session list shows pulsing dot + phase label for active relays
-- [x] Chat history never contains interim "Architect done" messages
-- [x] Errors are the only exception: single secretary message on unrecoverable failure
-- [x] ReportCard renders terminal completion with metrics, cost, and deliverables
----
+- [x] 会话列表显示脉冲点 + 阶段标签
+- [x] 聊天历史不包含临时消息
+- [x] ReportCard 渲染终端完成状态
 
-## Chat-G6 @Mention Agent Targeting directs chat messages to named agents with sticky profession routing
+## Chat-G6 @提及智能体定位将聊天消息定向到命名的智能体，带粘性职业路由
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** AgentConfig-G1, Project-G1
 
-- [x] `@DisplayName` syntax in chat input resolves to profession_id via AgentConfig lookup
-- [x] Autocomplete dropdown filters agents by display name and profession_id after typing `@`
-- [x] Session stores `active_profession` — subsequent messages without `@` keep targeting the same agent
-- [x] Backend resolves profession to full agent (soul + profession system prompt) via RelayRegistry
-- [x] Agent identifies by display name in system prompt and responses (e.g., "I'm Nicole")
-- [x] @mentions render as inline styled chips in both input backdrop and message bubbles
-- [x] Tool role messages hidden from chat display; bouncing dots animation replaces empty assistant bubble
-- [x] Enter sends, Ctrl+Enter inserts newline
-- [x] Tool names renamed from jade to specs (list_jade→list_specs, etc.)
-- [x] All tools resolve file paths via project directory instead of backend CWD
----
+- [x] @DisplayName 语法解析为 profession_id
+- [x] 自动完成下拉列表
+- [x] 会话存储 active_profession
+- [x] 后端将职业解析为完整智能体
+- [x] @提及渲染为内联样式芯片
 
-## Chat-G7 Display name resolution and identity
+## Chat-G7 显示名称解析与身份标识
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G6
 
-- [x] AgentConfig `name` field serves as display name (e.g., "Nicole", "Isaac")
-- [x] `resolveMention()` maps both display names and profession_ids to canonical profession_id
-- [x] `AgentInstance.display_name` propagated through `spawn_agent_from_config()`
-- [x] System prompt leads with "You are {display_name}" instead of "AutoForge"
----
+- [x] AgentConfig name 字段用作显示名称
+- [x] resolveMention() 将显示名称和 profession_ids 映射到 profession_id
+- [x] 系统提示以 "You are {display_name}" 开头
 
-## Chat-G8 @Mention autocomplete with backdrop overlay
+## Chat-G8 @提及自动完成与背景覆盖层
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G6
 
-- [x] MentionDropdown component with keyboard navigation (up/down/enter/escape)
-- [x] `@` detection scans backwards from cursor position (not limited to start of input)
-- [x] Backdrop overlay technique renders styled @mention chips behind transparent textarea
-- [x] Selection replaces `@filter` with `@DisplayName ` at cursor position
----
+- [x] MentionDropdown 支持键盘导航
+- [x] 背景覆盖层技术渲染样式化芯片
+- [x] 选择替换光标位置的文本
 
-## Chat-G9 Streaming Content Renderer with Mixed Markdown/JSON
+## Chat-G9 流式内容渲染器，支持混合 Markdown/JSON
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Chat-G6
 
-- [x] `useStreamingDocument` splits markdown from JSON component blocks in real-time SSE streams
-- [x] `StreamingRenderer` dispatches to component registry (table → `StreamingTable`, etc.)
-- [x] Sticky props cache handles incomplete/partial JSON without flicker
-- [x] Integrates with `markstream-vue` for incremental markdown rendering
+- [x] useStreamingDocument 分离 markdown 与 JSON 组件块
+- [x] StreamingRenderer 分派到组件注册表
+- [x] 粘性 props 缓存处理不完整 JSON

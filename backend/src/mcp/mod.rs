@@ -479,15 +479,20 @@ impl AutoForgeMcpServer {
         &self,
         input: rmcp::handler::server::wrapper::Parameters<ReadSpecsInput>,
     ) -> Result<CallToolResult, McpError> {
+        let project = if input.0.project.is_empty() {
+            crate::forge::tools::current_project()
+        } else {
+            input.0.project.clone()
+        };
         let mut store = crate::forge::specs().lock().unwrap();
         let has_filter = input.0.section_id.is_some()
             || input.0.item_id.is_some()
             || input.0.include_items == Some(false);
 
         if has_filter {
-            let doc = store.get(&input.0.project).ok_or_else(|| {
+            let doc = store.get(&project).ok_or_else(|| {
                 McpError::invalid_params(
-                    format!("Project '{}' not found", input.0.project),
+                    format!("Project '{}' not found", project),
                     None,
                 )
             })?;
@@ -526,7 +531,7 @@ impl AutoForgeMcpServer {
             return text_response(&doc_copy);
         }
 
-        let doc = store.get_or_default(&input.0.project);
+        let doc = store.get_or_default(&project);
         text_response(doc)
     }
 
@@ -538,10 +543,15 @@ impl AutoForgeMcpServer {
         &self,
         input: rmcp::handler::server::wrapper::Parameters<ListSpecsSectionsInput>,
     ) -> Result<CallToolResult, McpError> {
+        let project = if input.0.project.is_empty() {
+            crate::forge::tools::current_project()
+        } else {
+            input.0.project.clone()
+        };
         let store = crate::forge::specs().lock().unwrap();
-        let doc = store.get(&input.0.project).ok_or_else(|| {
+        let doc = store.get(&project).ok_or_else(|| {
             McpError::invalid_params(
-                format!("Project '{}' not found", input.0.project),
+                format!("Project '{}' not found", project),
                 None,
             )
         })?;
@@ -580,22 +590,27 @@ impl AutoForgeMcpServer {
         &self,
         input: rmcp::handler::server::wrapper::Parameters<UpdateSpecInput>,
     ) -> Result<CallToolResult, McpError> {
+        let project = if input.0.project.is_empty() {
+            crate::forge::tools::current_project()
+        } else {
+            input.0.project.clone()
+        };
         let action = input.0.action.as_deref().unwrap_or("upsert");
         let mut store = crate::forge::specs().lock().unwrap();
 
         let result = match action {
             "delete" => {
-                store.delete_spec_item(&input.0.project, &input.0.section_id, &input.0.item_id)
+                store.delete_spec_item(&project, &input.0.section_id, &input.0.item_id)
             }
             "patch" => {
                 let content = input.0.content.as_deref().ok_or_else(|| {
                     McpError::invalid_params("'patch' action requires 'content'", None)
                 })?;
-                store.patch_spec_item(&input.0.project, &input.0.section_id, &input.0.item_id, content)
+                store.patch_spec_item(&project, &input.0.section_id, &input.0.item_id, content)
             }
             "upsert" => {
                 store.upsert_spec_item(
-                    &input.0.project,
+                    &project,
                     &input.0.section_id,
                     &input.0.item_id,
                     input.0.title.as_deref(),
@@ -622,7 +637,7 @@ impl AutoForgeMcpServer {
         match result {
             Ok(msg) => text_response(&serde_json::json!({
                 "result": msg,
-                "project": input.0.project,
+                "project": project,
                 "section_id": input.0.section_id,
                 "item_id": input.0.item_id,
                 "action": action,

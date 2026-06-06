@@ -8,9 +8,9 @@
 
 | Criterion | Goal | Result | Evidence | Issue |
 |---|---|---|---|---|
-| C1 | All 7 categories render correctly | ✅ Pass | `categoryComponent` switch in `SpecsView.vue` | — |
-| C2 | Bidirectional jumping works across sections | ✅ Pass | `jumpToItem` + `findItemById` + flash animation | — |
-| C3 | GSD/Check mode toggle functions | ✅ Pass | `useForgeMode` composable + `showGatePanel` computed | — |
-| C4 | Responsive layout works on mobile | ✅ Pass | `@media (max-width: 768px)` in App + all views | — |
+| C1 | All 7 categories render correctly | ✅ pass | `SpecsView.vue` `categoryComponent` switch | — |
+| C2 | Bidirectional jump works across sections | ✅ pass | `jumpToItem` + `findItemById` + flash animation | — |
+| C3 | GSD/Check mode toggle works | ✅ pass | `useForgeMode` composable + `showGatePanel` computed | — |
+| C4 | Responsive layout works on mobile | ✅ pass | `@media (max-width: 768px)` in App and all views | — |
 
 ---

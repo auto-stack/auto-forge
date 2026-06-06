@@ -2,11 +2,13 @@
 
 ---
 
-## Errand-D1 Dispatch Tool & Gofer Profession
-**Status:** implemented
-**Module:** `crates/auto-forge/src/forge/dispatch.rs`, `crates/auto-forge/src/relay/profession.rs`
-**Tags:** stack:both
-**Depends on:** Errand-A1, Chat-D3
+## Errand-D1 调度工具与 Gofer 职业
+**Status:** draft
+
+**状态：** 已实现
+**模块：** `crates/auto-forge/src/forge/dispatch.rs`、`crates/auto-forge/src/relay/profession.rs`
+**标签：** stack:both
+**依赖：** Errand-A1、Chat-D3
 
 ```rust
 // ── Profession registry entry ──
@@ -215,7 +217,7 @@ You are Gus, an AI research assistant. You do not make decisions, give opinions,
 ```
 
 
-| Profession | `dispatch` in allowed_tools | `dispatchable_to` |
+| 职业 | `dispatch` 在 allowed_tools 中 | `dispatchable_to` |
 |---|---|---|
 | assistant | ✅ | [gofer] |
 | advisor | ✅ | [gofer] |
@@ -224,6 +226,8 @@ You are Gus, an AI research assistant. You do not make decisions, give opinions,
 | tester | ✅ | [gofer] |
 | coder | ✅ | [gofer] |
 | gofer | ❌ | [] |
+
+---
 
 ---
 

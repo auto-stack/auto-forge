@@ -324,5 +324,18 @@
   },
   "detail": {
     "noDetail": "No detail provided."
+  },
+  "auth": {
+    "username": "Username",
+    "password": "Password",
+    "usernamePlaceholder": "Enter username",
+    "passwordPlaceholder": "Enter password",
+    "login": "Login",
+    "register": "Register",
+    "loading": "Signing in...",
+    "noAccount": "Don't have an account? Register",
+    "hasAccount": "Already have an account? Login",
+    "logout": "Log out",
+    "defaultHint": "Default: admin / admin"
   }
 }

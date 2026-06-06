@@ -2,49 +2,22 @@
 
 ---
 
-## Runtime-T1 [G15] CLI settings serialize and deserialize correctly
-**Status:** done
-**Test File:** `backend/src/cli/settings.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Cli-G1, Cli-D1
+## Runtime-T1 [G15] CLI 设置正确序列化和反序列化
+**Status:** draft
 
-1. Create full `Settings` with env, provider, model, api_key, base_url, permission
-2. Serialize to JSON and deserialize back
-3. Assert round-trip preserves all fields
-4. Deserialize `{}` (minimal) → assert defaults
+**状态：** 已完成
+**测试文件：** `backend/src/cli/settings.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖：** Cli-G1, Cli-D1
 
-- Full settings round-trip without data loss.
-- Empty JSON produces valid defaults.
-- env HashMap is correctly populated.
+1. 创建完整的 `Settings`，包含 env、provider、model、api_key、base_url、permission
+2. 序列化为 JSON 并反序列化回来
+3. 断言往返后保留所有字段
+4. 反序列化 `{}`（最小配置）→ 断言默认值
 
----
-
----
-
----
-
----
-
----
-
----
-
----
----
-
-## Runtime-T2 [G15] Settings env injection respects existing env vars
-**Status:** done
-**Test File:** `backend/src/cli/settings.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Cli-G1, Cli-D1
-
-1. Set `TEST_VAR=existing`
-2. Create `Settings { env: { "TEST_VAR": "new" } }`
-3. Call `inject_env()`
-4. Assert `TEST_VAR` still equals "existing" (not overwritten)
-
-- Existing env vars are not overwritten by settings.
-- Missing env vars are set from settings.
+- 完整设置往返无数据丢失。
+- 空 JSON 产生有效的默认值。
+- env HashMap 被正确填充。
 
 ---
 
@@ -59,21 +32,58 @@
 ---
 
 ---
+
 ---
 
-## Runtime-T3 [G15] Full build passes with CLI module wired in
-**Status:** done
-**Test File:** CI (`cargo check && cargo test --lib`)
-**Tags:** stack:backend
-**Depends on:** Provider-G1, Cli-G1
+## Runtime-T2 [G15] 设置 env 注入尊重现有环境变量
+**Status:** draft
 
-1. Run `cargo check`
-2. Assert 0 errors
-3. Run `cargo test --lib`
-4. Assert 131 passed, 1 pre-existing failure
+**状态：** 已完成
+**测试文件：** `backend/src/cli/settings.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖：** Cli-G1, Cli-D1
 
-- Build compiles without errors.
-- All new and existing tests pass (except pre-existing `test_model_tier_serde`).
+1. 设置 `TEST_VAR=existing`
+2. 创建 `Settings { env: { "TEST_VAR": "new" } }`
+3. 调用 `inject_env()`
+4. 断言 `TEST_VAR` 仍等于 "existing"（未被覆盖）
+
+- 现有环境变量不会被设置覆盖。
+- 缺失的环境变量从设置中设置。
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## Runtime-T3 [G15] 完整构建通过，CLI 模块已接入
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** CI（`cargo check && cargo test --lib`）
+**标签：** stack:backend
+**依赖：** Provider-G1, Cli-G1
+
+1. 运行 `cargo check`
+2. 断言 0 个错误
+3. 运行 `cargo test --lib`
+4. 断言 131 个通过，1 个预先存在的失败
+
+- 构建编译无错误。
+- 所有新增和现有测试通过（除预先存在的 `test_model_tier_serde` 外）。
+
+---
 
 ---
 

@@ -19,7 +19,7 @@ export interface SessionLogEntry {
   time: string
   profession_id: string
   step_id?: string
-  type: 'text' | 'tool_call' | 'tool_result' | 'tool' | 'complete' | 'error' | 'budget_warning' | 'budget_exceeded' | 'step_started' | 'step_completed' | 'gate_waiting' | 'run_completed' | 'run_failed'
+  type: 'text' | 'thinking' | 'tool_call' | 'tool_result' | 'tool' | 'complete' | 'error' | 'budget_warning' | 'budget_exceeded' | 'step_started' | 'step_completed' | 'gate_waiting' | 'run_completed' | 'run_failed'
   content: string
   tool_name?: string
   tool_id?: string
@@ -61,6 +61,7 @@ export interface RunEventDto {
   result?: string
   message?: string
   remaining?: number
+  thinking?: string
 }
 
 export interface RunState {
@@ -201,6 +202,13 @@ export function useRelay() {
             result[result.length - 1].content += ev.text || ''
           } else {
             result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'text', content: ev.text || '' })
+          }
+          break
+        case 'turn_thinking':
+          if (result.length > 0 && result[result.length - 1].type === 'thinking' && result[result.length - 1].profession_id === prof) {
+            result[result.length - 1].content += ev.thinking || ''
+          } else {
+            result.push({ id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, time, profession_id: prof, type: 'thinking', content: ev.thinking || '' })
           }
           break
         case 'turn_tool_call':
@@ -375,6 +383,20 @@ export function useRelay() {
               profession_id: prof,
               type: 'text',
               content: data.payload.text || '',
+            })
+          }
+        }
+        if (data.event_type === 'turn_thinking') {
+          const last = _sessionLog.value[_sessionLog.value.length - 1]
+          if (last && last.type === 'thinking' && last.profession_id === prof) {
+            last.content += data.payload.thinking || ''
+          } else {
+            _sessionLog.value.push({
+              id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              time,
+              profession_id: prof,
+              type: 'thinking',
+              content: data.payload.thinking || '',
             })
           }
         }

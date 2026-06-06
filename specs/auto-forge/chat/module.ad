@@ -1,58 +1,60 @@
-# Chat Module
+# 聊天模块
 
-## Overview
+## 概述
 
-Chat-First Gate Approval with Smart Secretary
+聊天优先关卡审批与智能秘书
 
-## Goals
+## 目标
 
-- **G1** — Chat-First Gate Approval with Smart Secretary
-- **G2** — Inline GateCard renders diff view with Approve/Reject/Edit
-- **G3** — SecretaryMessage delivers cross-session gates without blocking input
-- **G4** — Gate queue enforces one-at-a-time delivery with snooze and dismiss
-- **G5** — Ambient progress indicators keep chat history free of status spam
-- **G6** — @Mention Agent Targeting directs chat messages to named agents with sticky profession routing
-- *...and 3 more*
+- **G1** — 聊天优先关卡审批与智能秘书
+- **G2** — 内联 GateCard 渲染差异视图，带批准/拒绝/编辑
+- **G3** — SecretaryMessage 跨会话交付关卡，不阻塞输入
+- **G4** — 关卡队列强制执行一次一个交付，支持暂停和关闭
+- **G5** — 环境进度指示器保持聊天历史无状态垃圾信息
+- **G6** — @提及智能体定位将聊天消息定向到命名的智能体，带粘性职业路由
+- *...以及另外 3 个*
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — Chat Ephemeral Chrome Architecture
-- **A2** — Chat-Turn Agent Handoff Architecture
-- **A3** — Streaming Content Renderer Architecture
+- **A1** — 聊天临时 Chrome 架构
+- **A2** — 聊天轮次智能体交接架构
+- **A3** — 流式内容渲染器架构
+- **A4** — Thinking 数据流架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — GateCard & SecretaryMessage Components
-- **D2** — ReportCard (Chat Terminal)
-- **D3** — bring_in Tool & Chat Handoff
-- **D4** — Streaming Content Renderer & Document Parser
+- **D1** — GateCard 与 SecretaryMessage 组件
+- **D2** — ReportCard（聊天终端）
+- **D3** — bring_in 工具与聊天交接
+- **D4** — 流式内容渲染器与文档解析器
+- **D5** — ThinkingBlock 推理过程展示组件
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [agent-config](agent-config/module.ad), [project](project/module.ad), [relay](relay/module.ad), [runtime](runtime/module.ad), [specs](specs/module.ad), [ui-system](ui-system/module.ad), [wiki](wiki/module.ad)
+依赖项：[agent-config](agent-config/module.ad)、[project](project/module.ad)、[relay](relay/module.ad)、[runtime](runtime/module.ad)、[specs](specs/module.ad)、[ui-system](ui-system/module.ad)、[wiki](wiki/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 9 | [goals.ad](goals.ad) |
-| Architecture | 3 | [architecture.ad](architecture.ad) |
-| Designs | 4 | [designs.ad](designs.ad) |
-| Plans | 3 | [plans.ad](plans.ad) |
-| Tests | 7 | [tests.ad](tests.ad) |
-| Reviews | 1 | [reviews.ad](reviews.ad) |
+| 目标 | 9 | [goals.ad](goals.ad) |
+| 架构 | 4 | [architecture.ad](architecture.ad) |
+| 设计 | 5 | [designs.ad](designs.ad) |
+| 计划 | 3 | [plans.ad](plans.ad) |
+| 测试 | 7 | [tests.ad](tests.ad) |
+| 评审 | 1 | [reviews.ad](reviews.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Chat-`** (e.g. `Chat-G1`, `Chat-D1`).
+本模块中的规格 ID 使用前缀 **`Chat-`**（例如 `Chat-G1`、`Chat-D1`）。

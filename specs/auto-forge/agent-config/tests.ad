@@ -2,28 +2,28 @@
 
 ---
 
-## AgentConfig-T1 [G1] Agent profession registry loads built-in professions
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/profession.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** AgentConfig-G1, AgentConfig-D1
+## AgentConfig-T1 [G1] 智能体职业注册表加载内置职业
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/profession.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖于：** AgentConfig-G1、AgentConfig-D1
 
 ```rust
 let registry = ProfessionRegistry::new();
 ```
 
-1. Call `registry.load_builtin()`
-2. Query `registry.get("architect")`
-3. Query `registry.get("coder")`
-4. Query `registry.get("nonexistent")`
+1. 调用 `registry.load_builtin()`
+2. 查询 `registry.get("architect")`
+3. 查询 `registry.get("coder")`
+4. 查询 `registry.get("nonexistent")`
 
-- Architect profession exists with `owned_sections: [Architecture, Designs]`.
-- Coder profession exists with `tools: [read_file, write_file, edit_file, shell, search]`.
-- Nonexistent returns `None`.
+- Architect 职业存在，具有 `owned_sections: [Architecture, Designs]`。
+- Coder 职业存在，具有 `tools: [read_file, write_file, edit_file, shell, search]`。
+- 不存在的职业返回 `None`。
 
 
-
----
 
 ---
 
@@ -36,31 +36,34 @@ let registry = ProfessionRegistry::new();
 ---
 
 ---
+
 ---
 
-## AgentConfig-T2 [G1] Soul markdown renders into system prompt context
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/agent.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** AgentConfig-G1, AgentConfig-D1
+---
+
+## AgentConfig-T2 [G1] 人格 Markdown 渲染为系统提示上下文
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/agent.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖于：** AgentConfig-G1、AgentConfig-D1
 
 ```rust
 let soul = SoulConfig::load("test-souls/planner.md").unwrap();
 let profession = ProfessionRegistry::new().get("planner").unwrap();
 ```
 
-1. Call `AgentInstance::spawn(profession, &soul.id, ...)`
-2. Call `agent.render_system_prompt()`
-3. Assert prompt contains Soul values
-4. Assert prompt contains Profession constraints
+1. 调用 `AgentInstance::spawn(profession, &soul.id, ...)`
+2. 调用 `agent.render_system_prompt()`
+3. 断言提示包含人格价值观
+4. 断言提示包含职业约束
 
-- System prompt includes "Core Values" section from Soul.
-- System prompt includes "You may ONLY use read_jade, write_jade tools" from Profession.
-- Prompt is ≤2000 tokens.
+- 系统提示包含来自人格的"核心价值观"部分。
+- 系统提示包含来自职业的"你只能使用 read_jade、write_jade 工具"。
+- 提示 ≤2000 Token。
 
 
-
----
 
 ---
 
@@ -73,28 +76,33 @@ let profession = ProfessionRegistry::new().get("planner").unwrap();
 ---
 
 ---
+
 ---
 
-## AgentConfig-T3 [G7] Profession registry contains new v2 professions and no Intaker or APIs
-**Status:** done
-**Test File:** `crates/auto-forge/src/relay/profession.rs` (inline `#[cfg(test)]`)
-**Tags:** stack:backend
-**Depends on:** Specs-G1, AgentConfig-D2, Relay-P7.1, Relay-P7.2
+---
+
+## AgentConfig-T3 [G7] 职业注册表包含新的 v2 职业，且没有 Intaker 或 APIs
+**Status:** draft
+
+**状态：** 已完成
+**测试文件：** `crates/auto-forge/src/relay/profession.rs`（内联 `#[cfg(test)]`）
+**标签：** stack:backend
+**依赖于：** Specs-G1、AgentConfig-D2、Relay-P7.1、Relay-P7.2
 
 ```rust
 let registry = ProfessionRegistry::new();
 ```
 
-1. Query `registry.get("assistant")`.
-2. Query `registry.get("advisor")`.
-3. Query `registry.get("intaker")`.
-4. Query `registry.get("architect")`.
-5. Inspect `architect.owned_sections`.
+1. 查询 `registry.get("assistant")`。
+2. 查询 `registry.get("advisor")`。
+3. 查询 `registry.get("intaker")`。
+4. 查询 `registry.get("architect")`。
+5. 检查 `architect.owned_sections`。
 
-- Assistant exists with `phase: Intake`, `owned_sections: []`.
-- Advisor exists with `phase: Discovery`, `owned_sections: [Goals]`.
-- Intaker returns `None`.
-- Architect exists with `owned_sections: [Architecture, Designs]` (no APIs).
+- Assistant 存在，具有 `phase: Intake`、`owned_sections: []`。
+- Advisor 存在，具有 `phase: Discovery`、`owned_sections: [Goals]`。
+- Intaker 返回 `None`。
+- Architect 存在，具有 `owned_sections: [Architecture, Designs]`（没有 APIs）。
 
 ---
 

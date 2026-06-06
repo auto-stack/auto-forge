@@ -183,6 +183,7 @@ export function useForge() {
         id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         role: 'assistant',
         content: '',
+        thinking: '',
         timestamp: Date.now(),
         tool_calls: [],
         profession_id: professionId ?? undefined,
@@ -224,6 +225,9 @@ export function useForge() {
           } else if (data.type === 'delta' && data.text) {
             const msg = ensureAssistantMsg()
             msg.content += data.text
+          } else if (data.type === 'thinking' && data.thinking) {
+            const msg = ensureAssistantMsg()
+            msg.thinking = (msg.thinking || '') + data.thinking
           } else if (data.type === 'tool_call') {
             const msg = ensureAssistantMsg()
             const call: ToolCallInfo = {

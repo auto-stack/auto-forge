@@ -1,48 +1,48 @@
-# Editor Module
+# 编辑器模块
 
-## Overview
+## 概述
 
-AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
+AutoDown 编辑器提供所见即所得的基于块的编辑，支持 Markdown/AutoDown 序列化，用于 Wiki 和规格内容
 
-## Goals
+## 目标
 
-- **G1** — AutoDown Editor provides WYSIWYG block-based editing with Markdown/AutoDown serialization for Wiki and Spec content
-- **G2** — Phase 1 — Markdown WYSIWYG Editor
-- **G3** — Phase 2 — AutoDown Extensions
-- **G4** — Phase 3 — Advanced Editing Features
+- **G1** — AutoDown 编辑器提供所见即所得的基于块的编辑，支持 Markdown/AutoDown 序列化，用于 Wiki 和规格内容
+- **G2** — 阶段 1 — Markdown 所见即所得编辑器
+- **G3** — 阶段 2 — AutoDown 扩展
+- **G4** — 阶段 3 — 高级编辑功能
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — AutoDown Editor — Tiptap-Based WYSIWYG Architecture
+- **A1** — AutoDown 编辑器 — 基于 Tiptap 的所见即所得架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
+- **D1** — AutoDown 编辑器 — 基于块的所见即所得，支持 Markdown/AutoDown 序列化
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [wiki](wiki/module.ad)
+依赖项：[wiki](wiki/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 4 | [goals.ad](goals.ad) |
-| Architecture | 1 | [architecture.ad](architecture.ad) |
-| Designs | 1 | [designs.ad](designs.ad) |
-| Plans | 1 | [plans.ad](plans.ad) |
+| 目标 | 4 | [goals.ad](goals.ad) |
+| 架构 | 1 | [architecture.ad](architecture.ad) |
+| 设计 | 1 | [designs.ad](designs.ad) |
+| 计划 | 1 | [plans.ad](plans.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Editor-`** (e.g. `Editor-G1`, `Editor-D1`).
+本模块中的规格 ID 使用前缀 **`Editor-`**（例如 `Editor-G1`、`Editor-D1`）。

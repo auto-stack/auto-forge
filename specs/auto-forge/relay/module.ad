@@ -1,65 +1,67 @@
-# Relay Module
+# 中继模块
 
-## Overview
+## 概述
 
-Relay Orchestrator executes serial agent flows with baton passing and gate enforcement
+中继编排器执行带接力传递和关卡强制执行的串行智能体流程
 
-## Goals
+## 目标
 
-- **G1** — Relay Orchestrator executes serial agent flows with baton passing and gate enforcement
-- **G2** — Handoff Protocol compresses context between agents, achieving ~5× token savings vs parallel multi-agent
-- **G3** — Live Relay Pipeline Visualization
-- **G4** — Node-graph renders connected dots with animated handoff lines
-- **G5** — Expanded node cards show real-time token burn and current action
-- **G6** — Tester→Coder retry loop visualizes as backward edge with counter
-- *...and 9 more*
+- **G1** — 中继编排器执行带接力传递和关卡强制执行的串行智能体流程
+- **G2** — 交接协议在智能体之间压缩上下文，相比并行多智能体实现约 5 倍 Token 节省
+- **G3** — 实时中继流水线可视化
+- **G4** — 节点图渲染带动画交接线的连接点
+- **G5** — 展开的节点卡片显示实时 Token 消耗和当前操作
+- **G6** — 测试员→编码员重试循环可视化为带计数器的反向边
+- *...以及另外 9 个*
 
-## Key Architecture Decisions
+## 关键架构决策
 
-- **A1** — Relay Orchestrator Architecture
-- **A2** — Checkpoint & State Persistence
-- **A3** — Boss-First Execution Architecture
-- **A4** — Automatic Relay Mode Architecture
-- **A5** — Cross-View Event Router Architecture
+- **A1** — 中继编排器架构
+- **A2** — 检查点与状态持久化
+- **A3** — Boss-First 执行架构
+- **A4** — 自动中继模式架构
+- **A5** — 跨视图事件路由架构
+- **A8** — Thinking 事件广播架构
 
-## Key Designs
+## 关键设计
 
-- **D1** — PipelineEngine & Flow Execution
-- **D2** — HandoffDocument Generation
-- **D3** — Checkpoint Serialization
-- **D4** — TokenBudget Enforcement
-- **D5** — RelayMode & GSD Flow Control
-- **D6** — useGateInbox State Machine
-- **D7** — Relay PipelinePanel Node-Graph
-- *...and 5 more*
+- **D1** — PipelineEngine 与流程执行
+- **D2** — 交接文档生成
+- **D3** — 检查点序列化
+- **D4** — TokenBudget 强制执行
+- **D5** — RelayMode 与 GSD 流程控制
+- **D6** — useGateInbox 状态机
+- **D7** — 中继 PipelinePanel 节点图
+- **D14** — Session Log Thinking 条目
+- *...以及另外 6 个*
 
-## Module Dependencies
+## 模块依赖项
 
-Depends on: [agent-config](agent-config/module.ad), [chat](chat/module.ad), [errand](errand/module.ad), [runtime](runtime/module.ad), [specs](specs/module.ad), [ui-system](ui-system/module.ad)
+依赖项：[agent-config](agent-config/module.ad)、[chat](chat/module.ad)、[errand](errand/module.ad)、[runtime](runtime/module.ad)、[specs](specs/module.ad)、[ui-system](ui-system/module.ad)
 
-## Module Specs
+## 模块规格
 
-| Type | Count | File |
+| 类型 | 数量 | 文件 |
 |------|-------|------|
-| Goals | 15 | [goals.ad](goals.ad) |
-| Architecture | 5 | [architecture.ad](architecture.ad) |
-| Designs | 15 | [designs.ad](designs.ad) |
-| Plans | 10 | [plans.ad](plans.ad) |
-| Tests | 19 | [tests.ad](tests.ad) |
-| Reviews | 1 | [reviews.ad](reviews.ad) |
-| Reports | 1 | [reports.ad](reports.ad) |
+| 目标 | 15 | [goals.ad](goals.ad) |
+| 架构 | 6 | [architecture.ad](architecture.ad) |
+| 设计 | 16 | [designs.ad](designs.ad) |
+| 计划 | 10 | [plans.ad](plans.ad) |
+| 测试 | 19 | [tests.ad](tests.ad) |
+| 评审 | 1 | [reviews.ad](reviews.ad) |
+| 报告 | 1 | [reports.ad](reports.ad) |
 
-## Navigation
+## 导航
 
-This module follows the standard spec pyramid:
-- **Goals** define what the module aims to achieve
-- **Architecture** describes high-level design and component interactions
-- **Designs** contain detailed technical specifications
-- **Plans** track implementation tasks
-- **Tests** list acceptance criteria
-- **Reviews** capture post-implementation retrospectives
-- **Reports** contain implementation summaries
+本模块遵循标准规格金字塔：
+- **目标** 定义模块旨在实现的内容
+- **架构** 描述高层设计和组件交互
+- **设计** 包含详细的技术规格
+- **计划** 跟踪实现任务
+- **测试** 列出验收标准
+- **评审** 记录实现后的回顾
+- **报告** 包含实现总结
 
-## ID Prefix
+## ID 前缀
 
-Spec IDs in this module use the prefix **`Relay-`** (e.g. `Relay-G1`, `Relay-D1`).
+本模块中的规格 ID 使用前缀 **`Relay-`**（例如 `Relay-G1`、`Relay-D1`）。

@@ -45,6 +45,7 @@ impl FlowRegistry {
             goal_discovery_flow(),
             doc_patch_flow(),
             spec_tweak_flow(),
+            superpower_flow(),
         ];
         for flow in builtins {
             self.flows.insert(flow.id.clone(), flow);
@@ -456,6 +457,62 @@ pub fn doc_patch_flow() -> FlowSpec {
     flow
 }
 
+/// Superpower flow: three super-professions covering the entire pipeline.
+///
+/// Super Advisor (Goals + Architecture + Designs + Plans + Tests)
+///   → Super Coder (Implementation)
+///   → Super Tester (Test + Review + Report)
+///
+/// Designed for experienced users who want minimal handoff overhead
+/// and maximum autonomy per agent.
+pub fn superpower_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("superpower");
+    flow.add_step(
+        FlowStep::new("design", "super-advisor")
+            .with_gate(GateType::Human)
+            .with_validators(vec![StepValidator::Any(vec![
+                StepValidator::SpecUpdatesNonEmpty {
+                    sections: vec![
+                        "goals".to_string(),
+                        "architecture".to_string(),
+                        "designs".to_string(),
+                        "plans".to_string(),
+                        "tests".to_string(),
+                    ],
+                },
+            ])])
+            .with_tool_guard(ToolGuard {
+                required_first: vec!["write_goals".to_string(), "write_specs".to_string()],
+                unlocks: HashMap::new(),
+                always_allowed: vec![
+                    "list_specs".to_string(),
+                    "read_specs".to_string(),
+                    "read_file".to_string(),
+                ],
+                forbidden: vec![],
+            }),
+    );
+    flow.add_step(
+        FlowStep::new("implement", "super-coder")
+            .with_gate(GateType::Auto)
+            .with_validators(code_validators()),
+    );
+    flow.add_step(
+        FlowStep::new("verify", "super-tester")
+            .with_gate(GateType::Auto)
+            .with_validators(vec![StepValidator::Any(vec![
+                StepValidator::SpecUpdatesNonEmpty {
+                    sections: vec!["reviews".to_string(), "reports".to_string()],
+                },
+            ])])
+            .with_exit(crate::relay::flow::ExitRouting::Loop {
+                target_step_id: "implement".into(),
+                max_iterations: 3,
+            }),
+    );
+    flow
+}
+
 /// Spec-tweak flow: for updating specs (goals, architecture, designs, plans, tests)
 /// without executing any code.
 ///
@@ -582,6 +639,35 @@ mod tests {
         assert_eq!(flow.steps.len(), 2);
         assert_eq!(flow.steps[0].profession_id, "assistant");
         assert_eq!(flow.steps[1].profession_id, "advisor");
+    }
+
+    #[test]
+    fn test_superpower_flow_has_three_steps() {
+        let flow = superpower_flow();
+        assert_eq!(flow.steps.len(), 3);
+        assert_eq!(flow.steps[0].profession_id, "super-advisor");
+        assert_eq!(flow.steps[1].profession_id, "super-coder");
+        assert_eq!(flow.steps[2].profession_id, "super-tester");
+    }
+
+    #[test]
+    fn test_superpower_design_step_has_human_gate() {
+        let flow = superpower_flow();
+        assert_eq!(flow.steps[0].gate, GateType::Human);
+        assert_eq!(flow.steps[1].gate, GateType::Auto);
+        assert_eq!(flow.steps[2].gate, GateType::Auto);
+    }
+
+    #[test]
+    fn test_superpower_tester_step_has_loop_exit() {
+        let flow = superpower_flow();
+        match &flow.steps[2].exit {
+            crate::relay::flow::ExitRouting::Loop { target_step_id, max_iterations } => {
+                assert_eq!(target_step_id, "implement");
+                assert_eq!(*max_iterations, 3);
+            }
+            _ => panic!("Expected Loop exit on super-tester step"),
+        }
     }
 
     #[test]
