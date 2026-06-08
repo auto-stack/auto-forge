@@ -257,6 +257,10 @@ export function useForge() {
           } else if (data.type === 'done') {
             eventSource.close()
             isLoading.value = false
+            // Reset active_profession back to assistant after task completes
+            if (session.value) {
+              session.value.active_profession = undefined
+            }
             loadSessionList()
           } else if (data.type === 'error') {
             eventSource.close()

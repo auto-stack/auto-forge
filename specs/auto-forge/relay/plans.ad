@@ -298,3 +298,55 @@ backend/src/mcp/
 | 阶段 4 | 报告链接 — `?report_id=` 导航，规格高亮 | 1 天 | 已计划 |
 
 ---
+
+## Relay-P13 Pipeline 效率优化 —— 基于 Run c06a3104 日志分析
+**Status:** draft
+**Tags:** stack:both, module:relay
+**Depends on:** Relay-P7, AgentConfig-D2
+
+基于对 Run `c06a3104-b1a2-451f-812b-ac7b4a72753b`（User Login & RBAC Integration，总耗时 55 分钟，9.7M tokens）的完整日志分析，本计划针对以下关键瓶颈进行系统性优化。本次 Run 中 code→run-tests loop 额外消耗了 **1458 秒（占总时间 44%）** 和约 **5M tokens**，核心原因集中在工具调用失败、职责边界模糊和环境感知缺失。
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| Relay-P13.1 | 扩展 Coder 职责：明确要求编写测试代码 | AgentConfig | 0.5 天 | — | pending | 在 `coder.md` system prompt 中增加明确要求："按照 draft-tests 输出的 tests specs 实现对应的测试代码文件。后端使用 `#[cfg(test)] mod tests` 内联测试；前端使用 Vitest `.spec.ts` 文件。测试代码与功能代码同等重要，缺测试视为任务未完成。" **指标目标**：消除 code→run-tests 因"缺测试"产生的 loop。 |
+| Relay-P13.2 | 重构 Run-tests 职责：从"检查+回退"改为"执行+补充" | AgentConfig | 0.5 天 | Relay-P13.1 | pending | 修改 `tester.md` 中 run-tests 阶段的 prompt：若发现测试代码缺失，**tester 应直接编写测试代码**（使用 `write_file`/`edit_file`），而非通过 `bring_in` 回退 coder。仅当测试发现功能缺陷（非缺失）时才允许 loop 回 code。**指标目标**：run-tests 阶段产生的 loop 比例从 100% 降至 <20%。 |
+| Relay-P13.3 | 强化 Dispatch Tool Schema 参数校验 | Core | 1 天 | — | pending | 在 `backend/src/relay/tools.rs` 中对 `dispatch` tool 的 arguments 增加强制校验：`profession_id` 必须非空且存在于注册表；`goal` 必须非空（trim 后长度 > 10）。校验失败时返回明确错误："Dispatch failed: missing required field `profession_id` / `goal`. Please provide a valid profession and a concrete task description." **指标目标**：消除空调用（本次 Run 中 13 次 dispatch 全部失败）。 |
+| Relay-P13.4 | Shell 工具增加 OS 环境感知与命令适配 | Core | 1 天 | — | pending | 在 `shell` tool 的 system prompt 注入中增加环境声明片段："You are running on Windows with Git Bash. Use Unix-style paths (`/d/autostack/...`). Avoid Windows commands (`where`, `dir /b`). Use `ls`, `which`, `find` instead. `cargo` may not be in PATH; do not rely on it for compilation checks." 同时在 tool 描述中声明 OS 类型。 **指标目标**：shell 失败率从 27 次/Run 降至 <3 次/Run。 |
+| Relay-P13.5 | 实现文件读取缓存，避免重复读取 | Core | 1 天 | — | pending | 在 `AgentTurn` 的 tool execution 上下文中增加文件内容缓存：`HashMap<PathBuf, String>`。同一 turn 内对同一文件的 `read_file`/`read_specs` 优先返回缓存。缓存 TTL = turn 生命周期。 **指标目标**：消除重复读取（本次 Run 中 `App.vue` 读 10 次、`api.rs` 读 7 次）。 |
+| Relay-P13.6 | Reviewer 脱离 cargo 编译依赖，改为静态分析 | AgentConfig | 0.5 天 | — | pending | 修改 `reviewer.md`：移除所有依赖 `cargo check`/`cargo test` 的审查指令。改为基于代码结构、类型签名、错误处理路径、安全性（ unwrap/expect 计数）的静态审查清单。若需验证编译，使用 `read_file` 检查语法而非执行 shell。**指标目标**：reviewer 阶段 shell 错误从 17 次降至 0。 |
+| Relay-P13.7 | Planner Handoff 目标自动校验 | Core | 0.5 天 | Relay-P2 | pending | 在 `PipelineEngine` 的 handoff 处理逻辑中增加目标职业合法性校验：读取当前 FlowSpec 的 allowed handoff targets（或下一步的 profession_id），若 agent 提交的 handoff target 不在允许列表中，自动修正为合法目标并返回警告。本次 Run 中 planner 试图 handoff 给 coder（非法），应自动路由到 tester。**指标目标**：handoff 目标错误降至 0。 |
+| Relay-P13.8 | Design 阶段限制代码文件读取范围 | AgentConfig | 0.5 天 | — | pending | 修改 `architect.md`：design 阶段仅允许读取 specs（`read_specs`、`list_specs`）和简短的设计相关文件（< 500 行）。禁止读取大型实现文件（如 `api.rs` 250KB）。现有代码细节由 coder 在 code 阶段按需读取。**指标目标**：design 阶段 token 消耗从 155K 降至 <80K。 |
+| Relay-P13.9 | Coder write_file 去重：同一文件多次写入告警 | Core | 0.5 天 | — | pending | 在 `AgentTurn` 的 tool call 拦截层增加去重检测：同一 turn 内对同一路径的第二次 `write_file` 调用，返回警告："Warning: you have already written to `{path}` in this turn. Consider using `edit_file` for incremental changes instead." 不阻止执行，但提醒 agent。**指标目标**：消除无意义的重复写入（本次 Run 中 `main.rs`、`useAuth.ts`、`LoginView.vue` 各被写 2 次）。 |
+| Relay-P13.10 | 优化 post-discovery Flow：合并 code+tests 或前置测试编写 | AgentConfig | 1 天 | Relay-P13.1, Relay-P13.2 | pending | 评估两种 flow 变体：(A) 将 `draft-tests` 改为 `write-tests`，由 tester 直接写测试代码文件，coder 只负责功能实现；(B) 将 code 的 exit 从 `next` 改为条件判断：若 tests specs 存在但无对应测试文件，coder 必须编写。对比两种变体在 3 个 feature run 上的 loop 率和总耗时，选择最优方案固化到默认 FlowSpec。**指标目标**：post-discovery flow 平均 loop 次数从 2.0 降至 ≤0.5。 |
+
+### 优化效果预估
+
+| 指标 | 优化前（Run c06a3104） | 优化后目标 | 改善幅度 |
+|------|----------------------|-----------|---------|
+| **总耗时** | 3301s（55min） | <2000s（33min） | **-40%** |
+| **总 Token** | 9.7M | <6M | **-38%** |
+| **code→run-tests loop 次数** | 2 次（3 个 code 实例） | ≤0.5 次 | **-75%** |
+| **dispatch 失败率** | 13/13（100%） | 0 | **-100%** |
+| **shell 失败次数** | 27 次 | <3 次 | **-89%** |
+| **重复文件读取** | App.vue×10, api.rs×7 | 各≤2 | **-80%** |
+| **handoff 目标错误** | 1 次 | 0 | **-100%** |
+
+### 关键路径
+
+```
+Relay-P13.3 (Dispatch 校验) + Relay-P13.4 (Shell 环境) + Relay-P13.7 (Handoff 校验)
+  → 基础设施层就绪
+Relay-P13.1 (Coder 职责) + Relay-P13.2 (Tester 职责)
+  → 消除 loop 根本原因
+Relay-P13.5 (文件缓存) + Relay-P13.6 (Reviewer 静态化) + Relay-P13.8 (Design 限制)
+  → Token 与效率优化
+Relay-P13.10 (Flow 变体评估)
+  → 固化最优流程
+```
+
+### 验收标准
+
+1. 任意 feature 的 post-discovery Run 中，code→run-tests loop 次数 ≤1。
+2. dispatch、shell、handoff 三类工具调用零失败。
+3. 单文件单 turn 内读取次数 ≤2，写入次数 ≤1（edit_file 除外）。
+4. design 阶段 token 消耗不超过全 Run 的 10%。

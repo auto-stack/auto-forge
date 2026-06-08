@@ -12,6 +12,7 @@ use crate::relay::budget::{BudgetAction, BudgetTracker};
 use crate::relay::flow::{ToolAction, ToolGuard};
 use crate::relay::handoff::{HandoffDocument, SpecUpdate};
 use serde_json::Value;
+use std::collections::HashMap;
 
 /// Events emitted during an agent turn.
 #[derive(Debug, Clone)]
@@ -85,6 +86,9 @@ pub struct AgentTurn {
     pub tool_guard: Option<ToolGuard>,
     /// Optional run_id for logging context.
     pub run_id: Option<String>,
+    /// File content cache: key = "tool_name:arg", value = tool result.
+    /// Cleared on write/edit. TTL = turn lifetime.
+    pub file_cache: HashMap<String, String>,
 }
 
 impl AgentTurn {
@@ -108,6 +112,7 @@ impl AgentTurn {
             budget_tracker: None,
             tool_guard: None,
             run_id: None,
+            file_cache: HashMap::new(),
         }
     }
 
@@ -211,11 +216,38 @@ impl AgentTurn {
                             Ok(())
                         };
 
-                        // Execute the tool (or return guard error)
-                        let exec_result = match guard_result {
+                        // ─── Cache key & write dedup ───────────────────────────────────────
+                        let cache_key = match name.as_str() {
+                            "read_file" => input.get("path").and_then(|v| v.as_str()).map(|p| format!("read_file:{}", p)),
+                            "read_specs" => input.get("section_id").and_then(|v| v.as_str()).map(|s| format!("read_specs:{}", s)),
+                            _ => None,
+                        };
+                        let cached_result = cache_key.as_ref().and_then(|k| self.file_cache.get(k).cloned());
+
+                        let write_dup_warning = if name == "write_file" {
+                            if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
+                                let already_written = result.tool_calls.iter()
+                                    .chain(turn_tools.iter())
+                                    .any(|t| t.name == "write_file" && t.arguments.get("path").and_then(|v| v.as_str()) == Some(path));
+                                if already_written {
+                                    Some(format!("\n[WARNING] You have already written to '{}' in this turn. Consider using edit_file for incremental changes instead.", path))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
+                        // Execute the tool (or return guard error / cached result)
+                        let mut exec_result = match guard_result {
                             Err(guard_err) => guard_err,
                             Ok(_) => {
-                                if let Some(tool) = self.tool_registry.get(&name) {
+                                if let Some(cached) = cached_result {
+                                    cached
+                                } else if let Some(tool) = self.tool_registry.get(&name) {
                                     let mut allowed: Vec<String> = self.agent.profession.allowed_tools.clone();
                                     for tool_name in &self.agent.skill_tools {
                                         if !allowed.contains(tool_name) {
@@ -247,7 +279,26 @@ impl AgentTurn {
                                             tool.execute(input.clone())
                                         };
                                         match tool_result {
-                                            Ok(r) => r,
+                                            Ok(mut r) => {
+                                                // Cache read results
+                                                if let Some(ref key) = cache_key {
+                                                    self.file_cache.insert(key.clone(), r.clone());
+                                                }
+                                                // Invalidate cache on writes
+                                                match name.as_str() {
+                                                    "write_file" | "edit_file" => {
+                                                        if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
+                                                            self.file_cache.remove(&format!("read_file:{}", path));
+                                                        }
+                                                    }
+                                                    _ => {}
+                                                }
+                                                // Append write dedup warning
+                                                if let Some(warn) = write_dup_warning {
+                                                    r.push_str(&warn);
+                                                }
+                                                r
+                                            }
                                             Err(e) => format!("Error: {}", e),
                                         }
                                     }

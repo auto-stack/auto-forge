@@ -266,7 +266,7 @@ impl PipelineEngine {
     /// Submit the result of an agent turn to continue the pipeline.
     ///
     /// The handoff's `to` field and `routing_key` determine next routing.
-    pub fn submit_handoff(&mut self, handoff: HandoffDocument) -> AdvanceResult {
+    pub fn submit_handoff(&mut self, mut handoff: HandoffDocument) -> AdvanceResult {
         let now = now_secs();
 
         // Record the completed step
@@ -284,6 +284,44 @@ impl PipelineEngine {
         self.gate_resolved_for_step = None;
 
         let profession_id = self.flow.steps[self.current_step].profession_id.clone();
+
+        // ─── Handoff target validation & auto-correction ────────────────────────
+        let exit = self.flow.steps[self.current_step].exit.clone();
+        let expected_prof = match &exit {
+            ExitRouting::Next => {
+                let next_idx = self.current_step + 1;
+                if next_idx < self.flow.steps.len() {
+                    Some(self.flow.steps[next_idx].profession_id.clone())
+                } else {
+                    None
+                }
+            }
+            ExitRouting::Loop { target_step_id, .. } => {
+                self.flow.get_step_index(target_step_id)
+                    .map(|idx| self.flow.steps[idx].profession_id.clone())
+            }
+            ExitRouting::Branch { .. } => {
+                // Branch routing depends on handoff fields; skip auto-correction
+                None
+            }
+        };
+
+        if let Some(expected) = expected_prof {
+            if handoff.to != expected {
+                tracing::warn!(
+                    "Handoff target '{}' does not match flow routing expected '{}'. Correcting to '{}'.",
+                    handoff.to, expected, expected
+                );
+                self.gate_feedback
+                    .entry(step_id.clone())
+                    .or_default()
+                    .push(format!(
+                        "[AUTO-CORRECTION] Handoff target was '{}' but flow routing expects '{}'. Corrected automatically.",
+                        handoff.to, expected
+                    ));
+                handoff.to = expected;
+            }
+        }
 
         self.step_history.push(StepRecord {
             step_id: step_id.clone(),

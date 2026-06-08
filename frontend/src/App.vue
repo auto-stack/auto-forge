@@ -128,9 +128,9 @@ type ViewId = 'chats' | 'specs' | 'wiki' | 'agents' | 'agents-config' | 'profess
 const baseTabIds: { id: ViewId; i18nKey: string; icon: unknown }[] = [
   { id: 'explorer', i18nKey: 'nav.explorer', icon: FolderOpen },
   { id: 'chats', i18nKey: 'nav.chat', icon: MessageSquare },
+  { id: 'agents', i18nKey: 'nav.relay', icon: Orbit },
   { id: 'specs', i18nKey: 'nav.specs', icon: Scroll },
   { id: 'wiki', i18nKey: 'nav.wiki', icon: BookOpen },
-  { id: 'agents', i18nKey: 'nav.relay', icon: Orbit },
   { id: 'agents-config', i18nKey: 'nav.agents', icon: Users },
   { id: 'professions', i18nKey: 'nav.professions', icon: Briefcase },
   { id: 'skills', i18nKey: 'nav.skills', icon: Wrench },

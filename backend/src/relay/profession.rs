@@ -392,6 +392,8 @@ pub fn generate_default_professions() -> Vec<Profession> {
                 String::from("list_wiki"),
                 String::from("create_wiki_page"),
                 String::from("update_wiki_page"),
+                String::from("get_relay_state"),
+                String::from("get_checkpoint_diff"),
             ],
             handoff_to: vec![],
             approval_gates: vec![],

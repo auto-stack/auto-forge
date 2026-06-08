@@ -158,6 +158,8 @@ impl ToolRegistry {
         registry.register(Box::new(ListWikiTool));
         registry.register(Box::new(CreateWikiPageTool));
         registry.register(Box::new(UpdateWikiPageTool));
+        registry.register(Box::new(GetRelayStateTool));
+        registry.register(Box::new(GetCheckpointDiffTool));
         registry
     }
 
@@ -1266,8 +1268,11 @@ impl Tool for ReadSpecsTool {
 
     fn description(&self) -> &'static str {
         "Read the content and status of a Specs section. \
-         Use this to examine the current project specification during Intake or SpecDraft. \
-         You can filter by module (e.g. 'chat', 'ui-system') and/or request specific items by ID."
+         IMPORTANT: To avoid reading irrelevant content and wasting tokens, \
+         first call list_specs to discover the item IDs you need, \
+         then call read_specs with item_ids to fetch ONLY those specific items. \
+         Only read the full section when you genuinely need every item. \
+         You can also filter by module (e.g. 'chat', 'ui-system')."
     }
 
     fn input_schema(&self) -> Value {
@@ -1308,7 +1313,13 @@ impl Tool for ReadSpecsTool {
             if let Some(arr) = v.as_array() {
                 arr.iter().filter_map(|x| x.as_str().map(String::from)).collect()
             } else if let Some(s) = v.as_str() {
-                vec![s.to_string()]
+                // Handle case where LLM passes a JSON string like "[\"R-TEMPLATE\"]"
+                if s.starts_with('[') && s.ends_with(']') {
+                    serde_json::from_str::<Vec<String>>(s)
+                        .unwrap_or_else(|_| vec![s.to_string()])
+                } else {
+                    vec![s.to_string()]
+                }
             } else {
                 vec![]
             }
@@ -1424,7 +1435,7 @@ impl ReadSpecsTool {
     }
 }
 
-/// List all Specs sections.
+/// List all Specs sections and their items.
 struct ListSpecsTool;
 
 impl Tool for ListSpecsTool {
@@ -1433,22 +1444,31 @@ impl Tool for ListSpecsTool {
     }
 
     fn description(&self) -> &'static str {
-        "List all Specs sections with their titles and statuses. \
-         Use this to get an overview of the project specification."
+        "List all Specs sections and the items within each section. \
+         Returns section titles, statuses, and per-section item indexes (ID, title, status, module). \
+         Use this to discover relevant item IDs before calling read_specs with item_ids filtering. \
+         Supports optional module filter to narrow results."
     }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
             "type": "object",
-            "properties": {}
+            "properties": {
+                "module": {
+                    "type": "string",
+                    "description": "Optional module filter. When provided, only sections containing items for this module are shown, and only those items are listed (e.g., 'chat', 'ui-system', 'auth')."
+                }
+            }
         })
     }
 
-    fn execute(&self, _args: Value) -> Result<String, ToolError> {
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
         let project = CURRENT_PROJECT.lock().unwrap().clone();
         if project.is_empty() {
             return Err(ToolError::ExecutionFailed("No project context set".into()));
         }
+
+        let module_filter = args.get("module").and_then(|v| v.as_str());
 
         let sid = CURRENT_SESSION_ID.lock().unwrap().clone();
         let pending: HashMap<String, (String, String)> = if !sid.is_empty() {
@@ -1484,10 +1504,34 @@ impl Tool for ListSpecsTool {
                 section.status.as_str().to_string()
             };
             let marker = if has_pending { " [pending changes]" } else { "" };
+
+            // Filter items by module if requested
+            let visible_items: Vec<&super::SpecItem> = section.items.iter()
+                .filter(|item| {
+                    module_filter.map_or(true, |m| {
+                        item.module.as_deref() == Some(m)
+                    })
+                })
+                .collect();
+
+            // If module filter is active and no items match, skip this section entirely
+            if module_filter.is_some() && visible_items.is_empty() {
+                continue;
+            }
+
             lines.push(format!(
                 "- {}: {} [{}]{}",
                 section.id, section.title, status, marker
             ));
+
+            // List each item with id, title, status, module
+            for item in visible_items {
+                let mod_str = item.module.as_deref().map(|m| format!(" (module: {})", m)).unwrap_or_default();
+                lines.push(format!(
+                    "  - {}: {} [{}]{}",
+                    item.id, item.title, super::SpecsStore::serialize_status(&item.status), mod_str
+                ));
+            }
         }
 
         Ok(lines.join("\n"))
@@ -2098,16 +2142,24 @@ impl Tool for DispatchTool {
     fn input_schema(&self) -> Value {
         serde_json::json!({
             "type": "object",
-            "required": ["task"],
+            "required": ["agent", "task"],
             "properties": {
                 "agent": {
                     "type": "string",
-                    "description": "Profession to dispatch to. Default: gofer",
+                    "description": "Profession to dispatch to. Must be a valid profession ID (e.g. 'gofer'). This field is REQUIRED — do NOT omit it.",
                     "enum": ["gofer"]
+                },
+                "profession_id": {
+                    "type": "string",
+                    "description": "Alias for 'agent'. Use either 'agent' or 'profession_id', not both. Must be a valid profession ID."
                 },
                 "task": {
                     "type": "string",
-                    "description": "Clear, specific task description. Include what to find, where to look, and what format to return."
+                    "description": "Clear, specific task description. Include what to find, where to look, and what format to return. Must be at least 10 characters. This field is REQUIRED — empty strings are rejected."
+                },
+                "goal": {
+                    "type": "string",
+                    "description": "Alias for 'task'. Use either 'task' or 'goal', not both. Must be at least 10 characters."
                 },
                 "context": {
                     "type": "string",
@@ -2124,14 +2176,36 @@ impl Tool for DispatchTool {
     }
 
     fn execute(&self, args: Value) -> Result<String, ToolError> {
+        // Support both agent/profession_id and task/goal aliases
         let agent = args
             .get("agent")
+            .or_else(|| args.get("profession_id"))
             .and_then(|v| v.as_str())
-            .unwrap_or("gofer");
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing required field 'agent' (or 'profession_id'). You MUST provide a valid profession ID.".into()
+            ))?;
         let task = args
             .get("task")
+            .or_else(|| args.get("goal"))
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ToolError::InvalidInput("Missing 'task' argument".into()))?;
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing required field 'task' (or 'goal'). You MUST provide a concrete task description.".into()
+            ))?;
+
+        // Validate: agent/profession_id must be non-empty
+        if agent.trim().is_empty() {
+            return Err(ToolError::InvalidInput(
+                "Field 'agent'/'profession_id' cannot be empty. Provide a valid profession ID.".into()
+            ));
+        }
+
+        // Validate: task/goal must be non-empty and meaningful (>= 10 chars)
+        if task.trim().len() < 10 {
+            return Err(ToolError::InvalidInput(
+                "Field 'task'/'goal' must be at least 10 characters. Describe what the errand agent should do.".into()
+            ));
+        }
+
         let context = args
             .get("context")
             .and_then(|v| v.as_str())
@@ -2456,6 +2530,164 @@ impl Tool for UpdateWikiPageTool {
             .update_page(&project_name, &project, slug, content.to_string(), title, tags)
             .map(|p| format!("Updated wiki page '{}' (v{})", p.title, p.version))
             .map_err(|e| ToolError::ExecutionFailed(e))
+    }
+}
+
+// ─── Relay State & Checkpoint Diff Tools ─────────────────────────────────────
+
+struct GetRelayStateTool;
+
+impl Tool for GetRelayStateTool {
+    fn name(&self) -> &'static str {
+        "get_relay_state"
+    }
+
+    fn description(&self) -> &'static str {
+        "Returns the full relay run state: step history with durations, total duration, total tokens, events, and current status. \
+         Use this FIRST to understand the relay timeline before writing reports."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string",
+                    "description": "The run ID to query (e.g. 'run-abc123')"
+                }
+            },
+            "required": ["run_id"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let run_id = args
+            .get("run_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'run_id' argument".into()))?;
+
+        let store = crate::relay::api::run_store();
+        match crate::relay::store::get_run(store, run_id) {
+            Some(state) => serde_json::to_string_pretty(&state)
+                .map_err(|e| ToolError::ExecutionFailed(format!("JSON serialization error: {}", e))),
+            None => Err(ToolError::ExecutionFailed(format!("Run '{}' not found", run_id))),
+        }
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
+    }
+}
+
+struct GetCheckpointDiffTool;
+
+impl Tool for GetCheckpointDiffTool {
+    fn name(&self) -> &'static str {
+        "get_checkpoint_diff"
+    }
+
+    fn description(&self) -> &'static str {
+        "Returns git diff and work product for a specific checkpoint in a relay run. \
+         Use for each step to gather code change details when writing reports. \
+         The checkpoint_id comes from handoff.checkpoint_id in the step history."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string",
+                    "description": "The run ID"
+                },
+                "checkpoint_id": {
+                    "type": "integer",
+                    "description": "The checkpoint ID from handoff.checkpoint_id"
+                }
+            },
+            "required": ["run_id", "checkpoint_id"]
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let run_id = args
+            .get("run_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'run_id' argument".into()))?;
+        let checkpoint_id = args
+            .get("checkpoint_id")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'checkpoint_id' argument".into()))?;
+
+        let store = crate::relay::api::run_store();
+        let run_state = crate::relay::store::get_run(store, run_id)
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("Run '{}' not found", run_id)))?;
+
+        // Find step record with matching checkpoint_id
+        let mut found = None;
+        for (idx, record) in run_state.step_history.iter().enumerate() {
+            if let Some(ref handoff) = record.handoff {
+                if handoff.checkpoint_id == checkpoint_id {
+                    found = Some((idx, handoff));
+                    break;
+                }
+            }
+        }
+
+        // Fallback: for legacy data where checkpoint_id may be 0, treat it as step_index
+        let (idx, handoff) = match found {
+            Some(t) => t,
+            None if (checkpoint_id as usize) < run_state.step_history.len() => {
+                let idx = checkpoint_id as usize;
+                let record = &run_state.step_history[idx];
+                let handoff = record.handoff.as_ref().ok_or_else(|| {
+                    ToolError::ExecutionFailed(format!("Step {} has no handoff", idx))
+                })?;
+                (idx, handoff)
+            }
+            None => {
+                return Err(ToolError::ExecutionFailed(format!(
+                    "Checkpoint {} not found in run '{}'",
+                    checkpoint_id, run_id
+                )))
+            }
+        };
+
+        // Gather git diff for work product files
+        let project = CURRENT_PROJECT.lock().unwrap().clone();
+        let git_diff = if !project.is_empty() && !handoff.work_product.is_empty() {
+            let mut cmd = std::process::Command::new("git");
+            cmd.current_dir(&project).arg("diff").arg("HEAD").arg("--");
+            for wp in &handoff.work_product {
+                cmd.arg(&wp.path);
+            }
+            match cmd.output() {
+                Ok(output) if output.status.success() => {
+                    let diff = String::from_utf8_lossy(&output.stdout).to_string();
+                    if diff.is_empty() { None } else { Some(diff) }
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        let result = serde_json::json!({
+            "step_index": idx,
+            "checkpoint_id": checkpoint_id,
+            "profession_id": run_state.step_history.get(idx).map(|r| &r.profession_id),
+            "summary": handoff.summary,
+            "work_product": handoff.work_product,
+            "token_usage": handoff.token_usage,
+            "git_diff": git_diff,
+        });
+
+        serde_json::to_string_pretty(&result)
+            .map_err(|e| ToolError::ExecutionFailed(format!("JSON serialization error: {}", e)))
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
     }
 }
 

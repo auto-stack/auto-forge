@@ -331,7 +331,7 @@ pub struct SpecChange {
     pub new_status: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ForgeStatus {
     Idle,
@@ -2287,6 +2287,19 @@ mod handlers {
         Path(sid): Path<String>,
         Json(req): Json<SendMessageRequest>,
     ) -> Json<ForgeMessageResponse> {
+        // Reset stale active_profession when user starts a new message without explicit profession.
+        // This ensures that after a task completes (idle session), the next user message
+        // defaults back to "assistant" instead of sticking to the last handoff target.
+        {
+            let mut store = forge_sessions().lock().unwrap();
+            if req.profession_id.is_none() {
+                if let Some(session) = store.get_mut(&sid) {
+                    if session.status == ForgeStatus::Idle {
+                        session.active_profession = None;
+                    }
+                }
+            }
+        }
         // Resolve effective profession: explicit > session sticky > assistant
         let effective_profession = {
             let store = forge_sessions().lock().unwrap();
@@ -3034,10 +3047,14 @@ mod handlers {
                 }
             }
 
-            // After turn completes, set session back to Idle
+            // After turn completes, set session back to Idle and reset active_profession
             {
                 let mut store = forge_sessions().lock().unwrap();
                 store.update_status(&sid, ForgeStatus::Idle);
+                if let Some(session) = store.sessions.get_mut(&sid) {
+                    session.active_profession = None;
+                }
+                // Save is handled by update_status above; no need to call save again.
             }
 
             // Final done event

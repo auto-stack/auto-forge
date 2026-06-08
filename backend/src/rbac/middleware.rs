@@ -80,8 +80,12 @@ pub async fn auth_middleware(
     next: Next,
 ) -> Result<Response, AuthErrorKind> {
     let path = req.uri().path();
-    // Skip auth for public paths and static assets
-    if PUBLIC_PATHS.iter().any(|p| path == *p) || path.starts_with("/forge/") || path.starts_with("/avatars/") {
+    // Skip auth for public paths, static assets, and SSE streams (EventSource cannot send custom headers)
+    let is_public = PUBLIC_PATHS.iter().any(|p| path == *p)
+        || path.starts_with("/forge/")
+        || path.starts_with("/avatars/")
+        || (path.starts_with("/api/forge/chats/") && path.ends_with("/stream"));
+    if is_public {
         return Ok(next.run(req).await);
     }
 

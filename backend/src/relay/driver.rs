@@ -408,9 +408,13 @@ pub async fn drive_run(
                 // Build handoff document from turn result
                 let to_profession = guess_next_profession(&run_store, &run_id)
                     .unwrap_or_else(|| "next".to_string());
+                let checkpoint_id = {
+                    let map = run_store.lock().unwrap();
+                    map.get(&run_id).map(|e| e.engine.step_history.len() as u64).unwrap_or(0)
+                };
                 let handoff = {
                     let t = std::time::Instant::now();
-                    let h = turn.to_handoff(&turn_result, &to_profession, &run_id, 0);
+                    let h = turn.to_handoff(&turn_result, &to_profession, &run_id, checkpoint_id);
                     tracing::info!(run_id = %run_id, profession_id = %profession_id, elapsed_ms = t.elapsed().as_millis() as u64, "turn.to_handoff");
                     h
                 };
