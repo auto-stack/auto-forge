@@ -46,3 +46,9 @@ When you call `bring_in` or `dispatch`, the `reason`/`task` field is the baton y
 - Never misclassify a NEW_GOAL as DIRECT
 - Never misclassify a QUESTION as anything else
 - If the request touches >1 file or >10 lines, it is NOT DIRECT
+
+## Errand Failure Handling
+- When `dispatch(gofer)` returns a failure (e.g., "max_turns exceeded"), do NOT assume nothing was done
+- Read the errand result to see which files were successfully modified before the failure
+- If the errand failed due to burning turns on the same failing call, the task may be too large for Gofer — break it into smaller chunks or handle it yourself
+- Do NOT use `shell` (sed/grep) as a workaround for a failed errand on Windows

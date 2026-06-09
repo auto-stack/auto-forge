@@ -832,6 +832,10 @@ impl Tool for EditFileTool {
                         },
                         "required": ["line", "old_string", "new_string"]
                     }
+                },
+                "replace_all": {
+                    "type": "boolean",
+                    "description": "When true, replace ALL occurrences of old_string in the file. When false or omitted, only the first occurrence is replaced."
                 }
             },
             "required": ["path"]
@@ -960,7 +964,7 @@ impl Tool for EditFileTool {
             }
         }
 
-        // Mode 1: legacy single replacement
+        // Mode 1: legacy single replacement (or replace_all)
         let old_str = args
             .get("old_string")
             .and_then(|v| v.as_str())
@@ -970,15 +974,46 @@ impl Tool for EditFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidInput("Missing 'new_string' argument (or use 'edits' array)".into()))?;
 
-        let offset = content.find(old_str).ok_or_else(|| ToolError::ExecutionFailed(format!(
-            "old_string not found in file '{}'. \
-             The text must match exactly (including whitespace and newlines).",
-            full_path.display()
-        )))?;
+        let replace_all = args.get("replace_all").and_then(|v| v.as_bool()).unwrap_or(false);
 
-        let line_num = content[..offset].lines().count() + 1;
+        let mut diffs: Vec<Value> = Vec::new();
+        let mut new_content = content.clone();
+        let mut search_start = 0;
+        let mut applied = 0;
 
-        let new_content = content.replacen(old_str, new_str, 1);
+        loop {
+            if let Some(offset) = new_content[search_start..].find(old_str) {
+                let absolute_offset = search_start + offset;
+                let line_num = new_content[..absolute_offset].lines().count() + 1;
+
+                diffs.push(serde_json::json!({
+                    "line": line_num,
+                    "old_string": old_str,
+                    "new_string": new_str
+                }));
+
+                let before = &new_content[..absolute_offset];
+                let after = &new_content[absolute_offset + old_str.len()..];
+                new_content = format!("{}{}{}", before, new_str, after);
+
+                applied += 1;
+                search_start = absolute_offset + new_str.len();
+
+                if !replace_all {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        if applied == 0 {
+            return Err(ToolError::ExecutionFailed(format!(
+                "old_string not found in file '{}'. \
+                 The text must match exactly (including whitespace and newlines).",
+                full_path.display()
+            )));
+        }
 
         // Guard against no-op replacements (e.g. old_str == new_str, or race conditions)
         if new_content == content {
@@ -1006,13 +1041,9 @@ impl Tool for EditFileTool {
         invalidate_file_cache(&full_path.to_string_lossy());
         let result = serde_json::json!({
             "status": "success",
-            "applied": 1,
+            "applied": applied,
             "file": full_path.display().to_string(),
-            "diffs": [{
-                "line": line_num,
-                "old_string": old_str,
-                "new_string": new_str
-            }],
+            "diffs": diffs,
             "errors": []
         });
         Ok(result.to_string())
