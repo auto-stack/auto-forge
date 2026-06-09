@@ -137,3 +137,12 @@
 
 - [ ] 用户可导出中继运行报告为 PDF
 - [ ] PDF 包含运行元数据、执行历史、工作成果
+
+## Relay-G16 Cost Breakdown 饼状图支持历史运行数据
+**Status:** in_progress
+**Tags:** stack:fullstack, module:relay
+**Depends on:** Relay-G7
+
+- [x] 加载历史运行时，后端 API 返回按 profession 分组的 token 消耗统计
+- [x] 前端 loadRun 函数获取并填充 professionTokens，饼状图在历史运行中正确显示
+- [x] 饼状图显示每个 profession 的 token 数量和百分比，无数据时显示友好提示

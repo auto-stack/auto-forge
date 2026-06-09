@@ -16,7 +16,7 @@ use tokio::sync::mpsc;
 /// Maximum length of a tool result string stored in events.
 const MAX_TOOL_RESULT_LEN: usize = 4000;
 /// Maximum events returned in API responses (prevents multi-GB JSON).
-const MAX_EVENTS_IN_RESPONSE: usize = 200;
+const MAX_EVENTS_IN_RESPONSE: usize = 1000;
 /// Maximum events kept in disk storage (older events are dropped).
 const MAX_EVENTS_IN_STORAGE: usize = 1000;
 
@@ -159,6 +159,10 @@ pub struct RunState {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_step_started_at: Option<u64>,
+    /// Per-profession token totals aggregated from TokenSpend events.
+    /// Key = profession_id, Value = cumulative tokens.
+    #[serde(default)]
+    pub profession_tokens: std::collections::HashMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -600,7 +604,22 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         events: events_for_response,
         title: entry.metadata.title.clone(),
         current_step_started_at,
+        profession_tokens: build_profession_tokens(entry),
     }
+}
+
+/// Aggregate per-profession token totals from step history handoffs.
+/// Each StepRecord has a profession_id and handoff.token_usage; we sum
+/// step_input + step_output per profession for the cost breakdown chart.
+fn build_profession_tokens(entry: &RunEntry) -> std::collections::HashMap<String, u64> {
+    let mut map = std::collections::HashMap::new();
+    for rec in &entry.engine.step_history {
+        if let Some(ref handoff) = rec.handoff {
+            let total = handoff.token_usage.step_input + handoff.token_usage.step_output;
+            *map.entry(rec.profession_id.clone()).or_insert(0) += total;
+        }
+    }
+    map
 }
 
 pub fn now_secs() -> u64 {

@@ -1039,12 +1039,13 @@ fn truncate_lines(text: &str, max_lines: usize) -> String {
 fn detect_windows_shell() -> (&'static str, &'static str) {
     static DETECTED: std::sync::OnceLock<(&'static str, &'static str)> = std::sync::OnceLock::new();
     *DETECTED.get_or_init(|| {
+        // Use -lc so that .bash_profile is loaded, which adds cargo, node, pnpm, etc. to PATH.
         let test = std::process::Command::new("bash.exe")
-            .arg("-c")
+            .arg("-lc")
             .arg("echo ok")
             .output();
         if test.map(|o| o.status.success()).unwrap_or(false) {
-            ("bash.exe", "-c")
+            ("bash.exe", "-lc")
         } else {
             ("cmd.exe", "/C")
         }

@@ -741,54 +741,104 @@ graph TB
 
 ---
 
-## Relay-A8 Thinking 事件广播架构
-**Status:** draft
+## Relay-A8 Cost Breakdown 历史运行 Per-Profession Token 统计架构
+**Status:** approved
 **Tags:** stack:backend
 
-**状态：** 已实现
+## Relay-A8 Cost Breakdown 历史运行 Per-Profession Token 统计架构
+**Status:** approved
+**Tags:** stack:backend
 
-在 Agent Turn 执行期间，Claude Provider 可能产生 `ThinkingDelta` 内容块。`relay/driver.rs` 在 turn 事件循环中捕获该事件，将其广播为 `turn_thinking` SSE 事件并持久化到 `RunStore`。
+## Overview
+Fix the Cost Breakdown pie chart to correctly display per-profession token consumption when viewing historical relay runs.
+
+## Problem Statement
+During live relay execution, the frontend accumulates `professionTokens` from SSE events (per-step token usage) and renders a pie chart. When loading a historical run via `loadRun`, this data is **not** reconstructed from the persisted run state — the pie chart shows empty/zero.
+
+## Root Cause
+1. The backend `RunEntry` / `StepState` stores cumulative token counts per step but does **not** aggregate a per-profession token breakdown into the API response.
+2. The frontend `loadRun` function fetches run data but does not populate the reactive `professionTokens` map from the step history.
+
+## Solution — Two Changes
+
+### Change 1: Backend — Compute `profession_tokens` in API Response
+In the `get_run` handler (or the serialization of `RunEntry`), aggregate `profession_tokens: HashMap<String, u64>` by iterating over each `StepState` in the run and summing `step.tokens_used` grouped by `step.profession`.
 
 ```mermaid
-graph LR
-    T[AgentTurn] -->|TurnEvent::ThinkingDelta| D[relay/driver.rs]
-    D -->|RunEventBroadcast<br>event_type="turn_thinking"| B[broadcast::Sender]
-    D -->|RunEvent::TurnThinking| R[RunStore]
-    B -->|SSE| F[前端 useRelay.ts]
-    R -->|eventsToSessionLog| H[历史恢复]
+sequenceDiagram
+    participant FE as Frontend (loadRun)
+    participant API as GET /api/relay/runs/:id
+    participant Store as RunStore
+    participant DB as run JSON file
+
+    FE->>API: GET /api/relay/runs/:id
+    API->>Store: get_run(run_id)
+    Store->>DB: read run JSON
+    DB-->>Store: RunEntry
+    Store-->>API: RunEntry
+    API->>API: compute profession_tokens from steps
+    Note over API: for step in run.steps:<br/>map[step.profession] += step.tokens_used
+    API-->>FE: JSON { ..., profession_tokens: { "architect": 12000, "coder": 8500 } }
 ```
 
-| 处理阶段 | 行为 |
+
+### Change 2: Frontend — Populate `professionTokens` in `loadRun`
+After fetching the run, extract `profession_tokens` from the response and write it into the reactive `professionTokens` ref that the pie chart consumes.
+
+```mermaid
+sequenceDiagram
+    participant User as User clicks run
+    participant RV as RelayView
+    participant API as fetch GET /runs/:id
+    participant Chart as CostBreakdownChart
+
+    User->>RV: selectRun(run_id)
+    RV->>API: loadRun(run_id)
+    API-->>RV: { run, steps, profession_tokens }
+    RV->>RV: currentRun = run
+    RV->>RV: professionTokens.clear()
+    RV->>RV: professionTokens[k] = v for each entry
+    Note over RV: professionTokens now populated
+    Chart->>RV: watch(professionTokens)
+    Chart->>Chart: re-render pie slices
+```
+
+
+## Data Model
+
+### Backend: `RunDetailResponse` (augmented)
+```rust
+pub struct RunDetailResponse {
+    // ... existing fields from RunEntry ...
+    pub steps: Vec<StepState>,
+    pub profession_tokens: HashMap<String, u64>,  // NEW: profession → total tokens
+}
+```
+
+### Frontend: Type update
+```typescript
+interface RunDetail {
+  // ... existing fields ...
+  profession_tokens: Record<string, number>  // NEW
+}
+```
+
+## Edge Cases
+| Case | Handling |
 |---|---|
-| TurnEvent::ThinkingDelta | 刷新 text buffer，发送 `turn_thinking` 广播 |
-| RunEvent::TurnThinking | 追加到 `RunEntry.events`，调用 `save_run()` |
-| 前端实时 | `subscribeToRun()` 接收 `turn_thinking`，追加到 `_sessionLog` |
-| 前端历史 | `eventsToSessionLog()` 将 `turn_thinking` 转为 `type:'thinking'` 条目 |
+| Run has no steps yet | `profession_tokens` = `{}` (empty map) — chart shows "No data" |
+| Step has `tokens_used = 0` | Still included in aggregation; profession entry may have 0 total |
+| Step `profession` is `None`/empty | Skip or group under `"unknown"` key |
+| Live run SSE events arrive | `professionTokens` continues to accumulate; `loadRun` overwrites with authoritative totals |
 
-### 架构决策
-
-| 决策 | 选择 | 理由 |
+## Trade-offs
+| Alternative | Pros | Cons |
 |---|---|---|
-| 广播与持久化同步 | 同一代码块中先后执行 | 确保实时与历史数据一致 |
-| 与 TextDelta 处理模式 | 一致（flush buffer 后发送） | 避免 thinking 和 text 交错混乱 |
-| 事件格式 | `{ profession_id, thinking }` | 最小有效负载，与 turn_delta 对称 |
+| **Read-time aggregation (chosen)** | No schema migration, always accurate, simple | O(steps) compute per GET |
+| Persist `profession_tokens` in RunEntry on disk | O(1) read | Must update on every step completion, risk of drift |
+| Compute in frontend from steps array | Backend unchanged | Frontend must know aggregation logic, data already available |
 
-### 与 Errand 的关系
-
-`forge/errand.rs` 当前对 `ThinkingDelta` 为空处理 `{}`，未转发。Errand 路径暂不支持 Thinking 展示，不影响 Chat/Relay 主路径。
-
----
-
----
-
----
-
----
-
----
-
----
-
----
-
----
+## Files Involved
+- `backend/src/relay/store.rs` — `RunEntry`, `StepState`, `get_run`
+- `backend/src/relay/api.rs` — `get_run` handler, add `profession_tokens`
+- `packages/auto-forge-ui/src/views/RelayView.vue` — `loadRun` function, `professionTokens` ref

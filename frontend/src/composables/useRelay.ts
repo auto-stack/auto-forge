@@ -259,6 +259,10 @@ export function useRelay() {
       if (data.events && data.events.length > 0) {
         _sessionLog.value = eventsToSessionLog(runId, data.events)
       }
+      // Populate profession tokens for cost breakdown when viewing historical runs
+      if (data.profession_tokens) {
+        _professionTokens.value = data.profession_tokens
+      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
     }
