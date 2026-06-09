@@ -118,6 +118,48 @@ pub fn generate_default_skills() -> Vec<SkillDefinition> {
             extra_turns: 0,
             extra_token_budget: 0,
         },
+        SkillDefinition {
+            id: "guidelines_think".into(),
+            name: "Think Before Acting".into(),
+            description: "Universal behavioral rule: state assumptions, surface tradeoffs, ask when uncertain.".into(),
+            granted_tools: vec![],
+            prompt_fragment: "## Behavioral Guideline: Think Before Acting\n\n\
+                - State your assumptions explicitly. If uncertain, ask.\n\
+                - If multiple interpretations exist, present them — don't pick silently.\n\
+                - If a simpler approach exists, say so. Push back when warranted.\n\
+                - If something is unclear, stop. Name what's confusing. Ask.\n".into(),
+            extra_turns: 0,
+            extra_token_budget: 0,
+        },
+        SkillDefinition {
+            id: "guidelines_simple".into(),
+            name: "Simplicity First".into(),
+            description: "Universal behavioral rule: minimum solution, no speculative features.".into(),
+            granted_tools: vec![],
+            prompt_fragment: "## Behavioral Guideline: Simplicity First\n\n\
+                - Minimum code that solves the problem. Nothing speculative.\n\
+                - No features beyond what was asked.\n\
+                - No abstractions for single-use code.\n\
+                - No 'flexibility' or 'configurability' that wasn't requested.\n\
+                - If you write 200 lines and it could be 50, rewrite it.\n".into(),
+            extra_turns: 0,
+            extra_token_budget: 0,
+        },
+        SkillDefinition {
+            id: "guidelines_surgical".into(),
+            name: "Surgical Changes".into(),
+            description: "For file-modifying agents: touch only what you must.".into(),
+            granted_tools: vec![],
+            prompt_fragment: "## Behavioral Guideline: Surgical Changes\n\n\
+                - Touch only what you must. Don't 'improve' adjacent code, comments, or formatting.\n\
+                - Don't refactor things that aren't broken.\n\
+                - Match existing style, even if you'd do it differently.\n\
+                - Remove imports/variables/functions that YOUR changes made unused.\n\
+                - Don't remove pre-existing dead code unless asked.\n\
+                - Every changed line should trace directly to the request.\n".into(),
+            extra_turns: 0,
+            extra_token_budget: 0,
+        },
     ]
 }
 

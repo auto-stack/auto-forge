@@ -131,8 +131,11 @@ impl RelayRegistry {
     /// Spawn an agent instance with the given profession and soul.
     pub fn spawn_agent(&self, profession_id: &str, soul_id: &str, model: ModelConfig) -> Option<AgentInstance> {
         let profession = self.professions.get(profession_id)?.clone();
+        let base_skills = profession.base_skills.clone();
         let soul = self.souls.get(soul_id)?.clone();
-        Some(AgentInstance::spawn(profession, soul, model))
+        let agent = AgentInstance::spawn(profession, soul, model)
+            .with_skills(&self.skills, &base_skills);
+        Some(agent)
     }
 
     /// Spawn an agent from an AgentConfig, resolving model from the linked ApiSource.
