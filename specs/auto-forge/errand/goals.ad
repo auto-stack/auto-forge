@@ -7,7 +7,7 @@
 **Tags:** stack:backend
 **Depends on:** AgentConfig-G1, Relay-G9, ApiSources-G1
 
-- [x] dispatch 工具对所有中继职业可用
+- [x] dispatch 工具对所有接力职业可用
 - [x] gofer 职业定义了最小化人格和廉价模型
 - [x] 差事在隔离的消息上下文中运行
 - [x] 仅最终摘要返回给调用方

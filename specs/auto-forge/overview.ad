@@ -1,6 +1,6 @@
 # AutoForge 概述
 
-AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多个专业智能体，以设计、实现和验证软件项目。它融合了聊天优先界面、结构化规格系统，以及一个将任务路由到特定职业智能体的中继流水线。
+AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多个专业智能体，以设计、实现和验证软件项目。它融合了聊天优先界面、结构化规范系统，以及一个将任务路由到特定职业智能体的接力流水线。
 
 ## 技术栈
 
@@ -25,7 +25,7 @@ AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多
 | **Vite** | 6.x | `package.json` | 构建工具 + 开发服务器 |
 | **TypeScript** | 5.8+ | `package.json` | 类型安全 |
 | **TipTap** | 3.23+ | `package.json` | 基于 ProseMirror 的块编辑器 |
-| **Mermaid** | 11.15+ | `package.json` | 规格中的图表渲染 |
+| **Mermaid** | 11.15+ | `package.json` | 规范中的图表渲染 |
 | **Markstream** | 0.0.14-beta.8 | `package.json` | 流式 Markdown 渲染器 |
 
 ### AI 提供商
@@ -75,11 +75,11 @@ graph TD
 | 概念 | 定义 | 所在位置 |
 |---------|------------|----------|
 | **人格** | 智能体的 Markdown 人格定义（价值观、风格、仪式） | `agent-config` |
-| **职业** | 能力契约：拥有的规格、可读的规格、允许的工具、交接目标 | `agent-config` |
-| **中继** | 带接力交接文档的串行智能体流水线 | `relay` |
+| **职业** | 能力契约：拥有的规范、可读的规范、允许的工具、交接目标 | `agent-config` |
+| **接力** | 带接力交接文档的串行智能体流水线 | `relay` |
 | **关卡** | 人工介入审批点（GSD 自动批准 vs 检查显式） | `relay` / `chat` |
 | **交接** | 智能体之间传递的压缩上下文文档（约节省 5 倍 Token） | `relay` |
-| **规格** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
+| **规范** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
 | **检查点** | 用于无聊天记录崩溃恢复的 JSON + git 快照 | `runtime` |
 | **差事** | 在隔离上下文中的即发即弃研究任务 | `errand` |
 
@@ -90,14 +90,14 @@ graph TD
 | 流程 | 入口 | 出口 | 关键模块 |
 |------|-------|------|-------------|
 | **Forge 聊天循环** | 用户发送消息 | SSE 交付响应 | chat, provider, runtime, relay |
-| **中继流水线** | FlowSpec 加载 | 已完成 / 失败 / 已暂停 | relay, provider, runtime, specs |
+| **接力流水线** | FlowSpec 加载 | 已完成 / 失败 / 已暂停 | relay, provider, runtime, specs |
 | **智能体轮次** | 以职业启动智能体 | 返回交接文档 | agent-config, provider, runtime |
-| **规格生命周期** | 智能体读取/写入规格 | 持久化到 `.ad` 并派生状态 | specs, forge |
+| **规范生命周期** | 智能体读取/写入规范 | 持久化到 `.ad` 并派生状态 | specs, forge |
 | **关卡审批** | 步骤设置 `gate: true` | 用户批准/拒绝 | relay, chat, ui-system |
 
 ## 模块索引
 
-| 模块 | 描述 | 关键组件 | 依赖项 | 规格 |
+| 模块 | 描述 | 关键组件 | 依赖项 | 规范 |
 |--------|-------------|----------------|--------------|-------|
 | **agent-config** | 智能体身份系统 — 人格、职业、模型 | `AgentInstance`, `SoulConfig`, `Profession`, `ModelConfig` | relay, specs | [模块](agent-config/module.ad) · [目标](agent-config/goals.ad) · [架构](agent-config/architecture.ad) · [设计](agent-config/designs.ad) · [测试](agent-config/tests.ad) |
 | **api-sources** | 多提供商 LLM 管理 | `ApiSource`, `ModelDefinition`, `ModelTier` | — | [模块](api-sources/module.ad) · [目标](api-sources/goals.ad) · [架构](api-sources/architecture.ad) · [设计](api-sources/designs.ad) · [计划](api-sources/plans.ad) · [测试](api-sources/tests.ad) |
@@ -110,18 +110,18 @@ graph TD
 | **provider** | 统一的 AI 通信层 | `ClaudeProvider`, `SseParser`, `dispatch_chat()` | api-sources | [模块](provider/module.ad) · [目标](provider/goals.ad) · [架构](provider/architecture.ad) · [设计](provider/designs.ad) · [计划](provider/plans.ad) · [测试](provider/tests.ad) |
 | **relay** | 带接力传递的串行智能体流程 | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [模块](relay/module.ad) · [目标](relay/goals.ad) · [架构](relay/architecture.ad) · [设计](relay/designs.ad) · [计划](relay/plans.ad) · [评审](relay/reviews.ad) · [报告](relay/reports.ad) · [测试](relay/tests.ad) |
 | **runtime** | 检查点与崩溃恢复 | `ContextManager`, `Session`, `PermissionPolicy` | provider | [模块](runtime/module.ad) · [目标](runtime/goals.ad) · [设计](runtime/designs.ad) · [测试](runtime/tests.ad) |
-| **specs** | 规格金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
+| **specs** | 规范金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
 | **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
 | **wiki** | 项目范围的知识库 | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [模块](wiki/module.ad) · [目标](wiki/goals.ad) · [架构](wiki/architecture.ad) · [设计](wiki/designs.ad) · [计划](wiki/plans.ad) · [测试](wiki/tests.ad) |
 
-## 如何浏览规格
+## 如何浏览规范
 
 1. **从概述开始** — 阅读本文档以了解系统范围的上下文。
 2. **理解核心流程** — 阅读 [flows.ad](flows.ad) 以查看数据如何跨模块流动。
 3. **选择一个模块** — 阅读其 `module.ad` 以快速了解（目标、决策、设计、依赖项）。
 4. **阅读目标** — 每个模块的 `goals.ad` 定义了该模块旨在实现的内容。
 5. **阅读架构** — `architecture.ad` 描述了高层设计、权衡和组件交互。
-6. **深入设计** — `designs.ad` 包含详细的技术规格、接口和数据模型。
+6. **深入设计** — `designs.ad` 包含详细的技术规范、接口和数据模型。
 7. **跟踪计划** — `plans.ad` 跟踪实现任务、持续时间和依赖项。
 8. **通过测试验证** — `tests.ad` 列出验收标准和测试场景。
 9. **检查评审** — `reviews.ad` 记录实现后的回顾。
@@ -129,7 +129,7 @@ graph TD
 
 ## ID 约定
 
-规格 ID 遵循格式 `ModulePrefix-TypeNumber`，例如：
+规范 ID 遵循格式 `ModulePrefix-TypeNumber`，例如：
 - `Relay-G1` — Relay 模块，目标 #1
 - `Chat-D3` — Chat 模块，设计 #3
 - `AgentConfig-T2` — Agent Config 模块，测试 #2
@@ -141,16 +141,16 @@ graph TD
 ```
 auto-forge/
 ├── backend/          # Rust (Axum) — REST API, WebSocket, SSE, Relay 引擎
-│   ├── src/forge/    # 聊天循环、规格存储、工具
+│   ├── src/forge/    # 聊天循环、规范存储、工具
 │   ├── src/relay/    # 流水线引擎、智能体启动、交接
 │   ├── src/provider/ # LLM 提供商抽象（Claude, OpenAI, Local）
 │   └── Cargo.toml
-├── frontend/         # Vue 3 (Vite) — 聊天、规格、Wiki、中继面板
+├── frontend/         # Vue 3 (Vite) — 聊天、规范、Wiki、接力面板
 │   ├── src/components/
 │   ├── src/composables/
 │   └── package.json
-├── specs/            # 结构化规格（本目录）
-│   └── auto-forge/   # 项目规格
+├── specs/            # 结构化规范（本目录）
+│   └── auto-forge/   # 项目规范
 ├── wiki/             # 知识库（处理后 Markdown）
 ├── raw/              # 原始导入文档
 └── scripts/          # Python 辅助脚本（regenerate_specs, generate_module_overviews）
@@ -166,7 +166,7 @@ auto-forge/
 [summary]
 # AutoForge 概述
 
-AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多个专业智能体，以设计、实现和验证软件项目。它融合了聊天优先界面、结构化规格系统，以及一个将任务路由到特定职业智能体的中继流水线。
+AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多个专业智能体，以设计、实现和验证软件项目。它融合了聊天优先界面、结构化规范系统，以及一个将任务路由到特定职业智能体的接力流水线。
 
 ## 技术栈
 
@@ -191,7 +191,7 @@ AutoForge 是一个 AI 原生软件工程平台，通过串行流水线编排多
 | **Vite** | 6.x | `package.json` | 构建工具 + 开发服务器 |
 | **TypeScript** | 5.8+ | `package.json` | 类型安全 |
 | **TipTap** | 3.23+ | `package.json` | 基于 ProseMirror 的块编辑器 |
-| **Mermaid** | 11.15+ | `package.json` | 规格中的图表渲染 |
+| **Mermaid** | 11.15+ | `package.json` | 规范中的图表渲染 |
 | **Markstream** | 0.0.14-beta.8 | `package.json` | 流式 Markdown 渲染器 |
 
 ### AI 提供商
@@ -241,11 +241,11 @@ graph TD
 | 概念 | 定义 | 所在位置 |
 |---------|------------|----------|
 | **人格** | 智能体的 Markdown 人格定义（价值观、风格、仪式） | `agent-config` |
-| **职业** | 能力契约：拥有的规格、可读的规格、允许的工具、交接目标 | `agent-config` |
-| **中继** | 带接力交接文档的串行智能体流水线 | `relay` |
+| **职业** | 能力契约：拥有的规范、可读的规范、允许的工具、交接目标 | `agent-config` |
+| **接力** | 带接力交接文档的串行智能体流水线 | `relay` |
 | **关卡** | 人工介入审批点（GSD 自动批准 vs 检查显式） | `relay` / `chat` |
 | **交接** | 智能体之间传递的压缩上下文文档（约节省 5 倍 Token） | `relay` |
-| **规格** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
+| **规范** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
 | **检查点** | 用于无聊天记录崩溃恢复的 JSON + git 快照 | `runtime` |
 | **差事** | 在隔离上下文中的即发即弃研究任务 | `errand` |
 
@@ -256,14 +256,14 @@ graph TD
 | 流程 | 入口 | 出口 | 关键模块 |
 |------|-------|------|-------------|
 | **Forge 聊天循环** | 用户发送消息 | SSE 交付响应 | chat, provider, runtime, relay |
-| **中继流水线** | FlowSpec 加载 | 已完成 / 失败 / 已暂停 | relay, provider, runtime, specs |
+| **接力流水线** | FlowSpec 加载 | 已完成 / 失败 / 已暂停 | relay, provider, runtime, specs |
 | **智能体轮次** | 以职业启动智能体 | 返回交接文档 | agent-config, provider, runtime |
-| **规格生命周期** | 智能体读取/写入规格 | 持久化到 `.ad` 并派生状态 | specs, forge |
+| **规范生命周期** | 智能体读取/写入规范 | 持久化到 `.ad` 并派生状态 | specs, forge |
 | **关卡审批** | 步骤设置 `gate: true` | 用户批准/拒绝 | relay, chat, ui-system |
 
 ## 模块索引
 
-| 模块 | 描述 | 关键组件 | 依赖项 | 规格 |
+| 模块 | 描述 | 关键组件 | 依赖项 | 规范 |
 |--------|-------------|----------------|--------------|-------|
 | **agent-config** | 智能体身份系统 — 人格、职业、模型 | `AgentInstance`, `SoulConfig`, `Profession`, `ModelConfig` | relay, specs | [模块](agent-config/module.ad) · [目标](agent-config/goals.ad) · [架构](agent-config/architecture.ad) · [设计](agent-config/designs.ad) · [测试](agent-config/tests.ad) |
 | **api-sources** | 多提供商 LLM 管理 | `ApiSource`, `ModelDefinition`, `ModelTier` | — | [模块](api-sources/module.ad) · [目标](api-sources/goals.ad) · [架构](api-sources/architecture.ad) · [设计](api-sources/designs.ad) · [计划](api-sources/plans.ad) · [测试](api-sources/tests.ad) |
@@ -276,18 +276,18 @@ graph TD
 | **provider** | 统一的 AI 通信层 | `ClaudeProvider`, `SseParser`, `dispatch_chat()` | api-sources | [模块](provider/module.ad) · [目标](provider/goals.ad) · [架构](provider/architecture.ad) · [设计](provider/designs.ad) · [计划](provider/plans.ad) · [测试](provider/tests.ad) |
 | **relay** | 带接力传递的串行智能体流程 | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [模块](relay/module.ad) · [目标](relay/goals.ad) · [架构](relay/architecture.ad) · [设计](relay/designs.ad) · [计划](relay/plans.ad) · [评审](relay/reviews.ad) · [报告](relay/reports.ad) · [测试](relay/tests.ad) |
 | **runtime** | 检查点与崩溃恢复 | `ContextManager`, `Session`, `PermissionPolicy` | provider | [模块](runtime/module.ad) · [目标](runtime/goals.ad) · [设计](runtime/designs.ad) · [测试](runtime/tests.ad) |
-| **specs** | 规格金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
+| **specs** | 规范金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
 | **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
 | **wiki** | 项目范围的知识库 | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [模块](wiki/module.ad) · [目标](wiki/goals.ad) · [架构](wiki/architecture.ad) · [设计](wiki/designs.ad) · [计划](wiki/plans.ad) · [测试](wiki/tests.ad) |
 
-## 如何浏览规格
+## 如何浏览规范
 
 1. **从概述开始** — 阅读本文档以了解系统范围的上下文。
 2. **理解核心流程** — 阅读 [flows.ad](flows.ad) 以查看数据如何跨模块流动。
 3. **选择一个模块** — 阅读其 `module.ad` 以快速了解（目标、决策、设计、依赖项）。
 4. **阅读目标** — 每个模块的 `goals.ad` 定义了该模块旨在实现的内容。
 5. **阅读架构** — `architecture.ad` 描述了高层设计、权衡和组件交互。
-6. **深入设计** — `designs.ad` 包含详细的技术规格、接口和数据模型。
+6. **深入设计** — `designs.ad` 包含详细的技术规范、接口和数据模型。
 7. **跟踪计划** — `plans.ad` 跟踪实现任务、持续时间和依赖项。
 8. **通过测试验证** — `tests.ad` 列出验收标准和测试场景。
 9. **检查评审** — `reviews.ad` 记录实现后的回顾。
@@ -295,7 +295,7 @@ graph TD
 
 ## ID 约定
 
-规格 ID 遵循格式 `ModulePrefix-TypeNumber`，例如：
+规范 ID 遵循格式 `ModulePrefix-TypeNumber`，例如：
 - `Relay-G1` — Relay 模块，目标 #1
 - `Chat-D3` — Chat 模块，设计 #3
 - `AgentConfig-T2` — Agent Config 模块，测试 #2
@@ -307,16 +307,16 @@ graph TD
 ```
 auto-forge/
 ├── backend/          # Rust (Axum) — REST API, WebSocket, SSE, Relay 引擎
-│   ├── src/forge/    # 聊天循环、规格存储、工具
+│   ├── src/forge/    # 聊天循环、规范存储、工具
 │   ├── src/relay/    # 流水线引擎、智能体启动、交接
 │   ├── src/provider/ # LLM 提供商抽象（Claude, OpenAI, Local）
 │   └── Cargo.toml
-├── frontend/         # Vue 3 (Vite) — 聊天、规格、Wiki、中继面板
+├── frontend/         # Vue 3 (Vite) — 聊天、规范、Wiki、接力面板
 │   ├── src/components/
 │   ├── src/composables/
 │   └── package.json
-├── specs/            # 结构化规格（本目录）
-│   └── auto-forge/   # 项目规格
+├── specs/            # 结构化规范（本目录）
+│   └── auto-forge/   # 项目规范
 ├── wiki/             # 知识库（处理后 Markdown）
 ├── raw/              # 原始导入文档
 └── scripts/          # Python 辅助脚本（regenerate_specs, generate_module_overviews）

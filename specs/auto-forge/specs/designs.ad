@@ -25,7 +25,7 @@ const categoryComponents: Record<SectionType, Component> = {
 | 事件 | 载荷 | 描述 |
 |---|---|---|
 | `toggle` | `{ id: string }` | 展开/折叠项目详情 |
-| `jump` | `{ id: string }` | 导航到关联的规格 ID |
+| `jump` | `{ id: string }` | 导航到关联的规范 ID |
 | `edit` | `{ item: SpecItem }` | 进入项目编辑模式 |
 | `status-change` | `{ id: string; status: Status }` | 更新项目状态 |
 | `save` | `{ item: SpecItem }` | 持久化已编辑的项目 |
@@ -99,7 +99,7 @@ fn render(content):
 ---
 ---
 
-## Specs-D3 GateBanner（规格视图）
+## Specs-D3 GateBanner（规范视图）
 **Status:** draft
 
 **状态：** 已实现
@@ -130,7 +130,7 @@ stateDiagram-v2
 
 | 字段 | 类型 | 描述 |
 |---|---|---|
-| `sectionId` | `string` | 此横幅守卫的规格章节 |
+| `sectionId` | `string` | 此横幅守卫的规范章节 |
 | `gate.profession` | `string` | 等待者身份（例如 "architect"） |
 | `gate.title` | `string` | 待审批内容的一行摘要 |
 | `gate.since` | `number` | 关卡触发时间戳 |
@@ -269,7 +269,7 @@ interface Emits {
   'cancel-edit': []
   'status-change': [id: string, status: Status]
   'delete': [id: string]
-  'jump': [id: string]  // 导航到关联的规格 ID
+  'jump': [id: string]  // 导航到关联的规范 ID
 }
 ```
 
@@ -327,7 +327,7 @@ interface Emits {
 ---
 ---
 
-## Specs-D6 规格标签展示与侧边栏过滤
+## Specs-D6 规范标签展示与侧边栏过滤
 **Status:** draft
 
 **状态：** 已实现
@@ -380,10 +380,10 @@ function parseTag(tag: string): { type: string; value: string; full: string } {
 └────────────────────────────────────────┘
 ```
 
-- **概览**：扁平顶级项目；规格视图打开时默认显示
+- **概览**：扁平顶级项目；规范视图打开时默认显示
 - **模块抽屉**：每个模块一个 `<details>`，派生自项目 ID 前缀（例如 `AgentConfig-G1` → `agent-config`）
 - **大纲**：每个模块下的第一项；通过 `GET /module/{module}/outline` 加载模块的 `module.ad`
-- **类型项**：7 个规格类别（Goals、Architecture、Designs、Plans、Tests、Reviews、Reports）及其项目数量
+- **类型项**：7 个规范类别（Goals、Architecture、Designs、Plans、Tests、Reviews、Reports）及其项目数量
 
 ### 过滤逻辑
 
@@ -518,8 +518,8 @@ Architect 生成的每个 `overview.ad` 必须包含：
 |---|---|
 | **项目摘要** | 整个系统的 1–2 句电梯演讲 |
 | **系统架构** | 展示层级（UI → Orchestrator → Core Services）的 Mermaid.js 图表 |
-| **模块索引** | 所有模块的表格，包含描述、规格数量及指向各 `module.ad` 的深层链接 |
-| **导航指南** | 如何阅读规格：Goals → Architecture → Designs → Plans → Tests → Reviews → Reports |
+| **模块索引** | 所有模块的表格，包含描述、规范数量及指向各 `module.ad` 的深层链接 |
+| **导航指南** | 如何阅读规范：Goals → Architecture → Designs → Plans → Tests → Reviews → Reports |
 | **ID 约定** | `ModulePrefix-TypeNumber` 格式的说明（例如 `Relay-G1`、`Chat-D3`） |
 
 #### 4. 各模块大纲（`module.ad`）
@@ -531,7 +531,7 @@ Architect 生成的每个 `overview.ad` 必须包含：
 | **模块概览** | 模块用途的 1–2 句描述 |
 | **核心组件** | 关键组件及其职责 |
 | **架构关系** | 该模块如何与其他模块交互 |
-| **规格索引** | 链接到该模块的 goals、architecture、designs、plans、tests、reviews、reports 的表格 |
+| **规范索引** | 链接到该模块的 goals、architecture、designs、plans、tests、reviews、reports 的表格 |
 
 #### 5. 触发条件
 
@@ -553,8 +553,8 @@ Architect 生成的每个 `overview.ad` 必须包含：
 
 - Architect 必须在交接给 Planner 之前调用 `write_file` 写入 `overview.ad`
 - 当单个模块架构变更时，Architect 应该更新 `module.ad`
-- 过时的概览被视为缺陷，并作为后续中继运行提交
-- 概览不是规格章节；它作为导航文档存在于 7 类型金字塔之外
+- 过时的概览被视为缺陷，并作为后续接力运行提交
+- 概览不是规范章节；它作为导航文档存在于 7 类型金字塔之外
 
 ---
 
@@ -587,15 +587,15 @@ Architect 生成的每个 `overview.ad` 必须包含：
 
 ### 问题
 
-原始规格侧边栏使用三个独立的过滤抽屉（Category、Stack、Module）并基于标签过滤。该设计存在几个问题：
-- **冗余标签**：每个规格项目需要 `module:*` 标签才能参与模块过滤
-- **缺乏模块上下文**：用户无法一眼看出哪些规格属于哪个模块
-- **没有模块概览**：无法在不浏览单个规格的情况下阅读模块的高层描述
+原始规范侧边栏使用三个独立的过滤抽屉（Category、Stack、Module）并基于标签过滤。该设计存在几个问题：
+- **冗余标签**：每个规范项目需要 `module:*` 标签才能参与模块过滤
+- **缺乏模块上下文**：用户无法一眼看出哪些规范属于哪个模块
+- **没有模块概览**：无法在不浏览单个规范的情况下阅读模块的高层描述
 - **浪费侧边栏空间**：搜索输入框占用了宝贵的垂直空间
 
 ### 解决方案
 
-用**模块手风琴树**替换基于标签的过滤抽屉，直接从规格 ID 派生模块归属。
+用**模块手风琴树**替换基于标签的过滤抽屉，直接从规范 ID 派生模块归属。
 
 #### 1. 从 ID 派生模块
 
@@ -634,7 +634,7 @@ function idToModule(id: string): string | null {
 
 ```
 ┌─ 侧边栏 (220px) ───────────────────────┐
-│ 规格                           [≡]    │
+│ 规范                           [≡]    │
 │ ─────────────────────────────────────  │
 │ 📖 概览                            │
 │ ─────────────────────────────────────  │
@@ -679,7 +679,7 @@ GET /api/forge/specs/{project}/module/{module}/outline
 → { content: string, exists: boolean }
 ```
 
-两个端点从项目规格目录读取 `.ad` 文件：
+两个端点从项目规范目录读取 `.ad` 文件：
 - `overview.ad` → `{project_dir}/overview.ad`
 - `module.ad` → `{project_dir}/{module}/module.ad`
 
@@ -701,7 +701,7 @@ GET /api/forge/specs/{project}/module/{module}/outline
 
 - `module:` 标签已弃用，不再序列化；模块归属仅从 ID 前缀派生
 - `module.ad` 文件是静态文档；它们不会被加载到 `SpecsDocument` 章节中，也不会被 `save_module_format` 覆盖
-- 模块手风琴树在规格加载或保存时从 `document.sections` 动态重建
+- 模块手风琴树在规范加载或保存时从 `document.sections` 动态重建
 
 ---
 
@@ -734,11 +734,11 @@ GET /api/forge/specs/{project}/module/{module}/outline
 
 ### 问题
 
-原始的 `generate_module_overviews.py` 仅提取第一个目标的标题作为模块描述，并按类型统计规格数量。这生成的 `module.ad` 文件过于单薄，无法作为有效的模块入口点——阅读 `relay/module.ad` 的开发者只会看到 "Serial agent flows with baton passing and gate enforcement" 加一个规格数量表，但完全不了解关键组件、设计决策或模块依赖关系。
+原始的 `generate_module_overviews.py` 仅提取第一个目标的标题作为模块描述，并按类型统计规范数量。这生成的 `module.ad` 文件过于单薄，无法作为有效的模块入口点——阅读 `relay/module.ad` 的开发者只会看到 "Serial agent flows with baton passing and gate enforcement" 加一个规范数量表，但完全不了解关键组件、设计决策或模块依赖关系。
 
 ### 解决方案
 
-重写脚本，对模块内所有规格文件执行结构化提取。
+重写脚本，对模块内所有规范文件执行结构化提取。
 
 #### 提取策略
 
@@ -773,14 +773,14 @@ GET /api/forge/specs/{project}/module/{module}/outline
 ## 模块依赖
 依赖于: [module-a](module-a/module.ad), [module-b](module-b/module.ad)
 
-## 模块规格
+## 模块规范
 | 类型 | 数量 | 文件 |
 ...
 ```
 
 #### 依赖解析
 
-依赖通过扫描模块规格文件中所有 `**Depends on:**` 行并解析 `ModulePrefix-TypeNumber` 引用回模块名称自动派生：
+依赖通过扫描模块规范文件中所有 `**Depends on:**` 行并解析 `ModulePrefix-TypeNumber` 引用回模块名称自动派生：
 
 ```python
 def extract_dependencies(module_dir, all_modules):
@@ -813,7 +813,7 @@ def extract_dependencies(module_dir, all_modules):
 
 ### 要求
 
-- 脚本幂等运行：若规格未变更，重新运行产生相同输出
+- 脚本幂等运行：若规范未变更，重新运行产生相同输出
 - 所有 14 个模块通过单个命令重新生成：`python scripts/generate_module_overviews.py`
 - `module.ad` 文件保持静态，不会被加载到 `SpecsDocument` 中
 
@@ -848,7 +848,7 @@ def extract_dependencies(module_dir, all_modules):
 
 ### 目的
 
-`flows.ad` 提供系统的**水平视角**：它描述跨越模块边界的执行流程。这补充了基于模块的规格的**垂直视角**（单个模块内的 Goals → Architecture → Designs）。
+`flows.ad` 提供系统的**水平视角**：它描述跨越模块边界的执行流程。这补充了基于模块的规范的**垂直视角**（单个模块内的 Goals → Architecture → Designs）。
 
 ### 文档结构
 
@@ -878,9 +878,9 @@ sequenceDiagram
 **处理**: {发生什么}
 **数据流**: {输入} → {处理} → {输出}
 
-### 相关规格
+### 相关规范
 - `Module-A1` — 链接到架构决策
-- `Module-D3` — 链接到设计规格
+- `Module-D3` — 链接到设计规范
 ```
 
 ### 流程目录
@@ -897,15 +897,15 @@ sequenceDiagram
 
 - 每个流程必须有 Mermaid `sequenceDiagram`
 - 每个步骤必须记录 Trigger、Processing 和 Data Flow
-- 每个流程必须在底部链接到相关规格 ID
-- 流程不替代模块规格；它们引用模块规格
+- 每个流程必须在底部链接到相关规范 ID
+- 流程不替代模块规范；它们引用模块规范
 - 流程 ID 使用 `Flow-N` 格式（不绑定模块前缀）
 
-### 与模块规格的关系
+### 与模块规范的关系
 
 ```mermaid
 graph LR
-    subgraph "垂直: 模块规格"
+    subgraph "垂直: 模块规范"
         MG[relay/goals.ad]
         MA[relay/architecture.ad]
         MD[relay/designs.ad]
@@ -922,14 +922,14 @@ graph LR
     F2 --> MD
 ```
 
-- 模块规格回答**"这个组件是什么，如何工作？"**
-- 流程规格回答**"数据如何在系统中流动？"**
+- 模块规范回答**"这个组件是什么，如何工作？"**
+- 流程规范回答**"数据如何在系统中流动？"**
 
 ---
 
 ---
 
-## Specs-D12 规格视图模式切换器（列表 / 卡片 / 看板）
+## Specs-D12 规范视图模式切换器（列表 / 卡片 / 看板）
 **Status:** draft
 
 **状态：** 草案
@@ -939,7 +939,7 @@ graph LR
 
 ### 问题
 
-当前规格视图以单一的硬编码布局渲染每种章节类型：
+当前规范视图以单一的硬编码布局渲染每种章节类型：
 - Goals → 树形表格
 - Architecture → 卡片
 - Designs → 卡片
@@ -1104,7 +1104,7 @@ function loadViewMode(section: SectionType): SpecViewMode {
 
 ## 概览
 
-测试验证设计定义了 Architect 在批准流水线推进之前应用于测试规格的具体检查清单和去重流程。这是规格级别的质量关卡，不是运行时测试运行器。
+测试验证设计定义了 Architect 在批准流水线推进之前应用于测试规范的具体检查清单和去重流程。这是规范级别的质量关卡，不是运行时测试运行器。
 
 ### 接口
 
@@ -1162,7 +1162,7 @@ stateDiagram-v2
 4. **追踪**：对每个剩余的测试项目，验证 `depends_on` 引用存在
 5. **报告**：输出 `ValidationResult`
 
-### 当前扫描结果（AutoForge 规格）
+### 当前扫描结果（AutoForge 规范）
 
 | 章节 | 问题 | ID | 建议操作 |
 |---------|-------|-----|--------------------|
@@ -1174,7 +1174,7 @@ stateDiagram-v2
 
 ### 设计亮点
 
-规格去重是幂等的——多次运行产生相同结果。Architect 将项目标记为 `rejected` 而非删除，保留审计轨迹。
+规范去重是幂等的——多次运行产生相同结果。Architect 将项目标记为 `rejected` 而非删除，保留审计轨迹。
 
 ### 触发条件
 Tester 起草测试后、Coder 实现前。也可通过 `test validation` 任务手动触发。
@@ -1188,11 +1188,11 @@ Tester 起草测试后、Coder 实现前。也可通过 `test validation` 任务
 
 | 方案 | 优点 | 缺点 |
 |----------|------|------|
-| 将重复项标记为 rejected（已选） | 保留审计轨迹；可逆 | 规格章节保持较大 |
-| 删除重复项 | 干净章节；更小规格 | 丢失历史；不可逆 |
+| 将重复项标记为 rejected（已选） | 保留审计轨迹；可逆 | 规范章节保持较大 |
+| 删除重复项 | 干净章节；更小规范 | 丢失历史；不可逆 |
 | 保留所有重复项 | 无数据丢失 | 令人困惑；违反单一真相源 |
 
-## Specs-D14 规格去重设计——即时清理与预防
+## Specs-D14 规范去重设计——即时清理与预防
 **Status:** draft
 
 **状态：** 已批准
@@ -1203,9 +1203,9 @@ Tester 起草测试后、Coder 实现前。也可通过 `test validation` 任务
 
 ## 概览
 
-清理 10 多个重复测试规格并预防未来重复的详细设计。这是 `Specs-A4` 诊断出的架构的实现计划。
+清理 10 多个重复测试规范并预防未来重复的详细设计。这是 `Specs-A4` 诊断出的架构的实现计划。
 
-### 阶段 1：即时清理（手动规格编辑）
+### 阶段 1：即时清理（手动规范编辑）
 
 删除所有重复项，每个 ID 仅保留最高质量副本。Coder 将执行这些删除。
 
@@ -1242,7 +1242,7 @@ function selectBestCopy(items: SpecItem[]): SpecItem {
 
 ### 阶段 2：预防——Relay Driver 去重防护
 
-relay driver（`relay/driver.rs`）必须在 Tester 步骤创建新规格项之前检查现有项。
+relay driver（`relay/driver.rs`）必须在 Tester 步骤创建新规范项之前检查现有项。
 
 ```mermaid
 sequenceDiagram
@@ -1288,7 +1288,7 @@ sequenceDiagram
 - [ ] architecture 章节中的 ApiSources-A3 减少至恰好 1 个副本
 - [ ] Specs-G9 已删除（保留 Specs-G8）
 - [ ] 清理后所有交叉引用（depends_on）仍能正确解析
-- [ ] 无孤立项目（依赖于已删除规格的项目已更新）
+- [ ] 无孤立项目（依赖于已删除规范的项目已更新）
 
 ### 设计亮点
 

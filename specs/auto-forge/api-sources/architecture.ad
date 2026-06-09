@@ -69,7 +69,7 @@ graph TB
 - 静态文档位于 `specs/apis.ad`；在前端以只读视图渲染
 - 按后端模块分组：Forge、Relay、Config、Wiki、Raw
 - 每个条目显示 HTTP 方法、路由路径、处理函数和一行描述
-- 当 `apis.ad` 更新时，可通过规格工作空间编辑
+- 当 `apis.ad` 更新时，可通过规范工作空间编辑
 
 ## ApiSources-A3 ApiSources-A3 Model-First Agent Config Architecture
 **Status:** approved
@@ -178,7 +178,7 @@ graph TB
 
 ### 触发条件
 
-`resolve_model()` 在每次智能体被派生时调用（中继步骤或聊天轮次）。迁移在通过 `load_or_generate_agent_configs()` 加载配置时运行一次。
+`resolve_model()` 在每次智能体被派生时调用（接力步骤或聊天轮次）。迁移在通过 `load_or_generate_agent_configs()` 加载配置时运行一次。
 
 ### 数据流
 
@@ -250,7 +250,7 @@ graph TB
 
 ### 触发条件
 
-`resolve_model()` 在每次智能体被派生时调用（中继步骤或聊天轮次）。迁移在通过 `load_or_generate_agent_configs()` 加载配置时运行一次。
+`resolve_model()` 在每次智能体被派生时调用（接力步骤或聊天轮次）。迁移在通过 `load_or_generate_agent_configs()` 加载配置时运行一次。
 
 ### 数据流
 

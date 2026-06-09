@@ -2,18 +2,18 @@
 
 ---
 
-## Specs-R1 — 规格转换差距审计（写入后）
+## Specs-R1 — 规范转换差距审计（写入后）
 **Status:** draft
 
 **状态：** 草案
 **标签：** stack:frontend
 
-将 `docs/design/forge-specs-relay-frontend.md` 转换为正式规格后，差距审计识别出缺失的组件设计和未记录的 SSE 路由契约。
+将 `docs/design/forge-specs-relay-frontend.md` 转换为正式规范后，差距审计识别出缺失的组件设计和未记录的 SSE 路由契约。
 
 | 差距 | 严重度 | 解决方案 | 位置 |
 |---||---|---|
-| `GateBanner` 组件（规格视图粘性关卡横幅） | 高 | 新设计 Specs-D3 | `designs.ad` |
-| `GatePanel` 组件（中继视图关卡审批） | 高 | 新设计 Relay-D9 | `designs.ad` |
+| `GateBanner` 组件（规范视图粘性关卡横幅） | 高 | 新设计 Specs-D3 | `designs.ad` |
+| `GatePanel` 组件（接力视图关卡审批） | 高 | 新设计 Relay-D9 | `designs.ad` |
 | `ReportCard` 组件（聊天中的终端完成） | 高 | 新设计 Chat-D2 | `designs.ad` |
 | SSE 事件映射 / 前端集成 | 严重 | 新设计 Relay-D10 | `designs.ad` |
 | 未跟踪的开放问题（声音、升级、持久化、锁定） | 中 | 作为计划风险添加 | `plans.ad`（Chat-P1、Relay-P9、UiSystem-P1） |

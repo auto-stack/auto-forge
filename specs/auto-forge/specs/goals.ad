@@ -2,25 +2,25 @@
 
 ---
 
-## Specs-G1 规格金字塔支持目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告
+## Specs-G1 规范金字塔支持目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** AgentConfig-G1
 
 - [x] API 类别已移除
-- [x] 接口规格存放在设计下
+- [x] 接口规范存放在设计下
 - [x] 架构师拥有设计
-- [x] 报告是中继执行总结
+- [x] 报告是接力执行总结
 
-## Specs-G2 规格工作区与双向可追溯性
+## Specs-G2 规范工作区与双向可追溯性
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Specs-G1, Chat-G1
 
-- [x] 规格构成实时决策金字塔
+- [x] 规范构成实时决策金字塔
 - [x] 每个计划追溯到目标，每个测试验证设计
 
-## Specs-G3 七种规格类别通过结构化按类别编辑器渲染
+## Specs-G3 七种规范类别通过结构化按类别编辑器渲染
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Specs-G2
@@ -44,7 +44,7 @@
 - [x] 正则表达式扫描 ID 引用
 - [x] 匹配的 ID 渲染为 SpecLink 组件
 
-## Specs-G6 偏差检查按钮按需比较代码与规格
+## Specs-G6 偏差检查按钮按需比较代码与规范
 **Status:** implemented
 **Tags:** stack:both
 **Depends on:** Specs-G2
@@ -99,7 +99,7 @@
 
 - [x] overview.ad 作为导航文档
 - [x] 后端 API 提供概述内容
-- [x] 前端规格视图渲染概述
+- [x] 前端规范视图渲染概述
 - [x] 架构师人格要求更新概述
 
 ## Specs-G11 模块化导航与每模块大纲
@@ -107,7 +107,7 @@
 **Tags:** stack:both
 **Depends on:** Specs-G10, UiSystem-G1
 
-- [x] 规格侧边栏按模块分组
+- [x] 规范侧边栏按模块分组
 - [x] 每个模块显示大纲条目
 - [x] 搜索框移至标题栏
 - [x] 面包屑路径导航
@@ -127,4 +127,4 @@
 
 - [x] flows.ad 描述跨模块执行流程
 - [x] 5 个核心流程已文档化
-- [x] 每个流程链接回相关规格 ID
+- [x] 每个流程链接回相关规范 ID

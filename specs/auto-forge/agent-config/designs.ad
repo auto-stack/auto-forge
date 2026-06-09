@@ -132,7 +132,7 @@ pub struct Profession {
 ```
 
 
-| 职业 | 阶段 | 拥有的规格 | 模型层级 | 关卡 |
+| 职业 | 阶段 | 拥有的规范 | 模型层级 | 关卡 |
 |---|---|---|---|---|
 | Assistant | Intake | None | Light | Auto |
 | Advisor | Discovery | Goals | Medium | Human (GSD) / Human (Check) |
@@ -147,8 +147,8 @@ pub struct Profession {
 |---|---|---|
 | `id` | `String` | 职业标识符 |
 | `phase` | `ForgePhase` | 该职业运行的阶段 |
-| `owned_sections` | `Vec<SectionType>` | 该职业可以编写的规格 |
-| `readable_sections` | `Vec<SectionType>` | 该职业可以读取的规格 |
+| `owned_sections` | `Vec<SectionType>` | 该职业可以编写的规范 |
+| `readable_sections` | `Vec<SectionType>` | 该职业可以读取的规范 |
 | `approval_gates` | `Vec<String>` | 需要审批的交接目标 |
 
 
@@ -182,7 +182,7 @@ pub struct Profession {
 
 ### 问题
 
-原始架构师人格要求读取现有规格并编写架构/设计，但缺乏对以下方面的约束：
+原始架构师人格要求读取现有规范并编写架构/设计，但缺乏对以下方面的约束：
 - **准确性**：架构师可以未经核实就声称技术栈或文件路径
 - **深度**：架构项有结构图但没有运行时序列图
 - **质量**：交接前没有自检清单，导致交付物不完整
@@ -193,7 +193,7 @@ pub struct Profession {
 
 #### 1. 代码验证强制要求
 
-在编写任何引用源代码的架构或设计规格之前：
+在编写任何引用源代码的架构或设计规范之前：
 
 | 规则 | 执行方式 |
 |------|----------|

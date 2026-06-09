@@ -2,7 +2,7 @@
 
 ---
 
-## Relay-P1 智能体中继 — 基础
+## Relay-P1 智能体接力 — 基础
 **Status:** draft
 **Depends on:** AgentConfig-G1, Relay-G1, Relay-G2
 
@@ -18,7 +18,7 @@
 | Relay-P1.8 | 交接压缩 | Core | 2 天 | done |
 | Relay-P1.9 | 单元测试 | Core | 2 天 | done |
 
-## Relay-P2 智能体中继 — 流程引擎
+## Relay-P2 智能体接力 — 流程引擎
 **Status:** draft
 **Depends on:** Relay-G1, Runtime-G3, Relay-D1
 
@@ -33,7 +33,7 @@
 | Relay-P2.7 | 关卡拒绝路由 | Core | 2 天 | done |
 | Relay-P2.8 | 集成测试 | Core | 2 天 | done |
 
-## Relay-P3 智能体中继 — 检查点与持久化
+## Relay-P3 智能体接力 — 检查点与持久化
 **Status:** draft
 **Depends on:** Runtime-G1, Relay-D3
 
@@ -49,7 +49,7 @@
 | Relay-P3.8 | 分叉 | Core | 2 天 | done |
 | Relay-P3.9 | 崩溃恢复测试 | Core | 2 天 | done |
 
-## Relay-P4 智能体中继 — Token 预算
+## Relay-P4 智能体接力 — Token 预算
 **Status:** draft
 **Depends on:** Runtime-G2, Relay-D4
 
@@ -63,7 +63,7 @@
 | Relay-P4.6 | 节省估算 | Core | 2 天 | done |
 | Relay-P4.7 | 单元测试 | Core | 2 天 | done |
 
-## Relay-P5 智能体中继 — 前端视图
+## Relay-P5 智能体接力 — 前端视图
 **Status:** draft
 **Depends on:** Runtime-G2, Runtime-G3
 
@@ -78,7 +78,7 @@
 | Relay-P5.7 | 运行控制按钮 | UI | 2 天 | done |
 | Relay-P5.8 | 前端集成测试 | UI | 2 天 | done |
 
-## Relay-P6 智能体中继 — 集成
+## Relay-P6 智能体接力 — 集成
 **Status:** draft
 **Depends on:** Relay-P1–P5
 
@@ -90,7 +90,7 @@
 | Relay-P6.4 | 偏差检测 | Core | 2 天 | done |
 | Relay-P6.5 | 文档和教程 | Core | 2 天 | done |
 
-## Relay-P7 中继重构 — 新设计 v2
+## Relay-P7 接力重构 — 新设计 v2
 **Status:** draft
 
 **状态：** 已完成
@@ -109,7 +109,7 @@
 | Relay-P7.8 | 更新 `FlowSpec` 默认流程：Assistant → Advisor → Architect → Planner → Tester → Coder → Tester → Reviewer → Documenter | 工具 | 1 天 | Relay-P7.1-Relay-P7.5 | 已完成 |
 | Relay-P7.9 | 更新前端：移除 `ApisSchema` 组件；添加 `RelayMode` 切换（GSD/Check） | UI | 2 天 | Relay-P7.3 | 已完成 |
 | Relay-P7.10 | 更新前端流水线可视化以显示 8 个职业 | UI | 1 天 | Relay-P7.8 | 已完成 |
-| Relay-P7.11 | 更新 `design/docs` 以匹配新的规格类别（已完成） | 工具 | 0.5 天 | — | 已完成 |
+| Relay-P7.11 | 更新 `design/docs` 以匹配新的规范类别（已完成） | 工具 | 0.5 天 | — | 已完成 |
 | Relay-P7.12 | 为新流程编写集成测试（S7.1–S7.4） | 工具 | 2 天 | Relay-P7.1-Relay-P7.10 | 已完成 |
 | Relay-P7.13 | 运行完整测试套件：`cargo check -p auto-forge` 和 `cargo test -p auto-forge` | 工具 | 0.5 天 | Relay-P7.12 | 已完成 |
 
@@ -139,10 +139,10 @@
 | 阶段 | 任务 | 负责人 | 持续时间 | 依赖项 | 状态 |
 |---|---|---|---|---|---|
 | Relay-P9.1 | PipelinePanel 节点图布局（点、连接器、状态颜色） | Bob | 3 天 | — | 已完成 |
-| Relay-P9.2 | 展开的节点卡片，带 Token 消耗、触及规格、当前操作 | Bob | 2 天 | Relay-P9.1 | 已完成 |
+| Relay-P9.2 | 展开的节点卡片，带 Token 消耗、触及规范、当前操作 | Bob | 2 天 | Relay-P9.1 | 已完成 |
 | Relay-P9.3 | 带迭代计数器的重试循环反向边 | Alice | 1 天 | Relay-P9.1 | 已完成 |
 | Relay-P9.4 | 实时流式传输工具调用的日志面板 | Alice | 2 天 | — | 已完成 |
-| Relay-P9.5 | 带点击跳转的触及规格面板 | Alice | 1 天 | Relay-P9.4 | 已完成 |
+| Relay-P9.5 | 带点击跳转的触及规范面板 | Alice | 1 天 | Relay-P9.4 | 已完成 |
 | Relay-P9.6 | 带每职业 Token 条的成本明细面板 | Bob | 1 天 | — | 已完成 |
 
 
@@ -175,7 +175,7 @@
 | Relay-P11.1 | AppHeader 中的 GSD / Check 模式切换 | Alice | 1 天 | — | 已完成 |
 | Relay-P11.2 | 条件关卡渲染（所有关卡 vs 仅目标关卡） | Alice | 2 天 | Relay-P11.1 | 已完成 |
 | Relay-P11.3 | spec_written、handoff_submitted、gate_reached、gate_resolved 的 SSE 事件处理器 | Bob | 2 天 | Chat-P8.4, Relay-P9.1 | 已完成 |
-| Relay-P11.4 | 中继规格变更时 useSpecs 文档缓存失效 | Bob | 1 天 | Relay-P11.3 | 已完成 |
+| Relay-P11.4 | 接力规范变更时 useSpecs 文档缓存失效 | Bob | 1 天 | Relay-P11.3 | 已完成 |
 
 
 
@@ -280,9 +280,9 @@ backend/src/mcp/
 
 **聊天：** `forge_create_session`, `forge_send_message`, `forge_poll_chat_status`, `forge_get_session`, `forge_delete_session`
 
-**中继：** `forge_start_relay_run`, `forge_poll_run_phase`, `forge_get_run`, `forge_list_runs`, `forge_advance_run`, `forge_submit_handoff`, `forge_resolve_gate`, `forge_batch_start_runs`, `forge_batch_get_results`
+**接力：** `forge_start_relay_run`, `forge_poll_run_phase`, `forge_get_run`, `forge_list_runs`, `forge_advance_run`, `forge_submit_handoff`, `forge_resolve_gate`, `forge_batch_start_runs`, `forge_batch_get_results`
 
-**规格：** `forge_read_specs`, `forge_update_spec`, `forge_list_specs_sections`
+**规范：** `forge_read_specs`, `forge_update_spec`, `forge_list_specs_sections`
 
 **配置：** `forge_list_api_sources`, `forge_test_api_connection`, `forge_open_project`, `forge_close_project`, `forge_get_project_status`
 
@@ -295,7 +295,7 @@ backend/src/mcp/
 | 阶段 1 | 后端事件发出 — `relay_complete`, `RunMetadata` | 2 天 | 已计划 |
 | 阶段 2 | 聊天集成 — `ForgeStreamEvent::RelayComplete`, SSE 路由 | 2 天 | 已计划 |
 | 阶段 3 | 前端 UI — 系统消息气泡，"查看报告" 按钮 | 2 天 | 已计划 |
-| 阶段 4 | 报告链接 — `?report_id=` 导航，规格高亮 | 1 天 | 已计划 |
+| 阶段 4 | 报告链接 — `?report_id=` 导航，规范高亮 | 1 天 | 已计划 |
 
 ---
 
