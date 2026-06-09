@@ -1238,6 +1238,11 @@ impl Tool for SearchTool {
                     "type": "string",
                     "description": "Directory to search in (default: current directory)"
                 },
+                "scope": {
+                    "type": "string",
+                    "enum": ["frontend", "backend", "specs", "i18n", "wiki", "all"],
+                    "description": "Semantic search scope. Overrides 'path' when set. frontend=frontend/src, backend=backend/src, specs=specs/, i18n=frontend/src/i18n, wiki=wiki/, all=project root"
+                },
                 "context_lines": {
                     "type": "integer",
                     "description": "Number of context lines to include before and after each match (default: 2). Set to 0 for no context."
@@ -1252,21 +1257,36 @@ impl Tool for SearchTool {
             .get("pattern")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidInput("Missing 'pattern' argument".into()))?;
-        let search_path = args
-            .get("path")
-            .and_then(|v| v.as_str())
-            .unwrap_or(".");
+
+        // Resolve search path: scope overrides path
+        let search_path = if let Some(scope) = args.get("scope").and_then(|v| v.as_str()) {
+            let project = CURRENT_PROJECT.lock().unwrap();
+            if project.is_empty() {
+                PathBuf::from(".")
+            } else {
+                let root = Path::new(&*project);
+                match scope {
+                    "frontend" => root.join("frontend/src"),
+                    "backend" => root.join("backend/src"),
+                    "specs" => root.join("specs"),
+                    "i18n" => root.join("frontend/src/i18n"),
+                    "wiki" => root.join("wiki"),
+                    "all" | _ => root.to_path_buf(),
+                }
+            }
+        } else {
+            PathBuf::from(args.get("path").and_then(|v| v.as_str()).unwrap_or("."))
+        };
         let context_lines = args
             .get("context_lines")
             .and_then(|v| v.as_u64())
             .unwrap_or(2) as usize;
 
-        let search_path = Path::new(search_path);
         if search_path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
             return Err(ToolError::PermissionDenied("Path cannot contain '..'".into()));
         }
 
-        let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { search_path.to_path_buf()  } else { Path::new(&*project).join(search_path) } };
+        let full_path = { let project = CURRENT_PROJECT.lock().unwrap(); if project.is_empty() { search_path.clone() } else { Path::new(&*project).join(&search_path) } };
 
         // Try to compile as regex; fall back to literal string match if invalid
         let regex = regex::Regex::new(pattern).ok();
