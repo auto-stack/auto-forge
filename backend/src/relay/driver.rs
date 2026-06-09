@@ -72,7 +72,7 @@ pub async fn drive_run(
                             profession_id: profession_id.clone(),
                             status: "running".to_string(),
                         });
-                        crate::relay::store::save_run(entry);
+                        crate::relay::store::save_and_trim(entry);
                     }
                 }
 
@@ -165,7 +165,7 @@ pub async fn drive_run(
                                         profession_id: profession_id_fwd.clone(),
                                         text,
                                     });
-                                    crate::relay::store::save_run(entry);
+                                    crate::relay::store::save_and_trim(entry);
                                 }
                             }
                             buf.clear();
@@ -198,7 +198,7 @@ pub async fn drive_run(
                                                     profession_id: profession_id_fwd.clone(),
                                                     thinking: thinking.clone(),
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -223,7 +223,7 @@ pub async fn drive_run(
                                                     tool_name: name,
                                                     arguments,
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -244,9 +244,9 @@ pub async fn drive_run(
                                                     timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                     tool_id: id,
-                                                    result: result.clone(),
+                                                    result: crate::relay::store::truncate_tool_result(&result),
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -272,7 +272,7 @@ pub async fn drive_run(
                                                     cumulative: projected_cumulative,
                                                     step_tokens,
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -291,7 +291,7 @@ pub async fn drive_run(
                                                     timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -312,7 +312,7 @@ pub async fn drive_run(
                                                     profession_id: profession_id_fwd.clone(),
                                                     message: message.clone(),
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -333,7 +333,7 @@ pub async fn drive_run(
                                                     profession_id: profession_id_fwd.clone(),
                                                     remaining,
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -352,7 +352,7 @@ pub async fn drive_run(
                                                     timestamp: now_secs(),
                                                     profession_id: profession_id_fwd.clone(),
                                                 });
-                                                crate::relay::store::save_run(entry);
+                                                crate::relay::store::save_and_trim(entry);
                                             }
                                         }
                                     }
@@ -456,7 +456,7 @@ pub async fn drive_run(
                             profession_id: profession_id.clone(),
                             status: "completed".to_string(),
                         });
-                        crate::relay::store::save_run(entry);
+                        crate::relay::store::save_and_trim(entry);
                     }
                 }
 
@@ -485,7 +485,7 @@ pub async fn drive_run(
                             let mut map = run_store.lock().unwrap();
                             if let Some(entry) = map.get_mut(&run_id) {
                                 entry.events.push(notification.clone());
-                                crate::relay::store::save_run(entry);
+                                crate::relay::store::save_and_trim(entry);
                             }
                         }
                         

@@ -37,3 +37,10 @@ specs/debug_*.txt
 # One-off scripts
 backend/fix_vue_symbols.py
 specs/auto-forge.bak/
+
+# Temp files from editing sessions
+backend.pid
+new_str.txt
+old_str.txt
+orig.vue
+result.vue

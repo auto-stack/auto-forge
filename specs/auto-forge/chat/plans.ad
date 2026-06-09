@@ -42,3 +42,600 @@
 | Chat-P22.2 | `StreamingRenderer.vue`，带组件注册表 | UI | 2 天 | done |
 | Chat-P22.3 | `StreamingTable.vue`，用于 JSON 表格块 | UI | 1 天 | done |
 | Chat-P22.4 | 集成到 `ChatsView.vue` 消息流 | UI | 1 天 | done |
+
+## Chat-P10 Chat-P10
+**Status:** draft
+
+## Chat-P10 删除全部会话实现
+**Status:** proposed
+**Tags:** stack:both, module:chat
+**Depends on:** Chat-G10, Chat-A1, Chat-D1
+
+### 阶段计划
+
+| 阶段 | 任务 | 负责人 | 工期 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| Chat-P10.1 | 后端：添加 `delete_all_sessions()` 函数 | Coder | 2h | — | proposed |
+| Chat-P10.2 | 后端：添加 `create_new_session()` 函数 | Coder | 1h | Chat-P10.1 | proposed |
+| Chat-P10.3 | 后端：添加 DELETE /api/sessions/all 路由 | Coder | 1h | Chat-P10.2 | proposed |
+| Chat-P10.4 | 前端：useSessions.ts 添加 `deleteAllSessions()` 函数 | Coder | 1.5h | — | proposed |
+| Chat-P10.5 | 前端：ChatsView.vue 添加"删除全部"按钮 | Coder | 1.5h | Chat-P10.4 | proposed |
+| Chat-P10.6 | 前端：集成确认对话框和错误处理 | Coder | 1h | Chat-P10.5 | proposed |
+| Chat-P10.7 | 前端：添加 i18n 翻译键 | Coder | 0.5h | Chat-P10.6 | proposed |
+| Chat-P10.8 | 测试：后端单元测试 | Coder | 1h | Chat-P10.3 | proposed |
+| Chat-P10.9 | 测试：前端集成测试 | Coder | 1h | Chat-P10.7 | proposed |
+
+### 任务详情
+
+#### Chat-P10.1 后端：添加 `delete_all_sessions()` 函数
+
+**文件**: `backend/src/runtime/session.rs`
+
+添加函数实现：
+```rust
+pub async fn delete_all_sessions(
+    base_path: &Path
+) -> Result<usize, SessionError> {
+    // 扫描会话目录，获取所有会话ID
+    // 删除所有会话JSONL文件
+    // 返回删除的会话数量
+}
+```
+
+#### Chat-P10.2 后端：添加 `create_new_session()` 函数
+
+**文件**: `backend/src/runtime/session.rs`
+
+添加函数实现：
+```rust
+pub fn create_new_session(
+    base_path: &Path
+) -> Result<Session, SessionError> {
+    // 生成新UUID
+    // 创建空白会话对象
+    // 持久化到JSONL文件
+    // 返回会话对象
+}
+```
+
+#### Chat-P10.3 后端：添加 DELETE /api/sessions/all 路由
+
+**文件**: `backend/src/forge/mod.rs`
+
+添加路由处理器：
+```rust
+pub async fn delete_all_sessions_handler(
+    State(state): State<AppState>
+) -> Result<Json<DeleteAllResponse>, AppError> {
+    let sessions_dir = state.config.data_dir().join("sessions");
+    
+    // 1. 删除所有会话
+    let deleted_count = delete_all_sessions(&sessions_dir).await?;
+    
+    // 2. 创建新会话
+    let new_session = create_new_session(&sessions_dir)?;
+    
+    let new_session_id = new_session.id.clone();
+    
+    Ok(Json(DeleteAllSessionsResponse {
+        deleted_count,
+        new_session_id,
+        session: new_session,
+    }))
+}
+```
+
+在路由中注册：
+```rust
+.route("/api/sessions/all", delete(delete_all_sessions_handler))
+```
+
+#### Chat-P10.4 前端：useSessions.ts 添加 `deleteAllSessions()` 函数
+
+**文件**: `frontend/src/composables/useSessions.ts`
+
+添加函数实现：
+```typescript
+async function deleteAllSessions(): Promise<string> {
+  const response = await fetch('/api/sessions/all', {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`删除失败: ${response.statusText}`);
+  }
+  
+  const data: DeleteAllSessionsResponse = await response.json();
+  
+  // 清空会话列表
+  sessions.value = [data.session];
+  
+  // 切换到新会话
+  currentSessionId.value = data.new_session_id;
+  
+  // 显示成功提示
+  toast.success(t('chat.deleteSuccess', { count: data.deleted_count }));
+  
+  return data.new_session_id;
+}
+```
+
+#### Chat-P10.5 前端：ChatsView.vue 添加"删除全部"按钮
+
+**文件**: `frontend/src/views/ChatsView.vue`
+
+在会话列表头部添加按钮：
+```vue
+<template>
+  <div class="sessions-header">
+    <h3>{{ t('chat.sessions') }}</h3>
+    <button
+      @click="openDeleteDialog"
+      :disabled="sessions.length === 0"
+      :title="sessions.length === 0 ? t('chat.noSessionsToDelete') : t('chat.deleteAll')"
+    >
+      <Trash2 :size="16" />
+      <span>{{ t('chat.deleteAll') }}</span>
+    </button>
+  </div>
+  
+  <!-- 确认对话框 -->
+  <ConfirmDialog
+    :open="isDeleteDialogOpen"
+    :title="t('chat.deleteConfirmTitle')"
+    :message="t('chat.deleteConfirmMessage', { count: sessions.length })"
+    :confirm-text="t('chat.confirmDelete')"
+    :cancel-text="t('chat.cancelDelete')"
+    @confirm="handleDeleteAll"
+    @cancel="isDeleteDialogOpen = false"
+  />
+</template>
+```
+
+#### Chat-P10.6 前端：集成确认对话框和错误处理
+
+**文件**: `frontend/src/views/ChatsView.vue`
+
+添加处理函数：
+```typescript
+const isDeleteDialogOpen = ref(false);
+
+function openDeleteDialog() {
+  isDeleteDialogOpen.value = true;
+}
+
+async function handleDeleteAll() {
+  try {
+    await deleteAllSessions();
+    isDeleteDialog.value = false;
+  } catch (error) {
+    console.error('删除会话失败:', error);
+    toast.error(t('chat.deleteFailed'));
+  }
+}
+```
+
+#### Chat-P10.7 前端：添加 i18n 翻译键
+
+**文件**: 
+- `frontend/src/locales/en.json`
+- `frontend/src/locales/zh.json`
+
+添加以下键值：
+```json
+{
+  "chat": {
+    "deleteAll": "Delete All",
+    "deleteConfirmTitle": "Delete All Sessions",
+    "deleteConfirmMessage": "You are about to delete all chat sessions ({{count}}). This action cannot be undone.",
+    "deleteButton": "Delete All",
+    "cancelDelete": "Cancel",
+    "confirmDelete": "Confirm Delete",
+    "deleteSuccess": "Deleted {{count}} sessions",
+    "deleteFailed": "Failed to delete sessions, please try again",
+    "noSessionsToDelete": "No sessions to delete",
+    "onlyOneSession": "You will delete the only session",
+    "networkTimeout": "Network timeout, please check your connection"
+  }
+}
+```
+
+```json
+{
+  "chat": {
+    "deleteAll": "删除全部",
+    "deleteConfirmTitle": "删除所有会话",
+    "deleteConfirmMessage": "您即将删除所有聊天会话（{{count}}个）。此操作无法撤销。",
+    "deleteButton": "删除全部",
+    "cancelDelete": "取消",
+    "confirmDelete": "确认删除",
+    "deleteSuccess": "已删除 {{count}} 个会话",
+    "deleteFailed": "删除会话失败，请重试",
+    "noSessionsToDelete": "当前没有会话可删除",
+    "onlyOneSession": "您将删除唯一的会话",
+    "networkTimeout": "网络超时，请检查连接"
+  }
+}
+```
+
+#### Chat-P10.8 测试：后端单元测试
+
+**文件**: `backend/src/runtime/session.rs` (tests module)
+
+添加测试用例：
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_delete_all_sessions() {
+        // 创建测试会话
+        // 调用 delete_all_sessions()
+        // 验证所有会话被删除
+        // 验证返回正确的数量
+    }
+    
+    #[test]
+    fn test_create_new_session() {
+        // 调用 create_new_session()
+        // 验证返回的会话对象
+        // 验证会话ID格式正确
+    }
+}
+```
+
+#### Chat-P10.9 测试：前端集成测试
+
+**文件**: `frontend/src/components/__tests__/ChatsView.spec.ts`
+
+添加测试用例：
+```typescript
+describe('Delete All Sessions', () => {
+  it('should disable button when no sessions', () => {
+    // 验证会话列表为空时按钮禁用
+  });
+  
+  it('should open dialog on button click', () => {
+    // 验证点击按钮打开对话框
+  });
+  
+  it('should delete all sessions on confirm', async () => {
+    // 模拟API调用
+    // 验证删除函数被调用
+    // 验证会话列表被清空
+    // 验证新会话被创建
+  });
+  
+  it('should show error on failure', async () => {
+    // 模拟API失败
+    // 验证错误提示显示
+    // 验证对话框保持打开
+  });
+});
+```
+
+### 风险与缓解
+
+| 风险 | 可能性 | 影响 | 缓解措施 |
+|------|--------|------|----------|
+| 删除过程中文件系统错误 | 低 | 高 | 使用事务性操作，失败时返回500，前端显示错误 |
+| 并发删除请求 | 低 | 中 | 后端第二次删除会删除上次创建的新会话，符合预期 |
+| 网络中断 | 中 | 中 | 前端显示超时错误，用户可以重试 |
+| 会话目录损坏 | 低 | 高 | 后端自动创建目录，继续创建新会话 |
+
+### 关键路径
+
+```
+Chat-P10.1 (delete_all_sessions) → Chat-P10.2 (create_new_session) → Chat-P10.3 (DELETE路由)
+Chat-P10.4 (前端删除函数) → Chat-P10.5 (UI按钮) → Chat-P10.6 (对话框集成)
+Chat-P10.7 (i18n) → Chat-P10.8 (后端测试) → Chat-P10.9 (前端测试)
+```
+
+### 验收标准
+
+1. 点击"删除全部"按钮后弹出确认对话框
+2. 对话框显示正确的会话数量
+3. 确认删除后所有会话被删除
+4. 删除后自动创建并切换到新会话
+5. 会话数量为0时按钮禁用
+6. 网络错误时显示错误提示但不崩溃
+7. 键盘可以完成全部操作
+8. 屏幕阅读器正确朗读警告信息
+
+## Chat-P10 删除全部会话实现
+**Status:** proposed
+**Tags:** stack:both, module:chat
+**Depends on:** Chat-G10, Chat-A1, Chat-D1
+
+### 阶段计划
+
+| 阶段 | 任务 | 负责人 | 工期 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| Chat-P10.1 | 后端：添加 `delete_all_sessions()` 函数 | Coder | 2h | — | proposed |
+| Chat-P10.2 | 后端：添加 `create_new_session()` 函数 | Coder | 1h | Chat-P10.1 | proposed |
+| Chat-P10.3 | 后端：添加 DELETE /api/sessions/all 路由 | Coder | 1h | Chat-P10.2 | proposed |
+| Chat-P10.4 | 前端：useSessions.ts 添加 `deleteAllSessions()` 函数 | Coder | 1.5h | — | proposed |
+| Chat-P10.5 | 前端：ChatsView.vue 添加"删除全部"按钮 | Coder | 1.5h | Chat-P10.4 | proposed |
+| Chat-P10.6 | 前端：集成确认对话框和错误处理 | Coder | 1h | Chat-P10.5 | proposed |
+| Chat-P10.7 | 前端：添加 i18n 翻译键 | Coder | 0.5h | Chat-P10.6 | proposed |
+| Chat-P10.8 | 测试：后端单元测试 | Coder | 1h | Chat-P10.3 | proposed |
+| Chat-P10.9 | 测试：前端集成测试 | Coder | 1h | Chat-P10.7 | proposed |
+
+### 任务详情
+
+#### Chat-P10.1 后端：添加 `delete_all_sessions()` 函数
+
+**文件**: `backend/src/runtime/session.rs`
+
+添加函数实现：
+```rust
+pub async fn delete_all_sessions(
+    base_path: &Path
+) -> Result<usize, SessionError> {
+    // 扫描会话目录，获取所有会话ID
+    // 删除所有会话JSONL文件
+    // 返回删除的会话数量
+}
+```
+
+#### Chat-P10.2 后端：添加 `create_new_session()` 函数
+
+**文件**: `backend/src/runtime/session.rs`
+
+添加函数实现：
+```rust
+pub fn create_new_session(
+    base_path: &Path
+) -> Result<Session, SessionError> {
+    // 生成新UUID
+    // 创建空白会话对象
+    // 持久化到JSONL文件
+    // 返回会话对象
+}
+```
+
+#### Chat-P10.3 后端：添加 DELETE /api/sessions/all 路由
+
+**文件**: `backend/src/forge/mod.rs`
+
+添加路由处理器：
+```rust
+pub async fn delete_all_sessions_handler(
+    State(state): State<AppState>
+) -> Result<Json<DeleteAllResponse>, AppError> {
+    let sessions_dir = state.config.data_dir().join("sessions");
+    
+    // 1. 删除所有会话
+    let deleted_count = delete_all_sessions(&sessions_dir).await?;
+    
+    // 2. 创建新会话
+    let new_session = create_new_session(&sessions_dir)?;
+    
+    let new_session_id = new_session.id.clone();
+    
+    Ok(Json(DeleteAllSessionsResponse {
+        deleted_count,
+        new_session_id,
+        session: new_session,
+    }))
+}
+```
+
+在路由中注册：
+```rust
+.route("/api/sessions/all", delete(delete_all_sessions_handler))
+```
+
+#### Chat-P10.4 前端：useSessions.ts 添加 `deleteAllSessions()` 函数
+
+**文件**: `frontend/src/composables/useSessions.ts`
+
+添加函数实现：
+```typescript
+async function deleteAllSessions(): Promise<string> {
+  const response = await fetch('/api/sessions/all', {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    throw new Error(`删除失败: ${response.statusText}`);
+  }
+  
+  const data: DeleteAllSessionsResponse = await response.json();
+  
+  // 清空会话列表
+  sessions.value = [data.session];
+  
+  // 切换到新会话
+  currentSessionId.value = data.new_session_id;
+  
+  // 显示成功提示
+  toast.success(t('chat.deleteSuccess', { count: data.deleted_count }));
+  
+  return data.new_session_id;
+}
+```
+
+#### Chat-P10.5 前端：ChatsView.vue 添加"删除全部"按钮
+
+**文件**: `frontend/src/views/ChatsView.vue`
+
+在会话列表头部添加按钮：
+```vue
+<template>
+  <div class="sessions-header">
+    <h3>{{ t('chat.sessions') }}</h3>
+    <button
+      @click="openDeleteDialog"
+      :disabled="sessions.length === 0"
+      :title="sessions.length === 0 ? t('chat.noSessionsToDelete') : t('chat.deleteAll')"
+    >
+      <Trash2 :size="16" />
+      <span>{{ t('chat.deleteAll') }}</span>
+    </button>
+  </div>
+  
+  <!-- 确认对话框 -->
+  <ConfirmDialog
+    :open="isDeleteDialogOpen"
+    :title="t('chat.deleteConfirmTitle')"
+    :message="t('chat.deleteConfirmMessage', { count: sessions.length })"
+    :confirm-text="t('chat.confirmDelete')"
+    :cancel-text="t('chat.cancelDelete')"
+    @confirm="handleDeleteAll"
+    @cancel="isDeleteDialogOpen = false"
+  />
+</template>
+```
+
+#### Chat-P10.6 前端：集成确认对话框和错误处理
+
+**文件**: `frontend/src/views/ChatsView.vue`
+
+添加处理函数：
+```typescript
+const isDeleteDialogOpen = ref(false);
+
+function openDeleteDialog() {
+  isDeleteDialogOpen.value = true;
+}
+
+async function handleDeleteAll() {
+  try {
+    await deleteAllSessions();
+    isDeleteDialogOpen.value = false;
+  } catch (error) {
+    console.error('删除会话失败:', error);
+    toast.error(t('chat.deleteFailed'));
+  }
+}
+```
+
+#### Chat-P10.7 前端：添加 i18n 翻译键
+
+**文件**: 
+- `frontend/src/locales/en.json`
+- `frontend/src/locales/zh.json`
+
+添加以下键值：
+```json
+{
+  "chat": {
+    "deleteAll": "Delete All",
+    "deleteConfirmTitle": "Delete All Sessions",
+    "deleteConfirmMessage": "You are about to delete all chat sessions ({{count}}). This action cannot be undone.",
+    "deleteButton": "Delete All",
+    "cancelDelete": "Cancel",
+    "confirmDelete": "Confirm Delete",
+    "deleteSuccess": "Deleted {{count}} sessions",
+    "deleteFailed": "Failed to delete sessions, please try again",
+    "noSessionsToDelete": "No sessions to delete",
+    "onlyOneSession": "You will delete the only session",
+    "networkTimeout": "Network timeout, please check your connection"
+  }
+}
+```
+
+```json
+{
+  "chat": {
+    "deleteAll": "删除全部",
+    "deleteConfirmTitle": "删除所有会话",
+    "deleteConfirmMessage": "您即将删除所有聊天会话（{{count}}个）。此操作无法撤销。",
+    "deleteButton": "删除全部",
+    "cancelDelete": "取消",
+    "confirmDelete": "确认删除",
+    "deleteSuccess": "已删除 {{count}} 个会话",
+    "deleteFailed": "删除会话失败，请重试",
+    "noSessionsToDelete": "当前没有会话可删除",
+    "onlyOneSession": "您将删除唯一的会话",
+    "networkTimeout": "网络超时，请检查连接"
+  }
+}
+```
+
+#### Chat-P10.8 测试：后端单元测试
+
+**文件**: `backend/src/runtime/session.rs` (tests module)
+
+添加测试用例：
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_delete_all_sessions() {
+        // 创建测试会话
+        // 调用 delete_all_sessions()
+        // 验证所有会话被删除
+        // 验证返回正确的数量
+    }
+    
+    #[test]
+    fn test_create_new_session() {
+        // 调用 create_new_session()
+        // 验证返回的会话对象
+        // 验证会话ID格式正确
+    }
+}
+```
+
+#### Chat-P10.9 测试：前端集成测试
+
+**文件**: `frontend/src/components/__tests__/ChatsView.spec.ts`
+
+添加测试用例：
+```typescript
+describe('Delete All Sessions', () => {
+  it('should disable button when no sessions', () => {
+    // 验证会话列表为空时按钮禁用
+  });
+  
+  it('should open dialog on button click', () => {
+    // 验证点击按钮打开对话框
+  });
+  
+  it('should delete all sessions on confirm', async () => {
+    // 模拟API调用
+    // 验证删除函数被调用
+    // 验证会话列表被清空
+    // 验证新会话被创建
+  });
+  
+  it('should show error on failure', async () => {
+    // 模拟API失败
+    // 验证错误提示显示
+    // 验证对话框保持打开
+  });
+});
+```
+
+### 风险与缓解
+
+| 风险 | 可能性 | 影响 | 缓解措施 |
+|------|--------|------|----------|
+| 删除过程中文件系统错误 | 低 | 高 | 使用事务性操作，失败时返回500，前端显示错误 |
+| 并发删除请求 | 低 | 中 | 后端第二次删除会删除上次创建的新会话，符合预期 |
+| 网络中断 | 中 | 中 | 前端显示超时错误，用户可以重试 |
+| 会话目录损坏 | 低 | 高 | 后端自动创建目录，继续创建新会话 |
+
+### 关键路径
+
+```
+Chat-P10.1 (delete_all_sessions) → Chat-P10.2 (create_new_session) → Chat-P10.3 (DELETE路由)
+Chat-P10.4 (前端删除函数) → Chat-P10.5 (UI按钮) → Chat-P10.6 (对话框集成)
+Chat-P10.7 (i18n) → Chat-P10.8 (后端测试) → Chat-P10.9 (前端测试)
+```
+
+### 验收标准
+
+1. 点击"删除全部"按钮后弹出确认对话框
+2. 对话框显示正确的会话数量
+3. 确认删除后所有会话被删除
+4. 删除后自动创建并切换到新会话
+5. 会话数量为0时按钮禁用
+6. 网络错误时显示错误提示但不崩溃
+7. 键盘可以完成全部操作
+8. 屏幕阅读器正确朗读警告信息

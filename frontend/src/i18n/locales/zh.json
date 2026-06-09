@@ -160,8 +160,7 @@
     "sourceGuide": "指南",
     "sourceApiRef": "API 参考",
     "sourceCustom": "自定义",
-    "tagsLabel": "标签（逗号分隔）",
-    "folderPathLabel": "文件夹路径"
+    "tagsLabel": "标签（逗号分隔）"
   },
   "explorer": {
     "title": "浏览器",
@@ -192,7 +191,8 @@
     "iterations": "迭代次数",
     "tokens": "令牌",
     "clickToCollapse": "点击步骤折叠",
-    "noSteps": "尚未完成任何步骤"
+    "noSteps": "尚未完成任何步骤",
+    "rerunRun": "从失败步骤重新运行"
   },
   "agents": {
     "title": "智能体锻造",

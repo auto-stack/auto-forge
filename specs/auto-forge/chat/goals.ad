@@ -83,3 +83,209 @@
 - [x] useStreamingDocument 分离 markdown 与 JSON 组件块
 - [x] StreamingRenderer 分派到组件注册表
 - [x] 粘性 props 缓存处理不完整 JSON
+
+## Chat-G10 删除全部会话
+**Status:** proposed
+**Tags:** stack:both, module:chat
+**Depends on:** Provider-G1, Chat-G1
+
+## Chat-G10 删除全部会话
+**Status:** proposed
+**Tags:** stack:both, module:chat
+**Depends on:** Provider-G1, Chat-G1
+
+- [ ] 聊天界面显示"删除全部"按钮，位于会话列表区域
+- [ ] 点击按钮后弹出确认对话框，显示会话数量
+- [ ] 用户确认后删除所有会话，并自动创建空白新会话
+- [ ] 删除成功后显示提示信息并切换到新会话
+- [ ] 网络错误或取消操作时不删除任何会话
+
+### 实现文件
+
+#### 后端文件
+- `backend/src/runtime/session.rs`: 添加 `delete_all_sessions()` 函数
+- `backend/src/forge/mod.rs`: 添加 DELETE `/api/sessions/all` 路由
+
+#### 前端文件
+- `frontend/src/views/ChatsView.vue`: 添加"删除全部"按钮
+- `frontend/src/composables/useSessions.ts`: 添加 `deleteAllSessions()` 函数
+- `frontend/src/locales/en.json` 和 `zh.json`: 添加翻译键
+
+### 测试要点
+
+#### 功能测试
+- [ ] 点击按钮打开对话框
+- [ ] 对话框显示正确的会话数量
+- [ ] 取消关闭对话框，不执行删除
+- [ ] 确认后所有会话被删除
+- [ ] 删除后新会话自动创建并显示
+- [ ] 会话数量为0时按钮禁用
+
+#### 错误测试
+- [ ] 网络错误时显示错误提示
+- [ ] 500错误时显示错误提示
+- [ ] 超时时显示超时提示
+
+#### 可访问性测试
+- [ ] 键盘可以完成全部操作
+- [ ] 屏幕阅读器正确朗读警告信息
+- [ ] 焦点管理符合预期
+
+## Chat-A1 删除全部会话架构
+**Status:** draft
+**Tags:** stack:both, module:chat
+
+## 删除全部会话架构
+
+### 概述
+提供用户一键删除所有聊天会话的能力，包含确认对话框防止误操作。删除后自动创建并展示空白新会话，确保用户始终有可用的聊天界面。
+
+### 触发条件
+用户点击聊天界面的"删除全部"按钮。
+
+### 数据流
+```
+[用户点击按钮] → [前端显示确认对话框] → [用户确认] → [前端调用 DELETE /api/sessions/all] → [后端删除所有会话] → [后端返回新会话ID] → [前端切换到新会话] → [显示空白聊天界面]
+```
+
+### API设计
+
+#### DELETE /api/sessions/all
+
+删除所有会话并创建新空白会话。
+
+**请求**
+```
+DELETE /api/sessions/all
+```
+
+**响应 200**
+```json
+{
+  "deleted_count": 42,
+  "new_session_id": "uuid-new-session",
+  "session": {
+    "id": "uuid-new-session",
+    "created_at": 1735689600,
+    "updated_at": 1735689600,
+    "active_profession": null,
+    "title": null,
+    "message_count": 0
+  }
+}
+```
+
+**错误响应**
+- `500 INTERNAL_SERVER_ERROR`: 删除过程中发生文件系统错误
+
+### 依赖关系
+- 依赖 Session 持久化机制（Provider-G1）
+- 依赖会话列表管理（前端Chat模块）
+- 无其他目标依赖
+
+## Chat-D1 删除全部会话UI设计
+**Status:** draft
+**Tags:** stack:frontend, module:chat
+
+## 删除全部会话UI设计
+
+### 概述
+在聊天界面提供"删除全部"按钮，通过确认对话框防止误操作，删除后无缝切换到新会话。
+
+### UI组件结构
+
+#### 1. DeleteAllButton 组件
+
+**位置**: 会话列表顶部
+
+**Props**
+```typescript
+interface DeleteAllButtonProps {
+  disabled?: boolean;
+  onSuccess?: (newSessionId: string) => void;
+  onError?: (error: Error) => void;
+}
+```
+
+**行为**
+- 默认状态：显示垃圾桶图标 + "删除全部"文本
+- 加载状态：显示Spinner，按钮禁用
+- 点击事件：打开确认对话框
+
+#### 2. ConfirmDeleteDialog 组件
+
+确认对话框组件，警告用户即将删除所有会话。
+
+**Props**
+```typescript
+interface ConfirmDeleteDialogProps {
+  open: boolean;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+  sessionCount?: number;
+}
+```
+
+**UI布局**
+```
+┌─────────────────────────────────────┐
+│  ⚠️ 删除所有会话                      │
+├─────────────────────────────────────┤
+│  您即将删除所有聊天会话（共 42 个）。   │
+│  此操作无法撤销。                      │
+│                                       │
+│  [取消]              [确认删除]       │
+└─────────────────────────────────────┘
+```
+
+**视觉设计**
+- 警告图标：红色三角形感叹号
+- 会话数量：动态显示，增加紧迫感
+- "确认删除"按钮：红色高亮，主操作
+- "取消"按钮：灰色，次要操作
+
+### 交互流程
+
+#### 正常流程
+```
+1. 用户点击"删除全部"按钮
+2. ConfirmDeleteDialog 弹出，显示会话数量
+3. 用户点击"确认删除"
+4. 按钮显示加载状态
+5. 调用 API: DELETE /api/sessions/all
+6. 收到成功响应，提取 new_session_id
+7. 调用会话列表管理器：清空列表 + 添加新会话
+8. 调用路由器：切换到新会话
+9. 显示成功提示：Toast "已删除 42 个会话"
+10. 自动关闭对话框
+```
+
+#### 错误流程
+```
+1. 用户点击"确认删除"
+2. API 调用失败（网络错误或500）
+3. 对话框内显示错误提示："删除失败，请重试"
+4. "确认删除"按钮恢复可点击状态
+5. 用户可以点击"取消"关闭对话框，或重试
+```
+
+### 测试要点
+
+#### 功能测试
+- [ ] 点击按钮打开对话框
+- [ ] 对话框显示正确的会话数量
+- [ ] 取消关闭对话框，不执行删除
+- [ ] 确认后所有会话被删除
+- [ ] 删除后新会话自动创建并显示
+- [ ] 会话数量为0时按钮禁用
+
+#### 错误测试
+- [ ] 网络错误时显示错误提示
+- [ ] 500错误时显示错误提示
+- [ ] 超时时显示超时提示
+
+### 依赖关系
+- 依赖会话列表组件（ChatsView.vue）
+- 依赖路由系统
+- 依赖后端 API /api/sessions/all
+- 依赖ConfirmDialog组件

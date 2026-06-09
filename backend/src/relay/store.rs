@@ -13,6 +13,57 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
+/// Maximum length of a tool result string stored in events.
+const MAX_TOOL_RESULT_LEN: usize = 4000;
+/// Maximum events returned in API responses (prevents multi-GB JSON).
+const MAX_EVENTS_IN_RESPONSE: usize = 200;
+/// Maximum events kept in disk storage (older events are dropped).
+const MAX_EVENTS_IN_STORAGE: usize = 1000;
+
+/// Truncate a tool result string to a reasonable length.
+pub fn truncate_tool_result(result: &str) -> String {
+    if result.len() <= MAX_TOOL_RESULT_LEN {
+        result.to_string()
+    } else {
+        let mut truncated = result.chars().take(MAX_TOOL_RESULT_LEN).collect::<String>();
+        truncated.push_str("\n\n...[truncated: ");
+        truncated.push_str(&result.len().to_string());
+        truncated.push_str(" chars total]");
+        truncated
+    }
+}
+
+/// Trim in-memory events if they exceed a threshold.
+/// Call this after pushing new events to prevent unbounded growth.
+pub fn maybe_trim_events_in_memory(events: &mut Vec<RunEvent>) {
+    if events.len() > MAX_EVENTS_IN_STORAGE * 2 {
+        *events = trim_events_for_storage(events);
+    }
+}
+
+/// Trim events for storage: keep only the last N and truncate tool results.
+fn trim_events_for_storage(events: &[RunEvent]) -> Vec<RunEvent> {
+    let slice = if events.len() > MAX_EVENTS_IN_STORAGE {
+        &events[events.len() - MAX_EVENTS_IN_STORAGE..]
+    } else {
+        events
+    };
+    slice
+        .iter()
+        .map(|e| match e {
+            RunEvent::TurnToolResult { timestamp, profession_id, tool_id, result } => {
+                RunEvent::TurnToolResult {
+                    timestamp: *timestamp,
+                    profession_id: profession_id.clone(),
+                    tool_id: tool_id.clone(),
+                    result: truncate_tool_result(result),
+                }
+            }
+            _ => e.clone(),
+        })
+        .collect()
+}
+
 /// Shared in-memory store for all relay runs.
 pub type RunStore = Arc<Mutex<HashMap<String, RunEntry>>>;
 
@@ -196,11 +247,27 @@ fn ensure_save_run_tx() -> Option<mpsc::UnboundedSender<RunEntry>> {
 /// This is non-blocking when a tokio runtime is present.
 /// Falls back to synchronous disk write in test contexts without a runtime.
 pub fn save_run(entry: &RunEntry) {
+    // Trim events before cloning to avoid multi-GB channel sends.
+    let trimmed = RunEntry {
+        run_id: entry.run_id.clone(),
+        engine: entry.engine.clone(),
+        created_at: entry.created_at,
+        updated_at: entry.updated_at,
+        events: trim_events_for_storage(&entry.events),
+        metadata: entry.metadata.clone(),
+    };
     if let Some(tx) = ensure_save_run_tx() {
-        let _ = tx.send(entry.clone());
+        let _ = tx.send(trimmed);
     } else {
-        save_run_sync(entry);
+        save_run_sync(&trimmed);
     }
+}
+
+/// Save an entry and also trim its in-memory events if they have grown too large.
+/// Use this in hot paths (e.g. driver event loops) to prevent unbounded memory growth.
+pub fn save_and_trim(entry: &mut RunEntry) {
+    maybe_trim_events_in_memory(&mut entry.events);
+    save_run(entry);
 }
 
 /// Load all persisted runs from disk.
@@ -344,6 +411,35 @@ pub fn advance_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
     Some(result.clone())
 }
 
+/// Rerun a failed run from the current failed step.
+/// Resets retry counters and clears gate feedback, then advances.
+pub fn rerun_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
+    let mut map = store.lock().unwrap();
+    let entry = map.get_mut(run_id)?;
+    let result = entry.engine.rerun()?;
+    entry.updated_at = now_secs();
+
+    match &result {
+        AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
+            entry.events.push(RunEvent::StepStarted {
+                timestamp: now_secs(),
+                step_id: step_id.clone(),
+                profession_id: profession_id.clone(),
+            });
+        }
+        AdvanceResult::Completed => {
+            entry.events.push(RunEvent::RunCompleted { timestamp: now_secs() });
+        }
+        AdvanceResult::Failed { error } => {
+            entry.events.push(RunEvent::RunFailed { timestamp: now_secs(), error: error.clone() });
+        }
+        _ => {}
+    }
+
+    save_run(entry);
+    Some(result.clone())
+}
+
 /// Submit a handoff for the current step.
 pub fn submit_handoff(store: &RunStore, run_id: &str, handoff: HandoffDocument) -> Option<AdvanceResult> {
     let mut map = store.lock().unwrap();
@@ -463,6 +559,30 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         _ => None,
     };
 
+    // Only return the most recent events in API responses to prevent
+    // multi-GB JSON payloads that crash the browser.
+    let events_for_response = {
+        let slice = if entry.events.len() > MAX_EVENTS_IN_RESPONSE {
+            &entry.events[entry.events.len() - MAX_EVENTS_IN_RESPONSE..]
+        } else {
+            &entry.events[..]
+        };
+        slice
+            .iter()
+            .map(|e| match e {
+                RunEvent::TurnToolResult { timestamp, profession_id, tool_id, result } => {
+                    RunEvent::TurnToolResult {
+                        timestamp: *timestamp,
+                        profession_id: profession_id.clone(),
+                        tool_id: tool_id.clone(),
+                        result: truncate_tool_result(result),
+                    }
+                }
+                _ => e.clone(),
+            })
+            .collect()
+    };
+
     RunState {
         run_id: entry.run_id.clone(),
         status: engine.status.to_status_str(),
@@ -477,7 +597,7 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         parallel_estimate: engine.budget_tracker.estimate_parallel_cost(engine.flow.steps.len() as u32, 5000, 3),
         savings,
         savings_ratio,
-        events: entry.events.clone(),
+        events: events_for_response,
         title: entry.metadata.title.clone(),
         current_step_started_at,
     }

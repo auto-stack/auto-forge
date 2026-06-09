@@ -175,9 +175,11 @@ impl AgentTurn {
                 max_tokens: Some(self.agent.model.max_tokens),
             };
 
+            eprintln!("[AGENT_TURN] about to call chat_turn for profession={}", self.agent.profession.id);
             let (turn_tx, mut turn_rx) = tokio::sync::mpsc::unbounded_channel::<ToolChatEvent>();
             let provider_clone = provider.clone();
             let turn_task = tokio::spawn(async move {
+                eprintln!("[AGENT_TURN] inside spawned task, calling chat_turn");
                 provider_clone.chat_turn(request, turn_tx).await
             });
 

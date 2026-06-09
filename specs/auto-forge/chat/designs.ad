@@ -2,49 +2,607 @@
 
 ---
 
-## Chat-D1 GateCard & SecretaryMessage 组件
+## Chat-D1 删除全部会话UI设计
+**Status:** draft
+**Priority:** P1
+**Module:** chat
+
+## Chat-D1 删除全部会话UI设计
 **Status:** draft
 
-**状态：** 已实现
-**模块：** `packages/auto-forge-ui/src/components/`
-**标签：** stack:frontend
-**依赖：** UiSystem-A1, Chat-A1
+## 概述
 
+在聊天界面提供"删除全部"按钮，通过确认对话框防止误操作，删除后无缝切换到新会话。
+
+## UI组件结构
+
+### DeleteAllButton 组件
+
+**位置**: 会话列表顶部（ChatsView.vue）
+
+**Props**
 ```typescript
-// GateCard.vue
-interface GateCardProps {
-  gate: PendingGate
-  mode: 'inline' | 'secretary'
-}
-
-// SecretaryMessage.vue
-interface SecretaryMessageProps {
-  gate: PendingGate
-  queuePosition?: number
+interface DeleteAllButtonProps {
+  disabled?: boolean;
+  onSuccess?: (newSessionId: string) => void;
+  onError?: (error: Error) => void;
 }
 ```
+
+**状态**
+```typescript
+interface State {
+  isLoading: boolean;
+  isDialogOpen: boolean;
+}
+```
+
+**行为**
+- 默认状态：显示垃圾桶图标 + "删除全部"文本
+- 加载状态：显示Spinner，按钮禁用
+- 点击事件：打开确认对话框
+
+### ConfirmDeleteDialog 组件
+
+复用现有 `frontend/src/components/ConfirmDialog.vue`，配置删除确认消息。
+
+**Props**
+```typescript
+interface ConfirmDeleteDialogProps {
+  open: boolean;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+  sessionCount?: number;
+}
+```
+
+**UI布局**
+```
+┌─────────────────────────────────────┐
+│  ⚠️ 删除所有会话                      │
+├─────────────────────────────────────┤
+│  您即将删除所有聊天会话（共 42 个）。     │
+│  此操作无法撤销。                      │
+│                                       │
+│  [取消]              [确认删除]       │
+└─────────────────────────────────────┘
+```
+
+**视觉设计**
+- 警告图标：红色三角形感叹号
+- 会话数量：动态显示，增加紧迫感
+- "确认删除"按钮：红色高亮，主操作
+- "取消"按钮：灰色，次要操作
+
+## 状态机
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Proposed
-    Proposed --> Approved : boss clicks Approve
-    Proposed --> Rejected : boss clicks Reject
-    Proposed --> Snoozed : boss clicks Snooze
-    Proposed --> Reviewing : boss clicks Review →
-    Reviewing --> Proposed : drawer closed
-    Snoozed --> Proposed : timer expires
-    Approved --> Resolved : auto-collapse 3s
-    Rejected --> Resolved : advisor reworks
-    Resolved --> [*]
+    [*] --> Idle
+    Idle --> DialogOpen: 用户点击按钮
+    DialogOpen --> Idle: 用户取消
+    DialogOpen --> Deleting: 用户确认
+    Deleting --> Success: 删除成功
+    Deleting --> Error: 删除失败
+    Success --> Idle: 自动关闭对话框
+    Error --> DialogOpen: 显示错误，保持对话框
+    Error --> Idle: 用户取消重试
 ```
 
-| 字段 | 类型 | 描述 |
-|---|---|---|
-| `gate.id` | `string` | session_id 或 run_id |
-| `gate.type` | `'session' \| 'run'` | 源 composable |
-| `gate.gateType` | `'goal' \| 'spec' \| 'review'` | 审批类型 |
-| `gate.profession` | `string` | 等待者 |
-| `gate.since` | `number` | 时间戳 |
+## 交互流程
+
+### 正常流程
+
+```
+1. 用户点击"删除全部"按钮
+2. ConfirmDeleteDialog 弹出，显示会话数量
+3. 用户点击"确认删除"
+4. 按钮显示加载状态
+5. 调用 API: DELETE /api/sessions/all
+6. 收到成功响应，提取 new_session_id
+7. 调用会话列表管理器：清空列表 + 添加新会话
+8. 调用路由器：切换到新会话
+9. 显示成功提示：Toast "已删除 42 个会话"
+10. 自动关闭对话框
+```
+
+### 错误流程
+
+```
+1. 用户点击"确认删除"
+2. API 调用失败（网络错误或500）
+3. 对话框内显示错误提示："删除失败，请重试"
+4. "确认删除"按钮恢复可点击状态
+5. 用户可以点击"取消"关闭对话框，或重试
+```
+
+## 数据模型
+
+### 请求响应
+
+```typescript
+// 请求
+DELETE /api/sessions/all
+
+// 成功响应
+interface DeleteAllSessionsResponse {
+  deleted_count: number;
+  new_session_id: string;
+  session: Session;
+}
+
+// 错误响应
+interface ErrorResponse {
+  error: string;
+  message: string;
+}
+```
+
+### Session 对象
+
+```typescript
+interface Session {
+  id: string;
+  created_at: number;  // Unix timestamp
+  updated_at: number;
+  active_profession: string | null;
+  title: string | null;
+  message_count: number;
+}
+```
+
+## 算法逻辑
+
+### 前端删除函数
+
+```typescript
+async function deleteAllSessions(): Promise<string> {
+  try {
+    const response = await fetch('/api/sessions/all', {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`删除失败: ${response.statusText}`);
+    }
+    
+    const data: DeleteAllSessionsResponse = await response.json();
+    
+    // 清空会话列表
+    sessionList.clear();
+    
+    // 添加新会话
+    sessionList.add(data.session);
+    
+    // 切换到新会话
+    router.push(`/chat/${data.new_session_id}`);
+    
+    // 显示成功提示
+    toast.success(`已删除 ${data.deleted_count} 个会话`);
+    
+    return data.new_session_id;
+  } catch (error) {
+    toast.error('删除会话失败，请重试');
+    throw error;
+  }
+}
+```
+
+## 边界情况处理
+
+### 会话列表为空
+
+- 按钮禁用或隐藏
+- 对话框显示："当前没有会话可删除"
+
+### 仅有一个会话
+
+- 对话框显示："您将删除唯一的会话"
+- 删除后创建新会话（逻辑不变）
+
+### 网络超时
+
+- 10秒后显示"网络超时，请检查连接"
+- 按钮恢复可点击状态
+
+### 并发删除
+
+- 前端锁定：删除进行中时禁用按钮
+- 后端处理：第二次删除请求会删除上次创建的新会话（符合预期）
+
+## 响应式设计
+
+### 桌面端（>1024px）
+
+- 按钮显示完整文本："删除全部"
+- 对话框宽度：400px
+
+### 平板端（768-1024px）
+
+- 按钮显示图标 + 文本
+- 对话框宽度：90%vw
+
+### 移动端（<768px）
+
+- 按钮仅显示图标（垃圾桶）
+- 长按图标显示工具提示文本
+- 对话框全屏显示
+
+## 可访问性
+
+### 键盘导航
+
+- `Tab` 聚焦到"删除全部"按钮
+- `Enter/Space` 打开确认对话框
+- 对话框内 `Tab` 在"取消"和"确认删除"间切换
+- `Escape` 关闭对话框
+
+### 屏幕阅读器
+
+- 按钮aria-label："删除所有聊天会话"
+- 对话框role="alertdialog"
+- 警告文本aria-live="assertive"
+
+### 焦点管理
+
+- 对话框打开时，焦点移到"取消"按钮
+- 对话框关闭后，焦点返回"删除全部"按钮
+- 删除成功后，焦点移到聊天输入框
+
+## 测试要点
+
+### 功能测试
+
+- [ ] 点击按钮打开对话框
+- [ ] 对话框显示正确的会话数量
+- [ ] 取消关闭对话框，不执行删除
+- [ ] 确认后所有会话被删除
+- [ ] 删除后新会话自动创建并显示
+- [ ] 会话数量为0时按钮禁用
+
+### 错误测试
+
+- [ ] 网络错误时显示错误提示
+- [ ] 500错误时显示错误提示
+- [ ] 超时时显示超时提示
+
+### 可访问性测试
+
+- [ ] 键盘可以完成全部操作
+- [ ] 屏幕阅读器正确朗读警告信息
+- [ ] 焦点管理符合预期
+
+## 依赖关系
+
+- 依赖会话列表组件（ChatsView.vue）
+- 依赖路由系统
+- 依赖后端 API /api/sessions/all
+- 依赖ConfirmDialog组件（已存在）
+
+## 实现文件
+
+| 文件 | 变更 |
+|------|------|
+| `frontend/src/views/ChatsView.vue` | 添加"删除全部"按钮和确认对话框集成 |
+| `frontend/src/composables/useSessions.ts` | 添加 `deleteAllSessions()` 函数 |
+| `frontend/src/components/ConfirmDeleteDialog.vue` | 复用现有组件 |
+| `frontend/src/locales/en.json` | 添加 `chat.deleteAll`, `chat.deleteConfirm`, `chat.deleteSuccess` 等键 |
+| `frontend/src/locales/zh.json` | 添加对应的中文翻译键 |
+
+## i18n 键值
+
+| 键 | en.json | zh.json |
+|-----|---------|---------|
+| `chat.deleteAll` | `"Delete All"` | `"删除全部"` |
+| `chat.deleteConfirmTitle` | `"Delete All Sessions"` | `"删除所有会话"` |
+| `chat.deleteConfirmMessage` | `"You are about to delete all chat sessions ({{count}}). This action cannot be undone."` | `"您即将删除所有聊天会话（{{count}}个）。此操作无法撤销。"` |
+| `chat.deleteButton` | `"Delete All"` | `"删除全部"` |
+| `chat.cancelDelete` | `"Cancel"` | `"取消"` |
+| `chat.confirmDelete` | `"Confirm Delete"` | `"确认删除"` |
+| `chat.deleteSuccess` | `"Deleted {{count}} sessions"` | `"已删除 {{count}} 个会话"` |
+| `chat.deleteFailed` | `"Failed to delete sessions, please try again"` | `"删除会话失败，请重试"` |
+| `chat.noSessionsToDelete` | `"No sessions to delete"` | `"当前没有会话可删除"` |
+| `chat.onlyOneSession` | `"You will delete the only session"` | `"您将删除唯一的会话"` |
+| `chat.networkTimeout` | `"Network timeout, please check your connection"` | `"网络超时，请检查连接"` |
+
+## Chat-D1 删除全部会话UI设计
+**Status:** draft
+**Module:** `frontend/src/views/ChatsView.vue`, `frontend/src/components/ConfirmDeleteDialog.vue`, `frontend/src/composables/useSessions.ts`
+
+## 概述
+
+在聊天界面提供"删除全部"按钮，通过确认对话框防止误操作，删除后无缝切换到新会话。
+
+### UI组件结构
+
+#### 1. DeleteAllButton 组件
+
+**位置**: 会话列表顶部
+
+**Props**
+```typescript
+interface DeleteAllButtonProps {
+  disabled?: boolean;
+  onSuccess?: (newSessionId: string) => void;
+  onError?: (error: Error) => void;
+}
+```
+
+**状态**
+```typescript
+interface State {
+  isLoading: boolean;
+  isDialogOpen: boolean;
+}
+```
+
+**行为**
+- 默认状态：显示垃圾桶图标 + "删除全部"文本
+- 加载状态：显示Spinner，按钮禁用
+- 点击事件：打开确认对话框
+
+#### 2. ConfirmDeleteDialog 组件
+
+复用现有 `frontend/src/components/ConfirmDialog.vue`，配置删除确认消息。
+
+**Props**
+```typescript
+interface ConfirmDeleteDialogProps {
+  open: boolean;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+  sessionCount?: number;
+}
+```
+
+**UI布局**
+```
+┌─────────────────────────────────────┐
+│  ⚠️ 删除所有会话                      │
+├─────────────────────────────────────┤
+│  您即将删除所有聊天会话（共 42 个）。     │
+│  此操作无法撤销。                      │
+│                                       │
+│  [取消]              [确认删除]       │
+└─────────────────────────────────────┘
+```
+
+**视觉设计**
+- 警告图标：红色三角形感叹号
+- 会话数量：动态显示，增加紧迫感
+- "确认删除"按钮：红色高亮，主操作
+- "取消"按钮：灰色，次要操作
+
+### 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> DialogOpen: 用户点击按钮
+    DialogOpen --> Idle: 用户取消
+    DialogOpen --> Deleting: 用户确认
+    Deleting --> Success: 删除成功
+    Deleting --> Error: 删除失败
+    Success --> Idle: 自动关闭对话框
+    Error --> DialogOpen: 显示错误，保持对话框
+    Error --> Idle: 用户取消重试
+```
+
+### 交互流程
+
+#### 正常流程
+
+```
+1. 用户点击"删除全部"按钮
+2. ConfirmDeleteDialog 弹出，显示会话数量
+3. 用户点击"确认删除"
+4. 按钮显示加载状态
+5. 调用 API: DELETE /api/sessions/all
+6. 收到成功响应，提取 new_session_id
+7. 调用会话列表管理器：清空列表 + 添加新会话
+8. 调用路由器：切换到新会话
+9. 显示成功提示：Toast "已删除 42 个会话"
+10. 自动关闭对话框
+```
+
+#### 错误流程
+
+```
+1. 用户点击"确认删除"
+2. API 调用失败（网络错误或500）
+3. 对话框内显示错误提示："删除失败，请重试"
+4. "确认删除"按钮恢复可点击状态
+5. 用户可以点击"取消"关闭对话框，或重试
+```
+
+### 数据模型
+
+#### 请求响应
+
+```typescript
+// 请求
+DELETE /api/sessions/all
+
+// 成功响应
+interface DeleteAllSessionsResponse {
+  deleted_count: number;
+  new_session_id: string;
+  session: Session;
+}
+
+// 错误响应
+interface ErrorResponse {
+  error: string;
+  message: string;
+}
+```
+
+#### Session 对象
+
+```typescript
+interface Session {
+  id: string;
+  created_at: number;  // Unix timestamp
+  updated_at: number;
+  active_profession: string | null;
+  title: string | null;
+  message_count: number;
+}
+```
+
+### 算法逻辑
+
+#### 前端删除函数
+
+```typescript
+async function deleteAllSessions(): Promise<string> {
+  try {
+    const response = await fetch('/api/sessions/all', {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`删除失败: ${response.statusText}`);
+    }
+    
+    const data: DeleteAllSessionsResponse = await response.json();
+    
+    // 清空会话列表
+    sessionList.clear();
+    
+    // 添加新会话
+    sessionList.add(data.session);
+    
+    // 切换到新会话
+    router.push(`/chat/${data.new_session_id}`);
+    
+    // 显示成功提示
+    toast.success(`已删除 ${data.deleted_count} 个会话`);
+    
+    return data.new_session_id;
+  } catch (error) {
+    toast.error('删除会话失败，请重试');
+    throw error;
+  }
+}
+```
+
+### 边界情况处理
+
+#### 会话列表为空
+
+- 按钮禁用或隐藏
+- 对话框显示："当前没有会话可删除"
+
+#### 仅有一个会话
+
+- 对话框显示："您将删除唯一的会话"
+- 删除后创建新会话（逻辑不变）
+
+#### 网络超时
+
+- 10秒后显示"网络超时，请检查连接"
+- 按钮恢复可点击状态
+
+#### 并发删除
+
+- 前端锁定：删除进行中时禁用按钮
+- 后端处理：第二次删除请求会删除上次创建的新会话（符合预期）
+
+### 响应式设计
+
+#### 桌面端（>1024px）
+
+- 按钮显示完整文本："删除全部"
+- 对话框宽度：400px
+
+#### 平板端（768-1024px）
+
+- 按钮显示图标 + 文本
+- 对话框宽度：90%vw
+
+#### 移动端（<768px）
+
+- 按钮仅显示图标（垃圾桶）
+- 长按图标显示工具提示文本
+- 对话框全屏显示
+
+### 可访问性
+
+#### 键盘导航
+
+- `Tab` 聚焦到"删除全部"按钮
+- `Enter/Space` 打开确认对话框
+- 对话框内 `Tab` 在"取消"和"确认删除"间切换
+- `Escape` 关闭对话框
+
+#### 屏幕阅读器
+
+- 按钮aria-label："删除所有聊天会话"
+- 对话框role="alertdialog"
+- 警告文本aria-live="assertive"
+
+#### 焦点管理
+
+- 对话框打开时，焦点移到"取消"按钮
+- 对话框关闭后，焦点返回"删除全部"按钮
+- 删除成功后，焦点移到聊天输入框
+
+### 测试要点
+
+#### 功能测试
+
+- [ ] 点击按钮打开对话框
+- [ ] 对话框显示正确的会话数量
+- [ ] 取消关闭对话框，不执行删除
+- [ ] 确认后所有会话被删除
+- [ ] 删除后新会话自动创建并显示
+- [ ] 会话数量为0时按钮禁用
+
+#### 错误测试
+
+- [ ] 网络错误时显示错误提示
+- [ ] 500错误时显示错误提示
+- [ ] 超时时显示超时提示
+
+#### 可访问性测试
+
+- [ ] 键盘可以完成全部操作
+- [ ] 屏幕阅读器正确朗读警告信息
+- [ ] 焦点管理符合预期
+
+### 依赖关系
+
+- 依赖会话列表组件（ChatsView.vue）
+- 依赖路由系统
+- 依赖后端 API /api/sessions/all
+- 依赖ConfirmDialog组件（已存在）
+
+### 实现文件
+
+| 文件 | 变更 |
+|------|------|
+| `frontend/src/views/ChatsView.vue` | 添加"删除全部"按钮和确认对话框集成 |
+| `frontend/src/composables/useSessions.ts` | 添加 `deleteAllSessions()` 函数 |
+| `frontend/src/components/ConfirmDeleteDialog.vue` | 复用现有组件 |
+| `frontend/src/locales/en.json` | 添加 `chat.deleteAll`, `chat.deleteConfirm`, `chat.deleteSuccess` 等键 |
+| `frontend/src/locales/zh.json` | 添加对应的中文翻译键 |
+
+### i18n 键值
+
+| 键 | en.json | zh.json |
+|-----|---------|---------|
+| `chat.deleteAll` | `"Delete All"` | `"删除全部"` |
+| `chat.deleteConfirmTitle` | `"Delete All Sessions"` | `"删除所有会话"` |
+| `chat.deleteConfirmMessage` | `"You are about to delete all chat sessions ({{count}}). This action cannot be undone."` | `"您即将删除所有聊天会话（{{count}}个）。此操作无法撤销。"` |
+| `chat.deleteButton` | `"Delete All"` | `"删除全部"` |
+| `chat.cancelDelete` | `"Cancel"` | `"取消"` |
+| `chat.confirmDelete` | `"Confirm Delete"` | `"确认删除"` |
+| `chat.deleteSuccess` | `"Deleted {{count}} sessions"` | `"已删除 {{count}} 个会话"` |
+| `chat.deleteFailed` | `"Failed to delete sessions, please try again"` | `"删除会话失败，请重试"` |
+| `chat.noSessionsToDelete` | `"No sessions to delete"` | `"当前没有会话可删除"` |
+| `chat.onlyOneSession` | `"You will delete the only session"` | `"您将删除唯一的会话"` |
+| `chat.networkTimeout` | `"Network timeout, please check your connection"` | `"网络超时，请检查连接"` |
 
 ## Chat-D5 ThinkingBlock 推理过程展示组件
 **Status:** draft

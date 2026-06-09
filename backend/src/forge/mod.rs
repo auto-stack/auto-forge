@@ -2287,20 +2287,9 @@ mod handlers {
         Path(sid): Path<String>,
         Json(req): Json<SendMessageRequest>,
     ) -> Json<ForgeMessageResponse> {
-        // Reset stale active_profession when user starts a new message without explicit profession.
-        // This ensures that after a task completes (idle session), the next user message
-        // defaults back to "assistant" instead of sticking to the last handoff target.
-        {
-            let mut store = forge_sessions().lock().unwrap();
-            if req.profession_id.is_none() {
-                if let Some(session) = store.get_mut(&sid) {
-                    if session.status == ForgeStatus::Idle {
-                        session.active_profession = None;
-                    }
-                }
-            }
-        }
-        // Resolve effective profession: explicit > session sticky > assistant
+        // Resolve effective profession: explicit > session sticky > assistant.
+        // If a bring_in handoff was previously used, the session's active_profession
+        // remains sticky so follow-up questions stay with the same agent.
         let effective_profession = {
             let store = forge_sessions().lock().unwrap();
             let session_prof = store.get(&sid).and_then(|s| s.active_profession.clone());
@@ -2927,6 +2916,16 @@ mod handlers {
                                             );
                                             let _ = event_tx.send(Ok(handoff_event));
 
+                                            // Persist handoff so subsequent user messages stay with this agent
+                                            {
+                                                let mut store = forge_sessions().lock().unwrap();
+                                                if let Some(session) = store.get_mut(&sid) {
+                                                    session.active_profession = Some(target_for_prompt.clone());
+                                                    let clone = session.clone();
+                                                    store.save(&clone);
+                                                }
+                                            }
+
                                             // Rebuild system prompt and tools for the new agent
                                             current_profession = target_for_prompt.clone();
                                             let (new_prompt, new_tools, new_allowed, new_max_tokens) = build_system_and_tools(&registry, &target_for_prompt);
@@ -3047,14 +3046,14 @@ mod handlers {
                 }
             }
 
-            // After turn completes, set session back to Idle and reset active_profession
+            // After turn completes, set session back to Idle.
+            // Note: active_profession is intentionally NOT reset here — if a bring_in
+            // handoff occurred, the user likely wants the same agent to continue
+            // answering follow-up questions. The profession persists until the user
+            // explicitly switches agents via the UI or starts a new topic.
             {
                 let mut store = forge_sessions().lock().unwrap();
                 store.update_status(&sid, ForgeStatus::Idle);
-                if let Some(session) = store.sessions.get_mut(&sid) {
-                    session.active_profession = None;
-                }
-                // Save is handled by update_status above; no need to call save again.
             }
 
             // Final done event

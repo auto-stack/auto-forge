@@ -5,10 +5,10 @@
 
 use crate::relay::flow::FlowSpec;
 use crate::relay::handoff::HandoffDocument;
-use crate::relay::pipeline::GateDecision;
+use crate::relay::pipeline::{AdvanceResult, GateDecision};
 use crate::relay::profession::{self, Profession, ProfessionRegistry};
 use crate::relay::store::{
-    advance_run, delete_run, get_run, list_runs, new_run_store, resolve_gate, start_run, submit_handoff,
+    advance_run, delete_run, get_run, list_runs, new_run_store, resolve_gate, rerun_run, start_run, submit_handoff,
     RunState, RunStore, RunSummary,
 };
 use crate::relay::config::{self, AgentConfig, ApiSource, ConnectionTestResult};
@@ -364,6 +364,32 @@ pub async fn advance_run_handler(
     let _ = EVENT_TX.send(RunEventBroadcast {
         run_id: run_id.clone(),
         event_type: "step_advanced".into(),
+        payload: None,
+    });
+    Ok(Json(serde_json::json!({ "result": format!("{:?}", result) })))
+}
+
+pub async fn rerun_run_handler(
+    State(ai_provider): State<crate::provider::AIProviderState>,
+    Path(run_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let result = rerun_run(&RUN_STORE, &run_id).ok_or(StatusCode::NOT_FOUND)?;
+    // Spawn background driver to execute the resumed step
+    if let AdvanceResult::ExecuteStep { step_id, profession_id, .. } = &result {
+        let project_path = crate::forge::current_project_path().unwrap_or_default();
+        let task = format!("ReRun step {} ({})", step_id, profession_id);
+        tokio::spawn(crate::relay::driver::drive_run(
+            run_id.clone(),
+            RUN_STORE.clone(),
+            EVENT_TX.clone(),
+            ai_provider,
+            task,
+            project_path,
+        ));
+    }
+    let _ = EVENT_TX.send(RunEventBroadcast {
+        run_id: run_id.clone(),
+        event_type: "run_reran".into(),
         payload: None,
     });
     Ok(Json(serde_json::json!({ "result": format!("{:?}", result) })))
@@ -950,6 +976,7 @@ where
         .route("/api/forge/relay/runs", get(list_runs_handler).post(start_run_handler))
         .route("/api/forge/relay/runs/{run_id}", get(get_run_handler).delete(delete_run_handler))
         .route("/api/forge/relay/runs/{run_id}/advance", post(advance_run_handler))
+        .route("/api/forge/relay/runs/{run_id}/rerun", post(rerun_run_handler))
         .route("/api/forge/relay/runs/{run_id}/handoff", post(submit_handoff_handler))
         .route("/api/forge/relay/runs/{run_id}/gate", post(resolve_gate_handler))
         .route("/api/forge/relay/runs/{run_id}/events", get(run_events_handler))

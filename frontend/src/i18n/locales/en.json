@@ -147,8 +147,7 @@
     "sourceGuide": "Guide",
     "sourceApiRef": "API Reference",
     "sourceCustom": "Custom",
-    "tagsLabel": "Tags (comma-separated)",
-    "folderPathLabel": "Folder Path"
+    "tagsLabel": "Tags (comma-separated)"
   },
   "explorer": {
     "title": "Explorer",
@@ -179,7 +178,8 @@
     "iterations": "Iterations",
     "tokens": "Tokens",
     "clickToCollapse": "Click step to collapse",
-    "noSteps": "No steps completed yet"
+    "noSteps": "No steps completed yet",
+    "rerunRun": "Re-run from failed step"
   },
   "agents": {
     "title": "Agent Forge",

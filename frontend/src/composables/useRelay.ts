@@ -295,6 +295,16 @@ export function useRelay() {
     }
   }
 
+  async function rerunRun(runId: string) {
+    try {
+      const resp = await fetch(`${API_BASE}/runs/${runId}/rerun`, { method: 'POST' })
+      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
+      await loadRun(runId)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+    }
+  }
+
   async function resolveGate(runId: string, decision: 'approve' | 'reject' | 'edit', feedback?: string) {
     try {
       const body: any = { decision }
@@ -548,6 +558,7 @@ export function useRelay() {
     loadRun,
     startRun,
     advanceRun,
+    rerunRun,
     resolveGate,
     submitHandoff,
     subscribeToRun,

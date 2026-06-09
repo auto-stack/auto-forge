@@ -309,6 +309,7 @@ impl ClaudeProvider {
             }
         }
 
+        eprintln!("[CLAUDE_API] request body: {}", body.to_string());
         let resp = match self
             .client
             .post(self.api_url())
@@ -320,12 +321,17 @@ impl ClaudeProvider {
             .await
         {
             Ok(r) => r,
-            Err(e) => return Some(format!("Request failed: {}", e)),
+            Err(e) => {
+                eprintln!("[CLAUDE_API] request failed: {}", e);
+                return Some(format!("Request failed: {}", e));
+            }
         };
 
         let status = resp.status();
+        eprintln!("[CLAUDE_API] response status: {}", status);
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
+            eprintln!("[CLAUDE_API] error response: {}", text);
             return Some(format!("Claude API error ({}): {}", status, text));
         }
 

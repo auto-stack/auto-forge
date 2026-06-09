@@ -8,6 +8,7 @@
         <span class="brand-text">{{ t('app.brandName') }}</span>
         <span class="version">{{ t('app.version') }}</span>
       </div>
+      <div class="rail-divider"></div>
       <div class="rail-tabs" data-testid="nav-rail">
         <button
           v-for="tab in tabs"
@@ -24,6 +25,7 @@
           </span>
         </button>
       </div>
+      <div class="rail-divider"></div>
       <div class="rail-footer">
         <SettingsMenu />
       </div>
@@ -195,6 +197,13 @@ html, body, #app {
   font-size: 1.05rem;
   font-weight: 600;
 }
+.rail-divider {
+  height: 1px;
+  background: hsl(var(--muted-foreground) / 0.2);
+  margin: -1px 0 0 0;
+  flex-shrink: 0;
+}
+
 
 .rail-tabs {
   display: flex;

@@ -53,6 +53,14 @@
             />
           </div>
           <button
+            v-if="run.status === 'failed'"
+            class="btn-icon btn-rerun"
+            :title="t('relay.rerunRun')"
+            @click.stop="onRerunRun(run.run_id)"
+          >
+            <RefreshCw :size="12" />
+          </button>
+          <button
             class="btn-icon btn-delete"
             :title="t('relay.deleteRun')"
             @click.stop="onDeleteRun(run.run_id)"
@@ -403,7 +411,7 @@ const {
   runs, currentRun, professions, souls, loading, error,
   hasActiveGate, budgetUsedPercent, liveLog, professionTokens, sessionLog,
   loadProfessions, loadSouls, loadRuns, loadRun,
-  resolveGate, subscribeToRun, deleteRun,
+  resolveGate, subscribeToRun, deleteRun, rerunRun,
 } = useRelay()
 
 const { t } = useI18n()
@@ -593,6 +601,10 @@ async function onReject(runId: string) {
   await resolveGate(runId, 'reject', 'Needs revision')
 }
 
+async function onRerunRun(runId: string) {
+  await rerunRun(runId)
+}
+
 function onReviewInSpecs(sectionId: string) {
   alert(`Navigate to specs section: ${sectionId}`)
 }
@@ -758,6 +770,20 @@ function professionIcon(id: string): string {
   align-items: flex-start;
   gap: 0.5rem;
   margin-bottom: 0.3rem;
+}
+
+.btn-rerun {
+  position: absolute;
+  bottom: 0.4rem;
+  right: 2rem;
+  color: hsl(140 70% 40%);
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 2;
+}
+
+.run-card:hover .btn-rerun {
+  opacity: 1;
 }
 
 .btn-delete {

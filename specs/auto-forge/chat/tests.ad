@@ -312,3 +312,210 @@ const messages = ref<ForgeMessage[]>([
 ---
 
 ---
+
+## Chat-T22 删除全部会话功能测试
+**Status:** draft
+**Module:** chat
+**Tags:** stack:frontend, stack:backend, module:chat
+**Depends on:** Chat-A1, Chat-D1
+
+- Frontend: `frontend/src/composables/__tests__/useSessions.spec.ts`
+- Backend: `backend/src/runtime/session.rs` (inline `#[cfg(test)]`)
+
+### Verification Summary (Quinn — run-tests)
+
+Reviewing the "Delete All Sessions" feature implementation. Architecture and designs exist. Frontend `useSessions.ts` already has `deleteAllSessions()` function. Backend needs implementation of `DELETE /api/sessions/all` endpoint.
+
+### Test Cases
+
+#### TC-T22.1: deleteAllSessions clears list and returns new session on success
+```
+Given: useSessions composable with 3 sessions
+When:  deleteAllSessions() called, API returns { deleted_count: 3, new_session_id: "new-uuid", session: {...} }
+Then:  sessionList.value contains only new session
+And:   Returns { deletedCount: 3, newSessionId: "new-uuid", session }
+And:   _isLoading.value === false
+And:   _error.value === null
+```
+
+#### TC-T22.2: deleteAllSessions handles network error
+```
+Given: useSessions composable with sessions
+When:  deleteAllSessions() called, fetch throws network error
+Then:  _error.value contains error message
+And:   sessionList.value unchanged
+And:   Function throws error
+And:   _isLoading.value === false
+```
+
+#### TC-T22.3: deleteAllSessions handles 500 error
+```
+Given: useSessions composable
+When:  deleteAllSessions() called, API returns 500
+Then:  _error.value contains "Failed to delete all sessions: 500"
+And:   Function throws error
+```
+
+#### TC-T22.4: DELETE /api/sessions/all deletes all sessions and creates new one
+```
+Given: ForgeState with 3 existing sessions
+When:  DELETE /api/sessions/all called
+Then:  Response 200 with { deleted_count: 3, new_session_id, session }
+And:   All 3 old sessions deleted from disk
+And:   New session file created
+And:   New session.message_count === 0
+```
+
+#### TC-T22.5: DELETE with empty session list creates new session
+```
+Given: ForgeState with 0 sessions
+When:  DELETE /api/sessions/all called
+Then:  Response 200, deleted_count = 0
+And:   New session created
+```
+
+#### TC-T22.6: Session directory missing creates directory
+```
+Given: Session directory doesn't exist
+When:  DELETE /api/sessions/all called
+Then:  Directory created
+And:   New session created successfully
+```
+
+#### TC-T22.7: hasSessions computed returns false when empty
+```
+Given: sessionList.value = []
+When:  hasSessions computed accessed
+Then:  Returns false
+```
+
+#### TC-T22.8: hasSessions computed returns true when sessions exist
+```
+Given: sessionList.value has 2 sessions
+When:  hasSessions computed accessed
+Then:  Returns true
+```
+
+### Coverage Matrix
+
+| Chat-A1 Requirement | Test |
+|---------------------|------|
+| DELETE /api/sessions/all endpoint | TC-T22.4, TC-T22.5, TC-T22.6 |
+| Delete all sessions atomically | TC-T22.4 |
+| Create new blank session | TC-T22.4, TC-T22.5 |
+| Return { deleted_count, new_session_id, session } | TC-T22.4 |
+| Frontend deleteAllSessions() function | TC-T22.1, TC-T22.2, TC-T22.3 |
+| Network error handling | TC-T22.2 |
+| 500 error handling | TC-T22.3 |
+| Session directory doesn't exist | TC-T22.6 |
+| hasSessions computed | TC-T22.7, TC-T22.8 |
+
+### Implementation Gaps
+
+**BLOCKER**: Backend `DELETE /api/sessions/all` endpoint does NOT exist in `backend/src/forge/mod.rs`. The architecture (Chat-A1) specifies this endpoint must be implemented. Coder must add:
+1. Route handler for `DELETE /api/sessions/all`
+2. `delete_all_sessions()` function in session.rs
+3. `create_new_session()` function in session.rs
+4. Atomic operation with rollback on failure
+
+### Test Code
+
+**Frontend** (`frontend/src/composables/__tests__/useSessions.spec.ts`):
+```typescript
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { useSessions } from '../useSessions'
+
+const mockFetch = vi.fn()
+vi.stubGlobal('fetch', mockFetch)
+
+const mockToast = { success: vi.fn(), error: vi.fn() }
+vi.mock('@/composables/useToast', () => ({ useToast: () => mockToast }))
+
+const mockPush = vi.fn()
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: mockPush }) }))
+
+describe('useSessions - deleteAllSessions', () => {
+  beforeEach(() => { mockFetch.mockReset() })
+
+  it('TC-T22.1: clears list and returns new session on success', async () => {
+    const { sessionList, deleteAllSessions } = useSessions()
+    sessionList.value = [{ id: 's1' }, { id: 's2' }] as any
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: () => Promise.resolve({
+        deleted_count: 2,
+        new_session_id: 'new-session',
+        session: { id: 'new-session', message_count: 0 }
+      })
+    })
+
+    const result = await deleteAllSessions()
+    expect(mockFetch).toHaveBeenCalledWith('/api/forge/chats/sessions/all', { method: 'DELETE' })
+    expect(result.deletedCount).toBe(2)
+    expect(sessionList.value).toHaveLength(1)
+    expect(sessionList.value[0].id).toBe('new-session')
+  })
+
+  it('TC-T22.2: handles network error', async () => {
+    const { deleteAllSessions } = useSessions()
+    mockFetch.mockRejectedValueOnce(new Error('Network error'))
+    await expect(deleteAllSessions()).rejects.toThrow('Network error')
+  })
+
+  it('TC-T22.3: handles 500 error', async () => {
+    const { deleteAllSessions } = useSessions()
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 })
+    await expect(deleteAllSessions()).rejects.toThrow()
+  })
+})
+```
+
+**Backend** (`backend/src/runtime/session.rs` inline tests):
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_delete_all_sessions_deletes_all_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let sessions_dir = temp_dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).unwrap();
+
+        for i in 1..=3 {
+            let file_path = sessions_dir.join(format!("session_{}.jsonl", i));
+            fs::write(&file_path, format!("{{\"data\": {}}}")).unwrap();
+        }
+
+        let result = delete_all_sessions(&sessions_dir).unwrap();
+        assert_eq!(result.deleted_count, 3);
+        assert!(!result.new_session_id.is_empty());
+
+        let entries: Vec<_> = fs::read_dir(&sessions_dir).unwrap().collect();
+        assert_eq!(entries.len(), 1); // Only new session
+    }
+
+    #[test]
+    fn test_delete_all_creates_directory_if_missing() {
+        let temp_dir = TempDir::new().unwrap();
+        let sessions_dir = temp_dir.path().join("nonexistent").join("sessions");
+
+        let result = delete_all_sessions(&sessions_dir).unwrap();
+        assert!(sessions_dir.exists());
+        assert!(!result.new_session_id.is_empty());
+    }
+}
+```
+
+### Manual Testing Checklist
+
+- [ ] Click "删除全部" button opens dialog
+- [ ] Dialog shows correct session count
+- [ ] Cancel closes dialog without changes
+- [ ] Confirm deletes all sessions
+- [ ] New session created and displayed
+- [ ] Success toast shows count
+- [ ] Network error shows error message
+- [ ] Button disabled when no sessions

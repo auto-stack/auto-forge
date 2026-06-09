@@ -2,54 +2,6 @@
 
 ---
 
-## R0 — 报告格式模板（Documenter 参照用）
-**Status:** template
-**标签：** template
-
-:::executive-summary
-[1-2 段，<150 词。目标 + 变更 + 影响。面向 Boss 的写作风格。]
-:::
-
-```timeline
-| Step | Agent | Duration | Tokens | Key Action |
-|------|-------|----------|--------|------------|
-| 1    | [从 step_history[0].profession_id 获取] | [completed_at - started_at] | [handoff.token_usage.step_input + step_output] | [从 handoff.summary 提取] |
-| 2    | ...   | ...      | ...    | ...        |
-```
-
-```funcdiff
-### Step 1: [AgentName]
-**Files changed:** [从 handoff.work_product 提取 path 列表]
-**Summary:** [从 handoff.summary 提取]
-[如 git_diff 存在且 <500 行，嵌入；否则省略]
-
-### Step 2: ...
-```
-
-```archchange
-[仅当任意 handoff.arch_change_flag == true 时保留此块]
-**Architect reported:** [arch_change_description]
-**Impact:** [简要评估架构影响]
-```
-
-```specsummary
-| Section | Added | Modified | Removed |
-|---------|-------|----------|---------|
-| goals   | [统计 handoff.spec_updates 中 change_type="added" 且 section_id="goals" 的数量] | [统计 modified] | [统计 removed] |
-```
-
-```statchart
-| Metric | Value |
-|--------|-------|
-| Total Duration | [最后一个 step_history.completed_at - 第一个 step_history.started_at] |
-| Total Tokens | [get_relay_state 返回的 cumulative_tokens] |
-| Steps Completed | [step_history.len()] |
-| Files Modified | [所有 handoff.work_product 去重后的数量] |
-| Spec Sections Updated | [所有 handoff.spec_updates 去重 section_id 的数量] |
-```
-
----
-
 ## Relay-R2 — 聊天 → 中继运行端到端流水线修复
 **Status:** draft
 

@@ -183,9 +183,11 @@ impl PipelineEngine {
     /// - `WaitForHuman` → pause and wait for `resolve_gate()`
     /// - `Completed` or `Failed` → terminal states
     pub fn advance(&mut self) -> AdvanceResult {
+        tracing::info!("pipeline_advance: current_step={}, status={:?}", self.current_step, self.status);
         match &self.status {
             PipelineStatus::Completed => return AdvanceResult::Completed,
             PipelineStatus::Failed { error } => {
+                tracing::info!("pipeline_advance: returning Failed because status is Failed");
                 return AdvanceResult::Failed { error: error.clone() };
             }
             PipelineStatus::WaitingForHuman { .. } => {
@@ -493,6 +495,26 @@ impl PipelineEngine {
     pub fn resume(&mut self) {
         if matches!(self.status, PipelineStatus::Paused { .. }) {
             self.status = PipelineStatus::Idle;
+        }
+    }
+
+    /// Rerun from the current failed step.
+    /// Resets loop counters and gate feedback for the current step,
+    /// then transitions to Idle so the next advance() will re-execute it.
+    pub fn rerun(&mut self) -> Option<AdvanceResult> {
+        match &self.status {
+            PipelineStatus::Failed { .. } => {
+                let step_id = self.flow.steps.get(self.current_step)?.id.clone();
+                // Reset retry counter so the step gets a fresh set of attempts
+                self.loop_counters.insert(step_id.clone(), 0);
+                // Clear accumulated gate feedback for this step
+                self.gate_feedback.remove(&step_id);
+                self.gate_resolved_for_step = None;
+                // Move to Idle so advance() can pick it up
+                self.status = PipelineStatus::Idle;
+                Some(self.advance())
+            }
+            _ => None,
         }
     }
 

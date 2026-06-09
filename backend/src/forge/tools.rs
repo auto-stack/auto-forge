@@ -929,6 +929,16 @@ impl Tool for EditFileTool {
                     }
                 }
 
+                // If no edits were applied, treat as a hard error so the LLM retries
+                if applied == 0 {
+                    return Err(ToolError::ExecutionFailed(format!(
+                        "None of the {} edit(s) could be applied to '{}'. \
+                         This usually means old_string text does not match the file exactly (check whitespace / newlines).",
+                        errors.len(),
+                        full_path.display()
+                    )));
+                }
+
                 std::fs::write(&full_path, &content)
                     .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", full_path.display(), e)))?;
                 invalidate_file_cache(&full_path.to_string_lossy());
@@ -963,12 +973,32 @@ impl Tool for EditFileTool {
         }
 
         let new_content = content.replacen(old_str, new_str, 1);
-        std::fs::write(&full_path, new_content)
-            .map(|_| {
-                invalidate_file_cache(&full_path.to_string_lossy());
-                format!("Successfully edited {}", full_path.display())
-            })
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", full_path.display(), e)))
+
+        // Guard against no-op replacements (e.g. old_str == new_str, or race conditions)
+        if new_content == content {
+            return Err(ToolError::ExecutionFailed(format!(
+                "old_string was found in file '{}', but replacement did not change the file. \
+                 old_string and new_string may be identical, or a concurrent write reverted the change.",
+                full_path.display()
+            )));
+        }
+
+        std::fs::write(&full_path, &new_content)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", full_path.display(), e)))?;
+
+        // Verify the edit was actually persisted
+        let verify = std::fs::read_to_string(&full_path)
+            .map_err(|e| ToolError::ExecutionFailed(format!("Edit succeeded but failed to verify file '{}': {}", full_path.display(), e)))?;
+        if verify == content {
+            return Err(ToolError::ExecutionFailed(format!(
+                "Edit verification failed for file '{}': file content unchanged after write. \
+                 This may indicate a race condition or external process reverting the change.",
+                full_path.display()
+            )));
+        }
+
+        invalidate_file_cache(&full_path.to_string_lossy());
+        Ok(format!("Successfully edited {}", full_path.display()))
     }
 }
 
@@ -1035,6 +1065,11 @@ impl Tool for ShellTool {
          Use this to run tests, check git status, list files, install dependencies, etc. \
          Be careful with destructive commands. \
          \
+         TIMEOUT: All commands are killed after 30 seconds. Do NOT start long-running dev servers \
+         (e.g. `npm run dev`, `cargo run`, `python manage.py runserver`) via this tool. \
+         If the user wants to run the frontend/backend, remind them the server is already running \
+         and they only need to refresh the browser. \
+         \
          WINDOWS COMPATIBILITY: On Windows, prefer built-in tools (`search_code`, `read_file`, `list_files`) \
          over Unix shell utilities (grep, awk, sed, find, head, tail) because quoting and regex behavior differ."
     }
@@ -1079,12 +1114,47 @@ impl Tool for ShellTool {
         if !project.is_empty() {
             command.current_dir(&project);
         }
-        let output = command
+
+        // Spawn the child process so we can enforce a timeout
+        let mut child = command
             .arg(shell_arg)
             .arg(cmd)
-            .output()
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to execute command: {}", e)))?;
 
+        let pid = child.id();
+        let cmd_owned = cmd.to_string();
+
+        // Killer thread: forcibly terminate the process tree after 30s
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            #[cfg(target_os = "windows")]
+            {
+                let _ = std::process::Command::new("taskkill")
+                    .args(&["/PID", &pid.to_string(), "/F", "/T"])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .output();
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = std::process::Command::new("kill")
+                    .args(&["-9", &pid.to_string()])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .output();
+            }
+            // Log the timeout so operators can see what hung
+            tracing::warn!("Shell command timed out after 30s and was killed: {}", cmd_owned);
+        });
+
+        let output = child
+            .wait_with_output()
+            .map_err(|e| ToolError::ExecutionFailed(format!("Command failed: {}", e)))?;
+
+        let was_killed = output.status.code().is_none();
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -1096,10 +1166,14 @@ impl Tool for ShellTool {
         let mut result = String::new();
         let success = output.status.success();
         if !success {
-            result.push_str(&format!(
-                "Command exited with code {}\n",
-                output.status.code().unwrap_or(-1)
-            ));
+            if was_killed {
+                result.push_str("[Command timed out after 30s — process was killed]\n");
+            } else {
+                result.push_str(&format!(
+                    "Command exited with code {}\n",
+                    output.status.code().unwrap_or(-1)
+                ));
+            }
         }
         if !stdout.is_empty() {
             result.push_str(&format!("STDOUT:\n{}\n", stdout));
@@ -2032,8 +2106,8 @@ impl Tool for SpawnRelayTool {
             "properties": {
                 "flow_id": {
                     "type": "string",
-                    "description": "Flow template to use. 'standard' = full pipeline; 'post_discovery' = skips intake/advisor (use after chat discovery); 'fast_track' = coder only; 'bug_fix' = coder → tester → reviewer; 'goal_discovery' = advisor only (goals); 'doc_patch' = documenter only (docs/wiki); 'spec_tweak' = advisor only (spec updates)",
-                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix", "goal_discovery", "doc_patch", "spec_tweak"]
+                    "description": "Flow template to use. 'standard' = full pipeline; 'post_discovery' = skips intake/advisor (use after chat discovery); 'fast_track' = coder only; 'bug_fix' = coder → tester → reviewer; 'goal_discovery' = advisor only (goals); 'doc_patch' = documenter only (docs/wiki); 'spec_tweak' = advisor only (spec updates); 'superpower' = super-advisor → super-coder → super-tester (3-step super-profession pipeline)",
+                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix", "goal_discovery", "doc_patch", "spec_tweak", "superpower"]
                 },
                 "task": {
                     "type": "string",
@@ -2086,7 +2160,7 @@ impl Tool for SpawnRelayTool {
         }
 
         // Validate flow_id
-        let valid_flows = ["standard", "post_discovery", "fast_track", "bug_fix", "goal_discovery", "doc_patch", "spec_tweak"];
+        let valid_flows = ["standard", "post_discovery", "fast_track", "bug_fix", "goal_discovery", "doc_patch", "spec_tweak", "superpower"];
         if !valid_flows.contains(&flow_id) {
             return Err(ToolError::InvalidInput(format!(
                 "Unknown flow_id '{}'. Valid options: {}",

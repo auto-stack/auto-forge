@@ -1,0 +1,3482 @@
+# Designs
+
+---
+
+## D1 AgentInstance & Soul Rendering
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/agent.rs`
+**Tags:** stack:backend, module:agent-config
+**Depends on:** A2
+
+```rust
+pub struct AgentInstance {
+    pub id: String,
+    pub profession: Profession,
+    pub soul: SoulConfig,
+    pub model: ModelConfig,
+    pub context: AgentContext,
+}
+
+impl AgentInstance {
+    /// Spawn a new agent for a pipeline step.
+    /// Loads Soul from disk, resolves model config (with fallback chain).
+    pub fn spawn(
+        profession: &Profession,
+        soul_id: &str,
+        handoff: &HandoffDocument,
+        specs: &SpecsDocument,
+    ) -> Result<Self, AgentError>;
+
+    /// Render the system prompt from Soul + Profession + context.
+    pub fn render_system_prompt(&self) -> String;
+
+    /// Render the user message from Handoff + relevant Specs.
+    pub fn render_user_message(&self) -> Vec<ChatMessage>;
+
+    /// Execute one turn of the ReAct loop.
+    pub async fn turn(&mut self, tools: &[Box<dyn Tool>]) -> TurnResult;
+}
+
+pub struct SoulConfig {
+    pub id: String,
+    pub name: String,
+    pub markdown: String,
+    pub values: Vec<String>,
+    pub handoff_ritual: String,
+}
+
+pub struct ModelConfig {
+    pub provider: Provider,
+    pub model: String,
+    pub temperature: f32,
+    pub max_tokens: u32,
+    pub reasoning_budget: Option<u32>,
+    pub fallback_chain: Vec<String>,
+}
+
+pub enum Provider {
+    Anthropic,
+    OpenAI,
+    Local { url: String },
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unresolved: Soul ID provided
+    Unresolved --> Resolved: Soul loaded from disk
+    Resolved --> Ready: Model config validated
+    Ready --> Thinking: Turn started
+    Thinking --> ToolCall: LLM requests tool
+    ToolCall --> Thinking: Tool result returned
+    Thinking --> Complete: LLM finishes
+    Thinking --> Error: API failure
+    Error --> Ready: Fallback model activated
+    Error --> Failed: Fallback exhausted
+    Complete --> [*]
+    Failed --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | UUID for this agent instance |
+| `profession.id` | `String` | Reference to Profession registry |
+| `soul.id` | `String` | Reference to Soul config file |
+| `model.provider` | `Provider` | API provider enum |
+| `model.fallback_chain` | `Vec<String>` | Ordered list of alternative models |
+| `context.budget_used` | `u64` | Tokens consumed this step |
+| `context.turns_taken` | `u32` | Number of LLM turns this step |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D2 PipelineEngine & Flow Execution
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/pipeline.rs`
+**Tags:** stack:backend, module:relay
+**Depends on:** A1, D1
+
+```rust
+pub struct PipelineEngine {
+    pub flow: FlowSpec,
+    pub current_step: usize,
+    pub current_agent: Option<AgentInstance>,
+    pub checkpoints: Vec<Checkpoint>,
+    pub status: PipelineStatus,
+    pub run_id: String,
+}
+
+impl PipelineEngine {
+    /// Load a flow spec and initialize the pipeline.
+    pub fn new(flow: FlowSpec, run_id: String) -> Self;
+
+    /// Execute the next step in the flow.
+    pub async fn execute_next(&mut self) -> StepResult;
+
+    /// Pause the current run, saving checkpoint.
+    pub async fn pause(&mut self) -> Result<Checkpoint, PipelineError>;
+
+    /// Resume from a checkpoint.
+    pub async fn resume(checkpoint: &Checkpoint) -> Result<Self, PipelineError>;
+
+    /// Rollback to a previous checkpoint.
+    pub async fn rollback(target: u64) -> Result<(), PipelineError>;
+
+    /// Handle human approval/rejection at a gate.
+    pub async fn resolve_gate(&mut self, decision: GateDecision) -> Result<(), PipelineError>;
+}
+
+pub enum PipelineStatus {
+    Idle,
+    Running { agent_id: String, started_at: u64 },
+    WaitingForHuman { gate: Gate, since: u64 },
+    Completed { result: CompletionResult },
+    Failed { error: String, checkpoint: u64 },
+    Paused { at_checkpoint: u64 },
+}
+
+pub enum StepResult {
+    Handoff { to: String, checkpoint: Checkpoint },
+    GateTriggered { gate: Gate },
+    LoopBack { to: String, iteration: u32 },
+    Complete,
+    Error { message: String },
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: Flow loaded
+    Idle --> Running: execute_next() called
+    Running --> Running: Loop iteration
+    Running --> WaitingForHuman: Gate triggered
+    WaitingForHuman --> Running: Approved
+    WaitingForHuman --> Running: Rejected (redraft)
+    Running --> Paused: pause() called
+    Paused --> Running: resume() called
+    Running --> Completed: Final step done
+    Running --> Failed: Unrecoverable error
+    Failed --> Idle: reset
+    Completed --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `flow.id` | `String` | Flow specification identifier |
+| `current_step` | `usize` | Index into flow.steps vector |
+| `status` | `PipelineStatus` | Current state machine state |
+| `checkpoints` | `Vec<Checkpoint>` | Ordered list of saved states |
+| `run_id` | `String` | Unique run identifier |
+
+```
+fn execute_next():
+    step = flow.steps[current_step]
+    profession = registry.get(&step.profession_id)
+    
+    // Gate check
+    if step.gate == Human:
+        status = WaitingForHuman { gate: step.gate }
+        return StepResult::GateTriggered { gate }
+    
+    // Spawn agent
+    agent = AgentInstance::spawn(profession, ...)
+    status = Running { agent_id: agent.id, started_at: now() }
+    
+    // Run agent turn loop
+    loop:
+        result = agent.turn(filtered_tools)
+        if result.is_handoff():
+            checkpoint = create_checkpoint(agent, result)
+            advance_step_or_loop()
+            return StepResult::Handoff { to: next_profession, checkpoint }
+        if result.is_budget_exceeded():
+            return StepResult::Error { message: "Budget exceeded" }
+        if agent.turns_taken >= step.max_turns:
+            return StepResult::Error { message: "Max turns exceeded" }
+```
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D3 HandoffDocument Generation
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/handoff.rs`
+**Tags:** stack:backend, module:relay
+**Depends on:** G3, D1
+
+```rust
+pub struct HandoffDocument {
+    pub from: String,
+    pub to: String,
+    pub run_id: String,
+    pub checkpoint_id: u64,
+    pub summary: String,
+    pub decisions: Vec<Decision>,
+    pub open_questions: Vec<Question>,
+    pub spec_updates: Vec<SpecUpdate>,
+    pub work_product: Vec<WorkProduct>,
+    pub context_for_next: ContextPointers,
+    pub token_usage: TokenUsage,
+}
+
+impl HandoffDocument {
+    /// Generate from agent turn history and current state.
+    pub fn generate(
+        agent: &AgentInstance,
+        turn_history: &[TurnRecord],
+        specs: &SpecsDocument,
+    ) -> Result<Self, HandoffError>;
+
+    /// Render as markdown for the next agent's consumption.
+    pub fn render(&self) -> String;
+
+    /// Compress raw turn history into summary using cheap model or rules.
+    pub async fn compress_history(
+        history: &[TurnRecord],
+        model: &ModelConfig,
+    ) -> Result<String, CompressionError>;
+}
+
+pub struct ContextPointers {
+    pub files_to_read: Vec<String>,
+    pub specs_to_follow: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+pub struct TokenUsage {
+    pub step_input: u64,
+    pub step_output: u64,
+    pub cumulative: u64,
+    pub budget_remaining: u64,
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Collecting: Agent turn complete
+    Collecting --> Summarizing: Raw history gathered
+    Summarizing --> Structured: Decisions extracted
+    Structured --> Validated: Open questions identified
+    Validated --> Rendered: Work product catalogued
+    Rendered --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `summary` | `String` | ≤200 words executive summary |
+| `decisions.id` | `String` | Decision identifier |
+| `decisions.status` | `String` | made / deferred / rejected |
+| `open_questions.id` | `String` | Question identifier |
+| `spec_updates.section_id` | `String` | Which spec section was modified |
+| `work_product.path` | `String` | File path or artifact location |
+| `work_product.lines` | `u32` | Size indicator for context sizing |
+
+```
+fn generate(agent, turn_history, specs):
+    // Phase 1: Summarize (cheap model or rules)
+    summary = compress_history(turn_history, cheap_model)
+    
+    // Phase 2: Extract decisions from agent's explicit handoff tool calls
+    decisions = extract_decisions(turn_history)
+    
+    // Phase 3: Identify open questions from handoff tool calls
+    questions = extract_open_questions(turn_history)
+    
+    // Phase 4: Catalog spec changes made by agent
+    spec_updates = diff_specs(original_specs, current_specs)
+    
+    // Phase 5: List files touched
+    work_product = agent.context.files_touched
+    
+    // Phase 6: Build context pointers for next agent
+    pointers = build_context_pointers(agent.profession, next_profession, specs)
+    
+    return HandoffDocument { ... }
+```
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D4 Checkpoint Serialization
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/checkpoint.rs`
+**Tags:** stack:backend, module:relay
+**Depends on:** A3
+
+```rust
+pub struct Checkpoint {
+    pub id: u64,
+    pub run_id: String,
+    pub timestamp: u64,
+    pub git_commit: Option<String>,
+    pub git_diff: Option<String>,
+    pub ledger_state: SpecsDocument,
+    pub handoff: HandoffDocument,
+    pub file_manifest: Vec<FileState>,
+    pub token_usage: TokenUsage,
+}
+
+pub struct FileState {
+    pub path: String,
+    pub hash: String,  // SHA-256
+    pub size: u64,
+}
+
+impl Checkpoint {
+    /// Create checkpoint from current pipeline state.
+    pub async fn create(engine: &PipelineEngine) -> Result<Self, CheckpointError>;
+
+    /// Serialize to disk.
+    pub fn save(&self, dir: &Path) -> Result<(), CheckpointError>;
+
+    /// Load from disk.
+    pub fn load(dir: &Path, checkpoint_id: u64) -> Result<Self, CheckpointError>;
+
+    /// Restore file system state from checkpoint.
+    pub async fn restore_files(&self, project_dir: &Path) -> Result<(), CheckpointError>;
+
+    /// Restore git state.
+    pub async fn restore_git(&self) -> Result<(), CheckpointError>;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Capturing: Handoff triggered
+    Capturing --> GitSnapshot: File manifest built
+    GitSnapshot --> LedgerSnapshot: Git commit or diff captured
+    LedgerSnapshot --> Serializing: Ledger embedded
+    Serializing --> Persisted: JSON written to disk
+    Persisted --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `u64` | Monotonic within run |
+| `git_commit` | `Option<String>` | Full SHA if auto-commit succeeded |
+| `git_diff` | `Option<String>` | Patch if working tree was dirty |
+| `ledger_state` | `SpecsDocument` | Deep copy of specs at this point |
+| `file_manifest` | `Vec<FileState>` | Hash of every touched file |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D5 TokenBudget Enforcement
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/budget.rs`
+**Tags:** stack:backend, module:relay
+**Depends on:** G5
+
+```rust
+pub struct TokenBudget {
+    pub limit: u64,
+    pub warning_at: u64,
+    pub strategy: BudgetStrategy,
+}
+
+pub enum BudgetStrategy {
+    HardStop,
+    EscalateModel,
+    SummarizeContext,
+    SkipOptional,
+}
+
+pub struct BudgetTracker {
+    pub run_budget: TokenBudget,
+    pub step_budgets: HashMap<String, TokenBudget>,
+    pub cumulative: u64,
+    pub per_step: HashMap<String, u64>,
+}
+
+impl BudgetTracker {
+    /// Record token usage from an API response.
+    pub fn record(&mut self, step: &str, input: u64, output: u64);
+
+    /// Check if current spend triggers any budget action.
+    pub fn check(&self, step: &str) -> BudgetAction;
+
+    /// Estimate "parallel cost" for analytics.
+    pub fn estimate_parallel_cost(&self, num_agents: u32, avg_context: u64) -> u64;
+}
+
+pub enum BudgetAction {
+    None,
+    Warning { remaining: u64 },
+    Compress,
+    HardStop,
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `limit` | `u64` | Hard token limit |
+| `warning_at` | `u64` | Percentage (0-1) of limit where warning fires |
+| `strategy` | `BudgetStrategy` | Action when limit reached |
+| `cumulative` | `u64` | Total tokens this run |
+| `per_step` | `HashMap` | Tokens per profession/step |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D6 RelayMode & GSD Flow Control
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/pipeline.rs`
+**Tags:** stack:backend, module:relay
+**Depends on:** G6, D2
+
+```rust
+pub enum RelayMode {
+    GSD,      // Get Shit Done — autonomous, only GoalGate is human
+    Check,    // Human reviews every gate
+}
+
+pub enum ForgePhase {
+    Intake,
+    Discovery,
+    GoalGate,
+    Design,
+    Planning,
+    Execution,
+    Verification,
+    Report,
+}
+
+pub struct PipelineEngine {
+    pub flow: FlowSpec,
+    pub current_step: usize,
+    pub current_agent: Option<AgentInstance>,
+    pub checkpoints: Vec<Checkpoint>,
+    pub status: PipelineStatus,
+    pub run_id: String,
+    pub mode: RelayMode,  // NEW
+}
+
+impl PipelineEngine {
+    /// Evaluate gate based on RelayMode.
+    /// GSD: only GoalGate triggers human pause.
+    /// Check: every gate triggers human pause.
+    pub fn evaluate_gate(&self, step: &FlowStep) -> GateDecision;
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `mode` | `RelayMode` | GSD (default) or Check |
+| `phase` | `ForgePhase` | Extended to 8 phases including Discovery, GoalGate, Design, Planning, Report |
+
+```
+fn evaluate_gate(step, mode):
+    if mode == Check:
+        return HumanGate
+    if mode == GSD:
+        if step.profession == "advisor" and step.exit == "handoff_to_architect":
+            return HumanGate  // Goal approval required
+        return AutoGate  // Everything else autonomous
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D7 Profession Registry (v2)
+**Status:** implemented
+**Module:** `crates/auto-forge/src/relay/profession.rs`
+**Tags:** stack:backend, module:agent-config
+**Depends on:** G1, G7
+
+```rust
+pub struct Profession {
+    pub id: String,
+    pub name: String,
+    pub phase: ForgePhase,
+    pub owned_sections: Vec<SectionType>,
+    pub readable_sections: Vec<SectionType>,
+    pub allowed_tools: Vec<String>,
+    pub handoff_to: Vec<String>,
+    pub approval_gates: Vec<String>,
+    pub max_turns: u32,
+    pub token_budget: u64,
+}
+```
+
+
+| Profession | Phase | Owned Specs | Model Tier | Gate |
+|---|---|---|---|---|
+| Assistant | Intake | None | Light | Auto |
+| Advisor | Discovery | Goals | Medium | Human (GSD) / Human (Check) |
+| Architect | Design | Architecture, Designs | Heavy | Auto (GSD) / Human (Check) |
+| Planner | Planning | Plans | Medium | Auto |
+| Coder | Execution | None (code) | Heavy | Auto |
+| Tester | Execution | Tests | Medium | Auto |
+| Reviewer | Verification | Reviews | Heavy | Auto |
+| Documenter | Report | Reports | Light | Auto |
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | profession identifier |
+| `phase` | `ForgePhase` | which phase this profession runs in |
+| `owned_sections` | `Vec<SectionType>` | specs this profession can write |
+| `readable_sections` | `Vec<SectionType>` | specs this profession can read |
+| `approval_gates` | `Vec<String>` | handoff targets that require approval |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D8 GateCard & SecretaryMessage Components
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/`
+**Tags:** stack:frontend, module:chat
+**Depends on:** A5, A6
+
+```typescript
+// GateCard.vue
+interface GateCardProps {
+  gate: PendingGate
+  mode: 'inline' | 'secretary'
+}
+
+// SecretaryMessage.vue
+interface SecretaryMessageProps {
+  gate: PendingGate
+  queuePosition?: number
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Proposed
+    Proposed --> Approved : boss clicks Approve
+    Proposed --> Rejected : boss clicks Reject
+    Proposed --> Snoozed : boss clicks Snooze
+    Proposed --> Reviewing : boss clicks Review →
+    Reviewing --> Proposed : drawer closed
+    Snoozed --> Proposed : timer expires
+    Approved --> Resolved : auto-collapse 3s
+    Rejected --> Resolved : advisor reworks
+    Resolved --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `gate.id` | `string` | session_id or run_id |
+| `gate.type` | `'session' \| 'run'` | source composable |
+| `gate.gateType` | `'goal' \| 'spec' \| 'review'` | approval type |
+| `gate.profession` | `string` | who is waiting |
+| `gate.since` | `number` | timestamp |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D9 useGateInbox State Machine
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/composables/useGateInbox.ts`
+**Tags:** stack:frontend, module:relay
+**Depends on:** A5
+
+```typescript
+interface PendingGate {
+  id: string
+  type: 'session' | 'run'
+  gateType: 'goal' | 'spec' | 'review'
+  title: string
+  profession: string
+  since: number
+  context: {
+    sessionId?: string
+    runId?: string
+    sectionId?: string
+    itemId?: string
+  }
+}
+
+interface GateInboxState {
+  pending: PendingGate[]
+  active: PendingGate | null
+  resolved: PendingGate[]
+}
+
+function registerGate(gate: PendingGate): void
+function resolveGate(id: string): void
+function dismissSecretary(): void
+function snoozeGate(id: string, minutes: number): void
+```
+
+```
+fn registerGate(gate):
+    if active is null:
+        active = gate
+    else:
+        pending.push(gate)
+
+fn resolveGate(id):
+    if active?.id == id:
+        resolved.push(active)
+        active = pending.shift() ?? null
+    else:
+        pending.remove(where g.id == id)
+        resolved.push(g)
+
+fn snoozeGate(id, minutes):
+    if active?.id == id:
+        pending.push(active)
+        active = null
+        setTimeout(() => registerGate(active), minutes * 60000)
+```
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D10 Category Renderer Polymorphism
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/views/SpecsView.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** A5
+
+```typescript
+const categoryComponents: Record<SectionType, Component> = {
+  goals: GoalsTable,
+  architecture: ArchitectureCards,
+  designs: DesignCards,
+  plans: PlansTimeline,
+  tests: TestsCards,
+  reviews: ReviewCards,
+  reports: ReportDashboard,
+}
+```
+
+| Event | Payload | Description |
+|---|---|---|
+| `toggle` | `{ id: string }` | Expand/collapse item detail |
+| `jump` | `{ id: string }` | Navigate to linked spec ID |
+| `edit` | `{ item: SpecItem }` | Enter edit mode for item |
+| `status-change` | `{ id: string; status: Status }` | Update item status |
+| `save` | `{ item: SpecItem }` | Persist edited item |
+| `delete` | `{ id: string }` | Remove item from section |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D11 RelationsPanel & AutoLinkContent
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/`
+**Tags:** stack:frontend, module:specs
+**Depends on:** A5
+
+```typescript
+// RelationsPanel.vue
+interface RelationsPanelProps {
+  item: SpecItem
+}
+
+// AutoLinkContent.vue
+interface AutoLinkContentProps {
+  content: string
+}
+// Regex: /\b([GRAPTVXIS]\d+(?:\.\d+)?)\b/
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `parents` | `{ id, title, section_type, status }[]` | Upstream depends_on |
+| `children` | `{ id, title, section_type, status }[]` | Downstream related |
+
+```
+fn render(content):
+    parts = splitByRegex(content, ID_REF_REGEX)
+    for part in parts:
+        if part.matches(ID_REF_REGEX):
+            render(<SpecLink id={part} />)
+        else:
+            render(<span>{part}</span>)
+```
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D12 Relay PipelinePanel Node-Graph
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/views/RelayView.vue`
+**Tags:** stack:frontend, module:relay
+**Depends on:** A5
+
+```typescript
+interface PipelineNode {
+  id: string
+  profession: string
+  status: 'pending' | 'working' | 'done' | 'error' | 'waiting_gate'
+  tokens: number
+  cost: number
+  elapsedMs: number
+  outputs: string[]
+  currentAction?: string
+}
+
+interface PipelineEdge {
+  from: string
+  to: string
+  type: 'forward' | 'retry' | 'handoff'
+}
+```
+
+- Desktop (`≥1024px`): horizontal flexbox with absolute-positioned SVG connectors
+- Mobile (`<1024px`): vertical timeline with CSS border-left connectors
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D13 Expanded Node Card
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/NodeCard.vue`
+**Tags:** stack:frontend, module:relay
+**Depends on:** D12
+
+```typescript
+interface NodeCardProps {
+  node: PipelineNode
+}
+```
+
+1. **Overview**: tokens, elapsed time, status, profession icon
+2. **Actions**: chronological tool call history (read_jade, write_file, etc.)
+3. **Output**: specs touched with click-to-jump links
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D14 Responsive 3-Zone Layout System
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/App.vue`
+**Tags:** stack:frontend, module:ui-system
+**Depends on:** —
+
+| Breakpoint | Zone A | Zone B | Zone C |
+|---|---|---|---|
+| `≥1280px` | 220px sidebar | flex main | 280–320px context |
+| `1024–1279px` | 220px sidebar | flex main | hidden, toggle drawer |
+| `<1024px` | tab nav | full main | bottom sheet |
+
+```css
+.autoforge-app {
+  display: flex;
+  height: 100vh;
+}
+.view-rail { width: 180px; flex-shrink: 0; }
+.view-main { flex: 1; display: flex; min-width: 0; }
+```
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D15 GateBanner (Specs View)
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/GateBanner.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** A5, D9
+
+```typescript
+interface GateBannerProps {
+  sectionId: string
+  gate: PendingGate
+}
+
+// Events
+emit('approve', gateId: string)
+emit('reject', gateId: string)
+emit('openInChat', gateId: string)
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Hidden: no active gate for section
+    Hidden --> Visible: gate_reached for this section
+    Visible --> Hidden: gate_resolved or approved
+    Visible --> Expanded: user clicks View Diff
+    Expanded --> Visible: user collapses diff
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `sectionId` | `string` | Which spec section this banner guards |
+| `gate.profession` | `string` | Who is waiting (e.g., "architect") |
+| `gate.title` | `string` | One-line summary of what needs approval |
+| `gate.since` | `number` | Timestamp when gate was reached |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D16 GatePanel (Relay View)
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/GatePanel.vue`
+**Tags:** stack:frontend, module:relay
+**Depends on:** A5, D9
+
+```typescript
+interface GatePanelProps {
+  runId: string
+  gate: PendingGate
+  professionIcon: string
+}
+
+// Events
+emit('approve', runId: string)
+emit('reject', runId: string)
+emit('reviewInSpecs', sectionId: string)
+```
+
+- Renders inside `PipelinePanel` when `currentRun.waiting_for_gate` is non-null
+- Shows profession icon, gate title, and elapsed waiting time
+- Provides Approve / Reject / Review in Specs actions
+- Non-blocking: pipeline animation continues in background
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D17 ReportCard (Chat Terminal)
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/components/ReportCard.vue`
+**Tags:** stack:frontend, module:chat
+**Depends on:** A5
+
+```typescript
+interface ReportCardProps {
+  report: {
+    runId: string
+    goalsMet: string
+    testsPass: string
+    driftDetected: string
+    cost: string
+    confidence: 'High' | 'Medium' | 'Low'
+    deliverables: string[]
+  }
+}
+```
+
+- `collapsed` (default): Shows summary line only — "✅ Relay Complete — Report X42"
+- `expanded`: Shows full metrics table, cost breakdown, deliverables list, drift notes
+
+- [View Full Report] → opens Reports section in Specs drawer
+- [Download Markdown] → triggers download of report markdown
+- [Open Changed Files] → opens file diff viewer
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D18 SSE Frontend Event Router
+**Status:** implemented
+**Module:** `packages/auto-forge-ui/src/composables/useEventRouter.ts`
+**Tags:** stack:frontend, module:relay
+**Depends on:** A5, D9
+
+```typescript
+interface SSEEvent {
+  type: 'run_started' | 'step_advanced' | 'spec_written'
+       | 'gate_reached' | 'gate_resolved'
+       | 'handoff_submitted' | 'run_completed'
+  runId: string
+  payload: Record<string, unknown>
+}
+
+function useEventRouter() {
+  function handleEvent(event: SSEEvent, currentView: 'chat' | 'specs' | 'relay')
+}
+```
+
+| Event | Chat View | Specs View | Relay View |
+|---|---|---|---|
+| `run_started` | System message | — | Highlight run |
+| `step_advanced` | **NO action** (ambient only) | — | Animate node |
+| `spec_written` | — | Flash changed section | — |
+| `gate_reached` | SecretaryMessage | GateBanner | GatePanel |
+| `gate_resolved` | Collapse message | Hide banner | Hide panel |
+| `handoff_submitted` | — | — | Append to Live Log |
+| `run_completed` | ReportCard | Update Reports | Mark run done |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D19 API Source Configuration
+**Status:** draft
+**Module:** `backend/src/relay/config.rs`
+**Tags:** stack:both, module:api-sources
+**Depends on:** G13
+
+```rust
+pub struct ApiSource {
+    pub id: String,
+    pub name: String,
+    pub provider: Provider,
+    pub api_key_env: String,
+    pub api_key_stored: Option<String>,
+    pub base_url: Option<String>,
+    pub is_available: bool,
+    pub models: Vec<ModelDefinition>,
+}
+
+pub struct ModelDefinition {
+    pub id: String,
+    pub name: String,
+    pub tier: ModelTier,
+}
+
+pub enum ModelTier { Light, Mid, Heavy }
+
+// CRUD + detection
+pub fn load_api_sources() -> Vec<ApiSource>
+pub fn save_api_sources(sources: &[ApiSource]) -> Result<(), ConfigError>
+pub fn detect_available_providers() -> Vec<ApiSource>
+
+// Per-source operations
+pub fn resolve_api_key(source: &ApiSource) -> Option<String>
+pub async fn test_connection(source: &ApiSource, model: &str) -> Result<ConnectionTestResult, ConfigError>
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unconfigured: First startup
+    Unconfigured --> Detecting: auto-detect triggered
+    Detecting --> Detected: keys/env found
+    Detecting --> Empty: nothing found
+    Detected --> Configured: user saves
+    Empty --> Configured: user adds source manually
+    Configured --> Testing: test_connection()
+    Testing --> Available: connection OK
+    Testing --> Unavailable: connection failed
+    Available --> Configured: edit
+    Unavailable --> Configured: fix and retry
+    Configured --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique identifier (e.g., "anthropic-primary") |
+| `name` | `String` | Human-readable display name |
+| `provider` | `Provider` | Anthropic, OpenAI, or Local{url} |
+| `api_key_env` | `String` | Env var name or "settings:KEY" for ~/.claude |
+| `api_key_stored` | `Option<String>` | Base64-obfuscated key |
+| `base_url` | `Option<String>` | Custom endpoint (proxies, local) |
+| `is_available` | `bool` | Startup detection result |
+| `models` | `Vec<ModelDefinition>` | Available models with tier labels |
+
+```
+fn detect_available_providers():
+    sources = []
+
+    // 1. Check ~/.claude/settings.json for Anthropic key
+    if settings.env has ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY:
+        sources.push(ApiSource {
+            provider: Anthropic,
+            models: [
+                ModelDefinition { id: "claude-3-5-haiku-20241022", tier: Light },
+                ModelDefinition { id: "claude-3-5-sonnet-20241022", tier: Mid },
+                ModelDefinition { id: "claude-3-opus-20240229", tier: Heavy },
+            ],
+            is_available: true,
+        })
+
+    // 2. Check OPENAI_API_KEY env var
+    if env has OPENAI_API_KEY:
+        sources.push(ApiSource {
+            provider: OpenAI,
+            models: [
+                ModelDefinition { id: "gpt-4o-mini", tier: Light },
+                ModelDefinition { id: "gpt-4o", tier: Mid },
+                ModelDefinition { id: "o1", tier: Heavy },
+            ],
+            is_available: true,
+        })
+
+    // 3. Check localhost:11434 for Ollama
+    if http://localhost:11434/api/tags responds:
+        sources.push(ApiSource {
+            provider: Local { url: "http://localhost:11434" },
+            models: fetch from /api/tags,
+            is_available: true,
+        })
+
+    return sources
+
+fn resolve_api_key(source):
+    if source.api_key_env starts with "settings:":
+        return read ~/.claude/settings.json -> env[key]
+    if env has source.api_key_env:
+        return env[source.api_key_env]
+    if source.api_key_stored is Some:
+        return base64_decode(source.api_key_stored)
+    return None
+```
+
+
+| Tier | Anthropic | OpenAI | Purpose |
+|---|---|---|---|
+| Light | claude-3-5-haiku | gpt-4o-mini | Routing, test gen, docs |
+| Mid | claude-3-5-sonnet | gpt-4o | Planning, coding |
+| Heavy | claude-3-opus | o1 | Architecture, review |
+
+
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/forge/config/api-sources` | List all sources |
+| POST | `/api/forge/config/api-sources` | Create source |
+| PUT | `/api/forge/config/api-sources/{id}` | Update source |
+| DELETE | `/api/forge/config/api-sources/{id}` | Delete source |
+| POST | `/api/forge/config/api-sources/{id}/test` | Test connectivity |
+
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D20 Multi-Provider AI Dispatch
+**Status:** draft
+**Module:** `backend/src/ai.rs`
+**Tags:** stack:backend, module:provider
+**Depends on:** G13, D19
+
+```rust
+/// Dispatch a streaming chat request to the correct provider.
+/// Returns error message on failure, None on success.
+pub async fn dispatch_chat(
+    source: &ApiSource,
+    model: &str,
+    system: &str,
+    messages: Vec<ChatMessage>,
+    tx: UnboundedSender<AIStreamDelta>,
+) -> Option<String>
+
+/// Build provider-specific request URL.
+fn build_api_url(source: &ApiSource) -> String
+
+/// Build provider-specific auth headers.
+fn build_auth_headers(source: &ApiSource) -> HeaderMap
+
+/// Parse provider-specific SSE stream into text deltas.
+fn parse_sse_delta(provider: &Provider, data: &str) -> Option<String>
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Routing: dispatch_chat()
+    Routing --> AnthropicStream: provider == Anthropic
+    Routing --> OpenAIStream: provider == OpenAI
+    Routing --> LocalStream: provider == Local
+    AnthropicStream --> Emitting: SSE content_block_delta
+    OpenAIStream --> Emitting: SSE choices[0].delta.content
+    LocalStream --> Emitting: Ollama /api/chat response
+    Emitting --> Emitting: more deltas
+    Emitting --> Done: stream ends
+    Emitting --> Error: connection/API error
+    Done --> [*]
+    Error --> [*]
+```
+
+| Provider | Auth Header | API Path | SSE Format |
+|---|---|---|---|
+| Anthropic | `x-api-key: {key}` | `/v1/messages` | `event: content_block_delta` → `delta.text` |
+| OpenAI | `Authorization: Bearer {key}` | `/v1/chat/completions` | `choices[0].delta.content` |
+| Local | None (or Bearer) | `/v1/chat/completions` | Same as OpenAI (Ollama-compatible) |
+
+```
+fn dispatch_chat(source, model, system, messages, tx):
+    url = build_api_url(source)
+    headers = build_auth_headers(source)
+    body = build_request_body(source.provider, model, system, messages)
+
+    resp = http_post(url, headers, body, stream=true)
+    if not resp.ok:
+        return Some(format("API error ({})", resp.status))
+
+    for chunk in resp.bytes_stream():
+        for sse_event in parse_sse(chunk):
+            text = parse_sse_delta(source.provider, sse_event.data)
+            if text:
+                tx.send(AIStreamDelta { text })
+
+    return None  // success
+
+fn build_api_url(source):
+    match source.provider:
+        Anthropic => "{base}/v1/messages"
+        OpenAI => "{base}/v1/chat/completions"
+        Local => "{source.url}/v1/chat/completions"
+
+fn parse_sse_delta(provider, data):
+    json = parse(data)
+    match provider:
+        Anthropic => json.delta.text  (from content_block_delta)
+        OpenAI => json.choices[0].delta.content
+        Local => json.choices[0].delta.content  // Ollama compatible
+```
+
+- `ClaudeProvider::chat_stream()` refactored into `dispatch_chat()`
+- `ToolClaudeProvider` in `forge/ai.rs` generalized to use `dispatch_chat()` with `ApiSource`
+- Existing `ModelConfig::cheap()/standard()/strong()` kept as fallback defaults
+- `ai.rs` `load_api_config()` replaced by `config::resolve_api_key()`
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D21 Unified Provider Layer
+**Status:** done
+**Module:** `backend/src/provider/`
+**Tags:** stack:backend, module:provider
+
+```rust
+// provider/claude.rs
+pub struct ClaudeProvider {
+    pub(crate) client: reqwest::Client,
+    pub(crate) api_key: Option<String>,
+    pub(crate) base_url: String,
+}
+
+impl ClaudeProvider {
+    pub fn new() -> Self;
+    pub fn is_available(&self) -> bool;
+    pub async fn chat_stream(&self, request: AIRequest, tx: UnboundedSender<AIStreamDelta>) -> Option<String>;
+    pub async fn chat(&self, request: AIRequest) -> AIResponse;
+    pub async fn chat_turn(&self, request: ToolChatRequest, tx: UnboundedSender<ToolChatEvent>) -> Option<String>;
+}
+
+// provider/sse.rs
+pub struct SseParser { buffer: Vec<u8> }
+
+impl SseParser {
+    pub fn new() -> Self;
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<StreamEvent>, SseError>;
+    pub fn finish(self) -> Result<Vec<StreamEvent>, SseError>;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Streaming: HTTP response received
+    Streaming --> Parsing: SSE chunk arrives
+    Parsing --> Emitting: complete frame found
+    Emitting --> Streaming: more chunks
+    Emitting --> Done: stream ends
+    Parsing --> Done: stream ends
+    Done --> [*]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `client` | `reqwest::Client` | Reusable HTTP client |
+| `api_key` | `Option<String>` | Loaded from ~/.claude/settings.json or env |
+| `base_url` | `String` | API endpoint (default: https://api.anthropic.com) |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D22 CLI REPL Interface
+**Status:** done
+**Module:** `backend/src/cli/`
+**Tags:** stack:backend, module:cli
+
+```rust
+// cli/repl.rs
+pub async fn run_repl(
+    provider: Arc<ClaudeProvider>,
+    registry: &ToolRegistry,
+    system_prompt: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+
+// cli/settings.rs
+pub struct Settings {
+    pub env: HashMap<String, String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub permission: Option<String>,
+}
+pub fn load() -> Settings
+pub fn inject_env(settings: &Settings)
+pub fn ensure_template()
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Prompt
+    Prompt --> Processing: user input
+    Processing --> Streaming: chat_turn()
+    Streaming --> Compacting: response done
+    Compacting --> Prompt: context managed
+    Prompt --> [*]: :quit
+```
+
+| Command | Action |
+|---|---|
+| `:quit` / `:q` | Exit REPL |
+| `:help` | Show available commands |
+| `:reset` | Clear conversation history |
+| `:messages` | Show message count |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D23 Runtime Infrastructure
+**Status:** done
+**Module:** `backend/src/runtime/`
+**Tags:** stack:backend, module:runtime
+
+```rust
+// runtime/context.rs
+pub struct ContextManager {
+    max_tokens: u32,
+    keep_recent: usize,
+}
+
+impl ContextManager {
+    pub fn new() -> Self;
+    pub fn maybe_compact(&self, messages: &mut Vec<InputMessage>) -> bool;
+}
+
+// runtime/session.rs
+pub struct Session { path: PathBuf }
+
+impl Session {
+    pub fn new(project_path: &str) -> Self;
+    pub fn append(&self, message: &InputMessage) -> Result<()>;
+    pub fn load(&self) -> Result<Vec<InputMessage>>;
+}
+
+// runtime/permission.rs
+pub enum PermissionMode { Allow, Ask, ReadOnly }
+pub enum PermissionDecision { Allowed, AskUser, Denied }
+
+pub struct PermissionPolicy { mode: PermissionMode }
+
+impl PermissionPolicy {
+    pub fn check(&self, tool_name: &str, is_write: bool) -> PermissionDecision;
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Allow: mode == Allow
+    [*] --> Ask: mode == Ask
+    [*] --> ReadOnly: mode == ReadOnly
+    ReadOnly --> Allowed: read-only tool
+    ReadOnly --> Denied: write tool
+    Ask --> Allowed: user approves
+    Ask --> Denied: user denies
+    Allow --> Allowed: any tool
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `max_tokens` | `u32` | Token threshold for compaction (default 100k) |
+| `keep_recent` | `usize` | Messages to preserve during compaction |
+| `path` | `PathBuf` | Session directory at ~/.autoforge/sessions/{hash}/ |
+
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D24 bring_in Tool & Chat Handoff
+**Status:** proposed
+**Module:** `backend/src/forge/tools.rs`, `backend/src/forge/mod.rs`
+**Tags:** stack:both, module:chat
+**Depends on:** A9, G17
+
+```rust
+// forge/tools.rs — BringInTool
+pub struct BringInTool;
+
+impl Tool for BringInTool {
+    fn name(&self) -> &str { "bring_in" }
+    fn description(&self) -> &str {
+        "Bring in another agent to handle this conversation. \
+         Use when you've classified the user's intent and know \
+         which specialist should take over."
+    }
+    fn is_read_only(&self) -> bool { true }
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Profession ID of the agent to bring in (e.g., 'advisor', 'coder')"
+                },
+                "classification": {
+                    "type": "string",
+                    "enum": ["NEW_GOAL", "REQ_UPDATE", "QUESTION", "DIRECT"],
+                    "description": "Your classification of the user's intent"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Brief explanation of why you're handing off"
+                }
+            },
+            "required": ["target", "reason"]
+        })
+    }
+    fn execute(&self, args: &serde_json::Value) -> Result<serde_json::Value, ToolError>;
+}
+```
+
+```rust
+// forge/mod.rs — HandoffNote (lightweight, for chat only)
+pub struct HandoffNote {
+    pub from_agent: String,       // "Nicole"
+    pub from_profession: String,  // "assistant"
+    pub to_profession: String,    // "advisor"
+    pub classification: String,   // "NEW_GOAL"
+    pub summary: String,          // Agent's summary of conversation so far
+    pub warnings: Vec<String>,    // e.g., "No existing specs found for this topic"
+}
+
+impl HandoffNote {
+    pub fn render(&self) -> String {
+        format!(
+            "## Handoff Note\n\
+             {} ({}) handed off to you.\n\
+             **Classification:** {}\n\
+             **Summary:** {}\n\
+             {}\n\
+             Continue the conversation from here — do not ask the user to repeat what was already discussed.",
+            self.from_agent,
+            self.from_profession,
+            self.classification,
+            self.summary,
+            if self.warnings.is_empty() { String::new() }
+            else { format!("**Warnings:** {}", self.warnings.join("; ")) }
+        )
+    }
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant N as Nicole (assistant)
+    participant T as BringInTool
+    participant S as ForgeSession
+    participant I as Isaac (advisor)
+
+    U->>N: "I want to add OAuth2 login"
+    N->>N: classify → NEW_GOAL
+    N->>T: bring_in(target: "advisor", classification: "NEW_GOAL", reason: "...")
+    T->>S: set active_profession = "advisor"
+    T->>S: inject HandoffNote as system message
+    T-->>N: tool result: "Handed off to Isaac (advisor)"
+    N-->>U: [handoff card: Nicole → Isaac]
+    Note over I: Next streaming turn uses Isaac's system prompt
+    I->>I: reads HandoffNote + full conversation history
+    I->>U: "I see you want OAuth2. Let me check existing goals..."
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `target` | `String` | Must be in caller's `handoff_to` list, else rejected |
+| `classification` | `String` | QUESTION / DIRECT / NEW_GOAL / REQ_UPDATE |
+| `reason` | `String` | Free-text explanation, included in HandoffNote |
+| `from_agent` | `String` | Display name of calling agent (from AgentConfig) |
+| `summary` | `String` | Auto-generated from tool result (LLM's reason field) |
+
+### Validation Rules
+
+1. `target` must exist in `ProfessionRegistry`
+2. `target` must be in calling agent's `handoff_to` list (from Profession config)
+3. `target` must differ from current `active_profession`
+4. On validation failure: tool returns error, LLM continues in current role
+
+### SSE Events
+
+```json
+// New event type: agent_handoff
+{
+  "type": "agent_handoff",
+  "from_agent": "Nicole",
+  "from_profession": "assistant",
+  "to_profession": "advisor",
+  "to_agent": "Isaac",
+  "classification": "NEW_GOAL",
+  "reason": "User wants to add a new feature (OAuth2 login)"
+}
+```
+
+### Frontend Rendering
+
+The `tool_call` for `bring_in` renders as a HandoffCard instead of a generic tool result:
+- Shows "Nicole → Isaac" with arrow icon
+- Shows classification badge (NEW_GOAL)
+- Shows reason text
+- Active profession badge updates to show Isaac
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D25 Wiki Knowledge Layer — Storage, Tree API, Raw Resources, and Agent Tools
+**Status:** done
+**Tags:** stack:both, module:wiki
+**Depends on:** G18, A10
+
+### Data Model
+
+```rust
+struct WikiPage {
+    slug: String,            // path-based: "guide/getting-started"
+    title: String,
+    content: String,         // markdown content
+    source_type: WikiSource,  // Manual, Guide, ApiRef, Custom
+    tags: Vec<String>,
+    version: u32,
+    created_at: u64,
+    updated_at: u64,
+}
+
+struct TreeNode {
+    name: String,
+    path: String,            // relative path from wiki/ or raw/ root
+    node_type: String,       // "file" | "folder"
+    children: Option<Vec<TreeNode>>,
+    size: Option<u64>,
+    modified: Option<u64>,
+}
+
+enum WikiSource { Manual, Guide, ApiRef, Custom }
+```
+
+### Storage Layout
+
+```
+{project}/
+├── specs/          # existing specs
+├── wiki/
+│   ├── _manifest.json    # page metadata index
+│   ├── guide/
+│   │   ├── getting-started.md
+│   │   └── advanced/
+│   │       └── api-reference.md
+│   └── readme.md
+└── raw/
+    ├── datasheets/
+    │   ├── stm32f4-datasheet.pdf
+    │   └── pinout.png
+    └── meeting-notes/
+        └── 2024-01-15.md
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/forge/wiki/{project}/tree` | GET | Wiki directory tree (TreeNode[]) |
+| `/api/forge/wiki/{project}/pages` | GET/POST | List/Create wiki pages |
+| `/api/forge/wiki/{project}/page/{*slug}` | GET/PUT/DELETE | Read/Update/Delete wiki page (path-based) |
+| `/api/forge/wiki/{project}/search` | POST | Full-text search |
+| `/api/forge/raw/{project}/tree` | GET | Raw directory tree |
+| `/api/forge/raw/{project}/upload` | POST | Multipart file upload (50MB limit) |
+| `/api/forge/raw/{project}/file/{*path}` | GET/DELETE | Serve/Delete raw file |
+| `/api/forge/raw/{project}/mkdir` | POST | Create raw subdirectory |
+
+### Agent Tools
+
+| Tool | Description | Profession Access |
+|---|---|---|
+| `query_wiki` | Full-text search (semantic RAG planned) | All professions |
+| `create_wiki_page` | Create page with path-based slug | Coder, Documenter |
+| `update_wiki_page` | Update page content with versioning | Coder, Documenter |
+| `list_wiki` | List all wiki pages with metadata | All professions |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D26 Wiki Frontend — Tree Navigation, Raw Import, and Tab Integration
+**Status:** done
+**Tags:** stack:frontend, module:wiki
+**Depends on:** D25
+
+### Types (`frontend/src/types/wiki.ts`)
+
+```typescript
+type WikiSource = 'manual' | 'guide' | 'api_ref' | 'custom'
+
+interface WikiPage {
+  slug: string
+  title: string
+  content: string
+  source_type: WikiSource
+  tags: string[]
+  version: number
+  created_at: number
+  updated_at: number
+}
+
+interface WikiPageMeta {
+  slug: string
+  title: string
+  source_type: WikiSource
+  tags: string[]
+  version: number
+  updated_at: number
+}
+
+interface TreeNode {
+  name: string
+  path: string
+  type: 'file' | 'folder'
+  children?: TreeNode[]
+  size?: number
+  modified?: number
+}
+```
+
+### Composable (`frontend/src/composables/useWiki.ts`)
+
+Singleton pattern with module-level refs for wiki pages, trees, and upload state:
+
+```typescript
+const _pages = ref<WikiPageMeta[]>([])
+const _activePage = ref<WikiPage | null>(null)
+const _wikiTree = ref<TreeNode[]>([])
+const _rawTree = ref<TreeNode[]>([])
+const _uploadProgress = ref<number | null>(null)
+
+// Wiki CRUD
+loadPages(project), loadPage(project, slug), createPage(...)
+updatePage(project, slug, data), deletePage(project, slug), searchWiki(project, query)
+
+// Tree operations
+loadWikiTree(project), loadRawTree(project)
+
+// Raw operations
+uploadRawFiles(project, files[], prefix?), deleteRawFile(project, path)
+createRawFolder(project, path), rawFileUrl(project, path)
+```
+
+### View (`frontend/src/views/WikiView.vue`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty: no selection
+    Empty --> Viewing: click wiki page in tree
+    Empty --> ViewingRaw: click raw file in tree
+    Viewing --> Editing: click Edit button
+    Editing --> Viewing: save or cancel
+    Viewing --> Empty: delete page
+    ViewingRaw --> Empty: delete file
+    Empty --> Creating: click + button
+    Creating --> Viewing: save new page
+    Empty --> NewFolder: click folder+ button
+    NewFolder --> Empty: create folder
+```
+
+Layout — dual-region sidebar + content panel:
+
+```
+.wiki-view
+└── .wiki-body
+    ├── .wiki-nav (240px sidebar, collapsible)
+    │   ├── .wiki-nav-header (Wiki title + [+][<] buttons)
+    │   └── .wiki-nav-list
+    │       ├── tree-section "Raw"
+    │       │   ├── TreeView (recursive file tree)
+    │       │   └── DropZone (drag-drop upload)
+    │       └── tree-section "Wiki"
+    │           └── TreeView (recursive page tree)
+    └── .wiki-content
+        ├── content-header (title + Edit/Delete)
+        └── content-scroll
+            ├── MarkdownContent (wiki view)
+            ├── MarkdownEditor (wiki edit/create)
+            ├── img/iframe/MarkdownContent (raw preview)
+            └── Empty state
+```
+
+### Components
+
+| Component | File | Purpose |
+|---|---|---|
+| `wiki.ts` | `frontend/src/types/wiki.ts` | WikiPage, WikiPageMeta, TreeNode types |
+| `useWiki` | `frontend/src/composables/useWiki.ts` | Singleton state + wiki/raw API calls |
+| `TreeView` | `frontend/src/components/TreeView.vue` | Recursive tree with folder expand + file icons |
+| `DropZone` | `frontend/src/components/DropZone.vue` | HTML5 drag-drop file upload |
+| `WikiView` | `frontend/src/views/WikiView.vue` | Dual-region sidebar + content panel |
+| `App.vue` | `frontend/src/App.vue` | Tab registration (BookOpen icon) |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D27 AutoDown Editor — Block-Based WYSIWYG with Markdown/AutoDown Serialization
+**Status:** draft
+**Module:** `frontend/src/components/editors/autodown/`
+**Tags:** stack:frontend, module:editor
+**Depends on:** A11, D26
+
+```typescript
+// AutoDownEditor.vue props/events
+interface AutoDownEditorProps {
+  content: string           // Markdown source
+  placeholder?: string
+  editable?: boolean
+  autofocus?: boolean
+}
+
+interface AutoDownEditorEvents {
+  'update': [markdown: string]     // Debounced on every change
+  'save': [markdown: string]       // Ctrl+S
+  'blur': []
+  'focus': []
+}
+
+// Extension factory
+function createExtensions(options?: EditorOptions): Extension[]
+
+// Slash item API
+interface SlashItem {
+  title: string
+  description: string
+  icon: Component
+  searchTerms: string[]
+  command: (ctx: { editor: Editor; range: Range }) => void
+}
+```
+
+
+```mermaid
+stateDiagram-v2
+    [*] --> Loading: mount
+    Loading --> Ready: editor initialized
+    Ready --> Editing: user types
+    Editing --> Editing: input
+    Editing --> SlashMenuOpen: type '/'
+    SlashMenuOpen --> Editing: select item or Esc
+    Editing --> BubbleMenuOpen: text selected
+    BubbleMenuOpen --> Editing: apply format or blur
+    Editing --> Dragging: drag handle engaged
+    Dragging --> Ready: drop completes
+    Editing --> Saving: Ctrl+S
+    Saving --> Ready: emit save event
+    Ready --> [*]: unmount
+```
+
+
+| Field | Type | Description |
+|---|---|---|
+| `editor` | `Editor` | Tiptap Editor instance (ProseMirror wrapper) |
+| `doc` | `JSONContent` | ProseMirror document tree (internal source of truth) |
+| `markdown` | `string` | Serialized persistence format |
+| `slashQuery` | `string` | Current filter text after '/' |
+| `slashRange` | `Range` | ProseMirror selection range when '/' triggered |
+| `bubbleVisible` | `boolean` | Whether bubble menu should render |
+
+
+```
+fn onUpdate({ editor }):
+    markdown = editor.storage.markdown.getMarkdown()
+    emit('update', markdown)
+
+fn onSlashTrigger({ query, range }):
+    slashQuery = query
+    slashRange = range
+    slashItems = filter(allSlashItems, query)
+    slashMenuOpen = true
+
+fn onSlashSelect(item):
+    editor.chain().focus().deleteRange(slashRange).run()
+    item.command({ editor, range: slashRange })
+    slashMenuOpen = false
+
+fn onKeydown(event):
+    if event.key == 'Mod-s':
+        event.preventDefault()
+        emit('save', editor.storage.markdown.getMarkdown())
+    if event.key == 'Mod-a':
+        // Notion-style: first press selects node, second selects all
+        if not selectionCoversFullNode:
+            editor.commands.selectTextWithinNodeBoundaries()
+            event.preventDefault()
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D28 Dispatch Tool & Gofer Profession
+**Status:** implemented
+**Module:** `crates/auto-forge/src/forge/dispatch.rs`, `crates/auto-forge/src/relay/profession.rs`
+**Tags:** stack:both, module:errand
+**Depends on:** A12, D24
+
+```rust
+// ── Profession registry entry ──
+// In ProfessionRegistry::register_builtin():
+self.register(Profession {
+    id: String::from("gofer"),
+    name: String::from("Gofer"),
+    phase: ForgePhase::Errand,
+    owned_sections: vec![],
+    readable_sections: vec![
+        SectionType::Goals,
+        SectionType::Architecture,
+        SectionType::Designs,
+        SectionType::Plans,
+        SectionType::Tests,
+    ],
+    allowed_tools: vec![
+        String::from("shell"),
+        String::from("read_file"),
+        String::from("search"),
+        String::from("list_specs"),
+        String::from("read_specs"),
+        String::from("query_wiki"),
+        String::from("list_wiki"),
+    ],
+    dispatchable_to: vec![],  // Gofer cannot dispatch further
+    handoff_to: vec![],       // Gofer never hands off
+    approval_gates: vec![],
+    max_turns: 20,
+    token_budget: 4_000,
+});
+```
+
+```rust
+// ── Dispatch tool definition ──
+pub struct DispatchTool;
+
+impl Tool for DispatchTool {
+    fn name(&self) -> &'static str { "dispatch" }
+    
+    fn description(&self) -> &'static str {
+        "Dispatch a lightweight research or errand task to a side agent. \
+         Use this when you need to look up code, search files, or gather facts \
+         without polluting your own context window. \\n\\n \
+         The errand agent runs in isolation with a cheap model and returns \
+         only a summary. Full logs are available for audit."
+    }
+    
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "required": ["task"],
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Profession to dispatch to. Default: gofer",
+                    "enum": ["gofer"]
+                },
+                "task": {
+                    "type": "string",
+                    "description": "Clear, specific task description. Include what to find, where to look, and what format to return."
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional context from the caller. Why do you need this? What will you do with the result?"
+                },
+                "max_turns": {
+                    "type": "integer",
+                    "description": "Maximum turns for the errand. Default: 20",
+                    "default": 20,
+                    "maximum": 50
+                }
+            }
+        })
+    }
+    
+    fn execute(&self, input: serde_json::Value) -> Result<String, ToolError> {
+        // 1. Parse input
+        // 2. Validate target profession exists and is in caller's dispatchable_to
+        // 3. Spawn ErrandSession
+        // 4. Run errand loop
+        // 5. Return final assistant message
+    }
+}
+```
+
+```rust
+// ── ErrandSession ──
+pub struct ErrandSession {
+    pub id: String,                    // UUID
+    pub parent_session_id: String,     // Master's session
+    pub profession_id: String,         // Always "gofer" for now
+    pub task: String,                  // Original task description
+    pub context: Option<String>,       // Caller-provided context
+    pub messages: Vec<ChatMessage>,    // Isolated message history
+    pub tool_calls: Vec<ToolCallInfo>, // Tool calls made during errand
+    pub status: ErrandStatus,
+    pub token_usage: u64,
+    pub started_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ErrandStatus {
+    Running,
+    Completed { result: String },
+    Failed { error: String },
+    Truncated { result: String, reason: String },
+}
+
+impl ErrandSession {
+    /// Spawn and run the errand to completion (or max_turns).
+    /// This is a blocking call from the master's perspective.
+    pub async fn run(
+        &mut self,
+        provider: &dyn AIProvider,
+        tool_registry: &ToolRegistry,
+    ) -> Result<String, ApiError>;
+    
+    /// Persist full errand log to disk.
+    pub fn save(&self, base_path: &Path) -> Result<(), std::io::Error>;
+    
+    /// Load errand log for audit/review.
+    pub fn load(id: &str, base_path: &Path) -> Result<Self, std::io::Error>;
+}
+```
+
+```rust
+// ── ForgeSession extension ──
+pub struct ForgeSession {
+    pub id: String,
+    pub active_profession: Option<String>,
+    pub messages: Vec<ForgeMessage>,
+    pub errand_sessions: Vec<ErrandSession>,  // NEW
+    // ... existing fields
+}
+```
+
+```rust
+// ─-- SSE events for errand progress ──
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ForgeStreamEvent {
+    // ... existing variants
+    
+    /// Emitted when an errand starts
+    ErrandStart {
+        errand_id: String,
+        profession_id: String,
+        task: String,
+        parent_message_id: String,
+    },
+    
+    /// Emitted on each errand turn (mirrors TurnStart)
+    ErrandTurnStart {
+        errand_id: String,
+        turn: u32,
+        profession_id: String,
+    },
+    
+    /// Emitted when errand produces text
+    ErrandText {
+        errand_id: String,
+        text: String,
+    },
+    
+    /// Emitted when errand calls a tool
+    ErrandToolCall {
+        errand_id: String,
+        id: String,
+        name: String,
+        arguments: String,
+    },
+    
+    /// Emitted when errand tool completes
+    ErrandToolResult {
+        errand_id: String,
+        id: String,
+        result: String,
+    },
+    
+    /// Emitted when errand completes or fails
+    ErrandComplete {
+        errand_id: String,
+        status: String,  // "completed" | "failed" | "truncated"
+        result: String,
+        token_usage: u64,
+    },
+}
+```
+
+
+```markdown
+# Soul of the Gofer
+
+## Identity
+You are Gus, an AI research assistant. You do not make decisions, give opinions, or offer advice. Your only job is to gather facts and report them concisely.
+
+## Rules
+1. **Be brief.** Your output will be consumed by another agent who is busy. One paragraph is usually enough.
+2. **Cite sources.** When you find something, mention the file path or command you used.
+3. **No opinions.** Never say "I think" or "It would be better." Only facts.
+4. **No decisions.** Never say "You should use X." Say "The codebase uses X in file Y."
+5. **Stop early.** If you find the answer in 2 turns, stop. Do not keep searching for completeness.
+6. **Failure mode.** If you cannot find the answer after max turns, say what you searched and what you found (or didn't find).
+```
+
+
+| Profession | `dispatch` in allowed_tools | `dispatchable_to` |
+|---|---|---|
+| assistant | ✅ | [gofer] |
+| advisor | ✅ | [gofer] |
+| architect | ✅ | [gofer] |
+| planner | ✅ | [gofer] |
+| tester | ✅ | [gofer] |
+| coder | ✅ | [gofer] |
+| gofer | ❌ | [] |
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D29 Spawn Relay Tool & Background Driver
+**Status:** implemented
+**Module:** `backend/src/forge/tools.rs`, `backend/src/relay/driver.rs`, `backend/src/forge/mod.rs`
+**Tags:** stack:backend, module:relay
+**Depends on:** G23, A13, D2, D24, D28
+
+### SpawnRelayTool
+
+```rust
+pub struct SpawnRelayTool;
+
+impl Tool for SpawnRelayTool {
+    fn name(&self) -> &'static str { "spawn_relay" }
+
+    fn description(&self) -> &'static str {
+        "Spawn an autonomous background relay pipeline. \
+         Use this after you have completed discovery and written goals \
+         to hand off execution to a serial pipeline of profession agents."
+    }
+
+    fn input_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "required": ["flow_id", "task"],
+            "properties": {
+                "flow_id": {
+                    "type": "string",
+                    "enum": ["standard", "post_discovery", "fast_track", "bug_fix"]
+                },
+                "task": { "type": "string" },
+                "mode": { "type": "string", "enum": ["gsd", "check"], "default": "gsd" },
+                "context": { "type": "string" }
+            }
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        // 1. Validate flow_id and mode
+        // 2. Validate caller profession has spawn_relay in allowed_tools
+        // 3. Generate run_id = format!("run-{}", Uuid::new_v4())
+        // 4. Return JSON with relay_spawned, run_id, flow_id, monitor_url
+    }
+}
+```
+
+### Profession Allowlist
+
+| Profession | `spawn_relay` in allowed_tools | Typical use case |
+|---|---|---|
+| assistant | ✅ | Intake complete → spawn standard flow |
+| advisor | ✅ | **Discovery complete → spawn post_discovery flow** |
+| architect | ✅ | Design complete → spawn from planner step |
+| planner | ❌ | — |
+| tester | ❌ | — |
+| coder | ❌ | — |
+| reviewer | ❌ | — |
+| documenter | ❌ | — |
+
+### Forge Stream Handler Interception
+
+```rust
+// In forge_stream ReAct loop, after tool execution:
+if name == "spawn_relay" {
+    if let Ok(data) = serde_json::from_str::<Value>(&result_str) {
+        if data.get("relay_spawned").and_then(|v| v.as_bool()) == Some(true) {
+            // 1. Build FlowSpec from flow_id
+            let flow = match flow_id.as_str() {
+                "standard" => standard_spec_flow(),
+                "post_discovery" => post_discovery_flow(),
+                // ...
+            };
+
+            // 2. Start run in RunStore
+            start_run(run_store, flow, &run_id);
+            set_mode_on_engine(mode);
+
+            // 3. Spawn background driver
+            tokio::spawn(relay::driver::drive_run(
+                run_id.clone(),
+                run_store.clone(),
+                event_sender(),
+                provider.clone(),
+                task,
+                project_path,
+            ));
+
+            // 4. Emit RelaySpawned SSE to chat
+            event_tx.send(ForgeStreamEvent::RelaySpawned { ... });
+
+            // 5. Replace result with friendly message
+            result_str = "Relay pipeline started: {run_id}...";
+        }
+    }
+}
+```
+
+### RelayDriver
+
+```rust
+pub async fn drive_run(
+    run_id: String,
+    run_store: RunStore,
+    event_tx: broadcast::Sender<RunEventBroadcast>,
+    provider: ClaudeProviderState,
+    initial_task: String,
+    project_path: String,
+) {
+    set_tool_context(&project_path, &run_id);
+
+    loop {
+        match advance_run(&run_store, &run_id) {
+            Some(ExecuteStep { step_id, profession_id, .. }) => {
+                // Build agent from RelayRegistry default config
+                let agent = build_agent(&profession_id);
+
+                // Build messages: task + previous handoff + gate feedback
+                let messages = build_step_messages(...);
+
+                // Run AgentTurn
+                let mut turn = AgentTurn::new(agent, ToolRegistry::new(), messages);
+                turn.max_turns = turn.agent.profession.max_turns;
+                let result = turn.run(&*provider, event_drain_tx).await;
+
+                // Build and submit handoff
+                let handoff = turn.to_handoff(&result, "next", &run_id, 0);
+                let next = submit_handoff(&run_store, &run_id, handoff);
+
+                // Handle next result...
+            }
+            Some(WaitForHuman { .. }) => {
+                wait_for_gate_resolution(&run_store, &run_id, &event_tx).await;
+            }
+            Some(Completed) | Some(Failed { .. }) | None => break,
+        }
+    }
+}
+```
+
+### Step Message Construction
+
+```
+## Task
+
+{initial_task}
+
+## Previous Agent's Handoff
+
+{previous_handoff.render()}
+
+## Feedback from Previous Attempt
+
+- {gate_feedback[0]}
+- {gate_feedback[1]}
+
+You are step '{step_id}' ({profession_id}) in a relay pipeline.
+Do your work using available tools. When finished, stop making tool calls.
+```
+
+### Frontend SSE Events
+
+```typescript
+// New ForgeStreamEvent variants
+interface ForgeStreamEvent {
+  type: 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
+  run_id: string
+  flow_id?: string
+  step_id?: string
+  profession_id?: string
+  status?: string
+  summary?: string
+  tokens_used?: number
+}
+```
+
+### Chat UI: Relay Card
+
+```vue
+<div class="relay-card">
+  <div class="relay-header">
+    <span class="relay-icon">🚀</span>
+    <span class="relay-name">Relay: {{ flow_id }}</span>
+    <span class="relay-status" :class="status">{{ status }}</span>
+    <button class="relay-view-btn" @click="goToRelayRun(run_id)">
+      Monitor →
+    </button>
+  </div>
+  <div v-if="task" class="relay-task">{{ task }}</div>
+  <div v-if="summary" class="relay-summary">{{ summary }}</div>
+</div>
+```
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D30 Theme & Accent Component System
+**Status:** implemented
+**Module:** `frontend/src/composables/useTheme.ts`, `useAccentColor.ts`
+**Tags:** stack:frontend, module:ui-system
+**Depends on:** A18
+
+- Detect and apply theme preference (dark/light/system) on app mount
+- Persist choice to `localStorage` with VitePress-compatible key
+- Inject CSS custom properties for the selected accent palette
+- Expose `toggleTheme()`, `setAccent(color)` for UI controls
+
+- Browser `localStorage` API
+- `matchMedia('prefers-color-scheme')`
+- Tailwind CSS dark mode class strategy
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D31 Cross-View Event Router & Gate Inbox Composables
+**Status:** implemented
+**Module:** `frontend/src/composables/useEventRouter.ts`, `useGateInbox.ts`
+**Tags:** stack:frontend, module:relay
+**Depends on:** A19
+
+- Subscribe to relay SSE events and route by type to view callbacks
+- Maintain FIFO gate queue with snooze timer and dismiss state
+- Expose `pendingCount`, `activeGate`, `resolveGate()` to UI
+- Filter errand events by `parent_session_id` to avoid cross-talk
+
+- `useRelay.ts` for SSE connection
+- `useForge.ts` for session context
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D32 Streaming Content Renderer & Document Parser
+**Status:** implemented
+**Module:** `frontend/src/composables/useStreamingDocument.ts`, `components/StreamingRenderer.vue`
+**Tags:** stack:frontend, module:chat
+**Depends on:** A20
+
+- Split raw SSE text into markdown segments and JSON component blocks
+- Cache partial JSON props across chunks to prevent flicker
+- Render markdown via `markstream-vue`
+- Dispatch JSON blocks to registered Vue components by `type` field
+
+- `markstream-vue` for incremental markdown
+- `StreamingTable.vue` for table component rendering
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D33 Explorer View & Tree Component
+**Status:** implemented
+**Module:** `frontend/src/views/ExplorerView.vue`, `components/TreeView.vue`
+**Tags:** stack:frontend, module:project
+**Depends on:** A21
+
+- Fetch and display recursive project file tree
+- Handle node expand/collapse with chevron animation
+- Filter tree client-side by search query
+- Render file previews by MIME type (text, image, PDF, download)
+
+- `useProject.ts` for project path and close action
+- `TreeNode` type from `@/types/wiki`
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D34 APIs Documentation View
+**Status:** implemented
+**Module:** `frontend/src/views/ApiSourcesView.vue` / `specs/apis.ad`
+**Tags:** stack:frontend, module:api-sources
+**Depends on:** A22
+
+- Render `apis.ad` as structured endpoint documentation
+- Group endpoints by backend module with collapsible sections
+- Show method badge, path, and handler name per route
+
+- `useSpecs.ts` for loading `apis.ad` section
+- `MarkdownContent.vue` for rendering markdown tables
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D35 GoalsTable Tree View Component
+**Status:** implemented
+**Module:** `frontend/src/components/category/GoalsTable.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** G21, D10
+
+### Structure
+
+```vue
+<!-- GoalsTable.vue -->
+<div class="goals-tree">
+  <div
+    v-for="row in treeRows"
+    :key="row.item.id"
+    class="goal-node"
+    :class="{ 'is-root': row.level === 0, 'is-sub': row.level > 0 }"
+    @click="onRowClick(row.item)"
+  >
+    <!-- Indent spacer (level × 1.25rem) -->
+    <div class="node-indent" :style="{ width: row.level * 1.25 + 'rem' }"></div>
+
+    <!-- Toggle area: only rendered when row.hasChildren -->
+    <div
+      v-if="row.hasChildren"
+      class="node-toggle-area"
+      :class="{ expanded: treeExpanded.has(row.item.id) }"
+      @click.stop="toggleTree(row.item.id)"
+    >
+      <span v-if="row.childCount > 0" class="node-children-count">
+        {{ row.childCount }}
+      </span>
+      <span class="node-chevron"><ChevronRight :size="14" /></span>
+    </div>
+
+    <!-- Left column: ID -->
+    <div class="node-left"><span class="node-id">{{ row.item.id }}</span></div>
+
+    <!-- Right column: title + meta -->
+    <div class="node-right">
+      <span class="node-title">{{ row.item.title }}</span>
+      <span v-if="row.item.priority" class="node-priority">{{ row.item.priority }}</span>
+      <StatusBadge :status="row.item.status" size="sm" />
+      <span v-if="row.item.tags?.length" class="node-tags">
+        <span
+          v-for="tag in item.tags.slice(0, 2)"
+          :key="tag"
+          class="tag-chip"
+          :class="parseTag(tag).type"
+          :title="parseTag(tag).full"
+        >{{ parseTag(tag).value }}</span>
+      </span>
+    </div>
+  </div>
+</div>
+```
+
+### Key Behaviors
+
+| Behavior | Implementation |
+|---|---|
+| Row click | Opens `GoalDetailModal` via `@open-detail` emit |
+| Toggle click | `stopPropagation` + `toggleTree(id)`; only when `hasChildren` |
+| Leaf goals | No toggle area rendered; entire row is clickable |
+| Sub-goals | Indented via `.node-indent`; no toggle area |
+| Expansion | `treeExpanded: Set<string>` controls visibility; `treeRows` recomputed |
+
+### Styling
+
+- `.goal-node`: `display: flex; align-items: stretch; min-height: 44px`
+- `.node-toggle-area`: `width: 2.5rem; align-self: stretch; cursor: pointer`
+- `.node-left`: fixed left column with `padding-left: 1rem`
+- `.node-right`: `flex: 1` with title ellipsis truncation
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D36 GoalDetailModal Component
+**Status:** implemented
+**Module:** `frontend/src/components/GoalDetailModal.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** G21, D11
+
+### Props & Emits
+
+```typescript
+interface Props {
+  item: SpecItem      // Goal or sub-goal to display
+  project: string     // Project key for API calls
+  isEditing: boolean  // Inline edit mode state
+}
+
+interface Emits {
+  'close': []
+  'edit': []
+  'save': [item: SpecItem]
+  'cancel-edit': []
+  'status-change': [id: string, status: Status]
+  'delete': [id: string]
+  'jump': [id: string]  // Navigate to linked spec ID
+}
+```
+
+### Layout
+
+```
+┌─ modal-overlay (backdrop blur, click to close) ──────────────┐
+│ ┌─ modal-card (click.stop prevents close) ─────────────────┐ │
+│ │ ┌─ modal-header ─────────────────────────────────────────┐ │ │
+│ │ │  [ID badge]  [Title]                          [X]      │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ │ ┌─ modal-meta ───────────────────────────────────────────┐ │ │
+│ │ │  [Priority]  [StatusBadge]  [tag chips...]             │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ │ ┌─ modal-body ───────────────────────────────────────────┐ │ │
+│ │ │  <GoalEditor v-if="isEditing" />                       │ │ │
+│ │ │  <template v-else>                                     │ │ │
+│ │ │    <RelationsPanel :item="item" @jump="$emit('jump')"/>│ │ │
+│ │ │    <div class="detail-content">                        │ │ │
+│ │ │      <div class="block-label">DESCRIPTION</div>        │ │ │
+│ │ │      <GoalDetail :item="item" />                       │ │ │
+│ │ │    </div>                                              │ │ │
+│ │ │  </template>                                           │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ │ ┌─ modal-footer ─────────────────────────────────────────┐ │ │
+│ │ │  <StatusTransition>  [Edit]  [Delete]                  │ │ │
+│ │ └────────────────────────────────────────────────────────┘ │ │
+│ └────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Interaction
+
+- **Open**: `SpecsView` sets `detailItem = item` → `<Teleport to="body">` renders modal
+- **Close**: ESC key (`onKeydown`), click on `.modal-overlay`, or close button
+- **Edit**: "Edit" button emits `edit` → `SpecsView` sets `detailEditing = true` → switches to `<GoalEditor>`
+- **Save**: GoalEditor emits `save` → `handleSave()` persists → `detailEditing = false`
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D37 Spec Tag Display & Sidebar Filtering
+**Status:** implemented
+**Module:** `frontend/src/views/SpecsView.vue`
+**Tags:** stack:frontend, module:specs
+**Depends on:** G21, D10
+
+### Tag Data Model
+
+Tags are stored as `Vec<String>` on `SpecItem` (backend) / `string[]` (frontend). Format: `kind:value` (e.g., `stack:frontend`, `module:specs`).
+
+```typescript
+function parseTag(tag: string): { type: string; value: string; full: string } {
+  const idx = tag.indexOf(':')
+  if (idx > 0) {
+    return { type: tag.slice(0, idx), value: tag.slice(idx + 1), full: tag }
+  }
+  return { type: 'other', value: tag, full: tag }
+}
+```
+
+### Tag Display in Rows
+
+- **Shortened**: `stack:frontend` renders as `frontend`
+- **Color-coded**: `stack:*` = blue (`hsl(200)`), `module:*` = purple (`hsl(280)`)
+- **Tooltip**: hover shows full tag text
+- **Limit**: max 2 tags shown inline; `+N` overflow indicator
+- Applied to: `GoalsTable`, `SpecItemRow` (Architecture, Designs, Plans, Tests, Reviews, Reports)
+
+### Sidebar Filter Drawers
+
+Three `<details>` elements in `SpecsView` sidebar:
+
+```
+┌─ Sidebar ──────────────────────────────┐
+│ <details open> Category                │
+│   [Goals] [Architecture] [Designs] ... │
+│ </details>                             │
+│ <details open> Stack                   │
+│   [backend] [frontend] [both]          │
+│ </details>                             │
+│ <details open> Module                  │
+│   [specs] [relay] [wiki] ...           │
+│ </details>                             │
+└────────────────────────────────────────┘
+```
+
+### Filter Logic
+
+```typescript
+const filteredItems = computed(() => {
+  return items.value.filter(item => {
+    const stacks = item.tags?.filter(t => t.startsWith('stack:')) || []
+    const modules = item.tags?.filter(t => t.startsWith('module:')) || []
+    const matchStack = selectedStacks.value.size === 0 ||
+      stacks.some(t => selectedStacks.value.has(parseTag(t).value))
+    const matchModule = selectedModules.value.size === 0 ||
+      modules.some(t => selectedModules.value.has(parseTag(t).value))
+    return matchStack && matchModule
+  })
+})
+```
+
+- **AND logic**: item must match at least one selected stack AND at least one selected module
+- **Empty selection**: counts as "match all" for that filter type
+- Tag pills toggle on click; active state styled with primary color
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+## D38 Backend Flat Mode Project Resolution
+**Status:** implemented
+**Module:** `backend/src/forge/mod.rs`
+**Tags:** stack:backend, module:specs
+**Depends on:** G7
+
+### Problem
+
+Frontend calls `/api/forge/specs/{project}` with project name (e.g., `auto-forge`), but flat mode stores the document under key `"."` in `SpecsStore.projects`.
+
+### Solution
+
+`SpecsStore.get_or_default()` falls back to flat mode document when project key not found:
+
+```rust
+pub fn get_or_default(&mut self, project: &str) -> &mut SpecsDocument {
+    if !self.projects.contains_key(project) {
+        if let Some(ref flat) = self.flat_mode_project {
+            if let Some(doc) = self.projects.get(flat).cloned() {
+                return self.projects.entry(project.to_string()).insert(doc);
+            }
+        }
+        let doc = self.default_specs(project);
+        self.save_ad_format(&doc, project);
+        self.projects.insert(project.to_string(), doc);
+    }
+    // ...existing section merge logic...
+}
+```
+
+### Requirements
+
+- `manifest.at` `project` field MUST be `"."` to match API path semantics
+- Any mismatch causes backend to serve default empty docs and overwrite `.ad` files
+
+## D39 Unified LSP Client for Symbol Intelligence
+**Status:** draft
+**Module:** `backend/src/forge/lsp.rs` (future)
+**Tags:** stack:backend, module:tools, priority:medium
+**Depends on:** D25
+
+### Problem
+
+The current `list_symbols` tool uses a hybrid fallback strategy:
+- **Rust**: Spawns `rust-analyzer symbols < file.rs` (works well, but limited to symbols only)
+- **Vue/TS/JS**: Regex-based heuristics (brittle, misses nested structures, no type info)
+
+This creates an inconsistency: Rust files get rich LSP-grade symbol data (kind, range, detail), while frontend files get best-effort regex extraction. As the project grows, the regex approach will produce false positives/negatives and cannot support future features like "go to definition" or "find references".
+
+### Solution
+
+Build a **Unified LSP Client** that manages language server processes over JSON-RPC and exposes a single `LspClient` interface for all symbol-related operations.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│           Forge Tool Layer              │
+│  ┌─────────────┐    ┌─────────────┐    │
+│  │ list_symbols│    │ goto_def    │    │
+│  └──────┬──────┘    └──────┬──────┘    │
+│         └─────────────────┬┘            │
+├───────────────────────────┼─────────────┤
+│      Unified LSP Client   │             │
+│  ┌────────────────────────┴──────────┐  │
+│  │   LspManager (Arc<Mutex<...>>)    │  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────┐  │  │
+│  │  │ rust-an │ │ tsserver│ │ vue │  │  │
+│  │  │ lyzer   │ │         │ │ ls  │  │  │
+│  │  └────┬────┘ └────┬────┘ └──┬──┘  │  │
+│  │       └───────────┴─────────┘      │  │
+│  │            JSON-RPC over stdio      │  │
+│  └────────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+#### Key Components
+
+1. **LspServerHandle**
+   - Wraps a child process (`stdin/stdout` pipes)
+   - Manages JSON-RPC request/response routing (id correlation)
+   - Auto-restart on crash, health ping every 30s
+
+2. **LspManager**
+   - Maps file extensions to language server binaries
+   - Lazy-starts servers on first request for a language
+   - Idle timeout (5 min) to shut down unused servers
+   - Configuration from `backend/.lspconfig.toml` (optional)
+
+3. **LspClient API**
+   ```rust
+   pub trait LspClient: Send + Sync {
+       async fn document_symbols(&self, path: &Path) -> Result<Vec<SymbolInfo>, LspError>;
+       async fn goto_definition(&self, path: &Path, line: u32, col: u32) -> Result<Vec<Location>, LspError>;
+       async fn hover(&self, path: &Path, line: u32, col: u32) -> Result<Option<String>, LspError>;
+   }
+   ```
+
+4. **SymbolInfo Unification**
+   - Reuse existing `SymbolInfo` struct (name, kind, line_start, line_end, detail)
+   - Add `children: Vec<SymbolInfo>` for nested scopes (classes containing methods)
+
+#### Supported Languages
+
+| Language | Server Binary | Install Method |
+|----------|--------------|----------------|
+| Rust | `rust-analyzer` | Already required |
+| TypeScript | `typescript-language-server` | `npm i -g typescript-language-server` |
+| Vue | `@vue/language-server` | `npm i -g @vue/language-server` |
+| Python | `pylsp` or `pyright` | Future |
+
+#### Lifecycle
+
+1. **Discovery**: On `list_symbols` call, manager checks if server for file extension is running
+2. **Startup**: If not, spawn binary with `workspace/root` initialized to `CURRENT_PROJECT`
+3. **DidOpen**: Send `textDocument/didOpen` with file contents (required for tsserver/vue)
+4. **Query**: Send `textDocument/documentSymbol` request
+5. **Mapping**: Convert LSP `DocumentSymbol[]` to internal `SymbolInfo[]`
+6. **Idle Shutdown**: After 5 min inactivity, send `shutdown` + `exit`
+
+#### Migration Path
+
+1. **Phase 1** (current): Keep hybrid approach; LSP client lives behind feature flag
+2. **Phase 2**: Enable LSP client for TS/Vue when `typescript-language-server` / `@vue/language-server` detected on PATH; fallback to regex if absent
+3. **Phase 3**: Move Rust symbols to LSP client too (single code path); remove `rust-analyzer symbols` CLI spawn
+4. **Phase 4**: Add `goto_definition`, `hover` as new tools for agent self-navigation
+
+### Requirements
+
+- [ ] `LspManager` module with lazy server startup
+- [ ] JSON-RPC 2.0 client over stdio
+- [ ] `textDocument/documentSymbol` → `SymbolInfo` mapping
+- [ ] Graceful fallback to regex when LSP binary not found
+- [ ] Idle timeout to prevent zombie processes
+- [ ] Unit tests with mocked LSP server (stdin/stdout pipes)
+
+### Token Efficiency Impact
+
+Once implemented, the full `list_symbols` + targeted `read_file(offset, limit)` workflow will provide **LSP-grade accuracy** for all supported languages, reducing agent token waste from:
+- False-positive regex matches (agent reads wrong region)
+- Missing nested symbols (agent doesn't see inner functions)
+- Re-reading large files because structure was unclear
+
+Estimated savings: ~30% reduction in file-reading tokens for TS/Vue tasks.
+
+### Related
+
+- Layer 1: `read_file` offset/limit + 8KB truncation (implemented)
+- Layer 2: `list_symbols` hybrid tool (implemented)
+- Coder soul rule: `FILE READING STRATEGY` (updated)
+
+## D40 Model Tier 5-Level Expansion Implementation
+**Status:** implemented
+**Module:** backend/src/relay/config.rs, frontend/src/composables/useApiSources.ts
+**Tags:** stack:both, module:api-sources
+**Depends on:** A23, G26
+
+### Implementation Summary
+
+Refactor the model tier system from 3 tiers (Light, Mid, Heavy) to 5 tiers (Min, Lite, Mid, Large, Max) for finer cost optimization and better alignment with available model capabilities.
+
+---
+
+## Backend Implementation
+
+### 1. ModelTier Enum Expansion
+
+**File: backend/src/relay/config.rs**
+
+```rust
+/// Cost/performance tier for model selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelTier {
+    Min,    // Ultra-cheap: Haiku, GPT-4o-mini
+    Lite,   // Cheap: Sonnet 3.5, GPT-4o
+    Mid,    // Balanced: Sonnet 3.5, GPT-4-turbo
+    Large,  // Strong: Opus, o1-preview
+    Max,    // Ultra-strong: Opus 4 (future), o1
+}
+
+impl ModelTier {
+    pub fn display_name(&self) -> &str {
+        match self {
+            ModelTier::Min => "Min",
+            ModelTier::Lite => "Lite",
+            ModelTier::Mid => "Mid",
+            ModelTier::Large => "Large",
+            ModelTier::Max => "Max",
+        }
+    }
+    
+    pub fn description(&self) -> &str {
+        match self {
+            ModelTier::Min => "Ultra-cheap: high-volume, low-complexity tasks",
+            ModelTier::Lite => "Cheap: routing, chat, simple coding",
+            ModelTier::Mid => "Balanced: planning, coding, most tasks",
+            ModelTier::Large => "Strong: architecture, review, complex tasks",
+            ModelTier::Max => "Ultra-strong: deepest reasoning, research",
+        }
+    }
+    
+    pub fn order(&self) -> u8 {
+        match self {
+            ModelTier::Min => 0,
+            ModelTier::Lite => 1,
+            ModelTier::Mid => 2,
+            ModelTier::Large => 3,
+            ModelTier::Max => 4,
+        }
+    }
+}
+```
+
+### 2. Legacy Migration Support
+
+```rust
+/// Legacy 3-tier model (for migration only)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OldModelTier {
+    Light,
+    Mid,
+    Heavy,
+}
+
+impl From<OldModelTier> for ModelTier {
+    fn from(old: OldModelTier) -> Self {
+        match old {
+            OldModelTier::Light => ModelTier::Lite,
+            OldModelTier::Mid => ModelTier::Mid,
+            OldModelTier::Heavy => ModelTier::Large,
+        }
+    }
+}
+
+/// Migrate legacy 3-tier config to 5-tier system
+pub fn migrate_api_sources(sources: Vec<ApiSource>) -> Vec<ApiSource> {
+    sources.into_iter().map(|mut source| {
+        // Re-map all model tiers using legacy conversion
+        for model in &mut source.models {
+            let old_tier = model.tier;
+            model.tier = match old_tier {
+                // Legacy Light maps to Lite
+                ModelTier::Min => ModelTier::Min,  // Already Min, keep
+                ModelTier::Lite => ModelTier::Lite,
+                ModelTier::Mid => ModelTier::Mid,
+                ModelTier::Large => ModelTier::Large,
+                ModelTier::Max => ModelTier::Max,
+            };
+        }
+        source
+    }).collect()
+}
+```
+
+### 3. Auto-Detection Updates
+
+Update `scan_importable_sources()` to use new tiers:
+
+```rust
+pub fn scan_importable_sources() -> Vec<ApiSource> {
+    let mut sources = Vec::new();
+
+    // Anthropic
+    if let Some(key) = env::var("ANTHROPIC_API_KEY").or_else(|_| read_claude_settings()) {
+        sources.push(ApiSource {
+            id: "anthropic-primary".to_string(),
+            name: "Anthropic".to_string(),
+            provider: Provider::Anthropic,
+            api_key_env: "ANTHROPIC_API_KEY".to_string(),
+            models: vec![
+                ModelDefinition { id: "claude-3-5-haiku-20241022".to_string(), tier: ModelTier::Min },
+                ModelDefinition { id: "claude-3-5-sonnet-20241022".to_string(), tier: ModelTier::Lite },
+                ModelDefinition { id: "claude-3-opus-20240229".to_string(), tier: ModelTier::Large },
+            ],
+            is_available: true,
+            ..Default::default()
+        });
+    }
+
+    // OpenAI
+    if env::var("OPENAI_API_KEY").is_ok() {
+        sources.push(ApiSource {
+            id: "openai-primary".to_string(),
+            name: "OpenAI".to_string(),
+            provider: Provider::OpenAI,
+            api_key_env: "OPENAI_API_KEY".to_string(),
+            models: vec![
+                ModelDefinition { id: "gpt-4o-mini".to_string(), tier: ModelTier::Min },
+                ModelDefinition { id: "gpt-4o".to_string(), tier: ModelTier::Lite },
+                ModelDefinition { id: "o1-preview".to_string(), tier: ModelTier::Large },
+                ModelDefinition { id: "o1".to_string(), tier: ModelTier::Max },
+            ],
+            is_available: true,
+            ..Default::default()
+        });
+    }
+
+    sources
+}
+```
+
+### 4. Agent Config Defaults
+
+Update `generate_default_agents_with_source()` with new tier assignments:
+
+```rust
+pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
+    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+        ("assistant", "Nicole", "assistant", ModelTier::Lite),    // Was: Light
+        ("advisor", "Isaac", "advisor", ModelTier::Mid),          // Unchanged
+        ("architect", "Vera", "architect", ModelTier::Large),     // Was: Heavy
+        ("planner", "Felix", "planner", ModelTier::Mid),          // Unchanged
+        ("tester", "Quinn", "tester", ModelTier::Min),            // Was: Light, now Min
+        ("coder", "Ash", "coder", ModelTier::Mid),                // Unchanged
+        ("reviewer", "Marcus", "reviewer", ModelTier::Large),     // Was: Heavy
+        ("documenter", "Luna", "documenter", ModelTier::Lite),    // Was: Light
+        ("gofer", "Gus", "gofer", ModelTier::Min),                // Was: Light, now Min
+    ];
+
+    defaults
+        .map(|(profession, name, soul, tier)| AgentConfig {
+            id: format!("default-{}", profession),
+            name: name.to_string(),
+            profession_id: profession.to_string(),
+            soul_id: soul.to_string(),
+            api_source_id: api_source_id.to_string(),
+            model_tier: tier,
+            is_default: true,
+            temperature: 0.3,
+            max_tokens: match tier {
+                ModelTier::Min => 4096,
+                ModelTier::Lite => 4096,
+                ModelTier::Mid => 8192,
+                ModelTier::Large => 8192,
+                ModelTier::Max => 16384,
+            },
+            reasoning_budget: if tier == ModelTier::Large || tier == ModelTier::Max {
+                Some(4096)
+            } else {
+                None
+            },
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_budget: match profession {
+                "architect" | "coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                _ => None,
+            },
+            avatar_url: None,
+            equipped_skills: Vec::new(),
+        })
+        .to_vec()
+}
+```
+
+### 5. Migration Handler
+
+```rust
+/// One-time migration on app startup
+pub fn ensure_migrated() {
+    let path = api_sources_path();
+    if path.exists() {
+        let sources = load_api_sources();
+        // Check if migration is needed by looking for legacy tier values
+        let needs_migration = sources.iter().any(|s| {
+            s.models.iter().any(|m| matches!(m.tier, ModelTier::Min | ModelTier::Lite | ModelTier::Mid | ModelTier::Large | ModelTier::Max))
+                || s.models.iter().any(|m| {
+                    // Check for legacy tier string representations
+                    let json = serde_json::to_string(&m.tier).unwrap_or_default();
+                    json.contains("light") || json.contains("heavy")
+                })
+        });
+        
+        if needs_migration {
+            let migrated = migrate_api_sources(sources);
+            let _ = save_api_sources(&migrated);
+        }
+    }
+}
+```
+
+---
+
+## Frontend Implementation
+
+### 1. Type Definitions
+
+**File: frontend/src/composables/useApiSources.ts**
+
+```typescript
+export type ModelTier = 'min' | 'lite' | 'mid' | 'large' | 'max'
+
+export interface ModelDefinition {
+  id: string
+  name: string
+  tier: ModelTier
+}
+
+export const TIER_DISPLAY: Record<ModelTier, string> = {
+  min: 'Min',
+  lite: 'Lite',
+  mid: 'Mid',
+  large: 'Large',
+  max: 'Max'
+}
+
+export const TIER_DESCRIPTIONS: Record<ModelTier, string> = {
+  min: 'Ultra-cheap: high-volume, low-complexity tasks',
+  lite: 'Cheap: routing, chat, simple coding',
+  mid: 'Balanced: planning, coding, most tasks',
+  large: 'Strong: architecture, review, complex tasks',
+  max: 'Ultra-strong: deepest reasoning, research'
+}
+
+export const TIER_ORDER: Record<ModelTier, number> = {
+  min: 0,
+  lite: 1,
+  mid: 2,
+  large: 3,
+  max: 4
+}
+
+export function getTierOptions(): { value: ModelTier; label: string; description: string }[] {
+  return (Object.keys(TIER_DISPLAY) as ModelTier[]).map(tier => ({
+    value: tier,
+    label: TIER_DISPLAY[tier],
+    description: TIER_DESCRIPTIONS[tier]
+  }))
+}
+```
+
+### 2. Agent Config Types
+
+**File: frontend/src/composables/useAgentConfigs.ts**
+
+```typescript
+export interface AgentConfigDto {
+  id: string
+  name: string
+  profession_id: string
+  soul_id: string
+  api_source_id: string
+  model_tier: ModelTier  // Updated type
+  is_default: boolean
+  temperature: number
+  max_tokens: number
+  reasoning_budget: number | null
+  thinking_enabled: boolean
+  thinking_budget: number | null
+  avatar_url?: string
+  equipped_skills?: string[]
+}
+```
+
+### 3. UI Components
+
+**File: frontend/src/views/ApiSourcesView.vue**
+
+```vue
+<template>
+  <div class="api-sources-view">
+    <!-- ... existing UI ... -->
+    
+    <div class="tier-selector">
+      <label>Model Tier</label>
+      <select v-model="selectedTier" @change="onTierChange">
+        <option v-for="tier in tierOptions" :key="tier.value" :value="tier.value">
+          {{ tier.label }} - {{ tier.description }}
+        </option>
+      </select>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { getTierOptions, type ModelTier } from '@/composables/useApiSources'
+
+const tierOptions = getTierOptions()
+const selectedTier = ref<ModelTier>('mid')
+</script>
+```
+
+**File: frontend/src/views/AgentsConfigView.vue**
+
+```vue
+<template>
+  <div class="agent-config-card">
+    <div class="field">
+      <label>Model Tier</label>
+      <select v-model="agent.model_tier">
+        <option v-for="tier in tierOptions" :key="tier.value" :value="tier.value">
+          {{ tier.label }}
+        </option>
+      </select>
+      <span class="tier-hint">{{ TIER_DESCRIPTIONS[agent.model_tier] }}</span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { getTierOptions, TIER_DESCRIPTIONS } from '@/composables/useApiSources'
+</script>
+```
+
+### 4. Migration Notification Component
+
+**File: frontend/src/components/MigrationNotification.vue** (New)
+
+```vue
+<template>
+  <div v-if="showNotification" class="migration-notification">
+    <div class="notification-content">
+      <span class="icon">✨</span>
+      <div class="message">
+        <strong>Model tiers updated</strong>
+        <p>AutoForge now uses a 5-tier model system (Min, Lite, Mid, Large, Max) for better cost optimization.</p>
+      </div>
+      <button @click="dismiss" class="btn-dismiss">Got it</button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+
+const showNotification = ref(false)
+
+onMounted(() => {
+  const lastVersion = localStorage.getItem('autoforge_tier_version')
+  if (lastVersion !== '5-tier') {
+    showNotification.value = true
+  }
+})
+
+function dismiss() {
+  showNotification.value = false
+  localStorage.setItem('autoforge_tier_version', '5-tier')
+}
+</script>
+
+<style scoped>
+.migration-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.notification-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 400px;
+}
+
+.icon { font-size: 24px; }
+
+.message strong { display: block; margin-bottom: 4px; }
+.message p { margin: 0; font-size: 14px; opacity: 0.95; }
+
+.btn-dismiss {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.btn-dismiss:hover {
+  background: rgba(255,255,255,0.3);
+}
+</style>
+```
+
+---
+
+## Implementation Checklist
+
+### Backend
+- [x] Update ModelTier enum with 5 variants (Min, Lite, Mid, Large, Max)
+- [x] Add display_name(), description(), order() methods to ModelTier
+- [x] Implement OldModelTier enum and From trait for legacy migration
+- [x] Implement migrate_api_sources() function
+- [x] Update scan_importable_sources() with 5-tier mappings
+- [x] Update generate_default_agents_with_source() with new tier assignments
+- [x] Add ensure_migrated() call on app startup
+- [x] Write unit tests for tier migration
+
+### Frontend
+- [x] Update ModelTier type in useApiSources.ts
+- [x] Add TIER_DISPLAY, TIER_DESCRIPTIONS, TIER_ORDER constants
+- [x] Update AgentConfigDto.model_tier type in useAgentConfigs.ts
+- [x] Update tier selector in ApiSourcesView.vue
+- [x] Update tier selector in AgentsConfigView.vue
+- [x] Create MigrationNotification.vue component
+- [x] Add one-time migration check on app mount
+
+### Testing
+- [x] Unit test: migrate_api_sources() for all legacy tiers
+- [x] Integration test: Load legacy config, verify migration
+- [x] Frontend test: Tier selector renders 5 options
+- [x] E2E test: Create agent with new tier, verify persistence
+
+### Documentation
+- [x] Update specs/apis.ad with new tier system
+- [x] Document tier selection guidelines in agent souls
+- [x] Update user-facing API documentation
+- [x] Add migration notification for existing users
+
+---
+
+## Verification Steps
+
+1. **Backend Verification**
+   ```bash
+   cd backend
+   cargo test model_tier --lib
+   cargo run --bin autoforge -- --test-migration
+   ```
+
+2. **Frontend Verification**
+   - Open DevTools → Console
+   - Navigate to API Sources view
+   - Verify 5 tier options appear in dropdown
+   - Create new agent with each tier
+   - Verify persistence across page reload
+
+3. **Migration Verification**
+   - Backup existing `api_sources.json`
+   - Run app with legacy config
+   - Verify automatic migration to 5-tier
+   - Check localStorage for `autoforge_tier_version = '5-tier'`
+   - Verify migration notification appears once
+
+---

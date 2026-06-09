@@ -350,9 +350,13 @@ pub fn generate_default_professions() -> Vec<Profession> {
             ],
             allowed_tools: vec![
                 String::from("read_file"),
+                String::from("write_file"),
+                String::from("edit_file"),
                 String::from("shell"),
                 String::from("search"),
                 String::from("read_specs"),
+                String::from("write_specs"),
+                String::from("update_spec"),
                 String::from("list_specs"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),
@@ -604,6 +608,34 @@ pub fn load_or_generate_professions() -> Vec<Profession> {
             }
             if merged[idx].max_tier != default.max_tier {
                 merged[idx].max_tier = default.max_tier;
+                changed = true;
+            }
+            if merged[idx].allowed_tools != default.allowed_tools {
+                merged[idx].allowed_tools = default.allowed_tools.clone();
+                changed = true;
+            }
+            if merged[idx].owned_sections != default.owned_sections {
+                merged[idx].owned_sections = default.owned_sections.clone();
+                changed = true;
+            }
+            if merged[idx].readable_sections != default.readable_sections {
+                merged[idx].readable_sections = default.readable_sections.clone();
+                changed = true;
+            }
+            if merged[idx].handoff_to != default.handoff_to {
+                merged[idx].handoff_to = default.handoff_to.clone();
+                changed = true;
+            }
+            if merged[idx].dispatchable_to != default.dispatchable_to {
+                merged[idx].dispatchable_to = default.dispatchable_to.clone();
+                changed = true;
+            }
+            if merged[idx].approval_gates != default.approval_gates {
+                merged[idx].approval_gates = default.approval_gates.clone();
+                changed = true;
+            }
+            if merged[idx].base_skills != default.base_skills {
+                merged[idx].base_skills = default.base_skills.clone();
                 changed = true;
             }
         } else {
