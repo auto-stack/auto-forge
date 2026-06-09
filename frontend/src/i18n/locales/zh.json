@@ -118,7 +118,8 @@
   },
   "specs": {
     "title": "规范",
-    "loading": "加载规范中…",    "selectSection": "从侧栏选择一个章节",
+    "loading": "加载规范中…",,
+    "selectSection": "从侧栏选择一个章节",
     "toggleSidebar": "切换侧栏",
     "showSections": "显示章节",
     "searchPlaceholder": "搜索模块…",

@@ -5,7 +5,7 @@
 
 use serde_json::Value;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::time::SystemTime;
@@ -1272,7 +1272,39 @@ impl Tool for SearchTool {
         let regex = regex::Regex::new(pattern).ok();
 
         let mut matches = Vec::new();
-        walk_dir(&full_path, pattern, regex.as_ref(), context_lines, &mut matches)
+
+        // ── Index acceleration: check project-index.ad for hint paths ──
+        let hint_paths = {
+            let project = CURRENT_PROJECT.lock().unwrap();
+            if project.is_empty() {
+                Vec::new()
+            } else {
+                let index_path = Path::new(&*project).join("wiki").join("project-index.ad");
+                search_index_for_hints(&index_path, pattern)
+            }
+        };
+
+        // Search hinted files first (they are most likely to contain relevant matches)
+        let mut searched_hints = std::collections::HashSet::new();
+        for hint in &hint_paths {
+            let hint_full = if hint.is_absolute() {
+                hint.clone()
+            } else {
+                let project = CURRENT_PROJECT.lock().unwrap();
+                if project.is_empty() {
+                    hint.clone()
+                } else {
+                    Path::new(&*project).join(hint)
+                }
+            };
+            if hint_full.exists() && hint_full.is_file() {
+                let _ = search_file(&hint_full, pattern, regex.as_ref(), context_lines, &mut matches);
+                searched_hints.insert(hint_full);
+            }
+        }
+
+        // Fall back to directory walk for files not covered by hints
+        walk_dir_except(&full_path, pattern, regex.as_ref(), context_lines, &mut matches, &searched_hints)
             .map_err(|e| ToolError::ExecutionFailed(format!("Search error: {}", e)))?;
 
         if matches.is_empty() {
@@ -1290,6 +1322,37 @@ impl Tool for SearchTool {
     }
 
     fn is_read_only(&self) -> bool { true }
+}
+
+/// Parse `wiki/project-index.ad` and extract file paths whose description
+/// or path contains the search pattern.
+fn search_index_for_hints(index_path: &Path, pattern: &str) -> Vec<PathBuf> {
+    let content = match std::fs::read_to_string(index_path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut hints = Vec::new();
+    for line in content.lines() {
+        let line_trim = line.trim();
+        if !line_trim.starts_with('|') {
+            continue;
+        }
+        // AsciiDoc table row: | desc | `path`
+        if line_trim.contains(pattern) {
+            // Extract path inside backticks
+            if let Some(start) = line_trim.rfind('`') {
+                let before = &line_trim[..start];
+                if let Some(prev) = before.rfind('`') {
+                    let path_str = &line_trim[prev + 1..start];
+                    if !path_str.is_empty() {
+                        hints.push(PathBuf::from(path_str));
+                    }
+                }
+            }
+        }
+    }
+    hints
 }
 
 fn walk_dir(
@@ -1323,6 +1386,53 @@ fn walk_dir(
             walk_dir(&path, pattern, regex, context_lines, results)?;
         } else if path.is_file() {
             // Skip binary files
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "ico" | "woff" | "woff2" | "ttf" | "eot" | "wasm") {
+                continue;
+            }
+            search_file(&path, pattern, regex, context_lines, results)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Like `walk_dir` but skips files already present in `exclude`.
+fn walk_dir_except(
+    dir: &Path,
+    pattern: &str,
+    regex: Option<&regex::Regex>,
+    context_lines: usize,
+    results: &mut Vec<Value>,
+    exclude: &std::collections::HashSet<PathBuf>,
+) -> Result<(), std::io::Error> {
+    if !dir.is_dir() {
+        if !exclude.contains(dir) {
+            search_file(dir, pattern, regex, context_lines, results)?;
+        }
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+
+        if path.is_dir() {
+            if name_str.starts_with('.')
+                || name_str == "target"
+                || name_str == "node_modules"
+                || name_str == "dist"
+                || name_str == "build"
+            {
+                continue;
+            }
+            walk_dir_except(&path, pattern, regex, context_lines, results, exclude)?;
+        } else if path.is_file() {
+            if exclude.contains(&path) {
+                continue;
+            }
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
             if matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "ico" | "woff" | "woff2" | "ttf" | "eot" | "wasm") {
                 continue;

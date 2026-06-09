@@ -1,0 +1,172 @@
+= AutoForge 工程文件索引
+
+:toc: left
+:toclevels: 2
+
+== 说明
+
+本文档由 `scripts/generate_project_index.py` 自动生成，
+列出项目核心源文件及其功能，便于快速反向定位。
+如需更新，运行：`python scripts/generate_project_index.py`
+
+== 前端 (frontend/src)
+
+|===
+| 功能 | 文件路径
+| 根组件 | `frontend\src\App.vue`
+| AgentAvatar 组件 | `frontend\src\components\AgentAvatar.vue`
+| AutoLinkContent 组件 | `frontend\src\components\AutoLinkContent.vue`
+| ArchitectureCards 组件 | `frontend\src\components\category\ArchitectureCards.vue`
+| CategoryList 组件 | `frontend\src\components\category\CategoryList.vue`
+| DesignCards 组件 | `frontend\src\components\category\DesignCards.vue`
+| GoalsTable 组件 | `frontend\src\components\category\GoalsTable.vue`
+| PlanCards 组件 | `frontend\src\components\category\PlanCards.vue`
+| ReportCards 组件 | `frontend\src\components\category\ReportCards.vue`
+| ReviewCards 组件 | `frontend\src\components\category\ReviewCards.vue`
+| TestsCards 组件 | `frontend\src\components\category\TestsCards.vue`
+| ApiDetail 组件 | `frontend\src\components\detail\ApiDetail.vue`
+| GoalDetail 组件 | `frontend\src\components\detail\GoalDetail.vue`
+| PlanDetail 组件 | `frontend\src\components\detail\PlanDetail.vue`
+| ReportDetail 组件 | `frontend\src\components\detail\ReportDetail.vue`
+| ReviewDetail 组件 | `frontend\src\components\detail\ReviewDetail.vue`
+| TestDetail 组件 | `frontend\src\components\detail\TestDetail.vue`
+| DropZone 组件 | `frontend\src\components\DropZone.vue`
+| GoalEditor 组件 | `frontend\src\components\editors\GoalEditor.vue`
+| MarkdownEditor 组件 | `frontend\src\components\editors\MarkdownEditor.vue`
+| TagInput 组件 | `frontend\src\components\editors\TagInput.vue`
+| TestEditor 组件 | `frontend\src\components\editors\TestEditor.vue`
+| GateBanner 组件 | `frontend\src\components\GateBanner.vue`
+| GateCard 组件 | `frontend\src\components\GateCard.vue`
+| GatePanel 组件 | `frontend\src\components\GatePanel.vue`
+| GoalDetailModal 组件 | `frontend\src\components\GoalDetailModal.vue`
+| index 组件 | `frontend\src\components\index.ts`
+| MarkdownContent 组件 | `frontend\src\components\MarkdownContent.vue`
+| MentionDropdown 组件 | `frontend\src\components\MentionDropdown.vue`
+| QuestionnaireCard 组件 | `frontend\src\components\QuestionnaireCard.vue`
+| RelationsPanel 组件 | `frontend\src\components\RelationsPanel.vue`
+| ReportCard 组件 | `frontend\src\components\ReportCard.vue`
+| SecretaryMessage 组件 | `frontend\src\components\SecretaryMessage.vue`
+| SettingsMenu 组件 | `frontend\src\components\SettingsMenu.vue`
+| SpecItemDetail 组件 | `frontend\src\components\SpecItemDetail.vue`
+| SpecItemRow 组件 | `frontend\src\components\SpecItemRow.vue`
+| SpecLink 组件 | `frontend\src\components\SpecLink.vue`
+| StatusBadge 组件 | `frontend\src\components\StatusBadge.vue`
+| StatusTransition 组件 | `frontend\src\components\StatusTransition.vue`
+| StreamingRenderer 组件 | `frontend\src\components\StreamingRenderer.vue`
+| StreamingTable 组件 | `frontend\src\components\StreamingTable.vue`
+| TreeView 组件 | `frontend\src\components\TreeView.vue`
+| useAccentColor.ts 逻辑封装 | `frontend\src\composables\useAccentColor.ts`
+| 智能体配置管理 | `frontend\src\composables\useAgentConfigs.ts`
+| API 来源配置管理 | `frontend\src\composables\useApiSources.ts`
+| 认证与 authFetch（JWT token, login/logout） | `frontend\src\composables\useAuth.ts`
+| useEventRouter.ts 逻辑封装 | `frontend\src\composables\useEventRouter.ts`
+| Forge 会话管理（createSession, sendMessage, loadHistory） | `frontend\src\composables\useForge.ts`
+| useForgeMode.ts 逻辑封装 | `frontend\src\composables\useForgeMode.ts`
+| useGateInbox.ts 逻辑封装 | `frontend\src\composables\useGateInbox.ts`
+| 规格项目关系管理 | `frontend\src\composables\useItemRelations.ts`
+| 职业/角色配置管理 | `frontend\src\composables\useProfessions.ts`
+| 项目打开/关闭/浏览 | `frontend\src\composables\useProject.ts`
+| 流水线运行管理（loadRuns, startRun, gateDecision） | `frontend\src\composables\useRelay.ts`
+| 会话列表管理 | `frontend\src\composables\useSessions.ts`
+| 技能配置管理 | `frontend\src\composables\useSkills.ts`
+| useSouls.ts 逻辑封装 | `frontend\src\composables\useSouls.ts`
+| 规格文档加载与保存 | `frontend\src\composables\useSpecs.ts`
+| useStreamingDocument.ts 逻辑封装 | `frontend\src\composables\useStreamingDocument.ts`
+| useTheme.ts 逻辑封装 | `frontend\src\composables\useTheme.ts`
+| 知识库页面加载与保存 | `frontend\src\composables\useWiki.ts`
+| 英文翻译配置文件 | `frontend\src\i18n\locales\en.json`
+| 中文翻译配置文件 | `frontend\src\i18n\locales\zh.json`
+| 应用入口（Vue app 创建、路由、i18n 初始化） | `frontend\src\main.ts`
+| forge.ts 类型定义 | `frontend\src\types\forge.ts`
+| specs.ts 类型定义 | `frontend\src\types\specs.ts`
+| tool.ts 类型定义 | `frontend\src\types\tool.ts`
+| wiki.ts 类型定义 | `frontend\src\types\wiki.ts`
+| 智能体配置页面 | `frontend\src\views\AgentsConfigView.vue`
+| ApiSourcesView.vue 页面 | `frontend\src\views\ApiSourcesView.vue`
+| 聊天页面（会话列表、消息展示、侧边栏） | `frontend\src\views\ChatsView.vue`
+| 文件浏览器页面 | `frontend\src\views\ExplorerView.vue`
+| 登录页面 | `frontend\src\views\LoginView.vue`
+| ProfessionsView.vue 页面 | `frontend\src\views\ProfessionsView.vue`
+| 流水线运行页面 | `frontend\src\views\RelayView.vue`
+| SkillsView.vue 页面 | `frontend\src\views\SkillsView.vue`
+| 规格/规范文档页面 | `frontend\src\views\SpecsView.vue`
+| StreamingDemoView.vue 页面 | `frontend\src\views\StreamingDemoView.vue`
+| WelcomeView.vue 页面 | `frontend\src\views\WelcomeView.vue`
+| 知识库页面 | `frontend\src\views\WikiView.vue`
+|===
+
+== 后端 (backend/src)
+
+|===
+| 功能 | 文件路径
+| forge/errand.rs — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\errand.rs`
+| forge/mod.rs — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\mod.rs`
+| forge/project.rs — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\project.rs`
+| forge/apis.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\apis.ad`
+| forge/architecture.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\architecture.ad`
+| forge/designs.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\designs.ad`
+| forge/goals.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\goals.ad`
+| forge/plans.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\plans.ad`
+| forge/reports.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\reports.ad`
+| forge/reviews.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\reviews.ad`
+| forge/tests.ad — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\templates\tests.ad`
+| forge/tools.rs — 文件工具实现（search, edit_file, read_file） | `backend\src\forge\tools.rs`
+| forge/wiki.rs — Forge Chat 核心（session, message, stream, tools） | `backend\src\forge\wiki.rs`
+| 库入口 | `backend\src\lib.rs`
+| 程序入口（路由注册、服务启动、Vite 代理） | `backend\src\main.rs`
+| provider/claude.rs — AI Provider 抽象（Claude, OpenAI, local） | `backend\src\provider\claude.rs`
+| provider/mod.rs — AI Provider 抽象（Claude, OpenAI, local） | `backend\src\provider\mod.rs`
+| provider/sse.rs — AI Provider 抽象（Claude, OpenAI, local） | `backend\src\provider\sse.rs`
+| provider/types.rs — AI Provider 抽象（Claude, OpenAI, local） | `backend\src\provider\types.rs`
+| rbac/api.rs — RBAC 权限系统（JWT, user, middleware） | `backend\src\rbac\api.rs`
+| rbac/auth.rs — RBAC 权限系统（JWT, user, middleware） | `backend\src\rbac\auth.rs`
+| rbac/db.rs — RBAC 权限系统（JWT, user, middleware） | `backend\src\rbac\db.rs`
+| rbac/middleware.rs — RBAC 权限系统（JWT, user, middleware） | `backend\src\rbac\middleware.rs`
+| rbac/mod.rs — RBAC 权限系统（JWT, user, middleware） | `backend\src\rbac\mod.rs`
+| relay/agent.rs — Agent 实例与运行逻辑 | `backend\src\relay\agent.rs`
+| relay/api.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\api.rs`
+| relay/budget.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\budget.rs`
+| relay/checkpoint.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\checkpoint.rs`
+| relay/config.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\config.rs`
+| relay/driver.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\driver.rs`
+| relay/flow.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\flow.rs`
+| relay/flows.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\flows.rs`
+| relay/handoff.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\handoff.rs`
+| relay/mod.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\mod.rs`
+| relay/pipeline.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\pipeline.rs`
+| relay/profession.rs — 职业/角色定义与管理 | `backend\src\relay\profession.rs`
+| relay/skills.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\skills.rs`
+| relay/soul.rs — Soul 配置解析 | `backend\src\relay\soul.rs`
+| relay/advisor.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\advisor.md`
+| relay/architect.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\architect.md`
+| relay/assistant.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\assistant.md`
+| relay/coder.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\coder.md`
+| relay/documenter.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\documenter.md`
+| relay/gofer.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\gofer.md`
+| relay/planner.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\planner.md`
+| relay/reviewer.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\reviewer.md`
+| relay/super-advisor.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\super-advisor.md`
+| relay/super-coder.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\super-coder.md`
+| relay/super-tester.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\super-tester.md`
+| relay/tester.md — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\souls\tester.md`
+| relay/store.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\store.rs`
+| relay/title.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\title.rs`
+| relay/turn.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\turn.rs`
+|===
+
+== 国际化配置
+
+|===
+| 语言 | 文件路径
+| 中文 | `frontend/src/i18n/locales/zh.json`
+| 英文 | `frontend/src/i18n/locales/en.json`
+|===
+
+== Wiki 与 Specs
+
+|===
+| 内容 | 文件路径
+| 工程文件索引（本文档） | `wiki/project-index.ad`
+| Forge 模块规格 | `specs/auto-forge/forge-module.ad`
+| Relay 模块规格 | `specs/auto-forge/relay-module.ad`
+|===
