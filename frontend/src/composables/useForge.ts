@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import type { ForgeMessage, ForgeSession, ForgeSessionSummary, ForgeStreamEvent, ErrandState } from '@/types/forge'
 import type { ToolCallInfo } from '@/types/tool'
 import { useEventRouter, type SSEEvent } from './useEventRouter'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/chats'
 const STORAGE_KEY = 'autoforge_session_id'
@@ -33,7 +34,7 @@ export function useForge() {
   /** Create a brand-new Forge session */
   async function createSession(notebookSid?: string, projectPath?: string) {
     try {
-      const resp = await fetch(`${API_BASE}/session`, {
+      const resp = await authFetch(`${API_BASE}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notebook_sid: notebookSid, project_path: projectPath }),
@@ -55,7 +56,7 @@ export function useForge() {
   /** Restore an existing session by ID (from localStorage or URL) */
   async function restoreSession(sid: string) {
     try {
-      const resp = await fetch(`${API_BASE}/session/${sid}`)
+      const resp = await authFetch(`${API_BASE}/session/${sid}`)
       if (!resp.ok) throw new Error(`Session not found: ${resp.status}`)
       const data: ForgeSession | null = await resp.json()
       if (!data) throw new Error('Session returned null')
@@ -125,7 +126,7 @@ export function useForge() {
   /** Fetch the list of all sessions from the server */
   async function loadSessionList() {
     try {
-      const resp = await fetch(`${API_BASE}/sessions`)
+      const resp = await authFetch(`${API_BASE}/sessions`)
       if (resp.ok) {
         const data: ForgeSessionSummary[] = await resp.json()
         sessionList.value = data
@@ -152,7 +153,7 @@ export function useForge() {
     try {
       const body: Record<string, string> = { content }
       if (professionId) body.profession_id = professionId
-      const resp = await fetch(`${API_BASE}/${sessionId.value}/message`, {
+      const resp = await authFetch(`${API_BASE}/${sessionId.value}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -351,7 +352,7 @@ export function useForge() {
   async function loadHistory() {
     if (!sessionId.value) return
     try {
-      const resp = await fetch(`${API_BASE}/${sessionId.value}/history`)
+      const resp = await authFetch(`${API_BASE}/${sessionId.value}/history`)
       if (resp.ok) {
         const data: ForgeMessage[] = await resp.json()
         if (data.length > 0) messages.value = data
@@ -364,7 +365,7 @@ export function useForge() {
   async function approveSpec(editedSpecs?: Record<string, string>) {
     if (!sessionId.value) return
     try {
-      const resp = await fetch(`${API_BASE}/${sessionId.value}/approve`, {
+      const resp = await authFetch(`${API_BASE}/${sessionId.value}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ edited_specs: editedSpecs ?? {} }),
@@ -383,7 +384,7 @@ export function useForge() {
   async function rejectSpec() {
     if (!sessionId.value) return
     try {
-      const resp = await fetch(`${API_BASE}/${sessionId.value}/reject`, {
+      const resp = await authFetch(`${API_BASE}/${sessionId.value}/reject`, {
         method: 'POST',
       })
       if (!resp.ok) throw new Error(`Failed to reject: ${resp.status}`)
@@ -399,7 +400,7 @@ export function useForge() {
 
   async function renameSession(sid: string, name: string) {
     try {
-      const resp = await fetch(`${API_BASE}/session/${sid}`, {
+      const resp = await authFetch(`${API_BASE}/session/${sid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -415,7 +416,7 @@ export function useForge() {
 
   async function deleteSession(sid: string) {
     try {
-      const resp = await fetch(`${API_BASE}/session/${sid}`, {
+      const resp = await authFetch(`${API_BASE}/session/${sid}`, {
         method: 'DELETE',
       })
       if (!resp.ok) throw new Error(`Failed to delete session: ${resp.status}`)
@@ -425,6 +426,23 @@ export function useForge() {
         messages.value = []
         localStorage.removeItem(STORAGE_KEY)
       }
+      await loadSessionList()
+      return true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+      return false
+    }
+  }
+
+  async function deleteAllSessions() {
+    try {
+      const resp = await authFetch(`${API_BASE}/sessions`, {
+        method: 'DELETE',
+      })
+      if (!resp.ok) throw new Error(`Failed to delete all sessions: ${resp.status}`)
+      session.value = null
+      messages.value = []
+      localStorage.removeItem(STORAGE_KEY)
       await loadSessionList()
       return true
     } catch (e) {
@@ -457,6 +475,7 @@ export function useForge() {
     rejectSpec,
     renameSession,
     deleteSession,
+    deleteAllSessions,
     errands,
     relayRuns: _relayRuns,
   }

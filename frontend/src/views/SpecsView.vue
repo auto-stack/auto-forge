@@ -250,6 +250,7 @@ import PlanCards from '@/components/category/PlanCards.vue'
 import TestsCards from '@/components/category/TestsCards.vue'
 import ReviewCards from '@/components/category/ReviewCards.vue'
 import ReportCards from '@/components/category/ReportCards.vue'
+import { authFetch } from '../composables/useAuth'
 
 const { t } = useI18n()
 
@@ -671,7 +672,7 @@ function serializeItemsToMarkdown(section: SpecsSection): string {
 
 async function triggerDriftCheck() {
   try {
-    const resp = await fetch(`/api/forge/specs/${encodeURIComponent(project.value)}/drift-check`, {
+    const resp = await authFetch(`/api/forge/specs/${encodeURIComponent(project.value)}/drift-check`, {
       method: 'POST',
     })
     const data = await resp.json()

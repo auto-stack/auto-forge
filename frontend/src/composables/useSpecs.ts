@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { SpecsDocument, SpecsSection, SpecItem } from '@/types/specs'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/specs'
 
@@ -17,7 +18,7 @@ export function useSpecs() {
     isLoading.value = true
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}`)
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}`)
       if (!resp.ok) throw new Error(`Failed to load specs: ${resp.status}`)
       const data: SpecsDocument = await resp.json()
       document.value = data
@@ -30,7 +31,7 @@ export function useSpecs() {
 
   async function loadOverview(project: string = 'auto-lang'): Promise<{ content: string; exists: boolean }> {
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/overview`)
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/overview`)
       if (!resp.ok) throw new Error(`Failed to load overview: ${resp.status}`)
       const data = await resp.json()
       return { content: data.content || '', exists: data.exists || false }
@@ -41,7 +42,7 @@ export function useSpecs() {
 
   async function loadModuleOutline(project: string, module: string): Promise<{ content: string; exists: boolean }> {
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/module/${encodeURIComponent(module)}/outline`)
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/module/${encodeURIComponent(module)}/outline`)
       if (!resp.ok) throw new Error(`Failed to load module outline: ${resp.status}`)
       const data = await resp.json()
       return { content: data.content || '', exists: data.exists || false }
@@ -69,7 +70,7 @@ export function useSpecs() {
 
   async function saveDocument(project: string, doc: SpecsDocument) {
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc),
@@ -102,7 +103,7 @@ export function useSpecs() {
 
   async function rebuildRelations(project: string) {
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/rebuild-relations`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/rebuild-relations`, {
         method: 'POST',
       })
       if (!resp.ok) throw new Error(`Failed to rebuild relations: ${resp.status}`)

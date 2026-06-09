@@ -886,6 +886,7 @@ impl Tool for EditFileTool {
 
                 let mut applied = 0;
                 let mut errors = Vec::new();
+                let mut diffs: Vec<Value> = Vec::new();
 
                 for (line_1based, old_str, new_str) in edit_items {
                     if old_str.is_empty() {
@@ -920,6 +921,11 @@ impl Tool for EditFileTool {
                         new_content.push_str(&content[match_end..]);
                         content = new_content;
                         applied += 1;
+                        diffs.push(serde_json::json!({
+                            "line": line_1based,
+                            "old_string": old_str,
+                            "new_string": new_str
+                        }));
                     } else {
                         let preview = content[start_pos..].lines().next().unwrap_or("").chars().take(80).collect::<String>();
                         errors.push(format!(
@@ -943,14 +949,14 @@ impl Tool for EditFileTool {
                     .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", full_path.display(), e)))?;
                 invalidate_file_cache(&full_path.to_string_lossy());
 
-                let mut result = format!("Successfully applied {} edit(s) to {}", applied, full_path.display());
-                if !errors.is_empty() {
-                    result.push_str("\nErrors:\n");
-                    for err in errors {
-                        result.push_str(&format!("- {}\n", err));
-                    }
-                }
-                return Ok(result);
+                let result = serde_json::json!({
+                    "status": if errors.is_empty() { "success" } else { "partial" },
+                    "applied": applied,
+                    "file": full_path.display().to_string(),
+                    "diffs": diffs,
+                    "errors": errors
+                });
+                return Ok(result.to_string());
             }
         }
 
@@ -964,13 +970,13 @@ impl Tool for EditFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidInput("Missing 'new_string' argument (or use 'edits' array)".into()))?;
 
-        if !content.contains(old_str) {
-            return Err(ToolError::ExecutionFailed(format!(
-                "old_string not found in file '{}'. \
-                 The text must match exactly (including whitespace and newlines).",
-                full_path.display()
-            )));
-        }
+        let offset = content.find(old_str).ok_or_else(|| ToolError::ExecutionFailed(format!(
+            "old_string not found in file '{}'. \
+             The text must match exactly (including whitespace and newlines).",
+            full_path.display()
+        )))?;
+
+        let line_num = content[..offset].lines().count() + 1;
 
         let new_content = content.replacen(old_str, new_str, 1);
 
@@ -998,7 +1004,18 @@ impl Tool for EditFileTool {
         }
 
         invalidate_file_cache(&full_path.to_string_lossy());
-        Ok(format!("Successfully edited {}", full_path.display()))
+        let result = serde_json::json!({
+            "status": "success",
+            "applied": 1,
+            "file": full_path.display().to_string(),
+            "diffs": [{
+                "line": line_num,
+                "old_string": old_str,
+                "new_string": new_str
+            }],
+            "errors": []
+        });
+        Ok(result.to_string())
     }
 }
 
@@ -1220,6 +1237,10 @@ impl Tool for SearchTool {
                 "path": {
                     "type": "string",
                     "description": "Directory to search in (default: current directory)"
+                },
+                "context_lines": {
+                    "type": "integer",
+                    "description": "Number of context lines to include before and after each match (default: 2). Set to 0 for no context."
                 }
             },
             "required": ["pattern"]
@@ -1235,6 +1256,10 @@ impl Tool for SearchTool {
             .get("path")
             .and_then(|v| v.as_str())
             .unwrap_or(".");
+        let context_lines = args
+            .get("context_lines")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(2) as usize;
 
         let search_path = Path::new(search_path);
         if search_path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
@@ -1246,14 +1271,21 @@ impl Tool for SearchTool {
         // Try to compile as regex; fall back to literal string match if invalid
         let regex = regex::Regex::new(pattern).ok();
 
-        let mut results = Vec::new();
-        walk_dir(&full_path, pattern, regex.as_ref(), &mut results)
+        let mut matches = Vec::new();
+        walk_dir(&full_path, pattern, regex.as_ref(), context_lines, &mut matches)
             .map_err(|e| ToolError::ExecutionFailed(format!("Search error: {}", e)))?;
 
-        if results.is_empty() {
+        if matches.is_empty() {
             Ok(format!("No matches found for '{}' in {}", pattern, search_path.display()))
         } else {
-            Ok(results.join("\n"))
+            let truncated = matches.len() >= 50;
+            let result = serde_json::json!({
+                "query": pattern,
+                "total_matches": matches.len(),
+                "truncated": truncated,
+                "matches": matches
+            });
+            Ok(result.to_string())
         }
     }
 
@@ -1264,10 +1296,11 @@ fn walk_dir(
     dir: &Path,
     pattern: &str,
     regex: Option<&regex::Regex>,
-    results: &mut Vec<String>,
+    context_lines: usize,
+    results: &mut Vec<Value>,
 ) -> Result<(), std::io::Error> {
     if !dir.is_dir() {
-        search_file(dir, pattern, regex, results)?;
+        search_file(dir, pattern, regex, context_lines, results)?;
         return Ok(());
     }
 
@@ -1287,41 +1320,56 @@ fn walk_dir(
             {
                 continue;
             }
-            walk_dir(&path, pattern, regex, results)?;
+            walk_dir(&path, pattern, regex, context_lines, results)?;
         } else if path.is_file() {
             // Skip binary files
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
             if matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "ico" | "woff" | "woff2" | "ttf" | "eot" | "wasm") {
                 continue;
             }
-            search_file(&path, pattern, regex, results)?;
+            search_file(&path, pattern, regex, context_lines, results)?;
         }
     }
 
     Ok(())
 }
 
-fn search_file(path: &Path, pattern: &str, regex: Option<&regex::Regex>, results: &mut Vec<String>) -> Result<(), std::io::Error> {
+fn search_file(
+    path: &Path,
+    pattern: &str,
+    regex: Option<&regex::Regex>,
+    context_lines: usize,
+    results: &mut Vec<Value>,
+) -> Result<(), std::io::Error> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return Ok(()), // Skip unreadable files (binary, etc.)
     };
 
-    for (line_num, line) in content.lines().enumerate() {
+    let lines: Vec<&str> = content.lines().collect();
+
+    for (line_num, line) in lines.iter().enumerate() {
         let matched = if let Some(re) = regex {
             re.is_match(line)
         } else {
             line.contains(pattern)
         };
         if matched {
-            results.push(format!(
-                "{}:{}: {}",
-                path.display(),
-                line_num + 1,
-                line.trim()
-            ));
+            let start = line_num.saturating_sub(context_lines);
+            let end = (line_num + context_lines + 1).min(lines.len());
+
+            let context_before: Vec<String> = lines[start..line_num].iter().map(|s| s.to_string()).collect();
+            let context_after: Vec<String> = lines[line_num + 1..end].iter().map(|s| s.to_string()).collect();
+
+            results.push(serde_json::json!({
+                "file": path.display().to_string(),
+                "line": line_num + 1,
+                "old_string": line.to_string(),
+                "context_before": context_before,
+                "context_after": context_after,
+            }));
+
             if results.len() >= 50 {
-                results.push("... (truncated at 50 matches)".to_string());
                 return Ok(());
             }
         }

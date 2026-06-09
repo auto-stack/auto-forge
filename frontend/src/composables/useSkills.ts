@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/config/skills'
 
@@ -26,7 +27,7 @@ export function useSkills() {
     _loading.value = true
     _error.value = null
     try {
-      const resp = await fetch(API_BASE)
+      const resp = await authFetch(API_BASE)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       _skills.value = await resp.json()
     } catch (e) {
@@ -39,7 +40,7 @@ export function useSkills() {
   async function createSkill(skill: SkillDto): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(API_BASE, {
+      const resp = await authFetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(skill),
@@ -57,7 +58,7 @@ export function useSkills() {
   async function updateSkill(id: string, skill: SkillDto): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(skill),
@@ -76,7 +77,7 @@ export function useSkills() {
   async function deleteSkill(id: string): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (resp.status !== 204) throw new Error(`HTTP ${resp.status}`)
       _skills.value = _skills.value.filter(s => s.id !== id)
       return true
@@ -89,7 +90,7 @@ export function useSkills() {
   async function resetDefaults(): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/reset-defaults`, { method: 'POST' })
+      const resp = await authFetch(`${API_BASE}/reset-defaults`, { method: 'POST' })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       _skills.value = await resp.json()
       return true

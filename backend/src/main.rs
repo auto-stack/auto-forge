@@ -2,7 +2,11 @@ use auto_forge::provider::{ClaudeProvider, AIProviderState};
 use auto_forge::rbac::db::RbacDb;
 use auto_forge::rbac::middleware::{auth_middleware, RbacMiddlewareState};
 
+use axum::body::Body;
+use axum::extract::Request;
 use axum::http::Method;
+use axum::response::{IntoResponse, Response};
+use axum::http::StatusCode;
 use axum::Router;
 use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
@@ -86,6 +90,62 @@ fn seed_default_admin(db: &RbacDb) {
 // Default RBAC database path
 // ---------------------------------------------------------------------------
 
+/// Reverse-proxy handler for Vite dev server.
+/// Forwards all `/forge/*` requests to `http://localhost:5174`.
+async fn vite_proxy(req: Request) -> impl IntoResponse {
+    let client = reqwest::Client::new();
+    let path_and_query = req
+        .uri()
+        .path_and_query()
+        .map(|pq| pq.to_string())
+        .unwrap_or_else(|| req.uri().path().to_string());
+
+    let target_url = format!("http://localhost:5174{}", path_and_query);
+    let method = req.method().clone();
+    let headers = req.headers().clone();
+
+    let body_bytes = match axum::body::to_bytes(req.into_body(), usize::MAX).await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::warn!("Vite proxy failed to read request body: {}", e);
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+    };
+
+    let mut reqwest_req = client.request(method, &target_url);
+    for (k, v) in headers {
+        if let Some(k) = k {
+            if k.as_str().to_lowercase() != "host" {
+                reqwest_req = reqwest_req.header(k, v);
+            }
+        }
+    }
+
+    let response = match reqwest_req.body(body_bytes).send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            tracing::warn!("Vite proxy request failed: {}", e);
+            return StatusCode::BAD_GATEWAY.into_response();
+        }
+    };
+
+    let status = response.status();
+    let mut builder = Response::builder().status(status);
+    for (k, v) in response.headers() {
+        builder = builder.header(k, v);
+    }
+
+    let body_bytes = match response.bytes().await {
+        Ok(b) => b,
+        Err(_) => return StatusCode::BAD_GATEWAY.into_response(),
+    };
+
+    match builder.body(Body::from(body_bytes)) {
+        Ok(resp) => resp,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
 fn default_rbac_db_path() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -161,8 +221,14 @@ async fn main() {
         .join("autoforge")
         .join("avatars");
 
+    // ── Vite dev server proxy or static files ────────────────────────────
     let mut app = public_routes.merge(protected_routes);
-    if forge_dist_dir.exists() {
+    let vite_running = tokio::net::TcpStream::connect("127.0.0.1:5174").await.is_ok();
+    if vite_running {
+        app = app.route("/forge", axum::routing::any(vite_proxy))
+                 .route("/forge/{*path}", axum::routing::any(vite_proxy));
+        tracing::info!("AutoForge UI proxied to Vite dev server at http://localhost:5174/forge/");
+    } else if forge_dist_dir.exists() {
         app = app.nest_service("/forge", tower_http::services::ServeDir::new(&forge_dist_dir));
         tracing::info!("AutoForge UI served at /forge ({})", forge_dist_dir.display());
     }

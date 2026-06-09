@@ -6,7 +6,7 @@
   "nav": {
     "explorer": "浏览器",
     "chat": "聊天",
-    "specs": "规格",
+    "specs": "规范",
     "wiki": "知识库",
     "relay": "流水线",
     "agents": "智能体",
@@ -76,7 +76,7 @@
   },
   "welcome": {
     "title": "AutoForge",
-    "subtitle": "规格驱动、串行智能体的 AI 编码助手",
+    "subtitle": "规范驱动、串行智能体的 AI 编码助手",
     "browseButton": "浏览",
     "browseTitle": "浏览文件夹",
     "pathPlaceholder": "输入项目目录路径…",
@@ -93,6 +93,8 @@
     "showSessions": "显示会话",
     "renameSession": "重命名会话",
     "deleteSession": "删除会话",
+    "deleteAllSessions": "删除全部会话",
+    "confirmDeleteAll": "确定要删除所有会话吗？所有消息和记忆将丢失，且无法恢复。",
     "sessionInfo": "会话信息",
     "copyChatId": "复制聊天 ID",
     "searchPlaceholder": "搜索消息…",
@@ -103,7 +105,7 @@
     "expand": "展开",
     "relay": "流水线",
     "regenerate": "重新生成",
-    "specDraftedTitle": "规格已起草。请在下方审阅建议的更改。",
+    "specDraftedTitle": "规范已起草。请在下方审阅建议的更改。",
     "chatId": "聊天 ID",
     "messages": "消息",
     "tokenCost": "令牌消耗",
@@ -115,9 +117,8 @@
     "noSteps": "尚未完成任何步骤"
   },
   "specs": {
-    "title": "规格",
-    "loading": "加载规格中…",
-    "selectSection": "从侧栏选择一个章节",
+    "title": "规范",
+    "loading": "加载规范中…",    "selectSection": "从侧栏选择一个章节",
     "toggleSidebar": "切换侧栏",
     "showSections": "显示章节",
     "searchPlaceholder": "搜索模块…",

@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { WikiPage, WikiPageMeta, TreeNode } from '@/types/wiki'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/wiki'
 const RAW_BASE = '/api/forge/raw'
@@ -26,7 +27,7 @@ export function useWiki() {
     isLoading.value = true
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/pages`)
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/pages`)
       if (!resp.ok) throw new Error(`Failed to load wiki pages: ${resp.status}`)
       const data = await resp.json()
       _pages.value = data.pages ?? []
@@ -41,7 +42,7 @@ export function useWiki() {
     isLoading.value = true
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/page/${encodeURIComponent(slug)}`)
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/page/${encodeURIComponent(slug)}`)
       if (!resp.ok) throw new Error(`Failed to load page: ${resp.status}`)
       const data = await resp.json()
       _activePage.value = data.page ?? null
@@ -55,7 +56,7 @@ export function useWiki() {
   async function createPage(project: string, page: { slug: string; title: string; content: string; source_type: string; tags: string[] }) {
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/pages`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/pages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(page),
@@ -76,7 +77,7 @@ export function useWiki() {
   async function updatePage(project: string, slug: string, data: { content?: string; title?: string; tags?: string[] }) {
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/page/${encodeURIComponent(slug)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/page/${encodeURIComponent(slug)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -92,7 +93,7 @@ export function useWiki() {
   async function deletePage(project: string, slug: string) {
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/page/${encodeURIComponent(slug)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/page/${encodeURIComponent(slug)}`, {
         method: 'DELETE',
       })
       if (!resp.ok) throw new Error(`Failed to delete page: ${resp.status}`)
@@ -108,7 +109,7 @@ export function useWiki() {
     isLoading.value = true
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/search`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
@@ -134,7 +135,7 @@ export function useWiki() {
 
   async function loadWikiTree(project: string) {
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(project)}/tree`)
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/tree`)
       if (!resp.ok) throw new Error(`Failed to load wiki tree: ${resp.status}`)
       _wikiTree.value = await resp.json()
     } catch (e) {
@@ -144,7 +145,7 @@ export function useWiki() {
 
   async function loadRawTree(project: string) {
     try {
-      const resp = await fetch(`${RAW_BASE}/${encodeURIComponent(project)}/tree`)
+      const resp = await authFetch(`${RAW_BASE}/${encodeURIComponent(project)}/tree`)
       if (!resp.ok) throw new Error(`Failed to load raw tree: ${resp.status}`)
       _rawTree.value = await resp.json()
     } catch (e) {
@@ -196,7 +197,7 @@ export function useWiki() {
   async function deleteRawFile(project: string, path: string) {
     error.value = null
     try {
-      const resp = await fetch(`${RAW_BASE}/${encodeURIComponent(project)}/file/${encodeURIComponent(path)}`, {
+      const resp = await authFetch(`${RAW_BASE}/${encodeURIComponent(project)}/file/${encodeURIComponent(path)}`, {
         method: 'DELETE',
       })
       if (!resp.ok) throw new Error(`Failed to delete: ${resp.status}`)
@@ -209,7 +210,7 @@ export function useWiki() {
   async function createRawFolder(project: string, path: string) {
     error.value = null
     try {
-      const resp = await fetch(`${RAW_BASE}/${encodeURIComponent(project)}/mkdir`, {
+      const resp = await authFetch(`${RAW_BASE}/${encodeURIComponent(project)}/mkdir`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),

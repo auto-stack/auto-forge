@@ -160,12 +160,24 @@ export async function authFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const token = _token.value
-  const headers = new Headers(init?.headers)
+
+  // Build a plain headers object preserving all original headers
+  const mergedHeaders: Record<string, string> = {}
+  if (init?.headers) {
+    const h = init.headers
+    if (h instanceof Headers) {
+      h.forEach((v, k) => { mergedHeaders[k] = v })
+    } else if (Array.isArray(h)) {
+      for (const [k, v] of h) mergedHeaders[k] = v
+    } else {
+      Object.assign(mergedHeaders, h)
+    }
+  }
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
+    mergedHeaders['Authorization'] = `Bearer ${token}`
   }
 
-  const resp = await fetch(input, { ...init, headers })
+  const resp = await fetch(input, { ...init, headers: mergedHeaders })
 
   if (resp.status === 401) {
     // Token expired or invalid — clear auth state

@@ -231,6 +231,7 @@ import { useApiSources, type ApiSource, type ModelDefinition } from '@/composabl
 import { useSouls } from '@/composables/useSouls'
 import { useSkills } from '@/composables/useSkills'
 import { useProfessions, type ProfessionDto } from '@/composables/useProfessions'
+import { authFetch } from '../composables/useAuth'
 
 const { t } = useI18n()
 const {
@@ -462,7 +463,7 @@ async function handleAvatarUpload(e: Event) {
   formData.append('file', file)
 
   try {
-    const resp = await fetch(`/api/forge/config/agents/${editing.value.id}/avatar`, {
+    const resp = await authFetch(`/api/forge/config/agents/${editing.value.id}/avatar`, {
       method: 'POST',
       body: formData,
     })
@@ -483,7 +484,7 @@ async function handleAvatarGenerate() {
   if (!editing.value) return
   generatingAvatar.value = true
   try {
-    const resp = await fetch(`/api/forge/config/agents/${editing.value.id}/avatar/generate`, {
+    const resp = await authFetch(`/api/forge/config/agents/${editing.value.id}/avatar/generate`, {
       method: 'POST',
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)

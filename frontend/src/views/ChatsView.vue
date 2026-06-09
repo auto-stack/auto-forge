@@ -7,6 +7,9 @@
         <button class="sidebar-new-btn" @click="clearSession(projectPath ?? undefined)" :title="t('chat.newSession')">
           <Plus :size="14" />
         </button>
+        <button class="sidebar-delete-all-btn" @click="confirmDeleteAll" :title="t('chat.deleteAllSessions')" v-if="sessionList.length > 0">
+          <Trash2 :size="14" />
+        </button>
         <button class="sidebar-collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed" :title="t('chat.toggleSidebar')">
           <PanelLeft :size="14" />
         </button>
@@ -428,6 +431,7 @@ const {
   rejectSpec,
   renameSession,
   deleteSession,
+  deleteAllSessions,
   errands,
   relayRuns,
 } = useForge()
@@ -1175,6 +1179,12 @@ async function confirmDelete(sid: string) {
   await deleteSession(sid)
 }
 
+async function confirmDeleteAll() {
+  const ok = confirm(t('chat.confirmDeleteAll'))
+  if (!ok) return
+  await deleteAllSessions()
+}
+
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text)
@@ -1263,6 +1273,7 @@ onMounted(async () => {
 }
 
 .sidebar-new-btn,
+.sidebar-delete-all-btn,
 .sidebar-collapse-btn,
 .sidebar-toggle-btn {
   display: inline-flex;
@@ -1279,10 +1290,19 @@ onMounted(async () => {
 }
 
 .sidebar-new-btn:hover,
+.sidebar-delete-all-btn:hover,
 .sidebar-collapse-btn:hover,
 .sidebar-toggle-btn:hover {
   background: hsl(var(--muted-foreground) / 0.08);
   color: var(--af-fg);
+}
+
+.sidebar-delete-all-btn {
+  color: hsl(0 60% 50%);
+}
+.sidebar-delete-all-btn:hover {
+  color: hsl(0 70% 45%);
+  background: hsl(0 60% 50% / 0.1);
 }
 
 .session-list {

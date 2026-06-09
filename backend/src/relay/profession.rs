@@ -425,6 +425,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             allowed_tools: vec![
                 String::from("shell"),
                 String::from("read_file"),
+                String::from("edit_file"),
                 String::from("search"),
                 String::from("list_specs"),
                 String::from("read_specs"),

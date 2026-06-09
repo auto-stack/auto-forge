@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import type { ForgeSession, ForgeSessionSummary } from '@/types/forge'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/chats'
 
@@ -17,7 +18,7 @@ export function useSessions() {
   async function loadSessionList() {
     try {
       _isLoading.value = true
-      const resp = await fetch(`${API_BASE}/sessions`)
+      const resp = await authFetch(`${API_BASE}/sessions`)
       if (!resp.ok) throw new Error(`Failed to load sessions: ${resp.status}`)
       const data: ForgeSessionSummary[] = await resp.json()
       _sessionList.value = data
@@ -35,7 +36,7 @@ export function useSessions() {
   async function deleteSession(sessionId: string) {
     try {
       _isLoading.value = true
-      const resp = await fetch(`${API_BASE}/session/${sessionId}`, {
+      const resp = await authFetch(`${API_BASE}/session/${sessionId}`, {
         method: 'DELETE',
       })
       if (!resp.ok) throw new Error(`Failed to delete session: ${resp.status}`)
@@ -55,7 +56,7 @@ export function useSessions() {
   async function deleteAllSessions(): Promise<{ deletedCount: number; newSessionId: string; session: ForgeSession }> {
     try {
       _isLoading.value = true
-      const resp = await fetch(`${API_BASE}/sessions/all`, {
+      const resp = await authFetch(`${API_BASE}/sessions/all`, {
         method: 'DELETE',
       })
       

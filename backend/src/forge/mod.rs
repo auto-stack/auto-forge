@@ -499,6 +499,14 @@ impl SessionStore {
         }
         existed
     }
+
+    pub fn clear(&mut self) {
+        for (sid, _) in self.sessions.drain() {
+            let path = self.data_dir.join(format!("{}.json", sid));
+            let _ = std::fs::remove_file(path);
+        }
+        self.project_locks.clear();
+    }
 }
 
 pub fn forge_sessions() -> &'static Mutex<SessionStore> {
@@ -3138,6 +3146,12 @@ mod handlers {
         }
     }
 
+    pub async fn delete_all_forge_sessions() -> StatusCode {
+        let mut store = forge_sessions().lock().unwrap();
+        store.clear();
+        StatusCode::NO_CONTENT
+    }
+
     pub async fn list_forge_sessions() -> Json<Vec<ForgeSessionSummary>> {
         let store = forge_sessions().lock().unwrap();
         let mut summaries: Vec<ForgeSessionSummary> = store
@@ -3624,7 +3638,7 @@ where
         .route("/api/forge/project/pick-folder", get(handlers::pick_folder))
         // Forge
         .route("/api/forge/chats/session", post(handlers::create_forge_session))
-        .route("/api/forge/chats/sessions", get(handlers::list_forge_sessions))
+        .route("/api/forge/chats/sessions", get(handlers::list_forge_sessions).delete(handlers::delete_all_forge_sessions))
         .route("/api/forge/chats/session/{sid}", get(handlers::get_forge_session).patch(handlers::rename_forge_session).delete(handlers::delete_forge_session))
         .route("/api/forge/chats/{sid}/message", post(handlers::send_forge_message))
         .route("/api/forge/chats/{sid}/stream", get(handlers::forge_stream))

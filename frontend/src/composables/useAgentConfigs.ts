@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/config/agents'
 
@@ -45,7 +46,7 @@ export function useAgentConfigs() {
     _loading.value = true
     _error.value = null
     try {
-      const resp = await fetch(API_BASE)
+      const resp = await authFetch(API_BASE)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       _configs.value = await resp.json()
     } catch (e) {
@@ -58,7 +59,7 @@ export function useAgentConfigs() {
   async function createConfig(config: AgentConfigDto): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(API_BASE, {
+      const resp = await authFetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config }),
@@ -76,7 +77,7 @@ export function useAgentConfigs() {
   async function updateConfig(id: string, config: AgentConfigDto): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -95,7 +96,7 @@ export function useAgentConfigs() {
   async function deleteConfig(id: string): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (resp.status === 403) {
         _error.value = 'Cannot delete default agents'
         return false
@@ -112,7 +113,7 @@ export function useAgentConfigs() {
   async function resetDefaults(): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/reset-defaults`, { method: 'POST' })
+      const resp = await authFetch(`${API_BASE}/reset-defaults`, { method: 'POST' })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       _configs.value = await resp.json()
       return true

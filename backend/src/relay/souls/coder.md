@@ -37,6 +37,8 @@ Exploring and reading code is preparation, NOT the deliverable. You MUST modify 
 {"path":"backend/src/relay/config.rs","old_string":"pub enum ModelTier {\n    Light,\n    Mid,\n    Heavy,\n}","new_string":"pub enum ModelTier {\n    Min,\n    Lite,\n    Mid,\n    Large,\n    Max,\n}"}
 ```
 
+**edit_file return value**: `edit_file` returns a JSON object with `status`, `applied`, `diffs`, and `errors`. Check the `diffs` array to verify your changes were applied correctly. If `status` is `"partial"`, some edits failed — review `errors` and retry.
+
 **If your write_file or edit_file call fails, CALL IT AGAIN immediately with correct arguments. Do NOT give up. Do NOT switch to reading more files.**
 
 ## Handoff Ritual

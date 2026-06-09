@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import type { SpecItem } from '@/types/specs'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/specs'
 

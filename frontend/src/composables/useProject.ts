@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { authFetch } from './useAuth'
 
 export interface ProjectInfo {
   path: string
@@ -40,7 +41,7 @@ export function useProject() {
 
   async function fetchStatus() {
     try {
-      const resp = await fetch(`${API_BASE}/status`)
+      const resp = await authFetch(`${API_BASE}/status`)
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       const data: ProjectInfo = await resp.json()
       _projectInfo.value = data
@@ -53,7 +54,7 @@ export function useProject() {
     _isLoading.value = true
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/open`, {
+      const resp = await authFetch(`${API_BASE}/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),
@@ -74,7 +75,7 @@ export function useProject() {
 
   async function closeProject() {
     try {
-      await fetch(`${API_BASE}/close`, { method: 'POST' })
+      await authFetch(`${API_BASE}/close`, { method: 'POST' })
       _projectInfo.value = null
     } catch (e) {
       _error.value = e instanceof Error ? e.message : String(e)
@@ -83,7 +84,7 @@ export function useProject() {
 
   async function fetchRecentProjects() {
     try {
-      const resp = await fetch(`${API_BASE}/recent`)
+      const resp = await authFetch(`${API_BASE}/recent`)
       if (!resp.ok) return
       const data: RecentProject[] = await resp.json()
       _recentProjects.value = data
@@ -91,7 +92,7 @@ export function useProject() {
   }
 
   async function browseDirectory(path: string): Promise<BrowseEntry[]> {
-    const resp = await fetch(`${API_BASE}/browse?path=${encodeURIComponent(path)}`)
+    const resp = await authFetch(`${API_BASE}/browse?path=${encodeURIComponent(path)}`)
     if (!resp.ok) throw new Error(`Browse failed: ${resp.status}`)
     const data = await resp.json()
     return data.children ?? []

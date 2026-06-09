@@ -80,6 +80,8 @@
     "showSessions": "Show sessions",
     "renameSession": "Rename session",
     "deleteSession": "Delete session",
+    "deleteAllSessions": "Delete all sessions",
+    "confirmDeleteAll": "Delete ALL sessions? All messages and memory will be lost. This cannot be undone.",
     "sessionInfo": "Session info",
     "copyChatId": "Copy chat ID",
     "searchPlaceholder": "Search messages...",

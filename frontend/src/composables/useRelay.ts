@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { useEventRouter, type SSEEvent } from './useEventRouter'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/relay'
 
@@ -151,7 +152,7 @@ export function useRelay() {
 
   async function loadProfessions() {
     try {
-      const resp = await fetch(`${API_BASE}/professions`)
+      const resp = await authFetch(`${API_BASE}/professions`)
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       const data = await resp.json()
       professions.value = data.professions
@@ -162,7 +163,7 @@ export function useRelay() {
 
   async function loadSouls() {
     try {
-      const resp = await fetch(`${API_BASE}/souls`)
+      const resp = await authFetch(`${API_BASE}/souls`)
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       const data = await resp.json()
       souls.value = data.souls
@@ -173,7 +174,7 @@ export function useRelay() {
 
   async function loadRuns() {
     try {
-      const resp = await fetch(`${API_BASE}/runs`)
+      const resp = await authFetch(`${API_BASE}/runs`)
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       const data = await resp.json()
       runs.value = data.sort((a: RunSummary, b: RunSummary) => b.updated_at - a.updated_at)
@@ -244,7 +245,7 @@ export function useRelay() {
 
   async function loadRun(runId: string) {
     try {
-      const resp = await fetch(`${API_BASE}/runs/${runId}`)
+      const resp = await authFetch(`${API_BASE}/runs/${runId}`)
       if (!resp.ok) {
         if (resp.status === 404) {
           currentRun.value = null
@@ -267,7 +268,7 @@ export function useRelay() {
     loading.value = true
     error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/runs`, {
+      const resp = await authFetch(`${API_BASE}/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req),
@@ -287,7 +288,7 @@ export function useRelay() {
 
   async function advanceRun(runId: string) {
     try {
-      const resp = await fetch(`${API_BASE}/runs/${runId}/advance`, { method: 'POST' })
+      const resp = await authFetch(`${API_BASE}/runs/${runId}/advance`, { method: 'POST' })
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       await loadRun(runId)
     } catch (e) {
@@ -297,7 +298,7 @@ export function useRelay() {
 
   async function rerunRun(runId: string) {
     try {
-      const resp = await fetch(`${API_BASE}/runs/${runId}/rerun`, { method: 'POST' })
+      const resp = await authFetch(`${API_BASE}/runs/${runId}/rerun`, { method: 'POST' })
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       await loadRun(runId)
     } catch (e) {
@@ -309,7 +310,7 @@ export function useRelay() {
     try {
       const body: any = { decision }
       if (feedback) body.feedback = feedback
-      const resp = await fetch(`${API_BASE}/runs/${runId}/gate`, {
+      const resp = await authFetch(`${API_BASE}/runs/${runId}/gate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -323,7 +324,7 @@ export function useRelay() {
 
   async function submitHandoff(runId: string, handoff: any) {
     try {
-      const resp = await fetch(`${API_BASE}/runs/${runId}/handoff`, {
+      const resp = await authFetch(`${API_BASE}/runs/${runId}/handoff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ handoff }),
@@ -337,7 +338,7 @@ export function useRelay() {
 
   async function deleteRun(runId: string) {
     try {
-      const resp = await fetch(`${API_BASE}/runs/${runId}`, { method: 'DELETE' })
+      const resp = await authFetch(`${API_BASE}/runs/${runId}`, { method: 'DELETE' })
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       if (currentRun.value?.run_id === runId) {
         currentRun.value = null

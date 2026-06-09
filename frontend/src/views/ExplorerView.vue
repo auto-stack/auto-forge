@@ -106,6 +106,7 @@ import {
 import { useProject } from '@/composables/useProject'
 import TreeView from '@/components/TreeView.vue'
 import type { TreeNode } from '@/types/wiki'
+import { authFetch } from '../composables/useAuth'
 
 const { t } = useI18n()
 const { projectName, projectPath, closeProject } = useProject()
@@ -185,7 +186,7 @@ async function onSelectNode(payload: { path: string; type: string }) {
   fileLoading.value = true
 
   try {
-    const resp = await fetch(`/api/forge/project/file?path=${encodeURIComponent(payload.path)}`)
+    const resp = await authFetch(`/api/forge/project/file?path=${encodeURIComponent(payload.path)}`)
     if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
 
     if (isImage(payload.path) || isPdf(payload.path)) {

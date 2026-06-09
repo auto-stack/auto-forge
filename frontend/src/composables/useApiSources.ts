@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/config/api-sources'
 
@@ -47,7 +48,7 @@ export function useApiSources() {
     _loading.value = true
     _error.value = null
     try {
-      const resp = await fetch(API_BASE)
+      const resp = await authFetch(API_BASE)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       _sources.value = await resp.json()
     } catch (e) {
@@ -60,7 +61,7 @@ export function useApiSources() {
   async function createSource(source: ApiSource): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(API_BASE, {
+      const resp = await authFetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source }),
@@ -81,7 +82,7 @@ export function useApiSources() {
   async function updateSource(id: string, source: ApiSource): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(source),
@@ -103,7 +104,7 @@ export function useApiSources() {
   async function deleteSource(id: string): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
       if (resp.status !== 204) throw new Error(`HTTP ${resp.status}`)
@@ -118,7 +119,7 @@ export function useApiSources() {
   async function testConnection(id: string): Promise<ConnectionTestResult | null> {
     _testResult.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}/test`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}/test`, {
         method: 'POST',
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
@@ -146,7 +147,7 @@ export function useApiSources() {
   async function scanSources(): Promise<ApiSource[]> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/scan`)
+      const resp = await authFetch(`${API_BASE}/scan`)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       return await resp.json()
     } catch (e) {
@@ -158,7 +159,7 @@ export function useApiSources() {
   async function importSources(sourceIds: string[]): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/import`, {
+      const resp = await authFetch(`${API_BASE}/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_ids: sourceIds }),

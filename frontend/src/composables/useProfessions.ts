@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/config/professions'
 
@@ -33,7 +34,7 @@ export function useProfessions() {
     _loading.value = true
     _error.value = null
     try {
-      const resp = await fetch(API_BASE)
+      const resp = await authFetch(API_BASE)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       _professions.value = await resp.json()
     } catch (e) {
@@ -46,7 +47,7 @@ export function useProfessions() {
   async function createProfession(prof: ProfessionDto): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(API_BASE, {
+      const resp = await authFetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(prof),
@@ -64,7 +65,7 @@ export function useProfessions() {
   async function updateProfession(id: string, prof: ProfessionDto): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(prof),
@@ -83,7 +84,7 @@ export function useProfessions() {
   async function deleteProfession(id: string): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (resp.status !== 204) throw new Error(`HTTP ${resp.status}`)
       _professions.value = _professions.value.filter(p => p.id !== id)
       return true
@@ -96,7 +97,7 @@ export function useProfessions() {
   async function resetDefaults(): Promise<boolean> {
     _error.value = null
     try {
-      const resp = await fetch(`${API_BASE}/reset-defaults`, { method: 'POST' })
+      const resp = await authFetch(`${API_BASE}/reset-defaults`, { method: 'POST' })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       _professions.value = await resp.json()
       return true
