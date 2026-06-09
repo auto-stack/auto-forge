@@ -259,18 +259,21 @@ impl ErrandSession {
                 self.messages = chat_messages.clone();
             } else {
                 // No tool use — errand is complete
+                let summary = self.generate_tool_summary();
+                let result = format!("{}{}", turn_text, summary);
                 self.status = ErrandStatus::Completed {
-                    result: turn_text.clone(),
+                    result: result.clone(),
                 };
                 self.completed_at = Some(crate::forge::now_secs());
                 self.emit_complete(&event_sender);
-                return Ok(turn_text);
+                return Ok(result);
             }
         }
 
         // Max turns reached
+        let summary = self.generate_tool_summary();
         let truncated = format!(
-            "{final_text}\n\n[Errand reached maximum turns ({}). Stopping.]",
+            "{final_text}{summary}\n\n[Errand reached maximum turns ({}). Stopping.]",
             self.max_turns
         );
         self.status = ErrandStatus::Truncated {
@@ -280,6 +283,70 @@ impl ErrandSession {
         self.completed_at = Some(crate::forge::now_secs());
         self.emit_complete(&event_sender);
         Ok(truncated)
+    }
+
+    /// Generate an objective summary of tool calls made during this errand.
+    fn generate_tool_summary(&self) -> String {
+        use std::collections::HashMap;
+
+        let mut tool_counts: HashMap<String, (u32, u32)> = HashMap::new();
+        let mut pending_tool: Option<String> = None;
+        let mut assistant_turns = 0u32;
+
+        for msg in &self.messages {
+            match msg.role.as_str() {
+                "assistant" => {
+                    assistant_turns += 1;
+                    for block in &msg.content {
+                        if let ContentBlock::ToolUse { name, .. } = block {
+                            pending_tool = Some(name.clone());
+                        }
+                    }
+                }
+                "user" => {
+                    if let Some(ref tool_name) = pending_tool {
+                        let entry = tool_counts.entry(tool_name.clone()).or_insert((0, 0));
+                        entry.0 += 1;
+                        for block in &msg.content {
+                            let result_text = match block {
+                                ContentBlock::ToolResult { content, .. } => Some(content.as_str()),
+                                ContentBlock::Text { text } => Some(text.as_str()),
+                                _ => None,
+                            };
+                            if let Some(text) = result_text {
+                                if text.starts_with("Error:") {
+                                    entry.1 += 1;
+                                }
+                            }
+                        }
+                        pending_tool = None;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if tool_counts.is_empty() {
+            return String::new();
+        }
+
+        let mut parts: Vec<String> = tool_counts
+            .iter()
+            .map(|(name, (total, errors))| {
+                if *errors > 0 {
+                    format!("{}×{} ({} failed)", name, total, errors)
+                } else {
+                    format!("{}×{}", name, total)
+                }
+            })
+            .collect();
+        parts.sort();
+
+        format!(
+            "\n\n[System Summary] Tools actually used: {} (over {} turns)",
+            parts.join(", "),
+            assistant_turns
+        )
     }
 
     /// Emit the errand_complete SSE event.
