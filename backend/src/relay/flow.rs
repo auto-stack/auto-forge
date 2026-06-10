@@ -6,6 +6,21 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ─── Validation Types ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationSeverity {
+    Error,
+    Warning,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidationIssue {
+    pub severity: ValidationSeverity,
+    pub message: String,
+    pub step_id: Option<String>,
+}
+
 /// A flow is an ordered list of steps with routing logic.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlowSpec {
