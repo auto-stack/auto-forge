@@ -146,3 +146,31 @@
 - [x] 加载历史运行时，后端 API 返回按 profession 分组的 token 消耗统计
 - [x] 前端 loadRun 函数获取并填充 professionTokens，饼状图在历史运行中正确显示
 - [x] 饼状图显示每个 profession 的 token 数量和百分比，无数据时显示友好提示
+
+## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
+**Status:** in_progress
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G16
+
+## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
+**Status:** in_progress
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G16
+
+- [ ] 删除 RelayView 中的 Cost Breakdown 面板（pie chart + legend）
+- [ ] 将单色 budget-bar 改造为多色分段进度条，每个 profession 用独立颜色，色带宽度与 token 消耗成正比
+- [ ] 鼠标悬停进度条时显示横向 bar chart tooltip，展示各 Agent 的 token 消耗对比和百分比
+- [ ] 保留 budget 超限警告色（70%/90%）作为进度条背景底色或边框提示
+
+### Architecture: Relay-A9
+### Design: Relay-D15
+
+## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
+**Status:** in_progress
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G16
+
+- [ ] 删除 RelayView 中的 Cost Breakdown 面板（pie chart + legend）
+- [ ] 将单色 budget-bar 改造为多色分段进度条，每个 profession 用独立颜色，色带宽度与 token 消耗成正比
+- [ ] 鼠标悬停进度条时显示横向 bar chart tooltip，展示各 Agent 的 token 消耗对比和百分比
+- [ ] 保留 budget 超限警告色（70%/90%）作为进度条背景底色或边框提示

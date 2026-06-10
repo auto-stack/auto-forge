@@ -49,19 +49,57 @@
 | Relay-P3.8 | 分叉 | Core | 2 天 | done |
 | Relay-P3.9 | 崩溃恢复测试 | Core | 2 天 | done |
 
-## Relay-P4 智能体中继 — Token 预算
+## Relay-P4 Segmented Token Progress Bar Implementation
 **Status:** draft
-**Depends on:** Runtime-G2, Relay-D4
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G17, Relay-D15, Relay-A9
 
-| Phase | Task | Owner | Duration | Status |
-|---|---|---|---|---|
-| Relay-P4.1 | TokenBudget 和 BudgetTracker | Core | 2 天 | done |
-| Relay-P4.2 | 每步/每运行跟踪 | Core | 2 天 | done |
-| Relay-P4.3 | 预算强制执行 | Core | 2 天 | done |
-| Relay-P4.4 | 模型升级回退 | Core | 2 天 | done |
-| Relay-P4.5 | 成本分析 API | Core | 2 天 | done |
-| Relay-P4.6 | 节省估算 | Core | 2 天 | done |
-| Relay-P4.7 | 单元测试 | Core | 2 天 | done |
+# Relay-P4: Segmented Token Progress Bar Implementation
+
+
+### Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| Tooltip positioning breaks near viewport edges | Medium | Medium | Implement flip-below logic per D15 §Positioning; test with short viewport |
+| Min-width segments overflow bar for many tiny professions | Low | Low | Enforce min 2px per D15; cap total segments shown in tooltip if > 8 |
+| `professionTokens` reactive ref not yet wired in RelayView | Medium | High | Verify Relay-A8 data source exists in Phase 1 before building components |
+| Deleting inline pie chart breaks dependent template sections | Low | Medium | Carefully identify all pie-related template, script, and CSS blocks before removal in Phase 5 |
+| Budget warning glow not visible on dark themes | Low | Low | Use rgba with sufficient opacity per D15 CSS; test in dark mode |
+| Tooltip stays open when mouse moves between bar and tooltip | Medium | Medium | Add `mouseenter` on tooltip div to cancel hide timer per D15 §onTooltipEnter |
+
+### Phase Breakdown
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P4.1 | Create `useProfessionSegments` composable | Coder | 1.5h | Relay-A8 | draft | Create `frontend/src/composables/useProfessionSegments.ts`. Define `PROFESSION_PALETTE` constant (8 professions + `_default` key mapping to hex colors) per D15 §Composable. Export `ProfessionSegment` and `TooltipBarEntry` interfaces per A9 §Data Model. Implement `useProfessionSegments(professionTokens: Ref<Record<string, number>>)` returning reactive `{ segments, totalUsed, tooltipEntries }`. **segments**: filter entries where tokens > 0, map to `ProfessionSegment` with color from palette (fallback `_default: '#94a3b8'`), sort descending by tokens. **totalUsed**: computed sum of segment tokens. **tooltipEntries**: map segments to `TooltipBarEntry` with `percentage = Math.round((tokens / totalUsed) * 1000) / 10` (1 decimal, avoid /0 with `totalUsed \|\| 1`). **Deliverable:** File compiles; exports are tree-shakeable; all 11 composable test cases in T23 are runnable against it. |
+| P4.2 | Create `SegmentedProgressBar.vue` with inline tooltip | Coder | 3h | P4.1 | draft | Create `frontend/src/components/SegmentedProgressBar.vue` per D15 §Component: SegmentedProgressBar. This is a single component file that includes the tooltip inline (NOT a separate AgentBreakdownTooltip.vue file — the later D15 revision consolidated them). **Props:** `segments: ProfessionSegment[]`, `totalBudget: number`, `totalUsed: number`, `warnThreshold?: number` (default 0.7), `dangerThreshold?: number` (default 0.9). **Template:** (1) Outer `.segmented-budget-bar` div with `:class="budgetClass"`, `role="progressbar"`, `aria-valuenow`, `aria-valuemax`, `aria-label`, `tabindex="0"`. (2) `.budget-label-row` showing "Budget" and `formatCompact(totalUsed) / formatCompact(totalBudget)`. (3) Empty state `.empty-placeholder` when `segments.length === 0`. (4) `.segments-container` flex div with per-segment `.segment` divs styled via `segmentStyle(seg)` — width = `tokens/totalBudget * 100%`, backgroundColor = seg.color, minWidth 2px. (5) Inline `<Transition name="tooltip-fade">` wrapping `.breakdown-tooltip` div with `role="tooltip"` — contains title, divider, per-entry rows (color dot + profession name + mini-bar-track/fill + percentage label), divider, total row. Tooltip positioned `absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%)`. **Hover state:** `isHovering` ref; `showTooltip` ref. `onMouseEnter`/`onFocusIn` → cancel hide timer → start 80ms show timer → set showTooltip=true. `onMouseLeave`/`onFocusOut` → cancel show timer → start 150ms hide debounce → set showTooltip=false. `onTooltipEnter` on tooltip div cancels hide timer (allows mouse to enter tooltip). **budgetClass computed:** ratio = totalUsed/totalBudget; ≥ dangerThreshold → `'budget-danger'`, ≥ warnThreshold → `'budget-warn'`, else `''`. **CSS (scoped):** `.segmented-budget-bar`, `.segments-container`, `.segment` (transition width 300ms ease-out), `.budget-warn .segments-container` (amber box-shadow), `.budget-danger .segments-container` (red box-shadow), `.breakdown-tooltip`, `.tooltip-row` (grid 10px 80px 1fr 48px), `.mini-bar-track/fill`, fade transitions (150ms enter / 100ms leave). **Deliverable:** Component renders multi-color segments proportional to tokens; hover shows inline tooltip with bar chart; budget warning glow activates at thresholds; keyboard accessible; no external tooltip dependency. |
+| P4.3 | Integrate SegmentedProgressBar into RelayView | Coder | 1.5h | P4.1, P4.2 | draft | Modify `frontend/src/views/RelayView.vue`. **Script changes:** Add `import SegmentedProgressBar from '@/components/SegmentedProgressBar.vue'` and `import { useProfessionSegments } from '@/composables/useProfessionSegments'`. After the existing `useRelay()` destructuring (which already exposes `professionTokens` ref per A8), call `const { segments, totalUsed } = useProfessionSegments(professionTokens)`. **Template changes:** Replace the existing mono-color budget bar markup (approximately lines 96–113 — the `.budget-bar-container` > `.budget-label` > `.budget-bar` > `.budget-fill` block) with `<SegmentedProgressBar :segments="segments" :total-budget="currentRun?.token_budget ?? 0" :total-used="totalUsed" />`. Keep the `.budget-bar-container` wrapper if it provides layout spacing, or remove if the component is self-contained. Per A9 §Files to Modify and D15 §Integration Changes. **Deliverable:** RelayView shows segmented bar instead of mono bar; data flows correctly from SSE events through professionTokens → composable → component; no console errors; budget label and total display correctly. |
+| P4.4 | Remove Cost Breakdown pie chart panel and dead code | Coder | 1h | P4.3 | draft | In `frontend/src/views/RelayView.vue`: **Template:** Remove the entire Cost Breakdown card/panel section (the `.cost-panel` div containing the inline SVG donut chart + `.pie-legend`, approximately lines 326–370). **Script:** Remove the `professionColors` constant (the HSL color map for pie chart slices) and the `pieSlices` computed property (the pie chart arc data generator). **CSS:** Delete all `.cost-panel`, `.cost-chart`, `.pie-chart-container`, `.pie-chart`, `.pie-total`, `.pie-slice-active`, `.pie-legend`, `.pie-legend-item`, `.pie-dot`, `.pie-prof`, `.pie-val` rules. Also remove `.budget-bar`, `.budget-fill`, `.budget-fill.warning`, `.budget-fill.danger` rules now replaced by SegmentedProgressBar's scoped CSS. **Verify:** No broken template references; no unused imports; no dangling CSS selectors. Per A9 §Files to Modify. Note: there is NO separate `CostBreakdownChart.vue` file to delete — the pie chart is inline in RelayView. **Deliverable:** All pie chart code removed; RelayView compiles cleanly; no dead CSS or script artifacts remain. |
+| P4.5 | Visual QA and edge case verification | Coder | 1h | P4.4 | draft | Manually verify all edge cases per A9 §Edge Cases: (1) No tokens consumed → empty placeholder text visible; (2) Single profession → one segment fills used portion, tooltip shows 100%; (3) Empty `{}` professionTokens → empty state; (4) Tiny profession < 2% of total → min 2px segment rendered + tooltip row present; (5) Budget = 0 or undefined → segments render proportionally, no warning thresholds trigger; (6) Tooltip near viewport top → flips below bar (`.flip-below` class). **Theme testing:** Verify budget warning glow (amber/red box-shadow) is visible in both light and dark themes. **Keyboard testing:** Tab to bar → focus-visible outline appears → tooltip shows after 80ms → tab away → tooltip hides after 150ms. **Animation testing:** Segment width transitions (300ms ease-out) smooth on token updates; tooltip fade-in (150ms) and fade-out (100ms) clean. **Deliverable:** All 6 edge cases handled per design spec; no visual glitches; theme and keyboard tests pass. |
+
+### Critical Path
+
+```
+P4.1 (composable) → P4.2 (component) → P4.3 (integration) → P4.4 (cleanup) → P4.5 (QA)
+```
+
+P4.1 is the foundation — the component depends on its types and computed outputs. P4.3 and P4.4 are sequential since both modify RelayView.vue (P4.3 adds the new, P4.4 removes the old).
+
+### Key Design Decision: Inline Tooltip
+
+The latest D15 revision consolidates the tooltip **inline** within `SegmentedProgressBar.vue` rather than as a separate `AgentBreakdownTooltip.vue` component. This simplifies the file structure (1 new component instead of 2) and eliminates prop-drilling between parent and child tooltip. The tooltip markup, CSS, and hover state machine all live inside `SegmentedProgressBar.vue`. **No `AgentBreakdownTooltip.vue` file is created.**
+
+### Files Summary
+
+| File | Action | Lines Affected |
+|---|---|---|
+| `frontend/src/composables/useProfessionSegments.ts` | **CREATE** | New file (~60 lines) |
+| `frontend/src/components/SegmentedProgressBar.vue` | **CREATE** | New file (~250 lines including inline tooltip) |
+| `frontend/src/views/RelayView.vue` | **MODIFY** | Replace budget bar (~lines 96–113), remove pie panel (~lines 326–370), remove pieSlices/professionColors (~lines 490–522), remove pie + old budget CSS |
+
+### Estimated Total Effort
+~8h (Coder)
 
 ## Relay-P5 智能体中继 — 前端视图
 **Status:** draft
@@ -366,8 +404,8 @@ Relay-P13.10 (Flow 变体评估)
 |---|---|---|---|---|---|---|
 | Relay-P14.1 | Backend: 定义 `RunDetailResponse` 结构体，含 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在 `backend/src/relay/api.rs` 中定义新的响应结构体 `RunDetailResponse`，包含 `RunEntry` 的所有现有字段、`steps: Vec<StepState>` 和新增的 `profession_tokens: HashMap<String, u64>`。实现 `From<RunEntry>` 转换。per A8 §Data Model。**文件:** `backend/src/relay/api.rs` **交付物:** 结构体编译通过；serde 序列化包含 `profession_tokens` 字段。 |
 | Relay-P14.2 | Backend: 在 `get_run` handler 中聚合 per-profession token 统计 | Coder | 1h | Relay-P14.1 | draft | 修改 `get_run` handler：从 `RunEntry.steps` 迭代，按 `step.profession` 分组求和 `step.tokens_used`。空 profession 归入 `"unknown"`。构建 `RunDetailResponse` 返回。确保无 steps 时返回空 map `{}`。per A8 §Change 1。**文件:** `backend/src/relay/api.rs` **交付物:** `GET /api/relay/runs/:id` 响应 JSON 包含 `profession_tokens` 字段，值与 steps 中的 token 总和一致。 |
-| Relay-P14.3 | Frontend: 更新 `RunDetail` 类型定义，添加 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在前端类型定义中（`RelayView.vue` 或相关 composable 的 interface）添加 `profession_tokens?: Record<string, number>` 字段。per A8 §Frontend Type update。**文件:** `packages/auto-forge-ui/src/views/RelayView.vue`（或对应 composable） **交付物:** TypeScript 编译通过；API 响应正确反序列化。 |
-| Relay-P14.4 | Frontend: 在 `loadRun` 函数中填充 `professionTokens` ref | Coder | 1h | Relay-P14.3 | draft | 修改 `loadRun` 函数：获取 run 详情后，清空 `professionTokens` ref，遍历响应中的 `profession_tokens` 写入 `professionTokens`。饼状图通过 watch `professionTokens` 自动重新渲染。per A8 §Change 2。**文件:** `packages/auto-forge-ui/src/views/RelayView.vue` **交付物:** 点击历史运行后，Cost Breakdown 饼状图正确显示各 profession 的 token 占比。 |
+| Relay-P14.3 | Frontend: 更新 `RunDetail` 类型定义，添加 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在前端类型定义中（`RelayView.vue` 或相关 composable 的 interface）添加 `profession_tokens?: Record<string, number>` 字段。per A8 §Frontend Type update。**文件:** `frontend/src/views/RelayView.vue`（或对应 composable） **交付物:** TypeScript 编译通过；API 响应正确反序列化。 |
+| Relay-P14.4 | Frontend: 在 `loadRun` 函数中填充 `professionTokens` ref | Coder | 1h | Relay-P14.3 | draft | 修改 `loadRun` 函数：获取 run 详情后，清空 `professionTokens` ref，遍历响应中的 `profession_tokens` 写入 `professionTokens`。饼状图通过 watch `professionTokens` 自动重新渲染。per A8 §Change 2。**文件:** `frontend/src/views/RelayView.vue` **交付物:** 点击历史运行后，Cost Breakdown 饼状图正确显示各 profession 的 token 占比。 |
 | Relay-P14.5 | 集成验证：后端编译 + 前端构建 + 手动冒烟测试 | Coder | 1h | Relay-P14.2, Relay-P14.4 | draft | (1) `cargo check -p auto-forge` 通过；(2) 前端 `pnpm build` 通过；(3) 启动应用，执行一次 relay run，然后回到运行列表，点击已完成的运行，确认 Cost Breakdown 饼状图正确显示各 profession 的 token 消耗和百分比。per G16 验收标准。**交付物:** 历史运行饼状图数据与实时运行一致；无 steps 时显示"无数据"提示。 |
 
 ### 风险与缓解
@@ -405,8 +443,8 @@ Relay-P14.5 (集成验证) ← P14.2 + P14.4
 |---|---|---|---|---|---|---|
 | Relay-P14.1 | Backend: 定义 `RunDetailResponse` 结构体，含 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在 `backend/src/relay/api.rs` 中定义新的响应结构体 `RunDetailResponse`，包含 `RunEntry` 的所有现有字段、`steps: Vec<StepState>` 和新增的 `profession_tokens: HashMap<String, u64>`。实现 `From<RunEntry>` 转换。per A8 §Data Model。**文件:** `backend/src/relay/api.rs` **交付物:** 结构体编译通过；serde 序列化包含 `profession_tokens` 字段。 |
 | Relay-P14.2 | Backend: 在 `get_run` handler 中聚合 per-profession token 统计 | Coder | 1h | Relay-P14.1 | draft | 修改 `get_run` handler：从 `RunEntry.steps` 迭代，按 `step.profession` 分组求和 `step.tokens_used`。空 profession 归入 `"unknown"`。构建 `RunDetailResponse` 返回。确保无 steps 时返回空 map `{}`。per A8 §Change 1。**文件:** `backend/src/relay/api.rs` **交付物:** `GET /api/relay/runs/:id` 响应 JSON 包含 `profession_tokens` 字段，值与 steps 中的 token 总和一致。 |
-| Relay-P14.3 | Frontend: 更新 `RunDetail` 类型定义，添加 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在前端类型定义中（`RelayView.vue` 或相关 composable 的 interface）添加 `profession_tokens?: Record<string, number>` 字段。per A8 §Frontend Type update。**文件:** `packages/auto-forge-ui/src/views/RelayView.vue`（或对应 composable） **交付物:** TypeScript 编译通过；API 响应正确反序列化。 |
-| Relay-P14.4 | Frontend: 在 `loadRun` 函数中填充 `professionTokens` ref | Coder | 1h | Relay-P14.3 | draft | 修改 `loadRun` 函数：获取 run 详情后，清空 `professionTokens` ref，遍历响应中的 `profession_tokens` 写入 `professionTokens`。饼状图通过 watch `professionTokens` 自动重新渲染。per A8 §Change 2。**文件:** `packages/auto-forge-ui/src/views/RelayView.vue` **交付物:** 点击历史运行后，Cost Breakdown 饼状图正确显示各 profession 的 token 占比。 |
+| Relay-P14.3 | Frontend: 更新 `RunDetail` 类型定义，添加 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在前端类型定义中（`RelayView.vue` 或相关 composable 的 interface）添加 `profession_tokens?: Record<string, number>` 字段。per A8 §Frontend Type update。**文件:** `frontend/src/views/RelayView.vue`（或对应 composable） **交付物:** TypeScript 编译通过；API 响应正确反序列化。 |
+| Relay-P14.4 | Frontend: 在 `loadRun` 函数中填充 `professionTokens` ref | Coder | 1h | Relay-P14.3 | draft | 修改 `loadRun` 函数：获取 run 详情后，清空 `professionTokens` ref，遍历响应中的 `profession_tokens` 写入 `professionTokens`。饼状图通过 watch `professionTokens` 自动重新渲染。per A8 §Change 2。**文件:** `frontend/src/views/RelayView.vue` **交付物:** 点击历史运行后，Cost Breakdown 饼状图正确显示各 profession 的 token 占比。 |
 | Relay-P14.5 | 集成验证：后端编译 + 前端构建 + 手动冒烟测试 | Coder | 1h | Relay-P14.2, Relay-P14.4 | draft | (1) `cargo check -p auto-forge` 通过；(2) 前端 `pnpm build` 通过；(3) 启动应用，执行一次 relay run，然后回到运行列表，点击已完成的运行，确认 Cost Breakdown 饼状图正确显示各 profession 的 token 消耗和百分比。per G16 验收标准。**交付物:** 历史运行饼状图数据与实时运行一致；无 steps 时显示"无数据"提示。 |
 
 ### 风险与缓解

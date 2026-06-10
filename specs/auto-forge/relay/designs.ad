@@ -476,7 +476,7 @@ fn evaluate_gate(step, mode):
 **Status:** draft
 
 **状态：** 已实现
-**模块：** `packages/auto-forge-ui/src/composables/useGateInbox.ts`
+**模块：** `frontend/src/composables/useGateInbox.ts`
 **标签：** stack:frontend
 **依赖：** UiSystem-A1
 
@@ -552,7 +552,7 @@ fn snoozeGate(id, minutes):
 **Status:** draft
 
 **状态：** 已实现
-**模块：** `packages/auto-forge-ui/src/views/RelayView.vue`
+**模块：** `frontend/src/views/RelayView.vue`
 **标签：** stack:frontend
 **依赖：** UiSystem-A1
 
@@ -600,7 +600,7 @@ interface PipelineEdge {
 **Status:** draft
 
 **状态：** 已实现
-**模块：** `packages/auto-forge-ui/src/components/NodeCard.vue`
+**模块：** `frontend/src/components/NodeCard.vue`
 **标签：** stack:frontend
 **依赖：** Relay-D7
 
@@ -636,7 +636,7 @@ interface NodeCardProps {
 **Status:** draft
 
 **状态：** 已实现
-**模块：** `packages/auto-forge-ui/src/components/GatePanel.vue`
+**模块：** `frontend/src/components/GatePanel.vue`
 **标签：** stack:frontend
 **依赖：** UiSystem-A1, Relay-D6
 
@@ -680,7 +680,7 @@ emit('reviewInSpecs', sectionId: string)
 **Status:** draft
 
 **状态：** 已实现
-**模块：** `packages/auto-forge-ui/src/composables/useEventRouter.ts`
+**模块：** `frontend/src/composables/useEventRouter.ts`
 **标签：** stack:frontend
 **依赖：** UiSystem-A1, Relay-D6
 
@@ -1473,3 +1473,1108 @@ graph LR
 ---
 
 ---
+
+## Relay-D15 Relay-D15 Segmented Token Progress Bar Design
+**Status:** approved
+**File:** `frontend/src/composables/useProfessionSegments.ts` (NEW)
+**Module:** relay
+**Depends on:** Relay-A9 (architecture), Relay-A8 (profession_tokens data)
+
+## Relay-D15 Segmented Token Progress Bar Design
+**Status:** approved
+**File:** `frontend/src/components/SegmentedProgressBar.vue` (NEW)
+**Module:** relay
+**Depends on:** Relay-A9 (architecture), Relay-A8 (profession_tokens data)
+
+## Overview
+
+Detailed component design for replacing the inline Cost Breakdown pie chart panel (RelayView.vue lines ~326–370) with a multi-color segmented progress bar in the budget bar area (lines ~96–113), including a hover tooltip showing a horizontal bar chart of per-agent token usage.
+
+## Verified Code Context
+
+| Item | Location | Notes |
+|---|---|---|
+| Budget bar area | `RelayView.vue:96-113` | `.budget-bar-container` with mono `.budget-fill` — **replace this** |
+| Cost Breakdown panel | `RelayView.vue:326-370` | Inline SVG donut chart + `.pie-legend` — **delete this** |
+| `pieSlices` computed | `RelayView.vue` script | Inline pie chart data — **delete** |
+| `professionColors` map | `RelayView.vue` script | HSL color map for pie — **delete** (replaced by `PROFESSION_PALETTE` in composable) |
+| `_professionTokens` | `useRelay.ts:16` | Singleton `ref<Record<string, number>>({})` — **data source, already exists** |
+| `professionTokens` | `useRelay.ts` return | Exposed from `useRelay()` — **wire into composable** |
+| `budgetUsedPercent` | `useRelay.ts:~104` | Existing computed — **can keep or replace** |
+| Cost panel CSS | `RelayView.vue` style | `.cost-panel`, `.cost-chart`, `.pie-*` rules — **delete** |
+| **No `CostBreakdownChart.vue`** | — | Pie chart is inline in RelayView — **no separate file to delete** |
+
+---
+
+## Composable: `useProfessionSegments`
+
+
+### Interface
+
+```typescript
+export interface ProfessionSegment {
+  profession: string
+  tokens: number
+  color: string
+}
+
+export interface TooltipBarEntry {
+  profession: string
+  tokens: number
+  percentage: number  // tokens / totalUsed * 100, rounded to 1 decimal
+  color: string
+}
+
+export const PROFESSION_PALETTE: Record<string, string> = {
+  advisor:    '#6366f1',  // indigo
+  architect:  '#8b5cf6',  // violet
+  planner:    '#3b82f6',  // blue
+  coder:      '#10b981',  // emerald
+  tester:     '#f59e0b',  // amber
+  reviewer:   '#ef4444',  // red
+  documenter: '#06b6d4',  // cyan
+  gofer:      '#64748b',  // slate
+  _default:   '#94a3b8',  // gray
+}
+
+export function useProfessionSegments(
+  professionTokens: Ref<Record<string, number>>
+) {
+  // Filter tokens > 0, map to segment with palette color, sort desc
+  const segments = computed<ProfessionSegment[]>(() =>
+    Object.entries(professionTokens.value)
+      .filter(([, tokens]) => tokens > 0)
+      .map(([profession, tokens]) => ({
+        profession,
+        tokens,
+        color: PROFESSION_PALETTE[profession] ?? PROFESSION_PALETTE._default,
+      }))
+      .sort((a, b) => b.tokens - a.tokens)
+  )
+
+  const totalUsed = computed(() =>
+    segments.value.reduce((sum, s) => sum + s.tokens, 0)
+  )
+
+  // Percentage computed to 1 decimal (e.g. 35.2)
+  const tooltipEntries = computed<TooltipBarEntry[]>(() => {
+    const total = totalUsed.value || 1  // avoid /0
+    return segments.value.map(s => ({
+      ...s,
+      percentage: Math.round((s.tokens / total) * 1000) / 10,
+    }))
+  })
+
+  return { segments, totalUsed, tooltipEntries }
+}
+```
+
+### Data Flow
+
+```
+[useRelay()._professionTokens (reactive)]
+  → useProfessionSegments(professionTokens)
+  → computed: segments (filter >0, color-map, sort desc)
+  → computed: totalUsed (sum of segment tokens)
+  → computed: tooltipEntries (segments + percentage)
+  → prop-drill into <SegmentedProgressBar> + <AgentBreakdownTooltip>
+```
+
+---
+
+## Component 1: AgentBreakdownTooltip
+
+
+### Interface
+
+```typescript
+interface Props {
+  visible: boolean
+  entries: TooltipBarEntry[]
+  totalUsed: number
+  totalBudget: number
+}
+
+// Emits — none (display-only)
+```
+
+### Template Structure
+
+```html
+<Transition name="tooltip-fade">
+  <div
+    v-if="visible"
+    class="breakdown-tooltip"
+    role="tooltip"
+  >
+    <div class="tooltip-title">{{ t('relay.tokenBreakdown') }}</div>
+    <div class="tooltip-divider" />
+
+    <div
+      v-for="entry in entries"
+      :key="entry.profession"
+      class="tooltip-row"
+    >
+      <span class="color-dot" :style="{ background: entry.color }" />
+      <span class="profession-name">{{ entry.profession }}</span>
+      <div class="mini-bar-track">
+        <div
+          class="mini-bar-fill"
+          :style="{ width: `${entry.percentage}%`, background: entry.color }"
+        />
+      </div>
+      <span class="percentage-label">{{ entry.percentage }}%</span>
+    </div>
+
+    <div class="tooltip-divider" />
+    <div class="tooltip-total">
+      {{ formatTokens(totalUsed) }} / {{ formatTokens(totalBudget) }}
+    </div>
+  </div>
+</Transition>
+```
+
+### Script
+
+```typescript
+import type { TooltipBarEntry } from '@/composables/useProfessionSegments'
+
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return `${n}`
+}
+```
+
+### State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Hidden: mount
+    Hidden --> Visible: parent sets visible=true
+    Visible --> Hidden: parent sets visible=false
+    
+    note right of Hidden: DOM not rendered (v-if)
+    note right of Visible: Fade-in transition 150ms
+```
+
+### CSS
+
+```css
+.breakdown-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  min-width: 280px;
+  max-width: 360px;
+  background: var(--af-bg);
+  border: 1px solid var(--af-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+/* Flip below if near viewport top — JS sets `.flipped` class */
+.breakdown-tooltip.flipped {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+.tooltip-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--af-fg);
+  margin-bottom: 0.4rem;
+}
+
+.tooltip-divider {
+  height: 1px;
+  background: var(--af-border);
+  margin: 0.4rem 0;
+}
+
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.profession-name {
+  font-size: 0.75rem;
+  color: var(--af-fg);
+  min-width: 64px;
+  text-transform: capitalize;
+}
+
+.mini-bar-track {
+  flex: 1;
+  height: 6px;
+  background: hsl(var(--muted-foreground) / 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.percentage-label {
+  font-size: 0.72rem;
+  color: var(--af-muted);
+  min-width: 40px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tooltip-total {
+  font-size: 0.78rem;
+  color: var(--af-muted);
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Fade transition */
+.tooltip-fade-enter-active { transition: opacity 150ms ease; }
+.tooltip-fade-leave-active { transition: opacity 100ms ease; }
+.tooltip-fade-enter-from, .tooltip-fade-leave-to { opacity: 0; }
+```
+
+---
+
+## Component 2: SegmentedProgressBar
+
+
+### Interface
+
+```typescript
+import type { ProfessionSegment } from '@/composables/useProfessionSegments'
+import type { TooltipBarEntry } from '@/composables/useProfessionSegments'
+
+interface Props {
+  segments: ProfessionSegment[]
+  totalBudget: number
+  totalUsed: number
+  warnThreshold?: number   // default 0.7
+  dangerThreshold?: number // default 0.9
+}
+
+// Emits — none (display-only)
+```
+
+### Template Structure
+
+```html
+<div
+  class="segmented-budget-bar"
+  :class="budgetClass"
+  tabindex="0"
+  role="progressbar"
+  :aria-valuenow="totalUsed"
+  :aria-valuemax="totalBudget"
+  :aria-label="`Token budget: ${formatTokens(totalUsed)} of ${formatTokens(totalBudget)} used`"
+  @mouseenter="onMouseEnter"
+  @mouseleave="onMouseLeave"
+  @focusin="onFocusIn"
+  @focusout="onFocusOut"
+>
+  <!-- Empty state -->
+  <div v-if="segments.length === 0" class="empty-placeholder">
+    No token data yet
+  </div>
+
+  <!-- Filled segments -->
+  <div v-else class="segments-container">
+    <div
+      v-for="seg in segments"
+      :key="seg.profession"
+      class="segment"
+      :style="segmentStyle(seg)"
+    />
+  </div>
+
+  <!-- Hover tooltip -->
+  <AgentBreakdownTooltip
+    :visible="isTooltipVisible"
+    :entries="tooltipEntries"
+    :total-used="totalUsed"
+    :total-budget="totalBudget"
+  />
+</div>
+```
+
+### Script
+
+```typescript
+import { ref, computed, watch } from 'vue'
+import type { ProfessionSegment, TooltipBarEntry } from '@/composables/useProfessionSegments'
+import AgentBreakdownTooltip from './AgentBreakdownTooltip.vue'
+
+const props = withDefaults(defineProps<{
+  segments: ProfessionSegment[]
+  totalBudget: number
+  totalUsed: number
+  warnThreshold?: number
+  dangerThreshold?: number
+}>(), {
+  warnThreshold: 0.7,
+  dangerThreshold: 0.9,
+})
+
+// Budget warning class
+const budgetClass = computed(() => {
+  if (!props.totalBudget) return ''
+  const ratio = props.totalUsed / props.totalBudget
+  if (ratio >= props.dangerThreshold!) return 'budget-danger'
+  if (ratio >= props.warnThreshold!) return 'budget-warn'
+  return ''
+})
+
+// Segment style: proportional to budget
+function segmentStyle(seg: ProfessionSegment) {
+  return {
+    width: props.totalBudget > 0
+      ? `${(seg.tokens / props.totalBudget) * 100}%`
+      : '0%',
+    backgroundColor: seg.color,
+    minWidth: seg.tokens > 0 ? '2px' : '0',
+  }
+}
+
+// Tooltip entries — compute percentage relative to totalUsed
+const tooltipEntries = computed<TooltipBarEntry[]>(() => {
+  const total = props.totalUsed || 1
+  return props.segments.map(s => ({
+    ...s,
+    percentage: Math.round((s.tokens / total) * 1000) / 10,
+  }))
+})
+
+// Hover state with delays
+const isHovering = ref(false)
+const isTooltipVisible = ref(false)
+let showTimer: ReturnType<typeof setTimeout> | null = null
+let hideTimer: ReturnType<typeof setTimeout> | null = null
+
+function showTooltip() {
+  cancelTimers()
+  showTimer = setTimeout(() => {
+    isTooltipVisible.value = true
+  }, 80)
+}
+
+function hideTooltip() {
+  cancelTimers()
+  hideTimer = setTimeout(() => {
+    isTooltipVisible.value = false
+    isHovering.value = false
+  }, 150)
+}
+
+function cancelTimers() {
+  if (showTimer) clearTimeout(showTimer)
+  if (hideTimer) clearTimeout(hideTimer)
+}
+
+function onMouseEnter() { isHovering.value = true; showTooltip() }
+function onMouseLeave() { hideTooltip() }
+function onFocusIn() { isHovering.value = true; showTooltip() }
+function onFocusOut() { hideTooltip() }
+
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return `${n}`
+}
+```
+
+### State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty: mount / no tokens
+    Empty --> HasSegments: first token event
+    HasSegments --> HasSegments: token update (re-render segments)
+    HasSegments --> Empty: run cleared (segments=[])
+
+    state HasSegments {
+        [*] --> Idle
+        Idle --> Hovering: mouseenter / focusin
+        Hovering --> TooltipVisible: 80ms show delay
+        Hovering --> Idle: mouseleave (150ms debounce)
+        TooltipVisible --> Idle: mouseleave / focusout (150ms debounce)
+    }
+```
+
+### CSS
+
+```css
+.segmented-budget-bar {
+  position: relative;
+  height: 24px;
+  border-radius: 6px;
+  background: hsl(var(--muted-foreground) / 0.08);
+  overflow: visible;  /* tooltip overflows */
+  outline: none;
+  transition: box-shadow 0.5s ease-in-out;
+}
+
+.segmented-budget-bar:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.5);
+  outline-offset: 2px;
+}
+
+.segments-container {
+  display: flex;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segment {
+  height: 100%;
+  transition: width 0.3s ease-out;
+}
+
+.segment:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.segment:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.segment:only-child {
+  border-radius: 6px;
+}
+
+/* Budget warning borders */
+.budget-warn {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+}
+
+.budget-danger {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
+}
+
+.empty-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--af-muted);
+  font-size: 12px;
+}
+```
+
+---
+
+## Integration in RelayView.vue
+
+### Template Changes
+
+**REMOVE** the entire Cost Breakdown panel (lines ~326–370):
+```html
+<!-- DELETE THIS ENTIRE BLOCK -->
+<div class="cost-panel">
+  <div class="panel-title">Cost Breakdown</div>
+  ...pie chart SVG...
+  ...pie-legend...
+</div>
+```
+
+**REPLACE** the mono budget bar (lines ~96–113):
+```html
+<!-- BEFORE -->
+<div class="budget-bar-container">
+  <div class="budget-label">
+    <span>Budget</span>
+    <span>{{ formatTokens(currentRun.budget_limit - currentRun.budget_remaining) }} / {{ formatTokens(currentRun.budget_limit) }}</span>
+  </div>
+  <div class="budget-bar">
+    <div class="budget-fill" :class="..." :style="..." />
+  </div>
+</div>
+
+<!-- AFTER -->
+<div class="budget-bar-container">
+  <div class="budget-label">
+    <span>Budget</span>
+    <span>{{ formatTokens(totalUsed) }} / {{ formatTokens(currentRun.budget_limit) }}</span>
+  </div>
+  <SegmentedProgressBar
+    :segments="segments"
+    :total-budget="currentRun.budget_limit"
+    :total-used="totalUsed"
+  />
+</div>
+```
+
+### Script Changes
+
+**ADD** imports:
+```typescript
+import { useProfessionSegments } from '@/composables/useProfessionSegments'
+import SegmentedProgressBar from '@/components/SegmentedProgressBar.vue'
+```
+
+**ADD** composable call (after `useRelay()` destructuring):
+```typescript
+const { segments, totalUsed, tooltipEntries } = useProfessionSegments(professionTokens)
+```
+
+**REMOVE** from script:
+- `professionColors` constant (the HSL color map for pie chart)
+- `pieSlices` computed (the pie chart arc data)
+- `budgetUsedPercent` usage in template (replaced by `totalUsed`)
+
+**KEEP** `budgetUsedPercent` in useRelay.ts — other parts of the view may still reference it.
+
+### CSS Changes
+
+**DELETE** all `.cost-panel`, `.cost-chart`, `.pie-chart-container`, `.pie-chart`, `.pie-total`, `.pie-slice-active`, `.pie-legend`, `.pie-legend-item`, `.pie-dot`, `.pie-prof`, `.pie-val` rules.
+
+**DELETE** `.budget-bar`, `.budget-fill`, `.budget-fill.warning`, `.budget-fill.danger` rules (replaced by SegmentedProgressBar's own CSS).
+
+**KEEP** `.budget-bar-container` and `.budget-label` (still used as wrapper).
+
+---
+
+## Accessibility
+
+| Feature | Implementation |
+|---|---|
+| Screen reader | `role="progressbar"` with `aria-valuenow`, `aria-valuemax`, `aria-label` |
+| Tooltip accessible | `role="tooltip"` on hover popover |
+| Keyboard | `focusin`/`focusout` mirrors mouse — focus shows tooltip |
+| Focus indicator | `:focus-visible` outline on bar container |
+| No color-only info | Each segment has profession label in tooltip, not just color |
+
+## Animation
+
+| Transition | Duration | Easing |
+|---|---|---|
+| Segment width change | 300ms | ease-out |
+| Tooltip fade in | 150ms | ease |
+| Tooltip fade out | 100ms | ease |
+| Budget warning glow | 500ms | ease-in-out |
+| Hover show delay | 80ms | — |
+| Hover hide debounce | 150ms | — |
+
+---
+
+## Files Summary
+
+| File | Action | Notes |
+|---|---|---|
+| `frontend/src/composables/useProfessionSegments.ts` | **CREATE** | Composable + palette + interfaces |
+| `frontend/src/components/AgentBreakdownTooltip.vue` | **CREATE** | Tooltip popover component |
+| `frontend/src/components/SegmentedProgressBar.vue` | **CREATE** | Main bar component, imports tooltip |
+| `frontend/src/views/RelayView.vue` | **MODIFY** | Remove pie panel (~326–370), replace budget bar (~96–113), wire composable |
+| ~~`frontend/src/components/CostBreakdownChart.vue`~~ | ~~DELETE~~ | **N/A — file does not exist. Pie chart is inline.** |
+
+## Relay-D15 Segmented Token Progress Bar Design
+**Status:** approved
+**File:** `frontend/src/components/SegmentedProgressBar.vue` (**CREATE**)
+**Module:** relay
+**Depends on:** Relay-A9 (architecture), Relay-A8 (profession_tokens data)
+
+## Overview
+
+Detailed component design for replacing the inline Cost Breakdown pie chart panel in RelayView.vue with a multi-color segmented progress bar in the budget bar area, including a hover tooltip showing a horizontal bar chart of per-agent token usage.
+
+
+---
+
+## Composable: `useProfessionSegments`
+
+
+### Exported Types
+
+```typescript
+export interface ProfessionSegment {
+  profession: string
+  tokens: number
+  color: string
+}
+
+export interface TooltipBarEntry {
+  profession: string
+  tokens: number
+  percentage: number  // of totalUsed, 1 decimal place
+}
+```
+
+### Color Palette Constant
+
+```typescript
+export const PROFESSION_PALETTE: Record<string, string> = {
+  advisor:    '#6366f1',  // indigo
+  architect:  '#8b5cf6',  // violet
+  planner:    '#3b82f6',  // blue
+  coder:      '#10b981',  // emerald
+  tester:     '#f59e0b',  // amber
+  reviewer:   '#ef4444',  // red
+  documenter: '#06b6d4',  // cyan
+  gofer:      '#64748b',  // slate
+  _default:   '#94a3b8',  // gray
+}
+```
+
+### Composable Function
+
+```typescript
+import { computed, type Ref } from 'vue'
+
+export function useProfessionSegments(professionTokens: Ref<Record<string, number>>) {
+  const segments = computed<ProfessionSegment[]>(() =>
+    Object.entries(professionTokens.value)
+      .filter(([, tokens]) => tokens > 0)
+      .map(([profession, tokens]) => ({
+        profession,
+        tokens,
+        color: PROFESSION_PALETTE[profession] ?? PROFESSION_PALETTE._default,
+      }))
+      .sort((a, b) => b.tokens - a.tokens)
+  )
+
+  const totalUsed = computed(() =>
+    segments.value.reduce((sum, s) => sum + s.tokens, 0)
+  )
+
+  const tooltipEntries = computed<TooltipBarEntry[]>(() => {
+    const total = totalUsed.value || 1  // avoid division by zero
+    return segments.value.map(s => ({
+      profession: s.profession,
+      tokens: s.tokens,
+      percentage: Math.round((s.tokens / total) * 1000) / 10,  // 1 decimal
+      color: s.color,
+    }))
+  })
+
+  return { segments, totalUsed, tooltipEntries }
+}
+```
+
+### Data Flow
+
+```
+[useRelay().professionTokens] → Ref<Record<string, number>>
+  → useProfessionSegments(professionTokens)
+    → segments: ProfessionSegment[]  (filter >0, map with color, sort desc)
+    → totalUsed: number              (sum of all segment tokens)
+    → tooltipEntries: TooltipBarEntry[]  (segments + percentage)
+  → prop-drill into SegmentedProgressBar
+```
+
+---
+
+## Component: `SegmentedProgressBar`
+
+
+### Interface
+
+```typescript
+// Props
+interface Props {
+  segments: ProfessionSegment[]
+  totalBudget: number
+  totalUsed: number
+  warnThreshold?: number   // default 0.7
+  dangerThreshold?: number // default 0.9
+}
+
+// Emits — none (display-only)
+```
+
+### State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty: mount / no tokens
+    Empty --> HasSegments: first SSE event
+    HasSegments --> HasSegments: token update
+    HasSegments --> Empty: run cleared
+    
+    state HasSegments {
+        [*] --> Idle
+        Idle --> Hovering: mouseenter bar
+        Hovering --> Idle: mouseleave (150ms debounce)
+        Hovering --> TooltipVisible: 80ms show delay
+        TooltipVisible --> Hovering: mouse moves to tooltip
+        TooltipVisible --> Idle: mouseleave (150ms debounce)
+    }
+```
+
+### Template Structure
+
+```html
+<div
+  class="segmented-budget-bar"
+  :class="budgetClass"
+  role="progressbar"
+  :aria-valuenow="totalUsed"
+  :aria-valuemax="totalBudget"
+  :aria-label="`Token budget: ${formatCompact(totalUsed)} of ${formatCompact(totalBudget)} used`"
+  tabindex="0"
+  @mouseenter="onMouseEnter"
+  @mouseleave="onMouseLeave"
+  @focusin="onMouseEnter"
+  @focusout="onMouseLeave"
+>
+  <!-- Budget label (mirrors existing RelayView budget-label) -->
+  <div class="budget-label-row">
+    <span>Budget</span>
+    <span>{{ formatCompact(totalUsed) }} / {{ formatCompact(totalBudget) }}</span>
+  </div>
+
+  <!-- Segmented bar -->
+  <div v-if="segments.length === 0" class="empty-placeholder">
+    {{ t('relay.noTokenData') }}
+  </div>
+  <div v-else class="segments-container">
+    <div
+      v-for="seg in segments"
+      :key="seg.profession"
+      class="segment"
+      :style="segmentStyle(seg)"
+    />
+  </div>
+
+  <!-- Hover tooltip (inline, not separate component) -->
+  <Transition name="tooltip-fade">
+    <div
+      v-if="showTooltip && tooltipEntries.length > 0"
+      class="breakdown-tooltip"
+      role="tooltip"
+      @mouseenter="onTooltipEnter"
+      @mouseleave="onMouseLeave"
+    >
+      <div class="tooltip-title">{{ t('relay.tokenBreakdown') }}</div>
+      <div class="tooltip-divider" />
+
+      <div
+        v-for="entry in tooltipEntries"
+        :key="entry.profession"
+        class="tooltip-row"
+      >
+        <span class="color-dot" :style="{ background: entry.color }" />
+        <span class="profession-name">{{ entry.profession }}</span>
+        <div class="mini-bar-track">
+          <div
+            class="mini-bar-fill"
+            :style="{ width: entry.percentage + '%', background: entry.color }"
+          />
+        </div>
+        <span class="percentage-label">{{ entry.percentage }}%</span>
+      </div>
+
+      <div class="tooltip-divider" />
+      <div class="tooltip-total">
+        {{ formatCompact(totalUsed) }} / {{ formatCompact(totalBudget) }}
+      </div>
+    </div>
+  </Transition>
+</div>
+```
+
+### Script Logic
+
+```typescript
+import { computed, ref, type PropType } from 'vue'
+import { useI18n } from 'vue-i18n'
+import type { ProfessionSegment, TooltipBarEntry } from '@/composables/useProfessionSegments'
+
+// Hover state
+const isHovering = ref(false)
+const showTooltip = ref(false)
+let showTimer: ReturnType<typeof setTimeout> | null = null
+let hideTimer: ReturnType<typeof setTimeout> | null = null
+
+function onMouseEnter() {
+  isHovering.value = true
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null }
+  showTimer = setTimeout(() => { showTooltip.value = true }, 80)
+}
+
+function onMouseLeave() {
+  isHovering.value = false
+  if (showTimer) { clearTimeout(showTimer); showTimer = null }
+  hideTimer = setTimeout(() => { showTooltip.value = false }, 150)
+}
+
+function onTooltipEnter() {
+  // Cancel hide when mouse moves into tooltip itself
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null }
+}
+
+// Budget warning class
+const budgetClass = computed(() => {
+  if (!props.totalBudget) return ''
+  const ratio = props.totalUsed / props.totalBudget
+  if (ratio >= (props.dangerThreshold ?? 0.9)) return 'budget-danger'
+  if (ratio >= (props.warnThreshold ?? 0.7)) return 'budget-warn'
+  return ''
+})
+
+// Segment style: proportional to totalBudget (not totalUsed)
+const segmentStyle = (seg: ProfessionSegment) => ({
+  width: props.totalBudget > 0
+    ? `${(seg.tokens / props.totalBudget) * 100}%`
+    : '0%',
+  backgroundColor: seg.color,
+  minWidth: seg.tokens > 0 ? '2px' : '0',
+})
+
+// Format helper: 1234 → "1.2k"
+function formatCompact(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return `${n}`
+}
+```
+
+### CSS (scoped)
+
+```css
+.segmented-budget-bar {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.budget-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--af-muted);
+  margin-bottom: 0.3rem;
+}
+
+.segments-container {
+  display: flex;
+  height: 24px;
+  border-radius: 6px;
+  background: hsl(var(--muted-foreground) / 0.08);
+  overflow: hidden;
+}
+
+.segment {
+  height: 100%;
+  transition: width 0.3s ease-out;
+}
+
+/* Budget warning borders */
+.budget-warn .segments-container {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+}
+
+.budget-danger .segments-container {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
+}
+
+.empty-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  background: hsl(var(--muted-foreground) / 0.08);
+  border-radius: 6px;
+  color: var(--af-muted);
+  font-size: 0.78rem;
+}
+
+/* Tooltip */
+.breakdown-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  min-width: 280px;
+  max-width: 360px;
+  background: var(--af-bg);
+  border: 1px solid var(--af-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.breakdown-tooltip.flip-below {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+.tooltip-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--af-fg);
+  margin-bottom: 0.5rem;
+}
+
+.tooltip-divider {
+  height: 1px;
+  background: var(--af-border);
+  margin: 0.4rem 0;
+}
+
+.tooltip-row {
+  display: grid;
+  grid-template-columns: 10px 80px 1fr 48px;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.profession-name {
+  font-size: 0.75rem;
+  color: var(--af-fg);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.mini-bar-track {
+  height: 6px;
+  background: hsl(var(--muted-foreground) / 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.percentage-label {
+  font-size: 0.72rem;
+  color: var(--af-muted);
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.tooltip-total {
+  font-size: 0.75rem;
+  color: var(--af-muted);
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Transitions */
+.tooltip-fade-enter-active { transition: opacity 150ms ease; }
+.tooltip-fade-leave-active { transition: opacity 100ms ease; }
+.tooltip-fade-enter-from,
+.tooltip-fade-leave-to { opacity: 0; }
+```
+
+---
+
+## Integration Changes in RelayView.vue
+
+### Changes to `<script setup>`
+
+```typescript
+// ADD imports
+import SegmentedProgressBar from '@/components/SegmentedProgressBar.vue'
+import { useProfessionSegments } from '@/composables/useProfessionSegments'
+
+// ADD composable usage (after useRelay() destructuring)
+const { segments, totalUsed, tooltipEntries } = useProfessionSegments(professionTokens)
+
+// REMOVE: professionColors map (lines ~490-500)
+// REMOVE: pieSlices computed (lines ~502-522)
+```
+
+### Changes to `<template>`
+
+**REPLACE** the budget bar section (lines 99-111):
+```html
+<!-- BEFORE (REMOVE this entire block): -->
+<div class="budget-bar-container">
+  <div class="budget-label">
+    <span>Budget</span>
+    <span>{{ formatTokens(currentRun.budget_limit - currentRun.budget_remaining) }} / {{ formatTokens(currentRun.budget_limit) }}</span>
+  </div>
+  <div class="budget-bar">
+    <div
+      class="budget-fill"
+      :class="{ warning: budgetUsedPercent > 70, danger: budgetUsedPercent > 90 }"
+      :style="{ width: budgetUsedPercent + '%' }"
+    />
+  </div>
+</div>
+
+<!-- AFTER (INSERT this): -->
+<SegmentedProgressBar
+  :segments="segments"
+  :total-budget="currentRun.budget_limit"
+  :total-used="totalUsed"
+/>
+```
+
+**REMOVE** the entire Cost Breakdown panel (lines 326-370):
+```html
+<!-- REMOVE this entire block: -->
+<div class="cost-panel">
+  <div class="panel-title">Cost Breakdown</div>
+  ... (inline SVG pie chart + legend)
+</div>
+```
+
+### Changes to `<style scoped>`
+
+**REMOVE** these CSS sections:
+- `.budget-bar-container`, `.budget-label`, `.budget-bar`, `.budget-fill` (and `.budget-fill.warning`, `.budget-fill.danger`)
+- `.cost-panel`, `.cost-chart`, `.pie-chart-container`, `.pie-chart`, `.pie-total`, `.pie-slice-active`, `.pie-legend`, `.pie-legend-item`, `.pie-dot`, `.pie-prof`, `.pie-val`
+
+**KEEP** all other CSS sections unchanged.
+
+---
+
+## Accessibility
+
+| Feature | Implementation |
+|---|---|
+| Screen reader | `role="progressbar"` with `aria-valuenow`, `aria-valuemax`, `aria-label` |
+| Tooltip accessible | `role="tooltip"` on hover popover |
+| Color contrast | All palette colors meet WCAG AA on background |
+| Keyboard | Focus on bar shows tooltip (`focusin`/`focusout` mirror `mouseenter`/`mouseleave`) |
+| No color-only info | Each segment has profession label in tooltip, not just color |
+
+---
+
+## Animation
+
+| Transition | Duration | Easing |
+|---|---|---|
+| Segment width change | 300ms | ease-out |
+| Tooltip fade in | 150ms | ease |
+| Tooltip fade out | 100ms | ease |
+| Budget warning glow | instant on class change | — |
+| Hover show delay | 80ms | — |
+| Hover hide debounce | 150ms | — |
+
+---
+
+## Files Summary
+
+| File | Action | Lines Affected |
+|---|---|---|
+| `frontend/src/composables/useProfessionSegments.ts` | **CREATE** | New file |
+| `frontend/src/components/SegmentedProgressBar.vue` | **CREATE** | New file |
+| `frontend/src/views/RelayView.vue` | **MODIFY** | Remove lines 99-111 (budget bar), 326-370 (pie chart), ~490-522 (pieSlices + professionColors), associated CSS |

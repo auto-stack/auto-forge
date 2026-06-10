@@ -83,6 +83,7 @@ export interface RunState {
   events: RunEventDto[]
   title?: string
   current_step_started_at?: number
+  profession_tokens?: Record<string, number>
 }
 
 export interface StepState {

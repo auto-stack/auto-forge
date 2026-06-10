@@ -409,6 +409,43 @@ pub fn advance_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
         AdvanceResult::Failed { error } => {
             entry.events.push(RunEvent::RunFailed { timestamp: now_secs(), error: error.clone() });
         }
+        AdvanceResult::Paused { step_id, reason } => {
+            entry.events.push(RunEvent::RelayUpdate {
+                timestamp: now_secs(),
+                step_id: step_id.clone(),
+                profession_id: entry.engine.current_profession_id().unwrap_or("").to_string(),
+                status: format!("paused: {}", reason),
+            });
+        }
+    }
+
+    save_run(entry);
+    Some(result.clone())
+}
+
+/// Resume a paused run.
+/// Resets loop counters and advances from the paused step.
+pub fn resume_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
+    let mut map = store.lock().unwrap();
+    let entry = map.get_mut(run_id)?;
+    let result = entry.engine.resume()?;
+    entry.updated_at = now_secs();
+
+    match &result {
+        AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
+            entry.events.push(RunEvent::StepStarted {
+                timestamp: now_secs(),
+                step_id: step_id.clone(),
+                profession_id: profession_id.clone(),
+            });
+        }
+        AdvanceResult::Completed => {
+            entry.events.push(RunEvent::RunCompleted { timestamp: now_secs() });
+        }
+        AdvanceResult::Failed { error } => {
+            entry.events.push(RunEvent::RunFailed { timestamp: now_secs(), error: error.clone() });
+        }
+        _ => {}
     }
 
     save_run(entry);
@@ -474,6 +511,14 @@ pub fn submit_handoff(store: &RunStore, run_id: &str, handoff: HandoffDocument) 
         AdvanceResult::Failed { error } => {
             entry.events.push(RunEvent::RunFailed { timestamp: now_secs(), error: error.clone() });
         }
+        AdvanceResult::Paused { step_id, reason } => {
+            entry.events.push(RunEvent::RelayUpdate {
+                timestamp: now_secs(),
+                step_id: step_id.clone(),
+                profession_id: entry.engine.current_profession_id().unwrap_or("").to_string(),
+                status: format!("paused: {}", reason),
+            });
+        }
         _ => {}
     }
 
@@ -528,6 +573,8 @@ fn build_run_state(entry: &RunEntry) -> RunState {
             "running"
         } else if idx == engine.current_step && matches!(engine.status, PipelineStatus::WaitingForHuman { .. }) {
             "waiting_gate"
+        } else if idx == engine.current_step && matches!(engine.status, PipelineStatus::Paused { .. }) {
+            "paused"
         } else {
             "pending"
         };

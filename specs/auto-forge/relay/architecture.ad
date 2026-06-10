@@ -841,4 +841,390 @@ interface RunDetail {
 ## Files Involved
 - `backend/src/relay/store.rs` — `RunEntry`, `StepState`, `get_run`
 - `backend/src/relay/api.rs` — `get_run` handler, add `profession_tokens`
-- `packages/auto-forge-ui/src/views/RelayView.vue` — `loadRun` function, `professionTokens` ref
+- `frontend/src/views/RelayView.vue` — `loadRun` function, `professionTokens` ref
+
+## Relay-A9 Relay-A9 Segmented Token Progress Bar Architecture
+**Status:** approved
+
+## Overview
+
+Replace the inline Cost Breakdown pie chart panel with a multi-color segmented progress bar embedded in the budget bar area. Each profession's token usage is shown as a colored segment proportional to its consumption. A hover tooltip displays a horizontal bar chart comparing all agents' token usage and percentages.
+
+## Problem Statement
+
+The current Cost Breakdown panel is an inline section in RelayView.vue (lines ~326–370) with an SVG donut chart + legend. This creates two problems:
+1. **Visual fragmentation** — Token cost information is decoupled from the budget bar, forcing users to look in two places.
+2. **Space waste** — A full panel for a donut chart is excessive when the data can be communicated more compactly.
+
+The budget bar already shows total token consumption as a single-color progress bar. Merging per-profession breakdown into it eliminates the separate panel entirely.
+
+## Architecture
+
+### Component Structure
+
+```mermaid
+graph TD
+    subgraph "RelayView"
+        BB["BudgetBar area<br/>(existing, lines ~96-113)"]
+        SPB["SegmentedProgressBar<br/>(replaces mono bar)"]
+        TT["AgentBreakdownTooltip<br/>(hover popover)"]
+    end
+
+    subgraph "REMOVED — inline in RelayView.vue"
+        CBP["cost-panel div ❌<br/>(lines ~326-370)"]
+        PIE["SVG donut chart ❌"]
+        LEG["pie-legend ❌"]
+    end
+
+    BB --> SPB
+    SPB -.->|hover| TT
+
+    CBP -.->|deleted| X["✗"]
+    PIE -.->|deleted| X
+    LEG -.->|deleted| X
+
+    style CBP fill:#fdd,stroke:#c00
+    style PIE fill:#fdd,stroke:#c00
+    style LEG fill:#fdd,stroke:#c00
+    style SPB fill:#dfd,stroke:#0a0
+    style TT fill:#dfd,stroke:#0a0
+```
+
+### Data Flow
+
+```mermaid
+sequenceDiagram
+    participant SSE as SSE Events / loadRun
+    participant RV as RelayView
+    participant UPS as useProfessionSegments
+    participant PT as _professionTokens (reactive)
+    participant SPB as SegmentedProgressBar
+    participant TT as AgentBreakdownTooltip
+
+    SSE->>RV: token_delta { profession, tokens_used }
+    RV->>PT: _professionTokens[profession] += tokens_used
+    PT->>UPS: professionTokens input changes
+    UPS->>UPS: compute segments (filter >0, map colors, sort desc)
+    UPS->>UPS: compute totalUsed, tooltipEntries
+    UPS-->>SPB: reactive props update
+    SPB->>SPB: re-render segments (each = tokens / totalBudget × 100%)
+
+    User->>SPB: mouseenter
+    SPB->>TT: show after 80ms delay
+    TT->>TT: render horizontal bar chart<br/>sorted by tokens desc
+    TT-->>User: "architect: 12,400 (35.2%)<br/>coder: 8,500 (24.1%)<br/>..."
+
+    User->>SPB: mouseleave
+    SPB->>TT: hide after 150ms debounce
+```
+
+### Trigger Conditions
+- **Segment update**: Every time `_professionTokens` reactive ref changes (SSE `step_completed` event or `loadRun` with `data.profession_tokens`)
+- **Tooltip show**: `mouseenter` or `focusin` on the segmented bar (80ms delay)
+- **Tooltip hide**: `mouseleave` or `focusout` on the segmented bar (150ms debounce)
+- **Budget warning**: Total tokens cross 70% (amber glow) or 90% (red glow) of budget
+
+### Data Model
+
+#### Shared Interfaces (exported from `useProfessionSegments.ts`)
+```typescript
+interface ProfessionSegment {
+  profession: string           // e.g. "architect", "coder", "tester"
+  tokens: number               // total tokens consumed by this profession
+  color: string                // CSS color from PROFESSION_PALETTE
+}
+
+interface TooltipBarEntry {
+  profession: string
+  tokens: number
+  percentage: number           // tokens / totalUsed * 100, 1 decimal
+  color: string
+}
+```
+
+#### Profession Color Palette
+```typescript
+const PROFESSION_PALETTE: Record<string, string> = {
+  advisor:    '#6366f1',  // indigo
+  architect:  '#8b5cf6',  // violet
+  planner:    '#3b82f6',  // blue
+  coder:      '#10b981',  // emerald
+  tester:     '#f59e0b',  // amber
+  reviewer:   '#ef4444',  // red
+  documenter: '#06b6d4',  // cyan
+  gofer:      '#64748b',  // slate
+  _default:   '#94a3b8',  // gray (fallback)
+}
+```
+
+### Budget Warning Overlay
+
+The budget warning thresholds (70% / 90%) are communicated via the bar's **border glow**, not by changing segment colors:
+- **< 70%**: No glow (default)
+- **70–90%**: Amber glow (`box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3)`)
+- **> 90%**: Red glow (`box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4)`)
+
+Segments always keep their profession color. Budget warning is a separate visual layer.
+
+### Tooltip: Horizontal Bar Chart
+
+Floating popover (pure CSS `position: absolute`, no library) appears above the bar on hover:
+
+```
+┌─────────────────────────────────┐
+│  Token Breakdown                │
+│  ─────────────────────────────  │
+│  architect  ████████████  35.2% │
+│  coder      ██████████    24.1% │
+│  tester     ████████      19.8% │
+│  planner    █████         12.4% │
+│  reviewer   ███            5.1% │
+│  documenter ██             3.4% │
+│  ─────────────────────────────  │
+│  Total: 35.2k / 100.0k         │
+└─────────────────────────────────┘
+```
+
+Each row: `[color dot] [profession name] [proportional bar] [percentage]`
+Sorted by tokens descending. Mini-bars are pure CSS (`width: %`).
+
+## Edge Cases
+
+| Case | Handling |
+|---|---|
+| No tokens consumed yet | Show empty bar with "No data" placeholder text centered |
+| Single profession | One segment fills the used portion; tooltip shows one row at 100% |
+| `professionTokens` is empty `{}` | Same as no tokens — empty state |
+| Very small profession (< 2% of total) | Segment rendered with min 2px width; tooltip still lists it |
+| Budget is 0 or undefined | Bar renders segments proportionally without fill indicator; no warning thresholds |
+| Tooltip near viewport top edge | Popover flips below the bar |
+
+## Trade-offs
+
+| Alternative | Pros | Cons |
+|---|---|---|
+| **Inline segmented bar + hover tooltip (chosen)** | Compact, no extra panel, discoverable on hover | Requires hover interaction for details |
+| Keep donut chart but make it smaller | Familiar visual | Still wastes space, doesn't consolidate |
+| Always-visible stacked legend below bar | Details always visible | Clutters the compact budget area |
+| Click to expand (collapsible panel) | Progressive disclosure | Extra click; hover is faster for quick glance |
+
+## Design Highlight
+
+Merging the cost breakdown into the budget bar follows the "progressive disclosure" pattern — the bar gives an instant visual overview, and the hover tooltip provides the detailed breakdown. This eliminates an entire UI panel while preserving all information.
+
+## Files to Create
+- `frontend/src/composables/useProfessionSegments.ts` — composable with `PROFESSION_PALETTE`, `useProfessionSegments()`, exported interfaces
+- `frontend/src/components/SegmentedProgressBar.vue` — multi-color segmented bar component
+- `frontend/src/components/AgentBreakdownTooltip.vue` — hover popover with horizontal bar chart
+
+## Files to Modify
+- `frontend/src/views/RelayView.vue` — Remove inline cost-panel (pie chart section lines ~326–370), replace mono budget-bar (lines ~96–113) with `<SegmentedProgressBar>`, remove `pieSlices` computed and `professionColors` constant, add `useProfessionSegments` import
+
+## Files to Delete
+- **None** — The pie chart is inline in RelayView.vue, not a separate component file. There is no `CostBreakdownChart.vue` to delete.
+
+## Relay-A9 Segmented Token Progress Bar Architecture
+**Status:** approved
+
+## Overview
+
+Replace the inline Cost Breakdown pie chart panel in RelayView.vue with a multi-color segmented progress bar embedded in the budget bar area. Each profession's token usage is shown as a colored segment proportional to its consumption. A hover tooltip displays a horizontal bar chart comparing all agents' token usage and percentages.
+
+## Problem Statement
+
+The current Cost Breakdown panel (RelayView.vue lines 326-370) is an inline SVG pie chart + legend card occupying a full `.cost-panel` section. This creates two problems:
+1. **Visual fragmentation** — Token cost information is decoupled from the budget bar (lines 99-111), forcing users to look in two places.
+2. **Space waste** — A full card for a pie chart is excessive when the data can be communicated more compactly.
+
+The budget bar already shows total token consumption as a single-color progress bar. Merging per-profession breakdown into it eliminates the separate panel entirely.
+
+## Architecture
+
+### Component Structure
+
+```mermaid
+graph TD
+    subgraph "RelayView.vue"
+        BB["Budget Bar Area<br/>(lines 99-111)"]
+        SPB["SegmentedProgressBar<br/>(NEW component)"]
+        TT["AgentBreakdownTooltip<br/>(inline in SPB)"]
+    end
+    
+    subgraph "REMOVED from RelayView.vue"
+        CBP[".cost-panel div ❌<br/>(lines 326-370)"]
+        PIE["Inline SVG Pie Chart ❌"]
+        LEG[".pie-legend ❌"]
+        PCC["pieSlices computed ❌"]
+        PCL["professionColors map ❌"]
+    end
+
+    BB --> SPB
+    SPB -.->|hover| TT
+    
+    CBP -.->|deleted| X["✗"]
+    PIE -.->|deleted| X
+    LEG -.->|deleted| X
+    PCC -.->|deleted| X
+    PCL -.->|deleted| X
+    
+    style CBP fill:#fdd,stroke:#c00
+    style PIE fill:#fdd,stroke:#c00
+    style LEG fill:#fdd,stroke:#c00
+    style PCC fill:#fdd,stroke:#c00
+    style PCL fill:#fdd,stroke:#c00
+    style SPB fill:#dfd,stroke:#0a0
+    style TT fill:#dfd,stroke:#0a0
+```
+
+### Data Flow
+
+```mermaid
+sequenceDiagram
+    participant SSE as SSE Events / loadRun
+    participant uR as useRelay.ts
+    participant PT as _professionTokens (singleton ref)
+    participant UPS as useProfessionSegments
+    participant RV as RelayView.vue
+    participant SPB as SegmentedProgressBar
+    participant TT as AgentBreakdownTooltip
+
+    SSE->>uR: token_delta { profession, tokens_used }
+    uR->>PT: _professionTokens[profession] += tokens_used
+    uR-->>RV: professionTokens ref exposed
+    RV->>UPS: useProfessionSegments(professionTokens)
+    UPS-->>RV: { segments, totalUsed, tooltipEntries }
+    RV-->>SPB: :segments :total-budget :total-used props
+    SPB->>SPB: render colored segments proportional to budget
+
+    User->>SPB: mouseenter
+    SPB->>TT: show tooltip (80ms delay)
+    TT->>TT: render horizontal bar chart sorted desc
+    TT-->>User: "architect: 12.4k (35.2%)<br/>coder: 8.5k (24.1%)<br/>..."
+
+    User->>SPB: mouseleave
+    SPB->>TT: hide tooltip (150ms debounce)
+```
+
+### Trigger Conditions
+- **Segment update**: Every time `_professionTokens` reactive ref changes (SSE `step_delta` event or `loadRun()` with `data.profession_tokens`)
+- **Tooltip show**: `mouseenter` on the segmented bar (80ms delay)
+- **Tooltip hide**: `mouseleave` on the segmented bar (150ms debounce)
+- **Budget warning**: Total tokens cross 70% or 90% of `currentRun.budget_limit`
+
+### Data Model
+
+#### ProfessionSegment (composable output → component prop)
+```typescript
+interface ProfessionSegment {
+  profession: string           // e.g. "architect", "coder", "tester"
+  tokens: number               // total tokens consumed by this profession
+  color: string                // CSS color value from PROFESSION_PALETTE
+}
+```
+
+#### TooltipBarEntry (composable output → tooltip prop)
+```typescript
+interface TooltipBarEntry {
+  profession: string
+  tokens: number
+  percentage: number           // tokens / totalUsed * 100, 1 decimal
+  color: string
+}
+```
+
+#### SegmentedProgressBar Props
+```typescript
+interface SegmentedProgressBarProps {
+  segments: ProfessionSegment[]
+  totalBudget: number          // currentRun.budget_limit
+  totalUsed: number            // computed from segments
+  warnThreshold?: number       // default 0.7
+  dangerThreshold?: number     // default 0.9
+}
+```
+
+#### Profession Color Palette
+```typescript
+const PROFESSION_PALETTE: Record<string, string> = {
+  advisor:    '#6366f1',  // indigo
+  architect:  '#8b5cf6',  // violet
+  planner:    '#3b82f6',  // blue
+  coder:      '#10b981',  // emerald
+  tester:     '#f59e0b',  // amber
+  reviewer:   '#ef4444',  // red
+  documenter: '#06b6d4',  // cyan
+  gofer:      '#64748b',  // slate
+  _default:   '#94a3b8',  // gray
+}
+```
+
+### Budget Warning Overlay
+
+Budget warning thresholds (70% / 90%) are communicated via the bar's **border glow**, not by changing segment colors:
+- **< 70%**: Default (no glow)
+- **70–90%**: Amber border glow (`box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3)`)
+- **> 90%**: Red border glow (`box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4)`)
+
+Segments remain colored by profession — budget warning is a separate visual layer.
+
+### Tooltip: Horizontal Bar Chart
+
+Floating popover (`position: absolute`, no library dependency) above the bar on hover:
+
+```
+┌─────────────────────────────────┐
+│  Token Breakdown                │
+│  ─────────────────────────────  │
+│  architect  ████████████  35.2% │
+│  coder      ██████████    24.1% │
+│  tester     ████████      19.8% │
+│  planner    █████         12.4% │
+│  reviewer   ███            5.1% │
+│  documenter ██             3.4% │
+│  ─────────────────────────────  │
+│  Total: 35.2k / 100.0k         │
+└─────────────────────────────────┘
+```
+
+Each row: `[color dot] [profession name] [proportional bar] [percentage]`
+Sorted by tokens descending. Mini-bars are pure CSS (`width: %`).
+
+## Edge Cases
+
+| Case | Handling |
+|---|---|
+| No tokens consumed yet | Show empty bar with placeholder text centered |
+| Single profession | One segment fills the whole bar; tooltip shows one row at 100% |
+| `professionTokens` is empty `{}` | Same as no tokens — empty state |
+| Very small profession (< 2% of total) | Segment rendered with min 2px width; tooltip still lists it |
+| Budget is 0 or undefined | Bar renders segments proportionally without budget marker; no warning thresholds |
+| Tooltip near viewport edge | Popover flips below the bar if no space above |
+
+## Trade-offs
+
+| Alternative | Pros | Cons |
+|---|---|---|
+| **Inline segmented bar + hover tooltip (chosen)** | Compact, no extra panel, discoverable on hover | Requires hover interaction for details |
+| Keep pie chart but make it smaller | Familiar visual | Still wastes space, doesn't consolidate |
+| Always-visible stacked legend below bar | Details always visible | Clutters the compact budget area |
+| Click to expand (collapsible panel) | Progressive disclosure | Extra click; hover is faster for quick glance |
+
+## Design Highlight
+
+Merging the cost breakdown into the budget bar follows the "progressive disclosure" pattern — the bar gives an instant visual overview, and the hover tooltip provides the detailed breakdown. This eliminates an entire UI panel while preserving all information.
+
+## Verified Code References
+
+- **Budget bar area**: `frontend/src/views/RelayView.vue:99-111` — the `.budget-bar-container` div with mono-color `.budget-fill`
+- **Cost Breakdown panel**: `frontend/src/views/RelayView.vue:326-370` — inline SVG pie chart + `.pie-legend`
+- **professionTokens ref**: `frontend/src/composables/useRelay.ts:16` — `_professionTokens` singleton ref
+- **professionTokens population**: `frontend/src/composables/useRelay.ts:~261` — `loadRun()` sets `_professionTokens.value = data.profession_tokens`
+- **budgetUsedPercent**: `frontend/src/composables/useRelay.ts:104` — existing computed
+- **No separate CostBreakdownChart.vue file exists** — the pie chart is inline in RelayView.vue
+
+## Files to Create
+- `frontend/src/composables/useProfessionSegments.ts` — composable with PROFESSION_PALETTE, segments/totalUsed/tooltipEntries computeds
+- `frontend/src/components/SegmentedProgressBar.vue` — main component (includes AgentBreakdownTooltip inline)
+
+## Files to Modify
+- `frontend/src/views/RelayView.vue` — Remove pie chart panel (lines 326-370), remove `pieSlices` computed and `professionColors` map, replace budget-bar markup (lines 99-111) with `<SegmentedProgressBar>`, remove `.cost-panel`, `.cost-chart`, `.pie-*` CSS

@@ -12,3 +12,70 @@
 | C2 | Focus management on gates | ✅ pass | `approveBtnRef` + `onMounted` focus in `GateCard.vue` | — |
 | C3 | Screen reader announcements | ✅ pass | `aria-live="polite"` regions + `role="alert"` on SecretaryMessage | — |
 | C4 | SSE event router wired end-to-end | ✅ pass | `useEventRouter` in `useForge.ts` and `useRelay.ts` | — |
+
+---
+
+## R-SegBar Segmented Token Progress Bar — Implementation Review
+
+### Criterion Assessment
+
+| Spec Item | Status | Notes |
+|---|---|---|
+| Relay-D15 Composable interface | ✅ pass | `ProfessionSegment`, `TooltipBarEntry` types match spec. `PROFESSION_PALETTE` has all 8 professions + `_default`. Composable logic: filter >0, sort desc, color-map, percentage to 1 decimal. |
+| Relay-D15 Component props | ✅ pass | `segments`, `totalBudget`, `totalUsed`, `tooltipEntries`, `warnThreshold`, `dangerThreshold` — correct types and defaults (0.7/0.9). |
+| Relay-D15 Segment rendering | ✅ pass | Width proportional to `totalBudget`, min-width 2px, color from palette. Border-radius on first/last/only-child. |
+| Relay-D15 Budget warning classes | ✅ pass | `budget-warn` at 70%, `budget-danger` at 90%, no class when under threshold or budget=0. |
+| Relay-D15 Tooltip inline (per P4.2) | ✅ pass | No separate `AgentBreakdownTooltip.vue` — tooltip inlined per plan decision. Correct structure: title, rows with color dots + mini-bars + percentage, total row. |
+| Relay-D15 Hover delays | ✅ pass | 80ms show delay, 150ms hide debounce. `onTooltipEnter` cancels hide timer. |
+| Relay-D15 Accessibility | ✅ pass | `role="progressbar"`, `aria-valuenow`, `aria-valuemax`, `aria-label`. `role="tooltip"` on popover. `:focus-visible` outline. `focusin`/`focusout` mirror mouse. |
+| Relay-D15 Animations | ✅ pass | Segment width 300ms ease-out, tooltip fade-in 150ms ease, fade-out 100ms ease. |
+| Relay-D15 RelayView integration | ✅ pass | Old budget bar removed, `SegmentedProgressBar` in place. `useProfessionSegments` wired. `pieSlices`/`professionColors`/`cost-panel` all removed (zero search matches). |
+| Relay-D15 CSS cleanup | ✅ pass | Comments at lines 811 and 1262 confirm removal of old budget-bar and cost-panel CSS. |
+
+### Static Analysis
+
+| Check | Status | Notes |
+|---|---|---|
+| Type signatures match spec | ✅ pass | All interfaces and function signatures conform to D15 |
+| Error handling — division by zero | ✅ pass | `totalBudget > 0` check in `segmentStyle()`, `totalUsed \|\| 1` in composable |
+| No dead code / unused imports | ✅ pass | All imports used, no unused variables |
+| Timer cleanup | ✅ pass | `cancelTimers()` clears both timers on every enter/leave |
+| Security (auth/data paths) | ⬜ n/a | Display-only component, no auth or data mutation |
+
+### Compilation Check
+
+| Check | Result |
+|---|---|
+| `npx vite build` | Pre-existing TS2307 errors in unrelated files (AutoDown editor, StreamingRenderer, etc.). **No new errors** from segmented bar code. |
+| `vue-tsc` | Rollup MODULE_NOT_FOUND (linux-x64-gnu on WSL) — environment issue, not code issue. |
+
+### Test Coverage
+
+| Test Spec | File | Status |
+|---|---|---|
+| Relay-T23 (Composable, 11 cases) | `frontend/src/composables/__tests__/useProfessionSegments.spec.ts` | ❌ **File does not exist** |
+| Relay-T24 (Component, 11 cases) | `frontend/src/components/__tests__/SegmentedProgressBar.spec.ts` | ❌ **File does not exist** |
+| Relay-T26 (Edge cases, 8 cases) | `frontend/src/components/__tests__/SegmentedProgressBar.edge.spec.ts` | ❌ **File does not exist** |
+
+### Issues Found
+
+| # | Severity | Description | Recommendation | Assignee |
+|---|---|---|---|---|
+| 1 | **blocker** | All 3 test files missing — T23 (11 cases), T24 (11 cases), T26 (8 cases). Zero test coverage for the feature. Specs mark these `in_progress` but no files exist on disk. | Create all 30 test cases as specified in Relay-T23, T24, T26. Files must be at the documented paths. | Coder |
+| 2 | minor | `flipped` ref set to `false` but never computed — viewport overflow detection is a stub. `.flip-below` CSS exists but flip logic needs `getBoundingClientRect()`. | Either implement the check or remove `flipped`/`flip-below` if deferred. | Coder |
+| 3 | trivial | `budgetUsedPercent` still destructured from `useRelay()` (line 364) but no longer used in template — replaced by composable's `totalUsed`. | Remove from destructuring if unused elsewhere. | Coder |
+
+### Files Verified
+
+| File | Action | Verdict |
+|---|---|---|
+| `frontend/src/composables/useProfessionSegments.ts` | Created | ✅ Matches spec |
+| `frontend/src/components/SegmentedProgressBar.vue` | Created | ✅ Matches spec |
+| `frontend/src/views/RelayView.vue` | Modified | ✅ Integration correct |
+| `frontend/src/composables/__tests__/useProfessionSegments.spec.ts` | Missing | ❌ Does not exist |
+| `frontend/src/components/__tests__/SegmentedProgressBar.spec.ts` | Missing | ❌ Does not exist |
+| `frontend/src/components/__tests__/SegmentedProgressBar.edge.spec.ts` | Missing | ❌ Does not exist |
+
+### Overall Verdict: **approved_with_fixes**
+
+Implementation code is high-quality and spec-conformant. Composable logic, component structure, CSS, accessibility, animation, and RelayView integration all pass review. **Blocking issue: zero test files exist.** The Coder must implement all 30 test cases (Relay-T23, T24, T26) before this feature can be marked verified.

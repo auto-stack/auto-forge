@@ -46,6 +46,11 @@ pub enum AdvanceResult {
     Failed {
         error: String,
     },
+    /// Loop max iterations reached — manual resume required.
+    Paused {
+        step_id: String,
+        reason: String,
+    },
 }
 
 /// Decision from a human at a gate.
@@ -193,6 +198,13 @@ impl PipelineEngine {
             PipelineStatus::WaitingForHuman { .. } => {
                 return AdvanceResult::Failed {
                     error: "Cannot advance while waiting for human gate. Call resolve_gate() first.".into(),
+                };
+            }
+            PipelineStatus::Paused { at_step } => {
+                let step = &self.flow.steps[*at_step];
+                return AdvanceResult::Paused {
+                    step_id: step.id.clone(),
+                    reason: format!("Run paused at step '{}'. Call resume to continue.", step.id),
                 };
             }
             _ => {}
@@ -447,6 +459,19 @@ impl PipelineEngine {
                     },
                 }
             }
+            NextStep::Pause { reason, resume_step_id } => {
+                // Set current step to the loop target so resume starts there
+                if let Some(idx) = self.flow.get_step_index(&resume_step_id) {
+                    self.current_step = idx;
+                }
+                self.status = PipelineStatus::Paused {
+                    at_step: self.current_step,
+                };
+                AdvanceResult::Paused {
+                    step_id: self.flow.steps[self.current_step].id.clone(),
+                    reason,
+                }
+            }
         }
     }
 
@@ -492,9 +517,16 @@ impl PipelineEngine {
     }
 
     /// Resume from a paused state.
-    pub fn resume(&mut self) {
+    /// Resets loop counters for the current step so Loop routing gets fresh iterations.
+    pub fn resume(&mut self) -> Option<AdvanceResult> {
         if matches!(self.status, PipelineStatus::Paused { .. }) {
+            if let Some(step) = self.flow.steps.get(self.current_step) {
+                self.loop_counters.insert(step.id.clone(), 0);
+            }
             self.status = PipelineStatus::Idle;
+            Some(self.advance())
+        } else {
+            None
         }
     }
 
@@ -557,12 +589,13 @@ impl PipelineEngine {
                 let count = self.loop_counters.entry(step_id.to_string()).or_insert(0);
                 *count += 1;
                 if *count >= *max_iterations {
-                    // Break loop, go to next step
-                    let next = self.current_step + 1;
-                    if next >= self.flow.steps.len() {
-                        NextStep::Complete
-                    } else {
-                        NextStep::Index(next)
+                    // Max iterations reached — pause for manual resume
+                    NextStep::Pause {
+                        reason: format!(
+                            "Step '{}' loop reached max iterations ({}). Manual resume required to continue.",
+                            step_id, max_iterations
+                        ),
+                        resume_step_id: target_step_id.clone(),
                     }
                 } else {
                     match self.flow.get_step_index(target_step_id) {
@@ -654,6 +687,11 @@ enum NextStep {
     Index(usize),
     Complete,
     Error(String),
+    /// Loop max iterations reached — pause for manual resume.
+    Pause {
+        reason: String,
+        resume_step_id: String,
+    },
 }
 
 fn now_secs() -> u64 {
@@ -1029,18 +1067,31 @@ mod tests {
         assert_eq!(r, AdvanceResult::ExecuteStep { step_id: "s1".into(), profession_id: "tester".into(), agent_config_id: None });
         assert_eq!(engine.loop_counters.get("s1"), Some(&2));
 
-        // Iteration 3 → break to reviewer
+        // Iteration 3 → PAUSE (max iterations reached)
         let h = make_handoff("tester", "tester");
         let r = engine.submit_handoff(h);
         assert_eq!(
             r,
-            AdvanceResult::ExecuteStep {
-                step_id: "s2".into(),
-                profession_id: "reviewer".into(),
-                agent_config_id: None,
+            AdvanceResult::Paused {
+                step_id: "s1".into(),
+                reason: "Step 's1' loop reached max iterations (3). Manual resume required to continue.".into(),
             }
         );
         assert_eq!(engine.loop_counters.get("s1"), Some(&3));
+        assert!(matches!(engine.status, PipelineStatus::Paused { at_step } if at_step == 0));
+
+        // Resume resets counter and re-executes s1
+        let r = engine.resume().unwrap();
+        assert_eq!(
+            r,
+            AdvanceResult::ExecuteStep {
+                step_id: "s1".into(),
+                profession_id: "tester".into(),
+                agent_config_id: None,
+            }
+        );
+        assert_eq!(engine.loop_counters.get("s1"), Some(&0));
+        assert!(matches!(engine.status, PipelineStatus::Running { step_id, .. } if step_id == "s1"));
     }
 
     // ── Edge cases ───────────────────────────────────────────────────────────

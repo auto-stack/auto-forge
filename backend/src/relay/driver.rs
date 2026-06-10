@@ -476,6 +476,18 @@ pub async fn drive_run(
                         wait_for_gate_resolution(&run_store, &run_id, &event_tx).await;
                         continue;
                     }
+                    Some(AdvanceResult::Paused { step_id, reason }) => {
+                        let _ = event_tx.send(RunEventBroadcast {
+                            run_id: run_id.clone(),
+                            event_type: "run_paused".to_string(),
+                            payload: Some(json!({
+                                "step_id": step_id,
+                                "reason": reason,
+                            })),
+                        });
+                        tracing::info!("Relay driver paused run {} at step {}: {}", run_id, step_id, reason);
+                        break;
+                    }
                     Some(AdvanceResult::Completed) => {
                         // Build completion notification
                         let completion_event = build_completion_notification(&run_store, &run_id).await;
@@ -530,6 +542,18 @@ pub async fn drive_run(
                     payload: None,
                 });
                 tracing::info!("Relay driver completed run {}", run_id);
+                break;
+            }
+            Some(AdvanceResult::Paused { step_id, reason }) => {
+                let _ = event_tx.send(RunEventBroadcast {
+                    run_id: run_id.clone(),
+                    event_type: "run_paused".to_string(),
+                    payload: Some(json!({
+                        "step_id": step_id,
+                        "reason": reason,
+                    })),
+                });
+                tracing::info!("Relay driver paused run {} at step {}: {}", run_id, step_id, reason);
                 break;
             }
             Some(AdvanceResult::Failed { error }) => {

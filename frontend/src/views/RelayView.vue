@@ -1,72 +1,75 @@
 <template>
   <div class="agents-view" data-testid="relay-view">
-    <div class="agents-header">
-      <h2>{{ t('relay.title') }}</h2>
-      <div class="agents-actions">
-        <button class="btn-secondary" @click="refresh">
-          <RefreshCw :size="14" />
-        </button>
-        <button
-          v-if="finishedRunCount > 0"
-          class="btn-secondary btn-danger-outline"
-          @click="onDeleteFinishedRuns"
-          :disabled="loading"
-          :title="t('relay.deleteAllTitle', { count: finishedRunCount })"
-        >
-          <Trash2 :size="14" />
-          {{ t('relay.clearFinished', { count: finishedRunCount }) }}
-        </button>
-      </div>
-    </div>
-
     <div v-if="error" class="error-banner">{{ error }}</div>
 
     <div class="agents-body">
       <!-- Left: Runs list -->
       <div class="runs-sidebar" data-testid="relay-run-list">
-        <div class="panel-title">Runs</div>
-        <div v-if="runs.length === 0" class="empty-state">No runs yet</div>
-        <div
-          v-for="run in runs"
-          :key="run.run_id"
-          class="run-card"
-          :class="{ active: currentRun?.run_id === run.run_id }"
-          :data-testid="`run-card-${run.run_id}`"
-          :title="run.task ? run.task.slice(0, 50) : ''"
-          @click="selectRun(run.run_id)"
-        >
-          <div class="run-card-header">
-            <div class="run-card-title-col">
-              <span class="run-id" :title="run.run_id">{{ run.title || run.run_id }}</span>
-              <span class="run-id-sub">{{ run.run_id }}</span>
+        <div class="sidebar-header">
+          <div class="panel-title">Runs</div>
+          <div class="sidebar-actions">
+            <button
+              class="btn-icon btn-refresh"
+              :title="t('relay.refresh')"
+              @click="refresh"
+            >
+              <RefreshCw :size="14" />
+            </button>
+            <button
+              v-if="finishedRunCount > 0"
+              class="btn-icon btn-danger"
+              :title="t('relay.deleteAllTitle', { count: finishedRunCount })"
+              :disabled="loading"
+              @click="onDeleteFinishedRuns"
+            >
+              <Trash2 :size="14" />
+            </button>
+          </div>
+        </div>
+        <div class="runs-list">
+          <div v-if="runs.length === 0" class="empty-state">No runs yet</div>
+          <div
+            v-for="run in runs"
+            :key="run.run_id"
+            class="run-card"
+            :class="{ active: currentRun?.run_id === run.run_id }"
+            :data-testid="`run-card-${run.run_id}`"
+            :title="run.task ? run.task.slice(0, 50) : ''"
+            @click="selectRun(run.run_id)"
+          >
+            <div class="run-card-header">
+              <div class="run-card-title-col">
+                <span class="run-id" :title="run.run_id">{{ run.title || run.run_id }}</span>
+                <span class="run-id-sub">{{ run.run_id }}</span>
+              </div>
+              <StatusBadge :status="run.status" />
             </div>
-            <StatusBadge :status="run.status" />
+            <div class="run-card-meta">
+              <span>{{ run.current_profession ?? '—' }}</span>
+              <span>{{ formatTokens(run.cumulative_tokens) }}</span>
+            </div>
+            <div class="run-progress-bar">
+              <div
+                class="run-progress-fill"
+                :style="{ width: runProgressPercent(run) + '%' }"
+              />
+            </div>
+            <button
+              v-if="run.status === 'failed'"
+              class="btn-icon btn-rerun"
+              :title="t('relay.rerunRun')"
+              @click.stop="onRerunRun(run.run_id)"
+            >
+              <RefreshCw :size="12" />
+            </button>
+            <button
+              class="btn-icon btn-delete"
+              :title="t('relay.deleteRun')"
+              @click.stop="onDeleteRun(run.run_id)"
+            >
+              <Trash2 :size="12" />
+            </button>
           </div>
-          <div class="run-card-meta">
-            <span>{{ run.current_profession ?? '—' }}</span>
-            <span>{{ formatTokens(run.cumulative_tokens) }}</span>
-          </div>
-          <div class="run-progress-bar">
-            <div
-              class="run-progress-fill"
-              :style="{ width: runProgressPercent(run) + '%' }"
-            />
-          </div>
-          <button
-            v-if="run.status === 'failed'"
-            class="btn-icon btn-rerun"
-            :title="t('relay.rerunRun')"
-            @click.stop="onRerunRun(run.run_id)"
-          >
-            <RefreshCw :size="12" />
-          </button>
-          <button
-            class="btn-icon btn-delete"
-            :title="t('relay.deleteRun')"
-            @click.stop="onDeleteRun(run.run_id)"
-          >
-            <Trash2 :size="12" />
-          </button>
         </div>
       </div>
 
@@ -78,12 +81,12 @@
 
         <template v-else>
           <!-- Run header -->
-          <div class="run-header">
-            <div class="run-title">
+          <div class="panel-header">
+            <div class="panel-header-title">
               {{ currentRun.title || currentRun.run_id }}
-              <span v-if="currentRun.title" class="run-title-id">{{ currentRun.run_id }}</span>
+              <span v-if="currentRun.title" class="panel-header-subtitle">{{ currentRun.run_id }}</span>
             </div>
-            <div class="run-stats">
+            <div class="panel-header-stats">
               <span class="stat-badge">
                 <Coins :size="12" />
                 {{ formatTokens(currentRun.cumulative_tokens) }}
@@ -95,20 +98,14 @@
             </div>
           </div>
 
-          <!-- Budget bar -->
-          <div class="budget-bar-container">
-            <div class="budget-label">
-              <span>Budget</span>
-              <span>{{ formatTokens(currentRun.budget_limit - currentRun.budget_remaining) }} / {{ formatTokens(currentRun.budget_limit) }}</span>
-            </div>
-            <div class="budget-bar">
-              <div
-                class="budget-fill"
-                :class="{ warning: budgetUsedPercent > 70, danger: budgetUsedPercent > 90 }"
-                :style="{ width: budgetUsedPercent + '%' }"
-              />
-            </div>
-          </div>
+          <div class="pipeline-content">
+            <!-- Budget bar -->
+            <SegmentedProgressBar
+              :segments="segments"
+              :total-budget="currentRun.budget_limit"
+              :total-used="totalUsed"
+              :tooltip-entries="tooltipEntries"
+            />
 
           <!-- Pipeline steps -->
           <div class="pipeline-flow" data-testid="pipeline-flow">
@@ -330,49 +327,8 @@
             </div>
           </div>
 
-          <!-- Cost Breakdown with Pie Chart -->
-          <div class="cost-panel">
-            <div class="panel-title">Cost Breakdown</div>
-            <div v-if="!currentRun" class="empty-state">—</div>
-            <div v-else class="cost-chart">
-              <div v-if="pieSlices.length > 0" class="pie-chart-container">
-                <svg viewBox="0 0 100 100" class="pie-chart">
-                  <g transform="translate(50,50) rotate(-90)">
-                    <circle
-                      v-for="(slice, i) in pieSlices"
-                      :key="i"
-                      r="25"
-                      fill="transparent"
-                      :stroke="slice.color"
-                      :stroke-width="slice.profession === currentRun?.current_profession ? 22 : 18"
-                      :stroke-dasharray="`${slice.length} ${slice.gap}`"
-                      :stroke-dashoffset="slice.offset"
-                      :class="{ 'pie-slice-active': slice.profession === currentRun?.current_profession }"
-                    />
-                  </g>
-                  <g transform="translate(50,50)">
-                    <text y="1" text-anchor="middle" dominant-baseline="middle" class="pie-total">
-                      {{ formatTokens(currentRun.cumulative_tokens) }}
-                    </text>
-                  </g>
-                </svg>
-              </div>
-              <div v-else class="empty-state" style="flex:1;text-align:left;padding:0;">
-                Per-profession data will appear as steps run
-              </div>
-              <div v-if="pieSlices.length > 0" class="pie-legend">
-                <div
-                  v-for="(slice, i) in pieSlices"
-                  :key="i"
-                  class="pie-legend-item"
-                  :class="{ active: slice.profession === currentRun?.current_profession }"
-                >
-                  <span class="pie-dot" :style="{ background: slice.color }" />
-                  <span class="pie-prof">{{ slice.profession }}</span>
-                  <span class="pie-val">{{ formatTokens(slice.tokens) }}</span>
-                </div>
-              </div>
-            </div>
+
+
           </div>
 
           <!-- Gate approval panel -->
@@ -406,6 +362,8 @@ import { useForgeMode } from '@/composables/useForgeMode'
 import StatusBadge from '@/components/StatusBadge.vue'
 import GatePanel from '@/components/GatePanel.vue'
 import AgentAvatar from '@/components/AgentAvatar.vue'
+import SegmentedProgressBar from '@/components/SegmentedProgressBar.vue'
+import { useProfessionSegments } from '@/composables/useProfessionSegments'
 
 const {
   runs, currentRun, professions, souls, loading, error,
@@ -418,6 +376,8 @@ const { t } = useI18n()
 
 const gateInbox = useGateInbox()
 const { shouldPauseGate } = useForgeMode()
+
+const { segments, totalUsed, tooltipEntries } = useProfessionSegments(professionTokens)
 
 const expandedStepId = ref<string | null>(null)
 const sessionLogRef = ref<HTMLElement | null>(null)
@@ -432,43 +392,7 @@ watch(() => sessionLog.value.length, async () => {
   }
 })
 
-// Profession color palette for pie chart
-const professionColors: Record<string, string> = {
-  assistant: 'hsl(220 70% 60%)',
-  advisor: 'hsl(280 60% 60%)',
-  planner: 'hsl(200 80% 55%)',
-  architect: 'hsl(160 60% 45%)',
-  coder: 'hsl(35 90% 55%)',
-  tester: 'hsl(50 80% 50%)',
-  reviewer: 'hsl(340 70% 55%)',
-  documenter: 'hsl(260 55% 60%)',
-  gofer: 'hsl(180 50% 50%)',
-  manager: 'hsl(30 60% 50%)',
-}
 
-const pieSlices = computed(() => {
-  if (!currentRun.value) return []
-  const entries = Object.entries(professionTokens.value)
-  if (entries.length === 0) return []
-  const total = currentRun.value.cumulative_tokens || 1
-  const circumference = 2 * Math.PI * 25 // r=25
-  let accumulated = 0
-  return entries.map(([profession, tokens]) => {
-    const ratio = tokens / total
-    const length = ratio * circumference
-    const gap = circumference - length
-    const offset = -accumulated // start from top
-    accumulated += length
-    return {
-      profession,
-      tokens,
-      color: professionColors[profession] ?? `hsl(${profession.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 360} 60% 55%)`,
-      length,
-      gap,
-      offset,
-    }
-  })
-})
 
 const stepTimeline = computed(() => {
   if (!currentRun.value) return []
@@ -640,31 +564,7 @@ function professionIcon(id: string): string {
   overflow: hidden;
 }
 
-.agents-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  height: 48px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--af-border);
-  gap: 1rem;
-}
 
-.agents-header h2 {
-  font-size: 0.83rem;
-  font-weight: 500;
-  color: var(--af-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  margin: 0;
-}
-
-.agents-actions {
-  display: flex;
-  gap: 0.5rem;
-}
 
 .btn-primary, .btn-secondary, .btn-approve, .btn-reject, .btn-edit, .btn-add, .btn-icon {
   display: inline-flex;
@@ -719,7 +619,7 @@ function professionIcon(id: string): string {
 .agents-body {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr 180px;
+  grid-template-columns: 220px 1fr;
   gap: 1px;
   background: var(--af-border);
   overflow: hidden;
@@ -727,8 +627,9 @@ function professionIcon(id: string): string {
 
 .runs-sidebar, .pipeline-panel {
   background: var(--af-bg);
-  overflow-y: auto;
-  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .panel-title {
@@ -737,7 +638,54 @@ function professionIcon(id: string): string {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--af-muted);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
+}
+
+.sidebar-header .panel-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.sidebar-header,
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 48px;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--af-border);
+}
+
+.runs-list,
+.pipeline-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.sidebar-actions .btn-icon {
+  padding: 0.25rem;
+  background: transparent;
+  color: var(--af-muted);
+}
+
+.sidebar-actions .btn-icon:hover:not(:disabled) {
+  background: hsl(var(--muted-foreground) / 0.12);
+  color: var(--af-fg);
+}
+
+.sidebar-actions .btn-icon.btn-danger:hover:not(:disabled) {
+  background: hsl(0 70% 50% / 0.12);
+  color: hsl(0 70% 50%);
 }
 
 .empty-state {
@@ -851,30 +799,22 @@ function professionIcon(id: string): string {
 }
 
 /* Pipeline */
-.run-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.run-title {
-  font-size: 0.93rem;
-  font-weight: 600;
-  color: var(--af-fg);
-  font-family: 'JetBrains Mono', monospace;
+.panel-header-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--af-muted);
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.run-title-id {
+.panel-header-subtitle {
   font-size: 0.78rem;
   font-weight: 400;
   color: var(--af-muted);
 }
 
-.run-stats {
+.panel-header-stats {
   display: flex;
   gap: 0.5rem;
 }
@@ -890,35 +830,7 @@ function professionIcon(id: string): string {
   color: var(--af-muted);
 }
 
-/* Budget bar */
-.budget-bar-container {
-  margin-bottom: 1rem;
-}
-
-.budget-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  color: var(--af-muted);
-  margin-bottom: 0.3rem;
-}
-
-.budget-bar {
-  height: 6px;
-  background: hsl(var(--muted-foreground) / 0.08);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.budget-fill {
-  height: 100%;
-  background: hsl(142 70% 45%);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.budget-fill.warning { background: hsl(38 90% 50%); }
-.budget-fill.danger { background: hsl(0 70% 50%); }
+/* Budget bar — replaced by SegmentedProgressBar component */
 
 /* Pipeline flow */
 .pipeline-flow {
@@ -1369,86 +1281,7 @@ function professionIcon(id: string): string {
   background: hsl(150 60% 35% / 0.08);
 }
 
-/* Cost Breakdown */
-.cost-panel {
-  border: 1px solid var(--af-border);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.cost-chart {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.pie-chart-container {
-  flex-shrink: 0;
-  width: 80px;
-  height: 80px;
-}
-
-.pie-chart {
-  width: 100%;
-  height: 100%;
-}
-
-.pie-total {
-  font-size: 5px;
-  font-weight: 600;
-  fill: var(--af-fg);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.pie-slice-active {
-  filter: drop-shadow(0 0 2px hsl(var(--primary) / 0.4));
-}
-
-.pie-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.pie-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.78rem;
-  padding: 0.15rem 0.3rem;
-  border-radius: 4px;
-  transition: background 0.15s;
-}
-
-.pie-legend-item.active {
-  background: hsl(var(--muted-foreground) / 0.06);
-}
-
-.pie-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.pie-prof {
-  flex: 1;
-  color: var(--af-fg);
-  font-weight: 500;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pie-val {
-  color: var(--af-muted);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
-}
+/* Cost Breakdown — removed; replaced by SegmentedProgressBar */
 
 /* ─── Mobile Responsive ───────────────────────────────────────────────────── */
 

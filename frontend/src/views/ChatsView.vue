@@ -1260,6 +1260,7 @@ onMounted(async () => {
   padding: 0.75rem 1rem;
   flex-shrink: 0;
   height: 48px;
+  border-bottom: 1px solid var(--af-border);
 }
 
 .sidebar-title {
@@ -1428,6 +1429,7 @@ onMounted(async () => {
   flex-shrink: 0;
   height: 48px;
   position: relative;
+  border-bottom: 1px solid var(--af-border);
 }
 
 .header-title-row {

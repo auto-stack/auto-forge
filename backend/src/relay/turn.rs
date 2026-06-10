@@ -220,7 +220,11 @@ impl AgentTurn {
 
                         // ─── Cache key & write dedup ───────────────────────────────────────
                         let cache_key = match name.as_str() {
-                            "read_file" => input.get("path").and_then(|v| v.as_str()).map(|p| format!("read_file:{}", p)),
+                            "read_file" => input.get("path").and_then(|v| v.as_str()).map(|p| {
+                                let offset = input.get("offset").and_then(|v| v.as_u64()).unwrap_or(0);
+                                let limit = input.get("limit").and_then(|v| v.as_u64()).unwrap_or(0);
+                                format!("read_file:{}:{}:{}", p, offset, limit)
+                            }),
                             "read_specs" => input.get("section_id").and_then(|v| v.as_str()).map(|s| format!("read_specs:{}", s)),
                             _ => None,
                         };
@@ -290,7 +294,8 @@ impl AgentTurn {
                                                 match name.as_str() {
                                                     "write_file" | "edit_file" => {
                                                         if let Some(path) = input.get("path").and_then(|v| v.as_str()) {
-                                                            self.file_cache.remove(&format!("read_file:{}", path));
+                                                            let prefix = format!("read_file:{}", path);
+                                                            self.file_cache.retain(|k, _| !k.starts_with(&prefix));
                                                         }
                                                     }
                                                     _ => {}

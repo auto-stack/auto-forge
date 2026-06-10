@@ -264,7 +264,19 @@ pub fn standard_spec_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("draft-tests", "tester"));
     flow.add_step(
         FlowStep::new("code", "coder")
-            .with_validators(code_validators()),
+            .with_validators(code_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec![
+                    "read_specs".to_string(),
+                    "read_file".to_string(),
+                    "list_specs".to_string(),
+                    "list_files".to_string(),
+                    "search".to_string(),
+                ],
+                always_allowed: vec!["list_symbols".to_string()],
+                forbidden: vec!["dispatch".to_string()],
+                ..ToolGuard::new()
+            }),
     );
     flow.add_step(
         FlowStep::new("run-tests", "tester")
@@ -292,7 +304,24 @@ pub fn standard_spec_flow() -> FlowSpec {
     );
     flow.add_step(
         FlowStep::new("report", "documenter")
-            .with_validators(report_validators()),
+            .with_validators(report_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec![
+                    "write_specs".to_string(),
+                    "update_spec".to_string(),
+                    "write_file".to_string(),
+                    "edit_file".to_string(),
+                ],
+                forbidden: vec!["dispatch".to_string()],
+                always_allowed: vec![
+                    "read_file".to_string(),
+                    "read_specs".to_string(),
+                    "list_specs".to_string(),
+                    "get_relay_state".to_string(),
+                    "get_checkpoint_diff".to_string(),
+                ],
+                ..ToolGuard::new()
+            }),
     );
     flow
 }
@@ -308,7 +337,19 @@ pub fn fast_track_flow() -> FlowSpec {
     );
     flow.add_step(
         FlowStep::new("code", "coder")
-            .with_validators(code_validators()),
+            .with_validators(code_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec![
+                    "read_specs".to_string(),
+                    "read_file".to_string(),
+                    "list_specs".to_string(),
+                    "list_files".to_string(),
+                    "search".to_string(),
+                ],
+                always_allowed: vec!["list_symbols".to_string()],
+                forbidden: vec!["dispatch".to_string()],
+                ..ToolGuard::new()
+            }),
     );
     flow
 }
@@ -337,7 +378,19 @@ pub fn auto_discovery_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("draft-tests", "tester"));
     flow.add_step(
         FlowStep::new("code", "coder")
-            .with_validators(code_validators()),
+            .with_validators(code_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec![
+                    "read_specs".to_string(),
+                    "read_file".to_string(),
+                    "list_specs".to_string(),
+                    "list_files".to_string(),
+                    "search".to_string(),
+                ],
+                always_allowed: vec!["list_symbols".to_string()],
+                forbidden: vec!["dispatch".to_string()],
+                ..ToolGuard::new()
+            }),
     );
     flow.add_step(
         FlowStep::new("run-tests", "tester")
@@ -376,7 +429,19 @@ pub fn post_discovery_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("draft-tests", "tester"));
     flow.add_step(
         FlowStep::new("code", "coder")
-            .with_validators(code_validators()),
+            .with_validators(code_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec![
+                    "read_specs".to_string(),
+                    "read_file".to_string(),
+                    "list_specs".to_string(),
+                    "list_files".to_string(),
+                    "search".to_string(),
+                ],
+                always_allowed: vec!["list_symbols".to_string()],
+                forbidden: vec!["dispatch".to_string()],
+                ..ToolGuard::new()
+            }),
     );
     flow.add_step(
         FlowStep::new("run-tests", "tester")
@@ -392,7 +457,24 @@ pub fn post_discovery_flow() -> FlowSpec {
     );
     flow.add_step(
         FlowStep::new("report", "documenter")
-            .with_validators(report_validators()),
+            .with_validators(report_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec![
+                    "write_specs".to_string(),
+                    "update_spec".to_string(),
+                    "write_file".to_string(),
+                    "edit_file".to_string(),
+                ],
+                forbidden: vec!["dispatch".to_string()],
+                always_allowed: vec![
+                    "read_file".to_string(),
+                    "read_specs".to_string(),
+                    "list_specs".to_string(),
+                    "get_relay_state".to_string(),
+                    "get_checkpoint_diff".to_string(),
+                ],
+                ..ToolGuard::new()
+            }),
     );
     flow
 }
@@ -405,7 +487,19 @@ pub fn bug_fix_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("intake", "assistant"));
     flow.add_step(
         FlowStep::new("code", "coder")
-            .with_validators(code_validators()),
+            .with_validators(code_validators())
+            .with_tool_guard(ToolGuard {
+                required_first: vec![
+                    "read_specs".to_string(),
+                    "read_file".to_string(),
+                    "list_specs".to_string(),
+                    "list_files".to_string(),
+                    "search".to_string(),
+                ],
+                always_allowed: vec!["list_symbols".to_string()],
+                forbidden: vec!["dispatch".to_string()],
+                ..ToolGuard::new()
+            }),
     );
     flow.add_step(
         FlowStep::new("test", "tester")

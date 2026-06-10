@@ -78,3 +78,94 @@
 
 
 ---
+
+## Relay-R3 — 中继运行 Token 消耗可视化重设计
+**Status:** draft
+
+**状态：** 已完成（手动补录报告）
+**标签：** stack:frontend, module:relay
+**日期：** 2026-06-10
+
+将 Relay View 中的 Cost Breakdown 饼图面板替换为多色分段 Token 进度条。架构师、计划员、编码员、评审员均完成工作，报告步骤因旧 flow 中 documenter 配置缺陷而自动失败，后手动补录报告。
+
+### 执行摘要
+
+本运行实现 Relay-G17（Token 进度条多色分段替代 Cost Breakdown 面板）。架构师产出完整规格，编码员在新 run 中完成核心代码实现。原 run（run-21391deb）因 `AgentTurn::file_cache` 的 offset/limit 缓存 key 缺陷导致 coder 读取文件时返回固定片段，无法定位正确写入位置，造成 142 次工具调用但 0 文件变更。修复 bug 后新 run（run-f1387d7d）成功产出代码。
+
+### 时间线
+
+| 步骤 | 职业 | 轮次 | 工具调用 | Token | 状态 |
+|---|---|---|---|---|---|
+| design | architect | 19 | 25 | 208,277 | ✅ 完成 |
+| plan | planner | 7 | 10 | 47,171 | ✅ 完成 |
+| draft-tests | tester | 17 | 0 | 227,629 | ✅ 完成 |
+| code | coder | 30 | 45 | 228,321 | ❌ 无代码（file_cache bug） |
+| run-tests | tester | 16 | 32 | 115,359 | ⚠️ 循环触发 |
+| code | coder | 30 | 53 | 346,601 | ❌ 无代码（file_cache bug） |
+| run-tests | tester | 31 | 1 | 409,854 | ⚠️ 循环触发 |
+| code | coder | 30 | 44 | 166,393 | ❌ 无代码（file_cache bug） |
+| run-tests | tester | 39 | 1 | 272,841 | ⚠️ 循环触发 |
+| review | reviewer | 30 | 0 | 424,729 | ⚠️ 旧 run 评审无效 |
+| **新 run** | | | | | |
+| design | architect | 8 | 12 | 377,193 | ✅ 完成 |
+| plan | planner | 5 | 8 | 98,614 | ✅ 完成 |
+| draft-tests | tester | 11 | 0 | 259,202 | ✅ 完成 |
+| code | coder | 29 | 38 | 502,575 | ✅ 产出代码 |
+| run-tests | tester | 14 | 0 | 50,177 | ✅ 通过 |
+| code | coder | 2 | 2 | 9,060 | ⚠️ API 网络错误 |
+| code | coder | 23 | 31 | 172,577 | ✅ 修复 |
+| run-tests | tester | 8 | 0 | 206,759 | ✅ 通过 |
+| code | coder | 28 | 35 | 342,257 | ✅ 补全 |
+| run-tests | tester | 14 | 1 | 137,149 | ✅ 通过 |
+| review | reviewer | 25 | 0 | 384,304 | ✅ 完成 |
+| review | reviewer | 18 | 0 | 278,948 | ✅ 完成 |
+| review | reviewer | 6 | 0 | 86,194 | ✅ 完成 |
+| review | reviewer | 28 | 0 | 475,607 | ✅ 完成 |
+| report | documenter | — | — | — | ❌ 配置缺陷，手动补录 |
+| **总计** | | | | **~3,609,000** | |
+
+### 规格产出
+
+- **Relay-G17** — Token 进度条多色分段替代 Cost Breakdown 面板（goals）
+- **Relay-A9** — Segmented Token Progress Bar Architecture（architecture）
+- **Relay-D15** — SegmentedProgressBar + AgentBreakdownTooltip 组件设计（designs）
+- **plans** — 5 阶段实施计划更新
+- **tests** — 测试用例更新
+
+### 代码产出
+
+**新 run（run-f1387d7d）实际产出：**
+
+- `frontend/src/components/SegmentedProgressBar.vue` — 新增分段进度条组件
+- `frontend/src/composables/useProfessionSegments.ts` — 新增职业分段数据组合式函数
+- `frontend/src/views/RelayView.vue` — 修改：替换 budget bar 为 SegmentedProgressBar，移除 Cost Breakdown 饼图面板
+
+**未完全实现：**
+- `AgentBreakdownTooltip.vue` 独立组件 — 被内联到 SegmentedProgressBar 中，未作为独立文件创建
+
+### 根因分析
+
+1. **file_cache 缓存 key 缺陷（`turn.rs`）：** `read_file` 的缓存 key 为 `read_file:<path>`，忽略 `offset` 和 `limit`。coder 请求 `read_file(path=RelayView.vue, offset=100, limit=20)` 与 `read_file(path=RelayView.vue, offset=330, limit=20)` 返回同一缓存结果（Lines 90-130），导致 coder 无法定位正确插入位置。
+
+2. **documenter 权限缺失（`profession.rs`）：** documenter `allowed_tools` 缺少 `write_file`/`edit_file`；`flows.rs` report step 缺少 `tool_guard` 强制写作。已修复。
+
+3. **Loop 上限跳过（`pipeline.rs`）：** `run-tests` 达到 `max_iterations=3` 后直接跳到 `review`，不检查 coder 是否完成。已修复为 `Paused`。
+
+### 已实施的架构改进
+
+- [x] 修复 `turn.rs` file_cache key 包含 offset/limit
+- [x] 为 documenter 添加 `write_file`/`edit_file` 权限
+- [x] 为 report step 添加 `tool_guard` 强制先写作
+- [x] Loop 上限 → `Paused` 状态，支持 `resume_run` API
+- [x] 强化 coder prompt（Single-Pass Mandate），max_turns 30 → 50
+- [x] code step 添加 `tool_guard`（禁止 dispatch，要求先读取）
+
+### 成本
+
+| 项目 | 数值 |
+|---|---|
+| 总 Token | ~3,609,000 |
+| 预估成本 | ~$10.83（按 $3/M） |
+| 有效代码产出 | 2 新文件 + 1 修改 |
+
+---
