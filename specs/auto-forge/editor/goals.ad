@@ -10,7 +10,7 @@
 - [ ] 基于 Tiptap 的块编辑器
 - [ ] 原生 Markdown 解析/序列化，支持双向同步
 - [ ] 斜杠命令、气泡菜单和拖拽手柄
-- [ ] AutoDown 扩展：标注、数学、Mermaid 图表、规格引用
+- [ ] AutoDown 扩展：标注、数学、Mermaid 图表、规范引用
 
 ## Editor-G2 阶段 1 — Markdown 所见即所得编辑器
 **Status:** proposed
@@ -28,7 +28,7 @@
 **Tags:** stack:frontend
 **Depends on:** Editor-G2
 
-- [ ] 标注块、数学块、Mermaid 图表块、规格引用块
+- [ ] 标注块、数学块、Mermaid 图表块、规范引用块
 - [ ] 每个扩展自包含：Tiptap 节点 + Vue 组件
 
 ## Editor-G4 阶段 3 — 高级编辑功能

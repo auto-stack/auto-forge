@@ -39,7 +39,7 @@ enum WikiSource { Manual, Guide, ApiRef, Custom }
 
 ```
 {project}/
-├── specs/          # 现有规格
+├── specs/          # 现有规范
 ├── wiki/
 │   ├── _manifest.json    # 页面元数据索引
 │   ├── guide/

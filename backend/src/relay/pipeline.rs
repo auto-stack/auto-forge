@@ -318,6 +318,10 @@ impl PipelineEngine {
                 // Branch routing depends on handoff fields; skip auto-correction
                 None
             }
+            ExitRouting::Condition { .. } => {
+                // Condition routing depends on runtime state; skip auto-correction
+                None
+            }
         };
 
         if let Some(expected) = expected_prof {
@@ -607,6 +611,62 @@ impl PipelineEngine {
                     }
                 }
             }
+            ExitRouting::Condition { condition, true_branch, false_branch } => {
+                let result = self.evaluate_condition(condition, step_id, handoff);
+                tracing::info!("Condition evaluated to {} for step '{}'", result, step_id);
+                let branch = if result { true_branch } else { false_branch };
+                self.resolve_next_step(step_id, branch, handoff)
+            }
+        }
+    }
+
+    /// Evaluate a routing condition against current pipeline state and handoff.
+    fn evaluate_condition(&self, condition: &crate::relay::flow::RoutingCondition, step_id: &str, handoff: &HandoffDocument) -> bool {
+        use crate::relay::flow::RoutingCondition;
+        match condition {
+            RoutingCondition::ValidatorFailed => {
+                // Re-run validators for this step against the handoff.
+                // In the current architecture this is most useful when the flow
+                // is configured to route on validation failure instead of auto-retry.
+                self.validate_step(step_id, handoff).is_some()
+            }
+            RoutingCondition::HandoffFieldEquals { field, value } => {
+                let actual = match field.as_str() {
+                    "to" => &handoff.to,
+                    "from" => &handoff.from,
+                    "run_id" => &handoff.run_id,
+                    "summary" => &handoff.summary,
+                    _ => {
+                        // Try to match against a decision status
+                        return handoff.decisions.iter().any(|d| {
+                            d.status == *value && field.to_lowercase() == d.title.to_lowercase()
+                        });
+                    }
+                };
+                actual == value
+            }
+            RoutingCondition::TokenUsageCumulativeExceeds { limit } => {
+                self.cumulative_tokens > *limit
+            }
+            RoutingCondition::TokenUsageStepExceeds { limit } => {
+                let step_tokens = handoff.token_usage.step_input + handoff.token_usage.step_output;
+                step_tokens > *limit
+            }
+            RoutingCondition::WorkProductExists { glob } => {
+                let pattern = glob.replace("*", "");
+                handoff.work_product.iter().any(|wp| {
+                    wp.path.contains(&pattern)
+                })
+            }
+            RoutingCondition::All(conditions) => {
+                conditions.iter().all(|c| self.evaluate_condition(c, step_id, handoff))
+            }
+            RoutingCondition::Any(conditions) => {
+                conditions.iter().any(|c| self.evaluate_condition(c, step_id, handoff))
+            }
+            RoutingCondition::Not(inner) => {
+                !self.evaluate_condition(inner, step_id, handoff)
+            }
         }
     }
 
@@ -724,7 +784,7 @@ fn extract_branch_key(handoff: &HandoffDocument, field: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::flow::FlowStep;
+    use crate::relay::flow::{FlowStep, RoutingCondition};
     use crate::relay::handoff::HandoffDocument;
     use std::collections::HashMap;
 
@@ -1116,5 +1176,162 @@ mod tests {
 
         let r = engine.advance();
         assert_eq!(r, AdvanceResult::Completed);
+    }
+
+    // ── Conditional routing ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_condition_routing_handoff_field_equals() {
+        use crate::relay::flow::RoutingCondition;
+        let mut flow = FlowSpec::new("test-condition");
+        flow.add_step(FlowStep::new("s1", "assistant").with_exit(ExitRouting::Condition {
+            condition: RoutingCondition::HandoffFieldEquals {
+                field: "to".into(),
+                value: "coder".into(),
+            },
+            true_branch: Box::new(ExitRouting::Branch {
+                on: "to".into(),
+                arms: {
+                    let mut m = HashMap::new();
+                    m.insert("coder".into(), "coder-step".into());
+                    m
+                },
+                default: "coder-step".into(),
+            }),
+            false_branch: Box::new(ExitRouting::Next),
+        }));
+        flow.add_step(FlowStep::new("planner-step", "planner"));
+        flow.add_step(FlowStep::new("coder-step", "coder"));
+
+        let mut engine = PipelineEngine::new(flow, "run-condition");
+
+        // s1: assistant
+        let _ = engine.advance();
+
+        // handoff.to == "coder" → true branch → coder-step
+        let mut h = make_handoff("assistant", "coder");
+        h.to = "coder".into();
+        let r = engine.submit_handoff(h);
+        assert_eq!(
+            r,
+            AdvanceResult::ExecuteStep {
+                step_id: "coder-step".into(),
+                profession_id: "coder".into(),
+                agent_config_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_condition_routing_token_usage_exceeds() {
+        use crate::relay::flow::RoutingCondition;
+        let mut flow = FlowSpec::new("test-condition-tokens");
+        flow.add_step(FlowStep::new("s1", "assistant").with_exit(ExitRouting::Condition {
+            condition: RoutingCondition::TokenUsageStepExceeds { limit: 100 },
+            true_branch: Box::new(ExitRouting::Next), // planner
+            false_branch: Box::new(ExitRouting::Loop {
+                target_step_id: "s1".into(),
+                max_iterations: 2,
+            }),
+        }));
+        flow.add_step(FlowStep::new("s2", "planner"));
+
+        let mut engine = PipelineEngine::new(flow, "run-tokens");
+
+        // s1: low token usage (< 100) → false branch → loop back to s1
+        let _ = engine.advance();
+        let mut h = make_handoff("assistant", "planner");
+        h.token_usage.step_input = 50;
+        h.token_usage.step_output = 30;
+        let r = engine.submit_handoff(h);
+        assert_eq!(
+            r,
+            AdvanceResult::ExecuteStep {
+                step_id: "s1".into(),
+                profession_id: "assistant".into(),
+                agent_config_id: None,
+            }
+        );
+
+        // s1 again: high token usage (> 100) → true branch → next (planner)
+        let mut h = make_handoff("assistant", "planner");
+        h.token_usage.step_input = 80;
+        h.token_usage.step_output = 50;
+        let r = engine.submit_handoff(h);
+        assert_eq!(
+            r,
+            AdvanceResult::ExecuteStep {
+                step_id: "s2".into(),
+                profession_id: "planner".into(),
+                agent_config_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_condition_routing_any_composite() {
+        use crate::relay::flow::RoutingCondition;
+        let mut flow = FlowSpec::new("test-condition-any");
+        flow.add_step(FlowStep::new("s1", "assistant").with_exit(ExitRouting::Condition {
+            condition: RoutingCondition::Any(vec![
+                RoutingCondition::HandoffFieldEquals { field: "to".into(), value: "coder".into() },
+                RoutingCondition::HandoffFieldEquals { field: "to".into(), value: "tester".into() },
+            ]),
+            true_branch: Box::new(ExitRouting::Next), // go to s2
+            false_branch: Box::new(ExitRouting::Loop {
+                target_step_id: "s1".into(),
+                max_iterations: 2,
+            }),
+        }));
+        flow.add_step(FlowStep::new("s2", "planner"));
+
+        let mut engine = PipelineEngine::new(flow, "run-any");
+
+        // to == "tester" matches Any → true branch → next
+        let _ = engine.advance();
+        let mut h = make_handoff("assistant", "tester");
+        h.to = "tester".into();
+        let r = engine.submit_handoff(h);
+        assert_eq!(
+            r,
+            AdvanceResult::ExecuteStep {
+                step_id: "s2".into(),
+                profession_id: "planner".into(),
+                agent_config_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_condition_routing_not_negation() {
+        use crate::relay::flow::RoutingCondition;
+        let mut flow = FlowSpec::new("test-condition-not");
+        flow.add_step(FlowStep::new("s1", "assistant").with_exit(ExitRouting::Condition {
+            condition: RoutingCondition::Not(Box::new(
+                RoutingCondition::HandoffFieldEquals { field: "to".into(), value: "skip".into() },
+            )),
+            true_branch: Box::new(ExitRouting::Next), // go to s2
+            false_branch: Box::new(ExitRouting::Loop {
+                target_step_id: "s1".into(),
+                max_iterations: 2,
+            }),
+        }));
+        flow.add_step(FlowStep::new("s2", "planner"));
+
+        let mut engine = PipelineEngine::new(flow, "run-not");
+
+        // to != "skip" → Not(false) = true → next
+        let _ = engine.advance();
+        let mut h = make_handoff("assistant", "planner");
+        h.to = "planner".into();
+        let r = engine.submit_handoff(h);
+        assert_eq!(
+            r,
+            AdvanceResult::ExecuteStep {
+                step_id: "s2".into(),
+                profession_id: "planner".into(),
+                agent_config_id: None,
+            }
+        );
     }
 }

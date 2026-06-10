@@ -1,0 +1,53 @@
+id: superpower
+steps:
+  - id: design
+    profession_id: super-advisor
+    gate: human
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - goals
+                - architecture
+                - designs
+                - plans
+                - tests
+    tool_guard:
+      required_first:
+        - write_goals
+        - write_specs
+      always_allowed:
+        - list_specs
+        - read_specs
+        - read_file
+    exit: next
+
+  - id: implement
+    profession_id: super-coder
+    gate: auto
+    validators:
+      - type: work_product_has_extensions
+        content:
+          exts:
+            - .rs
+            - .vue
+            - .ts
+            - .js
+    exit: next
+
+  - id: verify
+    profession_id: super-tester
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - reviews
+                - reports
+    exit: !loop
+      target_step_id: implement
+      max_iterations: 3

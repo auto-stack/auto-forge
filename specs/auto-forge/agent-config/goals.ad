@@ -7,7 +7,7 @@
 **Tags:** stack:backend
 
 - [x] 智能体可以通过人格（Markdown 角色定义）来定义
-- [x] 智能体可以被分配一个职业，决定规格所有权、工具和交接规则
+- [x] 智能体可以被分配一个职业，决定规范所有权、工具和交接规则
 - [x] 智能体可以配置一个模型（提供商、模型名称、温度、max_tokens）
 - [x] 内置职业存在：Assistant、Advisor、Architect、Planner、Coder、Tester、Reviewer、Documenter
 - [x] 自定义职业可以通过 `.autoforge/professions/` 下的 YAML 文件添加

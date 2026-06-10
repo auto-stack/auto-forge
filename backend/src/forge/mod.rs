@@ -2726,16 +2726,22 @@ mod handlers {
                                             let task = relay_data["task"].as_str().unwrap_or("").to_string();
 
                                             // Build FlowSpec
-                                            let flow = match flow_id.as_str() {
-                                                "standard" => crate::relay::flows::standard_spec_flow(),
-                                                "post_discovery" => crate::relay::flows::post_discovery_flow(),
-                                                "fast_track" => crate::relay::flows::fast_track_flow(),
-                                                "bug_fix" => crate::relay::flows::bug_fix_flow(),
-                                                "goal_discovery" => crate::relay::flows::goal_discovery_flow(),
-                                                "doc_patch" => crate::relay::flows::doc_patch_flow(),
-                                                "spec_tweak" => crate::relay::flows::spec_tweak_flow(),
-                                                _ => crate::relay::flows::standard_spec_flow(),
+                                            let resolved_flow_id = match flow_id.as_str() {
+                                                "standard" => "standard-spec-driven-development",
+                                                "post_discovery" => "post-discovery",
+                                                "fast_track" => "fast-track",
+                                                "bug_fix" => "bug-fix",
+                                                "goal_discovery" => "goal-discovery",
+                                                "doc_patch" => "doc-patch",
+                                                "spec_tweak" => "spec-tweak",
+                                                other => other,
                                             };
+                                            let flow = crate::relay::flows::get_flow(resolved_flow_id)
+                                                .unwrap_or_else(|| {
+                                                    tracing::warn!("Flow '{}' not found, falling back to standard", resolved_flow_id);
+                                                    crate::relay::flows::get_flow("standard-spec-driven-development")
+                                                        .expect("standard-spec-driven-development built-in flow must exist")
+                                                });
 
                                             // Set mode on flow engine
                                             let mode = match mode_str.as_str() {

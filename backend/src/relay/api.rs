@@ -3,7 +3,8 @@
 //! Axum handlers for the Agents Relay module.
 //! Uses a global in-memory store for simplicity.
 
-use crate::relay::flow::FlowSpec;
+use crate::relay::flow::{FlowSpec, ValidationIssue, ValidationSeverity};
+use crate::relay::flows::{get_flow, init_flow_registry, validate_flow, FlowRegistry, FLOW_REGISTRY};
 use crate::relay::handoff::HandoffDocument;
 use crate::relay::pipeline::{AdvanceResult, GateDecision};
 use crate::relay::profession::{self, Profession, ProfessionRegistry};
@@ -986,6 +987,216 @@ pub async fn generate_agent_avatar(
 }
 
 // -------------------------------------------------------------------------
+// Flow CRUD
+// -------------------------------------------------------------------------
+
+#[derive(serde::Serialize)]
+pub struct FlowSummary {
+    pub id: String,
+    pub source: String,
+    pub step_count: usize,
+}
+
+#[derive(serde::Serialize)]
+pub struct ListFlowsResponse {
+    pub flows: Vec<FlowSummary>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateFlowRequest {
+    pub flow_id: String,
+    pub spec: FlowSpec,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ValidateFlowRequest {
+    pub spec: FlowSpec,
+}
+
+#[derive(serde::Serialize)]
+pub struct ValidateFlowResponse {
+    pub valid: bool,
+    pub errors: Vec<ValidationIssueDto>,
+}
+
+#[derive(serde::Serialize)]
+pub struct ValidationIssueDto {
+    pub severity: String,
+    pub message: String,
+    pub step_id: Option<String>,
+}
+
+impl From<&ValidationIssue> for ValidationIssueDto {
+    fn from(issue: &ValidationIssue) -> Self {
+        Self {
+            severity: match issue.severity {
+                ValidationSeverity::Error => "error".to_string(),
+                ValidationSeverity::Warning => "warning".to_string(),
+            },
+            message: issue.message.clone(),
+            step_id: issue.step_id.clone(),
+        }
+    }
+}
+
+fn flow_data_dir() -> Option<std::path::PathBuf> {
+    crate::forge::current_project_path()
+        .map(|p| std::path::PathBuf::from(p).join(".autoforge").join("flows"))
+}
+
+fn ensure_flows_dir() -> Result<std::path::PathBuf, StatusCode> {
+    let dir = flow_data_dir().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    std::fs::create_dir_all(&dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(dir)
+}
+
+fn user_flow_path(flow_id: &str) -> Result<std::path::PathBuf, StatusCode> {
+    let dir = ensure_flows_dir()?;
+    Ok(dir.join(format!("{}.yml", flow_id)))
+}
+
+fn with_flow_registry<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut FlowRegistry) -> R,
+{
+    let mut guard = FLOW_REGISTRY.lock().unwrap();
+    if guard.is_none() {
+        init_flow_registry();
+    }
+    f(guard.as_mut().unwrap())
+}
+
+pub async fn list_flows_handler() -> Result<Json<ListFlowsResponse>, StatusCode> {
+    let summaries = with_flow_registry(|registry| {
+        registry.list().into_iter().map(|id| {
+            let source = if registry.is_builtin(&id) {
+                "builtin"
+            } else {
+                "user"
+            }.to_string();
+            let step_count = registry.get(&id).map(|f| f.steps.len()).unwrap_or(0);
+            FlowSummary { id, source, step_count }
+        }).collect::<Vec<_>>()
+    });
+    Ok(Json(ListFlowsResponse { flows: summaries }))
+}
+
+pub async fn get_flow_handler(
+    Path(flow_id): Path<String>,
+) -> Result<Json<FlowSpec>, StatusCode> {
+    with_flow_registry(|registry| {
+        registry.get(&flow_id).map(Json).ok_or(StatusCode::NOT_FOUND)
+    })
+}
+
+pub async fn create_flow_handler(
+    Json(req): Json<CreateFlowRequest>,
+) -> Result<Json<FlowSpec>, StatusCode> {
+    if req.flow_id != req.spec.id {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let professions = ProfessionRegistry::new();
+    let tools = crate::forge::tools::ToolRegistry::new();
+    let issues = validate_flow(&req.spec, &professions, &tools);
+    let has_errors = issues.iter().any(|i| matches!(i.severity, ValidationSeverity::Error));
+    if has_errors {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let path = user_flow_path(&req.flow_id)?;
+    let yaml = serde_yaml::to_string(&req.spec).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    std::fs::write(&path, yaml).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let flow = with_flow_registry(|registry| {
+        registry.insert(req.spec.clone());
+        registry.get(&req.flow_id).unwrap()
+    });
+
+    Ok(Json(flow))
+}
+
+pub async fn update_flow_handler(
+    Path(flow_id): Path<String>,
+    Json(req): Json<CreateFlowRequest>,
+) -> Result<Json<FlowSpec>, StatusCode> {
+    if flow_id != req.spec.id {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    with_flow_registry(|registry| {
+        if registry.is_builtin(&flow_id) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        if registry.get(&flow_id).is_none() {
+            return Err(StatusCode::NOT_FOUND);
+        }
+        Ok(())
+    })?;
+
+    let professions = ProfessionRegistry::new();
+    let tools = crate::forge::tools::ToolRegistry::new();
+    let issues = validate_flow(&req.spec, &professions, &tools);
+    let has_errors = issues.iter().any(|i| matches!(i.severity, ValidationSeverity::Error));
+    if has_errors {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let path = user_flow_path(&flow_id)?;
+    let yaml = serde_yaml::to_string(&req.spec).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    std::fs::write(&path, yaml).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let flow = with_flow_registry(|registry| {
+        registry.insert(req.spec.clone());
+        registry.get(&flow_id).unwrap()
+    });
+
+    Ok(Json(flow))
+}
+
+pub async fn delete_flow_handler(
+    Path(flow_id): Path<String>,
+) -> StatusCode {
+    let is_builtin = with_flow_registry(|registry| registry.is_builtin(&flow_id));
+    if is_builtin {
+        return StatusCode::FORBIDDEN;
+    }
+
+    let path = match user_flow_path(&flow_id) {
+        Ok(p) => p,
+        Err(code) => return code,
+    };
+
+    if path.exists() {
+        if let Err(_) = std::fs::remove_file(&path) {
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    with_flow_registry(|registry| {
+        registry.remove(&flow_id);
+    });
+
+    StatusCode::NO_CONTENT
+}
+
+pub async fn validate_flow_handler(
+    Json(req): Json<ValidateFlowRequest>,
+) -> Result<Json<ValidateFlowResponse>, StatusCode> {
+    let professions = ProfessionRegistry::new();
+    let tools = crate::forge::tools::ToolRegistry::new();
+    let issues = validate_flow(&req.spec, &professions, &tools);
+    let valid = !issues.iter().any(|i| matches!(i.severity, ValidationSeverity::Error));
+    let dtos = issues.iter().map(ValidationIssueDto::from).collect();
+    Ok(Json(ValidateFlowResponse { valid, errors: dtos }))
+}
+
+pub async fn reload_flows_handler() -> StatusCode {
+    init_flow_registry();
+    StatusCode::NO_CONTENT
+}
+
+// -------------------------------------------------------------------------
 // Router
 // -------------------------------------------------------------------------
 
@@ -999,6 +1210,10 @@ where
         .route("/api/forge/relay/professions", get(list_professions))
         .route("/api/forge/relay/souls", get(list_souls))
         .route("/api/forge/relay/souls/{id}", get(get_soul))
+        .route("/api/forge/relay/flows", get(list_flows_handler).post(create_flow_handler))
+        .route("/api/forge/relay/flows/reload", post(reload_flows_handler))
+        .route("/api/forge/relay/flows/validate", post(validate_flow_handler))
+        .route("/api/forge/relay/flows/{flow_id}", get(get_flow_handler).put(update_flow_handler).delete(delete_flow_handler))
         .route("/api/forge/relay/runs", get(list_runs_handler).post(start_run_handler))
         .route("/api/forge/relay/runs/{run_id}", get(get_run_handler).delete(delete_run_handler))
         .route("/api/forge/relay/runs/{run_id}/advance", post(advance_run_handler))

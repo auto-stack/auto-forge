@@ -1,0 +1,31 @@
+id: spec-tweak
+steps:
+  - id: intake
+    profession_id: assistant
+    gate: auto
+    exit: next
+
+  - id: tweak
+    profession_id: advisor
+    gate: auto
+    validators:
+      - type: spec_updates_non_empty
+        content:
+          sections:
+            - goals
+            - architecture
+            - designs
+            - plans
+            - tests
+    tool_guard:
+      required_first:
+        - read_specs
+      always_allowed:
+        - list_specs
+        - read_specs
+        - write_specs
+        - write_goals
+        - read_file
+        - query_wiki
+        - list_wiki
+    exit: next

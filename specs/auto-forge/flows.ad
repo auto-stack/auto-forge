@@ -83,12 +83,12 @@ sequenceDiagram
 **处理过程**：后端发出 SSE 事件：`Text`、`ToolCall`、`ToolResult`、`AgentHandoff`
 **数据流**：后端 → SSE → `useForge` → `ChatView`
 
-### 相关规格
+### 相关规范
 - `Chat-A1` — 临时 chrome 架构
 - `Chat-A2` — 聊天轮次智能体交接
 - `Chat-D3` — `BringInTool` JSON 架构和交接协议
 - `Provider-A1` — 统一提供商与运行时架构
-- `Relay-A4` — 自动中继模式
+- `Relay-A4` — 自动接力模式
 
 ---
 
@@ -159,13 +159,13 @@ sequenceDiagram
 
 #### 步骤 2：步骤执行循环
 **触发条件**：调用 `PipelineEngine.advance()`
-**处理过程**：为当前步骤的职业启动 `AgentInstance`，传递交接文档 + 限定规格
+**处理过程**：为当前步骤的职业启动 `AgentInstance`，传递交接文档 + 限定规范
 **数据流**：`PipelineEngine` → `AgentInstance` → LLM → 交接文档
 
 #### 步骤 3：交接处理
 **触发条件**：智能体轮次完成
-**处理过程**：`HandoffManager` 从交接文档中提取决策、工作成果、规格更新、Token 使用量
-**数据流**：`AgentInstance` → 交接文档 → `HandoffManager` → `SpecsStore`（如有规格更新）
+**处理过程**：`HandoffManager` 从交接文档中提取决策、工作成果、规范更新、Token 使用量
+**数据流**：`AgentInstance` → 交接文档 → `HandoffManager` → `SpecsStore`（如有规范更新）
 
 #### 步骤 4：检查点持久化
 **触发条件**：每步成功执行后
@@ -177,7 +177,7 @@ sequenceDiagram
 **处理过程**：流水线暂停；用户通过 GatePanel 批准/拒绝；拒绝可附带反馈用于重试
 **数据流**：`PipelineEngine` → SSE `GatePause` → 用户 → `resolve_gate()` → 继续/失败
 
-### 相关规格
+### 相关规范
 - `Relay-A1` — 确定性 Rust 编排器
 - `Relay-A2` — 检查点与状态持久化
 - `Relay-A3` — Boss-First 执行
@@ -195,7 +195,7 @@ sequenceDiagram
 
 ### 概述
 
-单个智能体轮次是智能体工作的原子单元。它接收限定上下文（系统提示词 + 相关规格 + 交接历史），通过 LLM 流式传输，执行任何工具调用，并生成结构化结果。
+单个智能体轮次是智能体工作的原子单元。它接收限定上下文（系统提示词 + 相关规范 + 交接历史），通过 LLM 流式传输，执行任何工具调用，并生成结构化结果。
 
 ### 时序图
 
@@ -241,7 +241,7 @@ sequenceDiagram
 
 #### 步骤 3：上下文编译
 **触发条件**：系统提示词渲染完成
-**处理过程**：`ContextManager` 加载相关规格（拥有 + 可读章节），如超出 Token 预算则压缩
+**处理过程**：`ContextManager` 加载相关规范（拥有 + 可读章节），如超出 Token 预算则压缩
 **数据流**：`SpecsStore` → `ContextManager` → 压缩后的上下文消息
 
 #### 步骤 4：LLM 流式传输
@@ -256,10 +256,10 @@ sequenceDiagram
 
 #### 步骤 6：交接文档生成
 **触发条件**：LLM 轮次完成（stop reason = end_turn）
-**处理过程**：提取结构化字段：决策、工作成果、规格更新、待解决问题、Token 使用量
+**处理过程**：提取结构化字段：决策、工作成果、规范更新、待解决问题、Token 使用量
 **数据流**：轮次结果 → `HandoffDocument` → `PipelineEngine`
 
-### 相关规格
+### 相关规范
 - `AgentConfig-A1` — 智能体实例生命周期
 - `AgentConfig-D1` — `AgentInstance` / `SoulConfig` / `ModelConfig` 结构体
 - `Provider-A1` — 统一提供商架构
@@ -268,15 +268,15 @@ sequenceDiagram
 
 ---
 
-## Flow-4: 规格文档生命周期
+## Flow-4: 规范文档生命周期
 
 **涉及模块**：specs、forge（智能体工具）
-**入口**：智能体通过 `read_specs` / `update_spec` 读取或写入规格
-**出口**：规格持久化到 `.ad` 文件，附带派生状态与关联关系
+**入口**：智能体通过 `read_specs` / `update_spec` 读取或写入规范
+**出口**：规范持久化到 `.ad` 文件，附带派生状态与关联关系
 
 ### 概述
 
-规格是 AutoForge 中的唯一事实来源。它们遵循严格的金字塔结构（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告），由特定职业的智能体通过结构化工具维护。
+规范是 AutoForge 中的唯一事实来源。它们遵循严格的金字塔结构（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告），由特定职业的智能体通过结构化工具维护。
 
 ### 时序图
 
@@ -322,9 +322,9 @@ sequenceDiagram
 **数据流**：智能体 → `update_spec` → `SpecsStore` → 模块目录
 
 #### 步骤 3：状态派生
-**触发条件**：规格更新后
+**触发条件**：规范更新后
 **处理过程**：`derive_statuses()` 根据相关计划/测试/评审进度自动更新目标状态
-**数据流**：规格变更 → `derive_statuses()` → 更新的状态
+**数据流**：规范变更 → `derive_statuses()` → 更新的状态
 
 #### 步骤 4：关联关系重建
 **触发条件**：状态派生后
@@ -333,11 +333,11 @@ sequenceDiagram
 
 #### 步骤 5：持久化
 **触发条件**：关联关系重建后
-**处理过程**：`save_module_format()` 将各模块的规格写回其 `.ad` 文件
+**处理过程**：`save_module_format()` 将各模块的规范写回其 `.ad` 文件
 **数据流**：`SpecItem` 列表 → `serialize_section_to_ad()` → 磁盘
 
-### 相关规格
-- `Specs-G1` — 规格金字塔分类
+### 相关规范
+- `Specs-G1` — 规范金字塔分类
 - `Specs-G2` — 双向可追溯性
 - `Specs-A1` — 目标层级架构
 - `Specs-D1` — 分类渲染器多态
@@ -409,7 +409,7 @@ sequenceDiagram
 **处理过程**：`PipelineEngine.resolve_gate()` 继续执行（批准）、附带反馈重试（拒绝 + 评论）、或失败（拒绝且不重试）
 **数据流**：后端 → `PipelineEngine` → 下一步 / 重试 / 失败
 
-### 相关规格
+### 相关规范
 - `Relay-A3` — Boss-First 执行（GSD vs Check）
 - `Relay-D5` — RelayMode & GSD 流程控制
 - `Relay-D6` — `useGateInbox` 状态机
@@ -421,11 +421,11 @@ sequenceDiagram
 
 ## 文档导航
 
-这些流程补充了基于模块的规格：
+这些流程补充了基于模块的规范：
 - **流程是横向的**：展示数据如何*跨越*模块流动。
-- **规格是纵向的**：展示每个模块*内部*如何工作。
+- **规范是纵向的**：展示每个模块*内部*如何工作。
 
-阅读流程时，跟随"相关规格"链接深入了解模块级别的细节。[stage] run_soul_finished
+阅读流程时，跟随"相关规范"链接深入了解模块级别的细节。[stage] run_soul_finished
 
 [summary]
 # 核心流程
@@ -513,12 +513,12 @@ sequenceDiagram
 **处理过程**：后端发出 SSE 事件：`Text`、`ToolCall`、`ToolResult`、`AgentHandoff`
 **数据流**：后端 → SSE → `useForge` → `ChatView`
 
-### 相关规格
+### 相关规范
 - `Chat-A1` — 临时 chrome 架构
 - `Chat-A2` — 聊天轮次智能体交接
 - `Chat-D3` — `BringInTool` JSON 架构和交接协议
 - `Provider-A1` — 统一提供商与运行时架构
-- `Relay-A4` — 自动中继模式
+- `Relay-A4` — 自动接力模式
 
 ---
 
@@ -589,13 +589,13 @@ sequenceDiagram
 
 #### 步骤 2：步骤执行循环
 **触发条件**：调用 `PipelineEngine.advance()`
-**处理过程**：为当前步骤的职业启动 `AgentInstance`，传递交接文档 + 限定规格
+**处理过程**：为当前步骤的职业启动 `AgentInstance`，传递交接文档 + 限定规范
 **数据流**：`PipelineEngine` → `AgentInstance` → LLM → 交接文档
 
 #### 步骤 3：交接处理
 **触发条件**：智能体轮次完成
-**处理过程**：`HandoffManager` 从交接文档中提取决策、工作成果、规格更新、Token 使用量
-**数据流**：`AgentInstance` → 交接文档 → `HandoffManager` → `SpecsStore`（如有规格更新）
+**处理过程**：`HandoffManager` 从交接文档中提取决策、工作成果、规范更新、Token 使用量
+**数据流**：`AgentInstance` → 交接文档 → `HandoffManager` → `SpecsStore`（如有规范更新）
 
 #### 步骤 4：检查点持久化
 **触发条件**：每步成功执行后
@@ -607,7 +607,7 @@ sequenceDiagram
 **处理过程**：流水线暂停；用户通过 GatePanel 批准/拒绝；拒绝可附带反馈用于重试
 **数据流**：`PipelineEngine` → SSE `GatePause` → 用户 → `resolve_gate()` → 继续/失败
 
-### 相关规格
+### 相关规范
 - `Relay-A1` — 确定性 Rust 编排器
 - `Relay-A2` — 检查点与状态持久化
 - `Relay-A3` — Boss-First 执行
@@ -625,7 +625,7 @@ sequenceDiagram
 
 ### 概述
 
-单个智能体轮次是智能体工作的原子单元。它接收限定上下文（系统提示词 + 相关规格 + 交接历史），通过 LLM 流式传输，执行任何工具调用，并生成结构化结果。
+单个智能体轮次是智能体工作的原子单元。它接收限定上下文（系统提示词 + 相关规范 + 交接历史），通过 LLM 流式传输，执行任何工具调用，并生成结构化结果。
 
 ### 时序图
 
@@ -671,7 +671,7 @@ sequenceDiagram
 
 #### 步骤 3：上下文编译
 **触发条件**：系统提示词渲染完成
-**处理过程**：`ContextManager` 加载相关规格（拥有 + 可读章节），如超出 Token 预算则压缩
+**处理过程**：`ContextManager` 加载相关规范（拥有 + 可读章节），如超出 Token 预算则压缩
 **数据流**：`SpecsStore` → `ContextManager` → 压缩后的上下文消息
 
 #### 步骤 4：LLM 流式传输
@@ -686,10 +686,10 @@ sequenceDiagram
 
 #### 步骤 6：交接文档生成
 **触发条件**：LLM 轮次完成（stop reason = end_turn）
-**处理过程**：提取结构化字段：决策、工作成果、规格更新、待解决问题、Token 使用量
+**处理过程**：提取结构化字段：决策、工作成果、规范更新、待解决问题、Token 使用量
 **数据流**：轮次结果 → `HandoffDocument` → `PipelineEngine`
 
-### 相关规格
+### 相关规范
 - `AgentConfig-A1` — 智能体实例生命周期
 - `AgentConfig-D1` — `AgentInstance` / `SoulConfig` / `ModelConfig` 结构体
 - `Provider-A1` — 统一提供商架构
@@ -698,15 +698,15 @@ sequenceDiagram
 
 ---
 
-## Flow-4: 规格文档生命周期
+## Flow-4: 规范文档生命周期
 
 **涉及模块**：specs、forge（智能体工具）
-**入口**：智能体通过 `read_specs` / `update_spec` 读取或写入规格
-**出口**：规格持久化到 `.ad` 文件，附带派生状态与关联关系
+**入口**：智能体通过 `read_specs` / `update_spec` 读取或写入规范
+**出口**：规范持久化到 `.ad` 文件，附带派生状态与关联关系
 
 ### 概述
 
-规格是 AutoForge 中的唯一事实来源。它们遵循严格的金字塔结构（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告），由特定职业的智能体通过结构化工具维护。
+规范是 AutoForge 中的唯一事实来源。它们遵循严格的金字塔结构（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告），由特定职业的智能体通过结构化工具维护。
 
 ### 时序图
 
@@ -752,9 +752,9 @@ sequenceDiagram
 **数据流**：智能体 → `update_spec` → `SpecsStore` → 模块目录
 
 #### 步骤 3：状态派生
-**触发条件**：规格更新后
+**触发条件**：规范更新后
 **处理过程**：`derive_statuses()` 根据相关计划/测试/评审进度自动更新目标状态
-**数据流**：规格变更 → `derive_statuses()` → 更新的状态
+**数据流**：规范变更 → `derive_statuses()` → 更新的状态
 
 #### 步骤 4：关联关系重建
 **触发条件**：状态派生后
@@ -763,11 +763,11 @@ sequenceDiagram
 
 #### 步骤 5：持久化
 **触发条件**：关联关系重建后
-**处理过程**：`save_module_format()` 将各模块的规格写回其 `.ad` 文件
+**处理过程**：`save_module_format()` 将各模块的规范写回其 `.ad` 文件
 **数据流**：`SpecItem` 列表 → `serialize_section_to_ad()` → 磁盘
 
-### 相关规格
-- `Specs-G1` — 规格金字塔分类
+### 相关规范
+- `Specs-G1` — 规范金字塔分类
 - `Specs-G2` — 双向可追溯性
 - `Specs-A1` — 目标层级架构
 - `Specs-D1` — 分类渲染器多态
@@ -839,7 +839,7 @@ sequenceDiagram
 **处理过程**：`PipelineEngine.resolve_gate()` 继续执行（批准）、附带反馈重试（拒绝 + 评论）、或失败（拒绝且不重试）
 **数据流**：后端 → `PipelineEngine` → 下一步 / 重试 / 失败
 
-### 相关规格
+### 相关规范
 - `Relay-A3` — Boss-First 执行（GSD vs Check）
 - `Relay-D5` — RelayMode & GSD 流程控制
 - `Relay-D6` — `useGateInbox` 状态机
@@ -851,7 +851,7 @@ sequenceDiagram
 
 ## 文档导航
 
-这些流程补充了基于模块的规格：
+这些流程补充了基于模块的规范：
 - **流程是横向的**：展示数据如何*跨越*模块流动。
-- **规格是纵向的**：展示每个模块*内部*如何工作。
+- **规范是纵向的**：展示每个模块*内部*如何工作。
 

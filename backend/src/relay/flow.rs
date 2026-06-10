@@ -6,6 +6,21 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ─── Validation Types ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationSeverity {
+    Error,
+    Warning,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidationIssue {
+    pub severity: ValidationSeverity,
+    pub message: String,
+    pub step_id: Option<String>,
+}
+
 /// A flow is an ordered list of steps with routing logic.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlowSpec {
@@ -132,6 +147,34 @@ pub enum ExitRouting {
         /// Max iterations before breaking to next.
         max_iterations: u32,
     },
+    /// Conditional routing based on runtime state.
+    Condition {
+        condition: RoutingCondition,
+        true_branch: Box<ExitRouting>,
+        false_branch: Box<ExitRouting>,
+    },
+}
+
+/// Runtime condition for conditional routing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type", content = "content")]
+pub enum RoutingCondition {
+    /// True if any validator failed for the current step.
+    ValidatorFailed,
+    /// True if the handoff's field matches a value.
+    HandoffFieldEquals { field: String, value: String },
+    /// True if cumulative token usage exceeds threshold.
+    TokenUsageCumulativeExceeds { limit: u64 },
+    /// True if step token usage exceeds threshold.
+    TokenUsageStepExceeds { limit: u64 },
+    /// True if a work_product file matching pattern was produced.
+    WorkProductExists { glob: String },
+    /// Logical AND of multiple conditions.
+    All(Vec<RoutingCondition>),
+    /// Logical OR of multiple conditions.
+    Any(Vec<RoutingCondition>),
+    /// Logical NOT of a condition.
+    Not(Box<RoutingCondition>),
 }
 
 // ─── Step Validators ─────────────────────────────────────────────────────────

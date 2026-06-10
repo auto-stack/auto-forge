@@ -21,7 +21,7 @@ pub struct PipelineEngine {
 }
 
 impl PipelineEngine {
-    /// 加载 Flow 规格并初始化流水线。
+    /// 加载 Flow 规范并初始化流水线。
     pub fn new(flow: FlowSpec, run_id: String) -> Self;
 
     /// 执行 Flow 中的下一步。
@@ -76,7 +76,7 @@ stateDiagram-v2
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `flow.id` | `String` | Flow 规格标识符 |
+| `flow.id` | `String` | Flow 规范标识符 |
 | `current_step` | `usize` | flow.steps 向量的索引 |
 | `status` | `PipelineStatus` | 当前状态机状态 |
 | `checkpoints` | `Vec<Checkpoint>` | 有序保存的状态列表 |
@@ -198,7 +198,7 @@ stateDiagram-v2
 | `decisions.id` | `String` | 决策标识符 |
 | `decisions.status` | `String` | made / deferred / rejected |
 | `open_questions.id` | `String` | 问题标识符 |
-| `spec_updates.section_id` | `String` | 被修改的规格章节 |
+| `spec_updates.section_id` | `String` | 被修改的规范章节 |
 | `work_product.path` | `String` | 文件路径或产物位置 |
 | `work_product.lines` | `u32` | 上下文大小指示器 |
 
@@ -303,7 +303,7 @@ stateDiagram-v2
 | `id` | `u64` | 运行内单调递增 |
 | `git_commit` | `Option<String>` | 自动提交成功时的完整 SHA |
 | `git_diff` | `Option<String>` | 工作树脏时的补丁 |
-| `ledger_state` | `SpecsDocument` | 此时规格的深拷贝 |
+| `ledger_state` | `SpecsDocument` | 此时规范的深拷贝 |
 | `file_manifest` | `Vec<FileState>` | 每个被触碰文件的哈希 |
 
 
@@ -612,7 +612,7 @@ interface NodeCardProps {
 
 1. **概览**：Token、耗时、状态、职业图标
 2. **动作**：按时间顺序的工具调用历史（read_jade、write_file 等）
-3. **输出**：被触碰的规格，附带点击跳转链接
+3. **输出**：被触碰的规范，附带点击跳转链接
 
 
 ---
@@ -655,7 +655,7 @@ emit('reviewInSpecs', sectionId: string)
 
 - 当 `currentRun.waiting_for_gate` 非空时，在 `PipelinePanel` 内部渲染
 - 显示职业图标、关卡标题和等待耗时
-- 提供 批准 / 拒绝 / 在规格中评审 动作
+- 提供 批准 / 拒绝 / 在规范中评审 动作
 - 非阻塞：流水线动画在后台继续
 
 
@@ -699,7 +699,7 @@ function useEventRouter() {
 }
 ```
 
-| 事件 | 聊天视图 | 规格视图 | 中继视图 |
+| 事件 | 聊天视图 | 规范视图 | 接力视图 |
 |---|---|---|---|
 | `run_started` | 系统消息 | — | 高亮运行 |
 | `step_advanced` | **无动作**（仅环境感知） | — | 节点动画 |
@@ -946,7 +946,7 @@ interface ForgeStreamEvent {
 **标签：** stack:frontend
 **依赖：** Relay-A5
 
-- 订阅中继 SSE 事件，并按类型路由到视图回调
+- 订阅接力 SSE 事件，并按类型路由到视图回调
 - 维护 FIFO 关卡队列，支持暂停计时器和关闭状态
 - 向 UI 暴露 `pendingCount`、`activeGate`、`resolveGate()`
 - 按 `parent_session_id` 过滤差事事件，避免串扰
@@ -987,7 +987,7 @@ interface ForgeStreamEvent {
 
 ### 概述
 
-已完成中继运行的客户端 PDF 导出。使用 `jspdf` + `jspdf-autotable` 从现有 RunState 数据生成多页 PDF 文档。无需后端变更。
+已完成接力运行的客户端 PDF 导出。使用 `jspdf` + `jspdf-autotable` 从现有 RunState 数据生成多页 PDF 文档。无需后端变更。
 
 ### 1. PdfGenerator 工具类
 
@@ -1373,8 +1373,8 @@ function mapRunState(run: RunState): RunStateForPdf {
 | 1 — 封面 | 标题、运行元数据表 | 居中标题、元数据表 |
 | 2 — 摘要 | 指标概览 + 每步 Token 表 | 两个 autoTable |
 | 3 — 时间线 | 按时间顺序的步骤执行 | 带时间戳的 autoTable |
-| 4 — 规格变更 | 修改的章节、动作、条目 ID | autoTable（可选） |
-| 5 — 交付物 | 生成的文件/规格/报告 | autoTable（可选） |
+| 4 — 规范变更 | 修改的章节、动作、条目 ID | autoTable（可选） |
+| 5 — 交付物 | 生成的文件/规范/报告 | autoTable（可选） |
 
 第 4 和第 5 页仅在运行包含 spec_changes 或 deliverables 时包含。
 

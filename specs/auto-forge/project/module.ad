@@ -22,7 +22,7 @@ Project 概念支持类似 VS Code 的文件夹打开方式，并具备持久化
 
 依赖：[api-sources](api-sources/module.ad)、[provider](provider/module.ad)、[specs](specs/module.ad)、[ui-system](ui-system/module.ad)
 
-## 模块规格
+## 模块规范
 
 | 类型 | 数量 | 文件 |
 |------|------|------|
@@ -34,10 +34,10 @@ Project 概念支持类似 VS Code 的文件夹打开方式，并具备持久化
 
 ## 导航
 
-本模块遵循标准规格金字塔：
+本模块遵循标准规范金字塔：
 - **目标** 定义模块旨在实现的内容
 - **架构** 描述高层设计与组件交互
-- **设计** 包含详细的技术规格
+- **设计** 包含详细的技术规范
 - **计划** 跟踪实现任务
 - **测试** 列出验收标准
 - **评审** 记录实现后的回顾
@@ -45,4 +45,4 @@ Project 概念支持类似 VS Code 的文件夹打开方式，并具备持久化
 
 ## ID 前缀
 
-本模块中的规格 ID 使用前缀 **`Project-`**（例如 `Project-G1`、`Project-D1`）。
+本模块中的规范 ID 使用前缀 **`Project-`**（例如 `Project-G1`、`Project-D1`）。

@@ -2,14 +2,14 @@
 
 ---
 
-## Relay-R2 — 聊天 → 中继运行端到端流水线修复
+## Relay-R2 — 聊天 → 接力运行端到端流水线修复
 **Status:** draft
 
 **状态：** 已完成
 **标签：** stack:backend
 **日期：** 2026-05-30
 
-聊天 → spawn_relay → 中继运行自动化流水线的实现后报告。端到端测试期间发现八个错误，均已修复并验证。
+聊天 → spawn_relay → 接力运行自动化流水线的实现后报告。端到端测试期间发现八个错误，均已修复并验证。
 
 ### 应用的修复
 
@@ -18,7 +18,7 @@
 | 1 | `forge_poll_run_phase` 返回错误的职业 | `src/mcp/mod.rs` | `saturating_sub(1)` → `run.current_step` |
 | 2 | `forge_batch_get_results` 返回错误的职业 | `src/mcp/mod.rs` | 相同的基于 0 的索引修复 |
 | 3 | 聊天提示缺少工具使用指令 | `src/forge/mod.rs` | 追加 "actively use available tools" |
-| 4 | 聊天提示缺少中继运行触发器 | `src/forge/mod.rs` | 追加 "call `spawn_relay` tool" 指令 |
+| 4 | 聊天提示缺少接力运行触发器 | `src/forge/mod.rs` | 追加 "call `spawn_relay` tool" 指令 |
 | 5 | `relay_update` 事件缺失 | `src/relay/driver.rs` | 在 `step_started` / `step_completed` 后广播 |
 | 6 | `step_completed` 记录了错误的 step_id | `src/relay/store.rs` | 在 `engine.submit_handoff()` 前捕获 `completed_step_id` |
 | 7 | 编码员步骤循环/卡住 | `src/relay/profession.rs` | `max_turns`：12 → 30 |
@@ -40,7 +40,7 @@
 - **运行自动推进：** `intake` → `discover` → `design` → `plan` → `draft-tests`，无需 `waiting_approval`
 - **Token 事件：** 38 个 `token_spend` 事件，0 个重复
 - **步骤完成：** 每步恰好 1 个 `step_completed` 事件
-- **测试：** `cargo test --lib` 173/173 通过，中继模块 87/87 通过
+- **测试：** `cargo test --lib` 173/173 通过，接力模块 87/87 通过
 
 ### 已知限制
 
@@ -50,13 +50,13 @@
 
 ---
 
-## Relay-R1 — Forge 规格中继前端实现
+## Relay-R1 — Forge 规范接力前端实现
 **Status:** draft
 
 **状态：** 草案
 **标签：** stack:frontend
 
-重新设计的规格中继前端的实现，涵盖聊天优先关卡（智能秘书）、实时节点图流水线、带双向可追溯性的规格工作区和响应式打磨。所有 P0 差距已关闭。构建通过。开发服务器和后端 API 运行中。
+重新设计的规范接力前端的实现，涵盖聊天优先关卡（智能秘书）、实时节点图流水线、带双向可追溯性的规范工作区和响应式打磨。所有 P0 差距已关闭。构建通过。开发服务器和后端 API 运行中。
 
 | 指标 | 值 |
 |---|---|

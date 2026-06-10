@@ -132,7 +132,7 @@ let history = vec![
 ---
 ---
 
-## Relay-T4 [G3] 上下文范围按职业过滤规格
+## Relay-T4 [G3] 上下文范围按职业过滤规范
 **Status:** draft
 
 **状态：** 已完成
@@ -635,7 +635,7 @@ let store = new_run_store();
 ---
 ---
 
-## Relay-T17 [G10] 展开的节点卡片显示正确的 Token 消耗和触及的规格
+## Relay-T17 [G10] 展开的节点卡片显示正确的 Token 消耗和触及的规范
 **Status:** draft
 
 **状态：** 已完成
@@ -646,7 +646,7 @@ let store = new_run_store();
 1. 点击 PipelinePanel 中的 Architect 点
 2. 断言展开卡片显示 "8,100 tokens"
 3. 断言卡片显示 "architecture, designs (2 writes)"
-4. 点击 "View written specs →"；断言规格抽屉打开
+4. 点击 "View written specs →"；断言规范抽屉打开
 
 
 
@@ -697,7 +697,7 @@ let store = new_run_store();
 ---
 ---
 
-## Relay-T19 聊天中的中继运行完成通知
+## Relay-T19 聊天中的接力运行完成通知
 **Status:** draft
 
 **状态：** 草案
@@ -709,13 +709,13 @@ let store = new_run_store();
 
 ### 测试用例
 
-当中继运行完成时，Assistant 在创建该中继的原始聊天会话中发布通知消息，告知用户运行已完成。如果该中继生成了报告，通知将包含一个可点击的链接以查看该报告。
+当接力运行完成时，Assistant 在创建该接力的原始聊天会话中发布通知消息，告知用户运行已完成。如果该接力生成了报告，通知将包含一个可点击的链接以查看该报告。
 
 ### 前置条件
 
 1. 用户与智能体（例如 Planner）有一个活跃的聊天会话
-2. 智能体已使用 `spawn_relay` 工具创建了一个中继运行
-3. 中继运行 ID 为 `run-abc123-def4-5678-90ab-cdef`，流程为 `standard`
+2. 智能体已使用 `spawn_relay` 工具创建了一个接力运行
+3. 接力运行 ID 为 `run-abc123-def4-5678-90ab-cdef`，流程为 `standard`
 4. 原始聊天会话 ID 为 `forge-session-456`
 5. 聊天 SSE 连接处于活跃状态
 
@@ -723,7 +723,7 @@ let store = new_run_store();
 
 #### 场景 1：无报告的成功完成
 
-1. 中继运行通过 `spawn_relay` 工具从聊天中创建
+1. 接力运行通过 `spawn_relay` 工具从聊天中创建
 2. 运行推进所有步骤（advisor → architect → planner → coder → tester）
 3. 流水线状态从 `Running` 变为 `Completed`
 4. 后端发出 `RunEvent::RunCompleted` 事件
@@ -751,7 +751,7 @@ let store = new_run_store();
 
 #### 场景 2：带报告的成功完成
 
-1. 中继运行包含 `documenter` 作为最后一步
+1. 接力运行包含 `documenter` 作为最后一步
 2. Documenter 智能体通过 `write_specs` 工具编写报告
 3. 报告保存到 `specs/reports.ad` 的 `R1` 章节
 4. 流水线成功完成
@@ -775,15 +775,15 @@ let store = new_run_store();
 
 - [ ] 通知中出现 "View Report" 按钮
 - [ ] 按钮可点击，样式为主操作
-- [ ] 点击链接导航到规格视图的报告章节
+- [ ] 点击链接导航到规范视图的报告章节
 - [ ] 报告 R1 高亮/滚动到视图中
 - [ ] URL 查询参数 `?report_id=R1` 存在
 - [ ] 报告标题与 documenter 编写的标题匹配
 
 
-#### 场景 3：失败的中继运行
+#### 场景 3：失败的接力运行
 
-1. 中继运行遇到错误（例如预算超限）
+1. 接力运行遇到错误（例如预算超限）
 2. 流水线状态变为 `Failed`
 3. 错误详情捕获在 `RunEvent::RunFailed` 中
 
@@ -807,7 +807,7 @@ let store = new_run_store();
 - [ ] 聊天 UI 显示带有红色/警告样式的错误通知
 - [ ] 错误消息对用户友好（无原始堆栈跟踪）
 - [ ] 不显示报告链接（失败的运行不产生报告）
-- [ ] 用户可以点击查看中继运行详情以进行调试
+- [ ] 用户可以点击查看接力运行详情以进行调试
 
 
 #### 场景 4：多个并发运行
@@ -824,7 +824,7 @@ let store = new_run_store();
 
 #### 场景 5：完成后的 SSE 重连
 
-1. 中继运行正在执行
+1. 接力运行正在执行
 2. SSE 连接临时断开
 3. 运行在完成期间断开
 4. 客户端重新连接到 SSE 流
@@ -853,14 +853,14 @@ let store = new_run_store();
 - [ ] 仅在 `report_link` 存在时显示 "View Report" 按钮
 - [ ] 按钮样式为主操作（蓝色/主色）
 - [ ] 点击报告链接导航到 `/specs/reports?report_id={id}`
-- [ ] 规格视图高亮报告并将其滚动到视图中
+- [ ] 规范视图高亮报告并将其滚动到视图中
 - [ ] 多条通知创建独立的消息气泡
 - [ ] 通知不可编辑（系统消息）
 
 #### 集成需求
 - [ ] `relay::driver` 通过事件广播与聊天模块通信
 - [ ] 事件包含 `chat_session_id` 以路由到正确的聊天
-- [ ] 报告检测检查 `HandoffDocument` 的 `generated_report` 字段或查询规格存储
+- [ ] 报告检测检查 `HandoffDocument` 的 `generated_report` 字段或查询规范存储
 - [ ] 运行元数据存储原始 `chat_session_id` 用于路由
 
 
@@ -904,7 +904,7 @@ pub struct RunMetadata {
 | `relay::title` | 自动生成运行标题 | ✅ 已实现 |
 | `forge::mod` | 聊天 SSE 事件路由 | ✅ 向 `ForgeStreamEvent` 添加 `relay_complete` |
 | 前端聊天 | 渲染通知 UI | ✅ 处理 `relay_complete` 事件 |
-| 前端规格 | 导航到报告 | ✅ 解析 `?report_id=` 查询参数 |
+| 前端规范 | 导航到报告 | ✅ 解析 `?report_id=` 查询参数 |
 
 
 ### 边缘情况和错误处理
@@ -917,7 +917,7 @@ pub struct RunMetadata {
 | 从不同聊天创建的运运行 | 通知仅发送到原始聊天 |
 | 同一聊天中的多次运行 | 每次运行发送独立通知 |
 | 运行标题生成失败 | 回退到截断的 `run_id` 作为标题 |
-| 报告链接指向不存在的报告 | 仍显示链接；规格显示 "Report not found" |
+| 报告链接指向不存在的报告 | 仍显示链接；规范显示 "Report not found" |
 | SSE 事件发送失败 | 事件已记录；前端可作为后备进行轮询 |
 
 
@@ -997,9 +997,9 @@ async fn e2e_relay_failure_notification() {
 
 ### 手动测试清单
 
-- [ ] 打开聊天，创建中继，观察完成通知
+- [ ] 打开聊天，创建接力，观察完成通知
 - [ ] 验证运行标题是自动生成的（例如，从 "Build a cache module" 生成 "Cache Module"）
-- [ ] 点击报告链接，验证导航到规格
+- [ ] 点击报告链接，验证导航到规范
 - [ ] 测试失败运行场景（超出预算）
 - [ ] 测试同一聊天中的多个并发运行
 - [ ] 测试完成后的 SSE 重连
@@ -1046,25 +1046,25 @@ async fn e2e_relay_failure_notification() {
 1. 在聊天组件中添加 `relay_complete` 事件处理器
 2. 渲染带样式的系统消息气泡
 3. 当 `report_link` 存在时添加 "View Report" 按钮
-4. 实现导航到带报告高亮的规格视图
+4. 实现导航到带报告高亮的规范视图
 
 #### 阶段 4：报告链接
 1. 向报告添加 `run_id` 字段到 `SpecItem`
 2. 实现报告检测逻辑
 3. 生成带 `?report_id=` 查询参数的链接
-4. 在规格视图中处理导航
+4. 在规范视图中处理导航
 
 
 ### 参考
 
-- **中继模块**：`backend/src/relay/mod.rs`
-- **中继驱动器**：`backend/src/relay/driver.rs`
-- **中继存储**：`backend/src/relay/store.rs` - `RunEntry`, `RunEvent`
+- **接力模块**：`backend/src/relay/mod.rs`
+- **接力驱动器**：`backend/src/relay/driver.rs`
+- **接力存储**：`backend/src/relay/store.rs` - `RunEntry`, `RunEvent`
 - **流水线**：`backend/src/relay/pipeline.rs` - `PipelineStatus`
 - **交接**：`backend/src/relay/handoff.rs` - `HandoffDocument`
 - **聊天模块**：`backend/src/forge/mod.rs` - `ForgeStreamEvent`, `ForgeSession`
 - **标题生成**：`backend/src/relay/title.rs` - `generate_title()`
-- **中继 API**：`backend/src/relay/api.rs` - SSE 事件广播
+- **接力 API**：`backend/src/relay/api.rs` - SSE 事件广播
 
 ---
 
@@ -1077,7 +1077,7 @@ async fn e2e_relay_failure_notification() {
 **标签：** stack:backend, module:mcp
 **依赖：** Relay-P6, Chat-P1
 
-通过 MCP 接口完整验证 AutoForge 的完整工作流。涵盖项目设置、聊天会话、中继运行执行、关卡解析、交接提交和状态验证。
+通过 MCP 接口完整验证 AutoForge 的完整工作流。涵盖项目设置、聊天会话、接力运行执行、关卡解析、交接提交和状态验证。
 
 ### 阶段 1：项目设置
 
@@ -1086,7 +1086,7 @@ async fn e2e_relay_failure_notification() {
 | 1.1 | `forge_get_project_status` | `{ "project_open": false }` |
 | 1.2 | `forge_open_project` | 包含根路径的项目元数据 |
 | 1.3 | `forge_get_project_status` | `{ "project_open": true, ... }` |
-| 1.4 | `forge_read_specs` | 带章节的规格文档 |
+| 1.4 | `forge_read_specs` | 带章节的规范文档 |
 
 ### 阶段 2：聊天会话生命周期
 
@@ -1099,7 +1099,7 @@ async fn e2e_relay_failure_notification() {
 | 2.5 | `forge_get_session` (含历史) | 带角色的消息数组 |
 | 2.6 | `forge_get_session` (不含历史) | 显示 `message_count`，消息被省略 |
 
-### 阶段 3：中继运行完整生命周期
+### 阶段 3：接力运行完整生命周期
 
 | 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
@@ -1127,15 +1127,15 @@ async fn e2e_relay_failure_notification() {
 | 5.1 | `forge_batch_start_runs` | 返回多个 `run_ids` |
 | 5.2 | `forge_batch_get_results` | RunBrief 对象数组 |
 
-### 阶段 6：规格工作流集成
+### 阶段 6：规范工作流集成
 
 | 步骤 | 工具 | 预期结果 |
 |------|------|----------------|
-| 6.1 | `forge_send_message` (规格更新) | 消息被接受 |
+| 6.1 | `forge_send_message` (规范更新) | 消息被接受 |
 | 6.2 | `forge_poll_chat_status` | `pending_changes = true` |
 | 6.3 | `forge_approve_spec` | 变更已应用 |
 | 6.4 | `forge_reject_spec` | 变更已丢弃 |
-| 6.5 | `forge_read_specs` | 更新后的规格文档 |
+| 6.5 | `forge_read_specs` | 更新后的规范文档 |
 
 ### 阶段 7：文件系统操作
 
@@ -1162,18 +1162,18 @@ async fn e2e_relay_failure_notification() {
 
 ---
 
-## Relay-T21 聊天 → spawn_relay → 中继运行自动化验证
+## Relay-T21 聊天 → spawn_relay → 接力运行自动化验证
 **Status:** draft
 
 **状态：** 已完成
 **标签：** stack:backend
 **依赖：** Relay-T20
 
-修复后聊天触发的中继运行流水线的验证清单。
+修复后聊天触发的接力运行流水线的验证清单。
 
 | # | 检查项 | 方法 | 结果 |
 |---|-------|--------|--------|
-| 1 | 每个聊天会话仅创建 1 个中继运行 | 代码审查 + 实机测试 | `spawn_relay_done` 标志在首次成功后打断 ReAct 循环 |
+| 1 | 每个聊天会话仅创建 1 个接力运行 | 代码审查 + 实机测试 | `spawn_relay_done` 标志在首次成功后打断 ReAct 循环 |
 | 2 | 每轮 Token 计数恰好一次 | 事件日志分析 | 38 个 `token_spend` 事件，0 个重复 |
 | 3 | Discover 步骤无需人工关卡自动流动 | 实机运行观察 | 运行以 `gate=auto` 推进 `discover` |
 | 4 | `step_completed` 的 `step_id` 正确 | 事件日志分析 | 每步恰好 1 个事件，正确的 `step_id` |

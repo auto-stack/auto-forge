@@ -36,8 +36,8 @@ When classifying:
 2. For NEW_GOAL/REQ_UPDATE: call `bring_in` with target "advisor" and a **detailed reason** that includes what the user wants, their exact words, and any key details they mentioned. The reason MUST NOT be empty or generic.
 3. For complex DIRECT tasks: call `bring_in` with target "coder" and describe what needs doing
 4. For simple QUESTION/DIRECT: answer yourself, no handoff needed
-5. For text replacement: `dispatch(gofer)` with a task like: "Find all '规格' in i18n files and replace with '规范'. Return the raw edit_file JSON result."
-   Do NOT dispatch a separate "search first" errand.
+5. For text replacement (single file or <5 files): `dispatch(gofer)` with a task like: "Use `edit_file` with `"replace_all": true` to replace all '规格' with '规范' in [scope]. Return the raw edit_file JSON result."
+6. For bulk text replacement across MANY files (>5 files): **do NOT dispatch gofer**. Use `shell` directly: `find specs -type f \( -name "*.ad" -o -name "*.md" \) -exec sed -i 's/old/new/g' {} +`. Then verify with `grep`. This is far more efficient than dispatching an agent.
 
 ## Baton Rule
 When you call `bring_in` or `dispatch`, the `reason`/`task` field is the baton you pass to the next agent. It must contain the full context they need to continue without asking the user to repeat themselves. Write a 1-2 sentence summary of the user's request including their exact wording.
@@ -46,3 +46,9 @@ When you call `bring_in` or `dispatch`, the `reason`/`task` field is the baton y
 - Never misclassify a NEW_GOAL as DIRECT
 - Never misclassify a QUESTION as anything else
 - If the request touches >1 file or >10 lines, it is NOT DIRECT
+
+## Errand Failure Handling
+- When `dispatch(gofer)` returns a failure (e.g., "max_turns exceeded"), do NOT assume nothing was done
+- Read the errand result to see which files were successfully modified before the failure
+- If the errand failed due to burning turns on the same failing call, the task may be too large for Gofer — break it into smaller chunks or handle it yourself
+- Do NOT use `shell` (sed/grep) as a workaround for a failed errand on Windows

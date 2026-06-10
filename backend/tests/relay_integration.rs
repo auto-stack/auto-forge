@@ -5,7 +5,14 @@
 use auto_forge::relay::handoff::{HandoffDocument, TokenUsage, SpecUpdate, WorkProduct, Decision};
 use auto_forge::relay::pipeline::{AdvanceResult, GateDecision};
 use auto_forge::relay::store::{advance_run, get_run, new_run_store, resolve_gate, start_run, submit_handoff};
-use auto_forge::relay::flows::standard_spec_flow;
+use auto_forge::relay::flows::FlowRegistry;
+use auto_forge::relay::flow::{FlowSpec, FlowStep, GateType};
+
+fn standard_spec_flow() -> auto_forge::relay::flow::FlowSpec {
+    FlowRegistry::load_builtins_only()
+        .get("standard-spec-driven-development")
+        .expect("standard-spec-driven-development built-in flow must exist")
+}
 
 /// Build a handoff with validation-aware data for each profession.
 fn make_handoff(
@@ -170,7 +177,10 @@ fn test_end_to_end_standard_flow_with_mock_handoffs() {
 #[test]
 fn test_end_to_end_reject_gate_routes_back() {
     let store = new_run_store();
-    let flow = standard_spec_flow();
+    // Use a custom flow where discover has a Human gate so we can test reject behavior
+    let mut flow = FlowSpec::new("test-reject");
+    flow.add_step(FlowStep::new("intake", "assistant"));
+    flow.add_step(FlowStep::new("discover", "advisor").with_gate(GateType::Human));
 
     let run_id = "e2e-reject-1";
     start_run(&store, flow, run_id).unwrap();

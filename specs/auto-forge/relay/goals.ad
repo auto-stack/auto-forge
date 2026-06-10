@@ -2,12 +2,12 @@
 
 ---
 
-## Relay-G1 中继编排器执行带接力传递和关卡强制执行的串行智能体流程
+## Relay-G1 接力编排器执行带接力传递和关卡强制执行的串行智能体流程
 **Status:** implemented
 **Tags:** stack:backend
 **Depends on:** AgentConfig-G1
 
-- [x] 流程规格定义有序步骤
+- [x] 流程规范定义有序步骤
 - [x] 任意时刻仅一个智能体持有接力棒
 - [x] 编排器按职业强制执行工具可用性
 - [x] 确定性路由，无 LLM 协调成本
@@ -18,16 +18,16 @@
 **Depends on:** AgentConfig-G1, Relay-G1
 
 - [x] 交接文档排除原始聊天记录
-- [x] 交接文档包含摘要、决策、待解决问题、规格更新、工作成果
+- [x] 交接文档包含摘要、决策、待解决问题、规范更新、工作成果
 - [x] 上下文范围限定
 - [x] 每个智能体启动时接收 ≤9k Token
 
-## Relay-G3 实时中继流水线可视化
+## Relay-G3 实时接力流水线可视化
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Runtime-G3, Chat-G1
 
-- [x] 中继视图实时展示流水线状态
+- [x] 接力视图实时展示流水线状态
 
 ## Relay-G4 节点图渲染带动画交接线的连接点
 **Status:** implemented
@@ -55,13 +55,13 @@
 - [x] 反向箭头渲染
 - [x] 重试计数器徽章
 
-## Relay-G7 实时日志和成本明细面板流式传输中继诊断
+## Relay-G7 实时日志和成本明细面板流式传输接力诊断
 **Status:** implemented
 **Tags:** stack:frontend
 **Depends on:** Relay-G3
 
 - [x] 实时日志流式传输
-- [x] 触及规格面板
+- [x] 触及规范面板
 - [x] 成本明细
 
 ## Relay-G8 跨视图事件路由器和关卡收件箱
@@ -110,32 +110,32 @@
 - [ ] 活跃职业徽章更新
 - [ ] 交接 tool_call 渲染为紧凑卡片
 
-## Relay-G13 自动中继模式
+## Relay-G13 自动接力模式
 **Status:** implemented
 **Tags:** stack:backend
 **Depends on:** Runtime-G3, Chat-G6
 
-- [x] 聊天到中继桥接（spawn_relay 工具）
+- [x] 聊天到接力桥接（spawn_relay 工具）
 - [x] 后台自动驱动器
 - [x] Post-Discovery 流程
-- [x] 前端中继卡片
+- [x] 前端接力卡片
 - [x] Token 跟踪
 
-## Relay-G14 人性化的中继运行标题
+## Relay-G14 人性化的接力运行标题
 **Status:** proposed
 **Tags:** stack:both
 **Depends on:** Relay-G13
 
-- [ ] 每个中继运行显示人类可读标题
+- [ ] 每个接力运行显示人类可读标题
 - [ ] 标题从任务描述自动生成
 - [ ] 后端暴露标题字段
 
-## Relay-G15 中继运行报告 PDF 导出
+## Relay-G15 接力运行报告 PDF 导出
 **Status:** proposed
 **Tags:** stack:frontend
 **Depends on:** Runtime-G3, Relay-G3
 
-- [ ] 用户可导出中继运行报告为 PDF
+- [ ] 用户可导出接力运行报告为 PDF
 - [ ] PDF 包含运行元数据、执行历史、工作成果
 
 ## Relay-G16 Cost Breakdown 饼状图支持历史运行数据

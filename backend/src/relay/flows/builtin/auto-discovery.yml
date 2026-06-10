@@ -1,0 +1,140 @@
+id: auto-discovery
+steps:
+  - id: discover
+    profession_id: advisor
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - goals
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .ad
+    tool_guard:
+      required_first:
+        - write_specs
+        - write_goals
+      always_allowed:
+        - list_specs
+        - read_specs
+    exit: next
+
+  - id: design
+    profession_id: architect
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - architecture
+                - designs
+          - type: decisions_non_empty
+    tool_guard:
+      required_first:
+        - update_spec
+      always_allowed:
+        - list_specs
+        - read_specs
+        - read_file
+        - dispatch
+      forbidden:
+        - write_specs
+    exit: next
+
+  - id: plan
+    profession_id: planner
+    gate: auto
+    validators:
+      - type: spec_updates_non_empty
+        content:
+          sections:
+            - plans
+    tool_guard:
+      required_first:
+        - write_specs
+        - update_spec
+      always_allowed:
+        - list_specs
+        - read_specs
+        - read_file
+    exit: next
+
+  - id: draft-tests
+    profession_id: tester
+    gate: auto
+    exit: next
+
+  - id: code
+    profession_id: coder
+    gate: auto
+    validators:
+      - type: work_product_has_extensions
+        content:
+          exts:
+            - .rs
+            - .vue
+            - .ts
+            - .js
+    exit: next
+
+  - id: run-tests
+    profession_id: tester
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - tests
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .rs
+                - .ts
+                - .vue
+    exit: !loop
+      target_step_id: code
+      max_iterations: 3
+
+  - id: review
+    profession_id: reviewer
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: decisions_non_empty
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - reviews
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .md
+                - .ad
+                - .txt
+    exit: next
+
+  - id: report
+    profession_id: documenter
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - reports
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .md
+                - .ad
+    exit: next

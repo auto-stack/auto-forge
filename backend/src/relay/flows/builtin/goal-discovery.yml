@@ -1,0 +1,24 @@
+id: goal-discovery
+steps:
+  - id: discover
+    profession_id: advisor
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - goals
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .ad
+    tool_guard:
+      required_first:
+        - write_specs
+        - write_goals
+      always_allowed:
+        - list_specs
+        - read_specs
+    exit: next

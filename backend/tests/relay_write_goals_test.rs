@@ -1,7 +1,13 @@
 //! Integration tests for the write_goals tool and goal-discovery flow.
 
 use auto_forge::forge::tools::{ToolRegistry, Tool};
-use auto_forge::relay::flows::{goal_discovery_flow, get_flow};
+use auto_forge::relay::flows::FlowRegistry;
+
+fn goal_discovery_flow() -> auto_forge::relay::flow::FlowSpec {
+    FlowRegistry::load_builtins_only()
+        .get("goal-discovery")
+        .expect("goal-discovery built-in flow must exist")
+}
 use auto_forge::relay::flow::{FlowStep, GateType, StepValidator, ToolGuard};
 use auto_forge::relay::pipeline::{AdvanceResult, PipelineEngine};
 use auto_forge::relay::handoff::HandoffDocument;
