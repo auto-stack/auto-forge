@@ -96,6 +96,57 @@ pub fn validate_flow(
                     });
                 }
             }
+            ExitRouting::Condition { true_branch, false_branch, .. } => {
+                // Validate both branches recursively
+                for branch in [true_branch.as_ref(), false_branch.as_ref()] {
+                    match branch {
+                        ExitRouting::Next => {}
+                        ExitRouting::Branch { arms, default, .. } => {
+                            for (value, target) in arms {
+                                if !step_ids.contains(target.as_str()) {
+                                    issues.push(ValidationIssue {
+                                        severity: ValidationSeverity::Error,
+                                        message: format!(
+                                            "Condition branch arm '{}' targets unknown step '{}'",
+                                            value, target
+                                        ),
+                                        step_id: Some(step.id.clone()),
+                                    });
+                                }
+                            }
+                            if !step_ids.contains(default.as_str()) {
+                                issues.push(ValidationIssue {
+                                    severity: ValidationSeverity::Error,
+                                    message: format!(
+                                        "Condition branch default targets unknown step '{}'",
+                                        default
+                                    ),
+                                    step_id: Some(step.id.clone()),
+                                });
+                            }
+                        }
+                        ExitRouting::Loop { target_step_id, .. } => {
+                            if !step_ids.contains(target_step_id.as_str()) {
+                                issues.push(ValidationIssue {
+                                    severity: ValidationSeverity::Error,
+                                    message: format!(
+                                        "Condition branch loop target '{}' does not exist",
+                                        target_step_id
+                                    ),
+                                    step_id: Some(step.id.clone()),
+                                });
+                            }
+                        }
+                        ExitRouting::Condition { .. } => {
+                            issues.push(ValidationIssue {
+                                severity: ValidationSeverity::Warning,
+                                message: "Nested conditions are allowed but can be hard to reason about".to_string(),
+                                step_id: Some(step.id.clone()),
+                            });
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -130,6 +181,64 @@ pub fn validate_flow(
             }
             ExitRouting::Loop { target_step_id, .. } => {
                 flow.get_step_index(target_step_id).into_iter().collect()
+            }
+            ExitRouting::Condition { true_branch, false_branch, .. } => {
+                let mut targets = Vec::new();
+                for branch in [true_branch.as_ref(), false_branch.as_ref()] {
+                    match branch {
+                        ExitRouting::Next => {
+                            if idx + 1 < flow.steps.len() {
+                                targets.push(idx + 1);
+                            }
+                        }
+                        ExitRouting::Branch { arms, default, .. } => {
+                            for tid in arms.values() {
+                                if let Some(i) = flow.get_step_index(tid) {
+                                    targets.push(i);
+                                }
+                            }
+                            if let Some(i) = flow.get_step_index(default) {
+                                targets.push(i);
+                            }
+                        }
+                        ExitRouting::Loop { target_step_id, .. } => {
+                            if let Some(i) = flow.get_step_index(target_step_id) {
+                                targets.push(i);
+                            }
+                        }
+                        ExitRouting::Condition { true_branch: tb, false_branch: fb, .. } => {
+                            // Flatten one level of nested condition for BFS
+                            for b in [tb.as_ref(), fb.as_ref()] {
+                                match b {
+                                    ExitRouting::Next => {
+                                        if idx + 1 < flow.steps.len() {
+                                            targets.push(idx + 1);
+                                        }
+                                    }
+                                    ExitRouting::Branch { arms, default, .. } => {
+                                        for tid in arms.values() {
+                                            if let Some(i) = flow.get_step_index(tid) {
+                                                targets.push(i);
+                                            }
+                                        }
+                                        if let Some(i) = flow.get_step_index(default) {
+                                            targets.push(i);
+                                        }
+                                    }
+                                    ExitRouting::Loop { target_step_id, .. } => {
+                                        if let Some(i) = flow.get_step_index(target_step_id) {
+                                            targets.push(i);
+                                        }
+                                    }
+                                    ExitRouting::Condition { .. } => {
+                                        // Deeper nesting ignored for BFS — validator already warns
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                targets
             }
         };
         for nidx in nexts {
@@ -241,6 +350,21 @@ impl FlowRegistry {
         self.flows.keys().cloned().collect()
     }
 
+    /// Insert or overwrite a flow in the registry.
+    pub fn insert(&mut self, flow: FlowSpec) {
+        self.flows.insert(flow.id.clone(), flow);
+    }
+
+    /// Remove a flow from the registry. Returns the removed flow if any.
+    pub fn remove(&mut self, flow_id: &str) -> Option<FlowSpec> {
+        self.flows.remove(flow_id)
+    }
+
+    /// Check whether a flow ID corresponds to a built-in flow.
+    pub fn is_builtin(&self, flow_id: &str) -> bool {
+        BUILTIN_FLOWS.iter().any(|(id, _)| *id == flow_id)
+    }
+
     fn load_builtin(
         &mut self,
         professions: &crate::relay::profession::ProfessionRegistry,
@@ -346,7 +470,7 @@ impl FlowRegistry {
 // ─── Global Registry ─────────────────────────────────────────────────────────
 
 /// Lazy-initialized global flow registry.
-static FLOW_REGISTRY: Mutex<Option<FlowRegistry>> = Mutex::new(None);
+pub(crate) static FLOW_REGISTRY: Mutex<Option<FlowRegistry>> = Mutex::new(None);
 
 /// Initialize the global flow registry from the current project path.
 /// Call once at startup or after opening a project.
