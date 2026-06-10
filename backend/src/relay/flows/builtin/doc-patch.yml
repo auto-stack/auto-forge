@@ -1,0 +1,23 @@
+id: doc-patch
+steps:
+  - id: intake
+    profession_id: assistant
+    gate: auto
+    exit: next
+
+  - id: doc-update
+    profession_id: documenter
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - reports
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .md
+                - .ad
+    exit: next

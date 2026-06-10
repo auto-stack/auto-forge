@@ -1,0 +1,58 @@
+id: bug-fix
+steps:
+  - id: intake
+    profession_id: assistant
+    gate: auto
+    exit: next
+
+  - id: code
+    profession_id: coder
+    gate: auto
+    validators:
+      - type: work_product_has_extensions
+        content:
+          exts:
+            - .rs
+            - .vue
+            - .ts
+            - .js
+    exit: next
+
+  - id: test
+    profession_id: tester
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - tests
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .rs
+                - .ts
+                - .vue
+    exit: !loop
+      target_step_id: code
+      max_iterations: 3
+
+  - id: review
+    profession_id: reviewer
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: decisions_non_empty
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - reviews
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .md
+                - .ad
+                - .txt
+    exit: next

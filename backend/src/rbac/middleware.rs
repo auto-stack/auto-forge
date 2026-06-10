@@ -154,7 +154,7 @@ mod tests {
     use axum::http::{Request as HttpRequest, StatusCode};
     use axum::routing::get;
     use axum::Router;
-    use tower::ServiceExt;
+    use tower::util::ServiceExt;
 
     async fn protected_handler() -> &'static str {
         "OK"

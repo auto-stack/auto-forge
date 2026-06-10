@@ -1,0 +1,19 @@
+id: fast-track
+steps:
+  - id: intake
+    profession_id: assistant
+    gate: auto
+    exit: next
+
+  - id: code
+    profession_id: coder
+    gate: auto
+    validators:
+      - type: work_product_has_extensions
+        content:
+          exts:
+            - .rs
+            - .vue
+            - .ts
+            - .js
+    exit: next
