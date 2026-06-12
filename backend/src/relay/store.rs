@@ -94,6 +94,24 @@ pub struct RunMetadata {
     /// Project path this run belongs to, if any.
     #[serde(default)]
     pub project_path: Option<String>,
+    /// TaskPlan this run belongs to, if any.
+    #[serde(default)]
+    pub task_plan_id: Option<String>,
+    /// Name of the run inside the TaskPlan.
+    #[serde(default)]
+    pub task_run_name: Option<String>,
+    /// Name of the phase this run belongs to.
+    #[serde(default)]
+    pub phase_name: Option<String>,
+    /// Index of the phase within the TaskPlan.
+    #[serde(default)]
+    pub phase_index: Option<usize>,
+    /// Parent run ID for nested TaskPlans.
+    #[serde(default)]
+    pub parent_run_id: Option<String>,
+    /// Root run ID of the TaskPlan tree.
+    #[serde(default)]
+    pub root_run_id: Option<String>,
 }
 
 /// A run event for SSE streaming and history.
@@ -142,6 +160,12 @@ pub struct RunSummary {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_plan_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_run_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_run_id: Option<String>,
 }
 
 /// Detailed run state for the frontend.
@@ -165,6 +189,12 @@ pub struct RunState {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_step_started_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_plan_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_run_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_run_id: Option<String>,
     /// Per-profession token totals aggregated from TokenSpend events.
     /// Key = profession_id, Value = cumulative tokens.
     #[serde(default)]
@@ -337,6 +367,20 @@ pub fn start_run(
     run_id: impl Into<String>,
     project_path: Option<String>,
 ) -> Result<RunState, String> {
+    let metadata = RunMetadata {
+        project_path,
+        ..RunMetadata::default()
+    };
+    start_run_with_metadata(store, flow, run_id, metadata)
+}
+
+/// Start a new run with full metadata.
+pub fn start_run_with_metadata(
+    store: &RunStore,
+    flow: FlowSpec,
+    run_id: impl Into<String>,
+    metadata: RunMetadata,
+) -> Result<RunState, String> {
     let run_id = run_id.into();
     let mut map = store.lock().unwrap();
     if map.contains_key(&run_id) {
@@ -361,10 +405,7 @@ pub fn start_run(
         created_at: now,
         updated_at: now,
         events: Vec::new(),
-        metadata: RunMetadata {
-            project_path,
-            ..RunMetadata::default()
-        },
+        metadata,
     };
 
     let state = build_run_state(&entry);
@@ -412,6 +453,9 @@ pub fn list_runs(store: &RunStore, project_path: Option<String>) -> Vec<RunSumma
             updated_at: e.updated_at,
             title: e.metadata.title.clone(),
             project_path: e.metadata.project_path.clone(),
+            task_plan_id: e.metadata.task_plan_id.clone(),
+            parent_run_id: e.metadata.parent_run_id.clone(),
+            root_run_id: e.metadata.root_run_id.clone(),
         })
         .collect()
 }
@@ -696,6 +740,9 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         events: events_for_response,
         title: entry.metadata.title.clone(),
         current_step_started_at,
+        task_plan_id: entry.metadata.task_plan_id.clone(),
+        parent_run_id: entry.metadata.parent_run_id.clone(),
+        root_run_id: entry.metadata.root_run_id.clone(),
         profession_tokens: build_profession_tokens(entry),
     }
 }
