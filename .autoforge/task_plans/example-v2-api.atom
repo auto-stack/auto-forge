@@ -1,0 +1,71 @@
+// Example multi-relay TaskPlan for AutoForge.
+// This file demonstrates the static Atom schema described in
+// docs/design/multi-relay-task-plan.md
+//
+// It is NOT a built-in plan; copy and adapt it for your own goals.
+
+task_plan(id: "example_v2_api", version: 1) {
+    title: "Build v2 API"
+    description: "Implement auth, billing, and admin modules in parallel, then integrate and review."
+    default_mode: "gsd"
+
+    phase(name: "discovery") {
+        mode: "serial"
+        run(name: "discover") {
+            flow_id: "goal-discovery"
+            input: "Build the v2 API with auth, billing, and admin modules."
+        }
+    }
+
+    phase(name: "design") {
+        mode: "serial"
+        depends_on: ["discovery"]
+        run(name: "architecture") {
+            flow_id: "post-discovery"
+            input_from: "discovery.discover.handoff.goals"
+        }
+    }
+
+    phase(name: "implementation") {
+        mode: "parallel"
+        depends_on: ["design"]
+
+        run(name: "auth_module") {
+            flow_id: "post-discovery"
+            input_from: "design.architecture.handoff.specs"
+            context: "Focus on the auth subsystem."
+        }
+        run(name: "billing_module") {
+            flow_id: "post-discovery"
+            input_from: "design.architecture.handoff.specs"
+            context: "Focus on the billing subsystem."
+        }
+        run(name: "admin_module") {
+            flow_id: "post-discovery"
+            input_from: "design.architecture.handoff.specs"
+            context: "Focus on the admin subsystem."
+        }
+    }
+
+    phase(name: "integration") {
+        mode: "serial"
+        depends_on: ["implementation"]
+        run(name: "merge_and_test") {
+            flow_id: "post-discovery"
+            input_from: [
+                "implementation.auth_module.handoff.work_product"
+                "implementation.billing_module.handoff.work_product"
+                "implementation.admin_module.handoff.work_product"
+            ]
+        }
+    }
+
+    phase(name: "review") {
+        mode: "serial"
+        depends_on: ["integration"]
+        run(name: "final_review") {
+            flow_id: "post-discovery"
+            input_from: "integration.merge_and_test.handoff.work_product"
+        }
+    }
+}

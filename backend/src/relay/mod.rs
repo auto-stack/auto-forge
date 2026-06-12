@@ -23,6 +23,8 @@ pub mod profession;
 pub mod skills;
 pub mod soul;
 pub mod store;
+pub mod task_plan;
+pub mod task_plan_parser;
 pub mod title;
 pub mod turn;
 
