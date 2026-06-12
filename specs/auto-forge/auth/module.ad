@@ -1,36 +1,37 @@
-# Wiki Module
+# Auth Module
 
 ## Overview
 
-Wiki 模块提供项目范围的知识库
+User Login & RBAC Integration
 
 ## Goals
 
-- **G1** — Wiki 模块提供项目范围的知识库
-- **G2** — Wiki 搜索与标签系统
+- **G1** — User Login & RBAC Integration
+- **G2** — Permission Enforcement on Forge/Relay Routes
+- **G3** — Role-Based UI
 
 ## Key Architecture Decisions
 
-- **A1** — Wiki 知识层架构
+- **A1** — User Login & RBAC Integration Architecture
 
 ## Key Designs
 
-- **D1** — Wiki 知识层 — 存储、树形 API、原始资源和智能体工具
-- **D2** — Wiki 前端 — 树形导航、原始导入和标签页集成
+- **D1** — User Login & RBAC Integration Design
 
 ## Module Dependencies
 
-Depends on: [project](project/module.ad)
+Depends on: [runtime](runtime/module.ad)
 
 ## Module Specs
 
 | Type | Count | File |
 |------|-------|------|
-| Goals | 2 | [goals.ad](goals.ad) |
-| Architecture | 1 | [architecture.ad](architecture.ad) |
+| Goals | 3 | [goals.ad](goals.ad) |
+| Architecture | 4 | [architecture.ad](architecture.ad) |
 | Designs | 2 | [designs.ad](designs.ad) |
 | Plans | 1 | [plans.ad](plans.ad) |
-| Tests | 10 | [tests.ad](tests.ad) |
+| Tests | 5 | [tests.ad](tests.ad) |
+| Reports | 12 | [reports.ad](reports.ad) |
 
 ## Navigation
 
@@ -45,4 +46,4 @@ This module follows the standard spec pyramid:
 
 ## ID Prefix
 
-Spec IDs in this module use the prefix **`Wiki-`** (e.g. `Wiki-G1`, `Wiki-D1`).
+Spec IDs in this module use the prefix **`Auth-`** (e.g. `Auth-G1`, `Auth-D1`).

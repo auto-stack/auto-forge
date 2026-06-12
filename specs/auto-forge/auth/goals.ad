@@ -1,1 +1,43 @@
 # Goals
+
+---
+
+## Auth-G1 User Login & RBAC Integration
+**Status:** implemented
+**Tags:** stack:both, module:auth
+**Depends on:** Runtime-G3
+
+- [x] Wire existing `backend/src/rbac/` module into main Axum app
+- [x] Add JWT secret loading and persistence across restarts
+- [x] Seed default admin user (admin/admin) on first run
+- [x] Protect `/api/forge/*` routes with `auth_middleware`
+- [x] Add public `/api/auth/login` and `/api/auth/register` endpoints
+- [x] Implement Vue 3 `LoginView.vue` with login/register toggle
+- [x] Implement `useAuth.ts` composable for JWT lifecycle and `authFetch()` wrapper
+- [x] Add auth guard to `App.vue` showing LoginView when unauthenticated
+- [x] Add user menu with logout in nav rail
+
+AutoForge now requires authentication for all forge/relay/admin API calls. The RBAC backend provides SQLite-backed users, roles, and permissions; the frontend manages JWT tokens in `localStorage`.
+
+## Auth-G2 Permission Enforcement on Forge/Relay Routes
+**Status:** in_progress
+**Tags:** stack:backend, module:auth
+**Depends on:** Auth-G1
+
+- [ ] Apply `require_permission()` middleware to forge/relay/config route groups
+- [ ] Define minimum permission set (e.g., `forge:read`, `forge:write`, `relay:admin`)
+- [ ] Validate permissions in integration tests
+- [ ] Update frontend to handle 403 responses gracefully
+
+Currently `auth_middleware` verifies authentication only; fine-grained permission enforcement is not yet active.
+
+## Auth-G3 Role-Based UI
+**Status:** proposed
+**Tags:** stack:frontend, module:auth
+**Depends on:** Auth-G2
+
+- [ ] Admin users see user/role management UI
+- [ ] Hide restricted views based on `permissions` array
+- [ ] Add "switch role" or "impersonate" helper for admins
+
+Future enhancement once Auth-G2 permission enforcement is complete.

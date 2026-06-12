@@ -190,7 +190,7 @@ async function deleteAllSessions(): Promise<string> {
 | `frontend/src/locales/zh.json` | 添加对应中文翻译 |
 
 ## Chat-D1 删除全部会话UI设计
-**Status:** draft
+**Status:** implemented
 
 ## 概述
 

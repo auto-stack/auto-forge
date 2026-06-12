@@ -192,14 +192,14 @@ Specs are not flat documents — they form a live decision pyramid. Every Plan t
 - [x] Results render in a summary panel with severity indicators
 
 ## G10 Live Relay Pipeline Visualization
-**Status:** implemented
+**Status:** in_progress
 **Tags:** stack:frontend, module:relay
 **Depends on:** G6, G8
 
 The Relay view is the factory floor CCTV. The boss glances at the session sidebar to know work is happening; engineers open Relay to diagnose handoffs, token burn, and tool call history.
 
 ## G10.1 Node-graph renders connected dots with animated handoff lines
-**Status:** implemented
+**Status:** in_progress
 **Tags:** stack:frontend, module:relay
 **Depends on:** G10
 
@@ -209,7 +209,7 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] Mobile collapses to vertical timeline with CSS border-left connectors
 
 ## G10.2 Expanded node cards show real-time token burn and current action
-**Status:** implemented
+**Status:** in_progress
 **Tags:** stack:frontend, module:relay
 **Depends on:** G10
 
@@ -219,7 +219,7 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] Output tab lists specs touched with click-to-jump links
 
 ## G10.3 Tester→Coder retry loop visualizes as backward edge with counter
-**Status:** implemented
+**Status:** in_progress
 **Tags:** stack:frontend, module:relay
 **Depends on:** G10
 
@@ -229,7 +229,7 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 - [x] After max iterations, error routes to Reviewer instead
 
 ## G10.4 Live Log and Cost Breakdown panels stream relay diagnostics
-**Status:** implemented
+**Status:** in_progress
 **Tags:** stack:frontend, module:relay
 **Depends on:** G10
 
@@ -256,7 +256,7 @@ The Relay view is the factory floor CCTV. The boss glances at the session sideba
 The frontend must work for the boss on a laptop, the engineer on a tablet, and the contributor with a keyboard or screen reader.
 
 ## G11.1 Layout adapts to desktop, tablet, and mobile breakpoints
-**Status:** implemented
+**Status:** in_progress
 **Tags:** stack:frontend, module:ui-system
 **Depends on:** G11
 
@@ -266,7 +266,7 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 - [x] No horizontal scroll on any breakpoint
 
 ## G11.2 Keyboard shortcuts navigate between views without mouse
-**Status:** implemented
+**Status:** draft
 **Tags:** stack:frontend, module:ui-system
 **Depends on:** G11
 
@@ -326,7 +326,7 @@ The frontend must work for the boss on a laptop, the engineer on a tablet, and t
 AutoForge operates on a user-chosen project directory, just like VS Code. On first launch the workspace is empty; the user opens a folder and specs are loaded from its specs/ subdirectory. The last project is remembered across restarts.
 
 ## G13 API Source Configuration supports multi-provider LLM management with auto-detection and model tiers
-**Status:** proposed
+**Status:** in_progress
 **Tags:** stack:backend, module:api-sources
 **Depends on:** G1, G6
 
@@ -412,7 +412,7 @@ CLI mode was ported from auto-code-rs but removed because AutoForge is a Web UI-
 - [x] Integrates with `markstream-vue` for incremental markdown rendering
 
 ## G17 Bring-In Tool enables agents to hand off mid-conversation with structured context transfer
-**Status:** implemented
+**Status:** proposed
 **Tags:** stack:backend, module:relay
 **Depends on:** G1, G16
 

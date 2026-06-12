@@ -1,10 +1,10 @@
-# UiSystem 模块
+# UiSystem Module
 
-## 概述
+## Overview
 
 响应式可访问前端
 
-## 目标
+## Goals
 
 - **G1** — 响应式可访问前端
 - **G2** — 布局适配桌面、平板和移动端断点
@@ -12,47 +12,54 @@
 - **G4** — 焦点管理引导用户完成关卡审批流程
 - **G5** — 屏幕阅读器注释描述节点图和关联关系
 - **G6** — 主题与强调色系统
-- *...以及另外 1 个*
+- *...and 1 more*
 
-## 关键架构决策
+## Key Architecture Decisions
 
-- **A1** — 前端组合式状态架构
-- **A2** — 搜索与筛选架构
-- **A3** — 主题与强调系统架构
+- **A1** — 前端可组合状态架构
+- **A2** — 搜索与过滤架构
+- **A3** — 主题与强调色系统架构
+- **A4** — 剩余视图的 i18n 集成架构
+- **A4** — i18n 视图集成架构
 
-## 关键设计
+## Key Designs
 
 - **D1** — 响应式三区域布局系统
-- **D2** — 主题与强调组件系统
-- **D3** — 规范视图布局重构
+- **D2** — 主题与强调色组件系统
+- **D3** — SpecsView 布局重构
+- **D4** — 6 个 Vue 视图的 i18n 集成设计
+- **D4** — 6 个 Vue 视图的 i18n 集成设计
+- **D4** — 6 个 Vue 视图的 i18n 集成设计
+- **D4** — 6 个 Vue 视图的 i18n 集成设计
+- *...and 1 more*
 
-## 模块依赖项
+## Module Dependencies
 
-依赖项：[api-sources](api-sources/module.ad)、[chat](chat/module.ad)、[project](project/module.ad)、[relay](relay/module.ad)、[specs](specs/module.ad)
+Depends on: [chat](chat/module.ad), [project](project/module.ad), [relay](relay/module.ad), [specs](specs/module.ad)
 
-## 模块规范
+## Module Specs
 
-| 类型 | 数量 | 文件 |
+| Type | Count | File |
 |------|-------|------|
-| 目标 | 7 | [goals.ad](goals.ad) |
-| 架构 | 3 | [architecture.ad](architecture.ad) |
-| 设计 | 3 | [designs.ad](designs.ad) |
-| 计划 | 2 | [plans.ad](plans.ad) |
-| 测试 | 4 | [tests.ad](tests.ad) |
-| 评审 | 1 | [reviews.ad](reviews.ad) |
-| 报告 | 1 | [reports.ad](reports.ad) |
+| Goals | 7 | [goals.ad](goals.ad) |
+| Architecture | 12 | [architecture.ad](architecture.ad) |
+| Designs | 8 | [designs.ad](designs.ad) |
+| Plans | 2 | [plans.ad](plans.ad) |
+| Tests | 7 | [tests.ad](tests.ad) |
+| Reviews | 2 | [reviews.ad](reviews.ad) |
+| Reports | 1 | [reports.ad](reports.ad) |
 
-## 导航
+## Navigation
 
-本模块遵循标准规范金字塔：
-- **目标** 定义模块旨在实现的内容
-- **架构** 描述高层设计和组件交互
-- **设计** 包含详细的技术规范
-- **计划** 跟踪实现任务
-- **测试** 列出验收标准
-- **评审** 记录实现后的回顾
-- **报告** 包含实现总结
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
 
-## ID 前缀
+## ID Prefix
 
-本模块中的规范 ID 使用前缀 **`UiSystem-`**（例如 `UiSystem-G1`、`UiSystem-D1`）。
+Spec IDs in this module use the prefix **`UiSystem-`** (e.g. `UiSystem-G1`, `UiSystem-D1`).

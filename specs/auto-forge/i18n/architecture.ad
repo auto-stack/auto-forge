@@ -1,1 +1,43 @@
 # Architecture
+
+---
+
+## i18n-A1 Frontend Internationalization Architecture
+**Status:** implemented
+**Tags:** stack:frontend, module:i18n
+**Depends on:** i18n-G1
+
+### Overview
+
+AutoForge uses `vue-i18n` to provide runtime language switching. Locale messages are loaded from JSON files, the active locale is stored in `localStorage`, and a small detection function chooses the initial locale.
+
+### Data Flow
+
+```
+[App mount]
+  → detectLocale() reads localStorage or navigator.language
+  → createI18n({ locale, fallbackLocale: 'en', messages })
+  → Components render with $t() / useI18n()
+
+[User toggles language]
+  → setLocale(newLocale)
+  → Updates localStorage + i18n.global.locale.value
+  → Components re-render automatically
+```
+
+### Components
+
+| Component | Responsibility |
+|-----------|--------------|
+| `frontend/src/i18n/index.ts` | i18n instance, locale detection, helpers |
+| `frontend/src/i18n/locales/en.json` | English translations |
+| `frontend/src/i18n/locales/zh.json` | Chinese translations |
+| `SettingsMenu.vue` | UI for switching locale |
+
+### Trade-offs
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| JSON message files (chosen) | Simple, version-controllable | Must keep `en` and `zh` in sync manually |
+| ICU message format | More powerful pluralization | Overkill for current needs |
+| Lazy-loaded locales | Smaller initial bundle | Adds async complexity |

@@ -1,47 +1,47 @@
-# 提供商模块
+# Provider Module
 
-## 概述
+## Overview
 
-统一提供商层将 auto-code-rs 中的 AI 通信整合到 provider/ 模块，支持 SSE 流式传输
+统一提供商层整合 AI 通信，支持 SSE 流式传输
 
-## 目标
+## Goals
 
-- **G1** — 统一提供商层将 auto-code-rs 中的 AI 通信整合到 provider/ 模块，支持 SSE 流式传输
+- **G1** — 统一提供商层整合 AI 通信，支持 SSE 流式传输
 
-## 关键架构决策
+## Key Architecture Decisions
 
 - **A1** — 统一提供商与运行时架构
 
-## 关键设计
+## Key Designs
 
 - **D1** — 多提供商 AI 调度
 - **D2** — 统一提供商层
 
-## 模块依赖项
+## Module Dependencies
 
-依赖项：[agent-config](agent-config/module.ad)、[api-sources](api-sources/module.ad)、[cli](cli/module.ad)、[runtime](runtime/module.ad)
+Depends on: [agent-config](agent-config/module.ad)
 
-## 模块规范
+## Module Specs
 
-| 类型 | 数量 | 文件 |
+| Type | Count | File |
 |------|-------|------|
-| 目标 | 1 | [goals.ad](goals.ad) |
-| 架构 | 1 | [architecture.ad](architecture.ad) |
-| 设计 | 2 | [designs.ad](designs.ad) |
-| 计划 | 1 | [plans.ad](plans.ad) |
-| 测试 | 4 | [tests.ad](tests.ad) |
+| Goals | 1 | [goals.ad](goals.ad) |
+| Architecture | 1 | [architecture.ad](architecture.ad) |
+| Designs | 2 | [designs.ad](designs.ad) |
+| Plans | 1 | [plans.ad](plans.ad) |
+| Tests | 4 | [tests.ad](tests.ad) |
 
-## 导航
+## Navigation
 
-本模块遵循标准规范金字塔：
-- **目标** 定义模块旨在实现的内容
-- **架构** 描述高层设计和组件交互
-- **设计** 包含详细的技术规范
-- **计划** 跟踪实现任务
-- **测试** 列出验收标准
-- **评审** 记录实现后的回顾
-- **报告** 包含实现总结
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
 
-## ID 前缀
+## ID Prefix
 
-本模块中的规范 ID 使用前缀 **`Provider-`**（例如 `Provider-G1`、`Provider-D1`）。
+Spec IDs in this module use the prefix **`Provider-`** (e.g. `Provider-G1`, `Provider-D1`).

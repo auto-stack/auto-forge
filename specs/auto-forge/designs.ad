@@ -1109,7 +1109,7 @@ function useEventRouter() {
 ---
 
 ## D19 API Source Configuration
-**Status:** draft
+**Status:** implemented
 **Module:** `backend/src/relay/config.rs`
 **Tags:** stack:both, module:api-sources
 **Depends on:** G13
@@ -1253,7 +1253,7 @@ fn resolve_api_key(source):
 ---
 
 ## D20 Multi-Provider AI Dispatch
-**Status:** draft
+**Status:** in_progress
 **Module:** `backend/src/ai.rs`
 **Tags:** stack:backend, module:provider
 **Depends on:** G13, D19

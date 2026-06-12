@@ -1,62 +1,66 @@
-# 规范模块
+# Specs Module
 
-## 概述
+## Overview
 
-规范金字塔支持 目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告，不包含 API 类别
+规范金字塔支持目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告
 
-## 目标
+## Goals
 
-- **G1** — 规范金字塔支持 目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告，不包含 API 类别
+- **G1** — 规范金字塔支持目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告
 - **G2** — 规范工作区与双向可追溯性
 - **G3** — 七种规范类别通过结构化按类别编辑器渲染
 - **G4** — 关联面板显示上游父项和下游子项
 - **G5** — 自动链接内容将类型化 ID 解析为可点击超链接
 - **G6** — 偏差检查按钮按需比较代码与规范
-- *...以及另外 7 个*
+- *...and 7 more*
 
-## 关键架构决策
+## Key Architecture Decisions
 
 - **A1** — 目标层级架构
 - **A2** — 规范文档类型与信息架构
+- **A3** — Specs-A3 Spec Hygiene — Dedup Protocol (Consolidated)
+- **A3** — 规范卫生架构——重复检测与清理协议
+- **A3** — 规范卫生架构——重复检测与清理协议
+- *...and 5 more*
 
-## 关键设计
+## Key Designs
 
 - **D1** — 类别渲染器多态
-- **D2** — 关联面板与自动链接内容
-- **D3** — 关卡横幅（规范视图）
-- **D4** — 目标表格树形视图组件
-- **D5** — 目标详情弹窗组件
-- **D6** — 规范标签显示与侧边栏筛选
+- **D2** — RelationsPanel & AutoLinkContent
+- **D3** — GateBanner（规范视图）
+- **D4** — GoalsTable 树形视图组件
+- **D5** — GoalDetailModal 组件
+- **D6** — 规范标签展示与侧边栏过滤
 - **D7** — 后端扁平模式项目解析
-- *...以及另外 4 个*
+- *...and 7 more*
 
-## 模块依赖项
+## Module Dependencies
 
-依赖项：[agent-config](agent-config/module.ad)、[chat](chat/module.ad)、[relay](relay/module.ad)、[ui-system](ui-system/module.ad)
+Depends on: [agent-config](agent-config/module.ad), [chat](chat/module.ad), [ui-system](ui-system/module.ad)
 
-## 模块规范
+## Module Specs
 
-| 类型 | 数量 | 文件 |
+| Type | Count | File |
 |------|-------|------|
-| 目标 | 13 | [goals.ad](goals.ad) |
-| 架构 | 2 | [architecture.ad](architecture.ad) |
-| 设计 | 18 | [designs.ad](designs.ad) |
-| 计划 | 2 | [plans.ad](plans.ad) |
-| 测试 | 7 | [tests.ad](tests.ad) |
-| 评审 | 1 | [reviews.ad](reviews.ad) |
-| 报告 | 1 | [reports.ad](reports.ad) |
+| Goals | 13 | [goals.ad](goals.ad) |
+| Architecture | 15 | [architecture.ad](architecture.ad) |
+| Designs | 23 | [designs.ad](designs.ad) |
+| Plans | 2 | [plans.ad](plans.ad) |
+| Tests | 7 | [tests.ad](tests.ad) |
+| Reviews | 1 | [reviews.ad](reviews.ad) |
+| Reports | 1 | [reports.ad](reports.ad) |
 
-## 导航
+## Navigation
 
-本模块遵循标准规范金字塔：
-- **目标** 定义模块旨在实现的内容
-- **架构** 描述高层设计和组件交互
-- **设计** 包含详细的技术规范
-- **计划** 跟踪实现任务
-- **测试** 列出验收标准
-- **评审** 记录实现后的回顾
-- **报告** 包含实现总结
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
 
-## ID 前缀
+## ID Prefix
 
-本模块中的规范 ID 使用前缀 **`Specs-`**（例如 `Specs-G1`、`Specs-D1`）。
+Spec IDs in this module use the prefix **`Specs-`** (e.g. `Specs-G1`, `Specs-D1`).

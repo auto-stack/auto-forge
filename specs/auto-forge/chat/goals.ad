@@ -85,57 +85,19 @@
 - [x] 粘性 props 缓存处理不完整 JSON
 
 ## Chat-G10 删除全部会话
-**Status:** in_progress
+**Status:** implemented
 **Tags:** stack:both, module:chat
 **Depends on:** Provider-G1, Chat-G1
 
-- [ ] 聊天界面显示"删除全部"按钮，位于会话列表区域
-- [ ] 点击按钮后弹出确认对话框，显示会话数量
-- [ ] 用户确认后删除所有会话，并自动创建空白新会话
-- [ ] 删除成功后显示提示信息并切换到新会话
-- [ ] 网络错误或取消操作时不删除任何会话
+- [x] 聊天界面显示"删除全部"按钮，位于会话列表区域
+- [x] 点击按钮后弹出确认对话框，显示会话数量
+- [x] 用户确认后删除所有会话，并自动创建空白新会话
+- [x] 删除成功后显示提示信息并切换到新会话
+- [x] 网络错误或取消操作时不删除任何会话
 
-## Chat-G10 删除全部会话
-**Status:** proposed
-**Tags:** stack:both, module:chat
-**Depends on:** Provider-G1, Chat-G1
-
-- [ ] 聊天界面显示"删除全部"按钮，位于会话列表区域
-- [ ] 点击按钮后弹出确认对话框，显示会话数量
-- [ ] 用户确认后删除所有会话，并自动创建空白新会话
-- [ ] 删除成功后显示提示信息并切换到新会话
-- [ ] 网络错误或取消操作时不删除任何会话
-
-### 实现文件
-
-#### 后端文件
-- `backend/src/runtime/session.rs`: 添加 `delete_all_sessions()` 函数
-- `backend/src/forge/mod.rs`: 添加 DELETE `/api/sessions/all` 路由
-
-#### 前端文件
-- `frontend/src/views/ChatsView.vue`: 添加"删除全部"按钮
-- `frontend/src/composables/useSessions.ts`: 添加 `deleteAllSessions()` 函数
-- `frontend/src/locales/en.json` 和 `zh.json`: 添加翻译键
-
-### 测试要点
-
-#### 功能测试
-- [ ] 点击按钮打开对话框
-- [ ] 对话框显示正确的会话数量
-- [ ] 取消关闭对话框，不执行删除
-- [ ] 确认后所有会话被删除
-- [ ] 删除后新会话自动创建并显示
-- [ ] 会话数量为0时按钮禁用
-
-#### 错误测试
-- [ ] 网络错误时显示错误提示
-- [ ] 500错误时显示错误提示
-- [ ] 超时时显示超时提示
-
-#### 可访问性测试
-- [ ] 键盘可以完成全部操作
-- [ ] 屏幕阅读器正确朗读警告信息
-- [ ] 焦点管理符合预期
+**实现文件**
+- 后端：`backend/src/runtime/session.rs` (`delete_all_sessions`), `backend/src/forge/mod.rs` (DELETE `/api/forge/chats/sessions`)
+- 前端：`frontend/src/composables/useSessions.ts` (`deleteAllSessions`), `frontend/src/views/ChatsView.vue`
 
 ## Chat-A1 删除全部会话架构
 **Status:** draft

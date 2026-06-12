@@ -1,46 +1,46 @@
-# 运行时模块
+# Runtime Module
 
-## 概述
+## Overview
 
-检查点与持久化系统使长时间运行的流程能够在崩溃后存活并恢复，无上下文丢失
+检查点与持久化系统使长时间运行的流程能够在崩溃后存活
 
-## 目标
+## Goals
 
-- **G1** — 检查点与持久化系统使长时间运行的流程能够在崩溃后存活并恢复，无上下文丢失
-- **G2** — Token 预算跟踪并强制执行每步消耗，成本分析在智能体视图中可见
-- **G3** — Boss-first 执行：GSD 模式自主运行，可选 Check 模式用于关卡评审
+- **G1** — 检查点与持久化系统使长时间运行的流程能够在崩溃后存活
+- **G2** — Token 预算跟踪并强制执行每步消耗
+- **G3** — Boss-first 执行：GSD 模式自主运行，可选 Check 模式
 
-## 关键架构决策
+## Key Architecture Decisions
 
-_尚未记录架构决策。_
+_No architecture decisions documented yet._
 
-## 关键设计
+## Key Designs
 
 - **D1** — 运行时基础设施
 
-## 模块依赖项
+## Module Dependencies
 
-依赖项：[cli](cli/module.ad)、[provider](provider/module.ad)、[relay](relay/module.ad)
+Depends on: [relay](relay/module.ad)
 
-## 模块规范
+## Module Specs
 
-| 类型 | 数量 | 文件 |
+| Type | Count | File |
 |------|-------|------|
-| 目标 | 3 | [goals.ad](goals.ad) |
-| 设计 | 1 | [designs.ad](designs.ad) |
-| 测试 | 3 | [tests.ad](tests.ad) |
+| Goals | 3 | [goals.ad](goals.ad) |
+| Designs | 1 | [designs.ad](designs.ad) |
+| Tests | 3 | [tests.ad](tests.ad) |
 
-## 导航
+## Navigation
 
-本模块遵循标准规范金字塔：
-- **目标** 定义模块旨在实现的内容
-- **架构** 描述高层设计和组件交互
-- **设计** 包含详细的技术规范
-- **计划** 跟踪实现任务
-- **测试** 列出验收标准
-- **评审** 记录实现后的回顾
-- **报告** 包含实现总结
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
 
-## ID 前缀
+## ID Prefix
 
-本模块中的规范 ID 使用前缀 **`Runtime-`**（例如 `Runtime-G1`、`Runtime-D1`）。
+Spec IDs in this module use the prefix **`Runtime-`** (e.g. `Runtime-G1`, `Runtime-D1`).

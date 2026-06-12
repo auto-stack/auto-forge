@@ -1,1 +1,33 @@
 # Goals
+
+---
+
+## i18n-G1 Internationalization framework supports English and Chinese
+**Status:** implemented
+**Tags:** stack:frontend, module:i18n
+**Depends on:** UiSystem-G1
+
+- [x] `vue-i18n` integrated in `frontend/src/i18n/index.ts`
+- [x] Locale files loaded from `frontend/src/i18n/locales/{en,zh}.json`
+- [x] Locale detection from `localStorage` or browser language
+- [x] `setLocale()`/`toggleLocale()` helpers exported
+- [x] `fallbackLocale: 'en'` configured
+
+## i18n-G2 All user-facing strings externalized to locale files
+**Status:** in_progress
+**Tags:** stack:frontend, module:i18n
+**Depends on:** i18n-G1
+
+- [ ] Audit all views/components for hardcoded strings
+- [ ] Ensure new UI features add keys to both `en.json` and `zh.json`
+- [ ] Add i18n lint check in CI
+
+Most strings are externalized, but ad-hoc hardcoded text still appears in some newer components.
+
+## i18n-G3 Runtime language switch without page reload
+**Status:** implemented
+**Tags:** stack:frontend, module:i18n
+**Depends on:** i18n-G1
+
+- [x] `setLocale()` updates reactive locale and `html lang` attribute
+- [x] Components re-render with new translations automatically

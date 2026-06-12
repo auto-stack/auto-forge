@@ -144,7 +144,7 @@ Deletes all sessions and creates a new blank session atomically.
 - i18n (translation keys)
 
 ## Chat-A1 删除全部会话架构
-**Status:** draft
+**Status:** implemented
 
 ### 概述
 

@@ -3,7 +3,7 @@
 ---
 
 ## A1 Relay Orchestrator Architecture
-**Status:** draft
+**Status:** implemented
 **Tags:** stack:backend, module:relay
 **Depends on:** G2
 
@@ -51,7 +51,7 @@ The Relay Orchestrator is a deterministic state machine in Rust that executes mu
 **Verified against D2 implementation on 2025-01-15**
 
 ## A2 Agent Instance Lifecycle
-**Status:** draft
+**Status:** implemented
 **Tags:** stack:backend, module:agent-config
 **Depends on:** G1, G2
 
@@ -111,7 +111,7 @@ Complete → Destroyed (Step done)
 **Verified against D1 implementation on 2025-01-15**
 
 ## A3 Checkpoint & State Persistence
-**Status:** draft
+**Status:** implemented
 **Tags:** stack:backend, module:relay
 **Depends on:** G4
 
@@ -728,7 +728,7 @@ graph TD
 ---
 
 ## A12 Errand Dispatch Architecture
-**Status:** draft
+**Status:** implemented
 **Tags:** stack:both, module:errand
 **Depends on:** G22, A9
 
@@ -787,7 +787,7 @@ Spawn (dispatch tool call)
 **Verified against D28 implementation on 2025-01-15**
 
 ## A13 Automatic Relay Mode Architecture
-**Status:** draft
+**Status:** implemented
 **Tags:** stack:both, module:relay
 **Depends on:** G23, A1, A9, A12
 
@@ -845,7 +845,7 @@ Automatic Relay Mode enables chat agents (Advisor, Architect, Assistant) to spaw
 **Verified against D29 implementation on 2025-01-15**
 
 ## A14 Goals Hierarchy Architecture
-**Status:** draft
+**Status:** implemented
 **Tags:** stack:frontend, module:specs
 
 # Goals Hierarchy Architecture
@@ -2946,7 +2946,7 @@ The core issue is **incomplete integration between layers**, not architectural f
 **Architecture Documents Updated**: 9 (A1-A3, A7, A9, A12-A14, A28-A29)
 
 ## A31 Relay Pipeline Architecture Review - Final Report
-**Status:** draft
+**Status:** done
 
 # Relay Pipeline Architecture Review - Final Report
 
@@ -3133,7 +3133,7 @@ The core issue is **incomplete integration between layers**, not architectural f
 **Health Score**: 8/10 → 10/10 (after gaps resolved)
 
 ## A32 Relay Pipeline Implementation Handoff
-**Status:** draft
+**Status:** ready
 
 # Relay Pipeline Implementation Handoff
 

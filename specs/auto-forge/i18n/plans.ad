@@ -1,1 +1,14 @@
 # Plans
+
+---
+
+## i18n-P1 Complete i18n coverage and add sync check
+**Status:** draft
+**Tags:** stack:frontend, module:i18n
+**Depends on:** i18n-G2
+
+| Phase | Task | Owner | Duration | Dependencies | Status |
+|---|---|---|---|---|---|
+| i18n-P1.1 | Audit all .vue/.ts files for hardcoded strings | Gofer | 2h | — | draft |
+| i18n-P1.2 | Add missing zh translations for new keys | Coder | 2h | i18n-P1.1 | draft |
+| i18n-P1.3 | Add CI script to detect missing keys | Coder | 2h | i18n-P1.2 | draft |

@@ -24,6 +24,7 @@
 | ReportCards 组件 | `frontend\src\components\category\ReportCards.vue`
 | ReviewCards 组件 | `frontend\src\components\category\ReviewCards.vue`
 | TestsCards 组件 | `frontend\src\components\category\TestsCards.vue`
+| ConfirmDeleteDialog 组件 | `frontend\src\components\ConfirmDeleteDialog.vue`
 | ApiDetail 组件 | `frontend\src\components\detail\ApiDetail.vue`
 | GoalDetail 组件 | `frontend\src\components\detail\GoalDetail.vue`
 | PlanDetail 组件 | `frontend\src\components\detail\PlanDetail.vue`
@@ -46,6 +47,7 @@
 | RelationsPanel 组件 | `frontend\src\components\RelationsPanel.vue`
 | ReportCard 组件 | `frontend\src\components\ReportCard.vue`
 | SecretaryMessage 组件 | `frontend\src\components\SecretaryMessage.vue`
+| SegmentedProgressBar 组件 | `frontend\src\components\SegmentedProgressBar.vue`
 | SettingsMenu 组件 | `frontend\src\components\SettingsMenu.vue`
 | SpecItemDetail 组件 | `frontend\src\components\SpecItemDetail.vue`
 | SpecItemRow 组件 | `frontend\src\components\SpecItemRow.vue`
@@ -65,6 +67,7 @@
 | useGateInbox.ts 逻辑封装 | `frontend\src\composables\useGateInbox.ts`
 | 规格项目关系管理 | `frontend\src\composables\useItemRelations.ts`
 | 职业/角色配置管理 | `frontend\src\composables\useProfessions.ts`
+| useProfessionSegments.ts 逻辑封装 | `frontend\src\composables\useProfessionSegments.ts`
 | 项目打开/关闭/浏览 | `frontend\src\composables\useProject.ts`
 | 流水线运行管理（loadRuns, startRun, gateDecision） | `frontend\src\composables\useRelay.ts`
 | 会话列表管理 | `frontend\src\composables\useSessions.ts`
@@ -130,7 +133,7 @@
 | relay/config.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\config.rs`
 | relay/driver.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\driver.rs`
 | relay/flow.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\flow.rs`
-| relay/flows.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\flows.rs`
+| relay/mod.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\flows\mod.rs`
 | relay/handoff.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\handoff.rs`
 | relay/mod.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\mod.rs`
 | relay/pipeline.rs — Relay 流水线（profession, agent, run, gate, handoff） | `backend\src\relay\pipeline.rs`

@@ -339,3 +339,57 @@ vue-tsc -b && vite build  ✅  built in 19.67s
 
 - Vite dev server: `http://localhost:5174/forge/`
 - AutoForge API: `http://localhost:3031`
+
+
+---
+
+## R2: Spec-Implementation Synchronization Report
+
+**Report ID**: R2  
+**Generated**: 2026-06-12  
+**Status**: ✅ Complete
+
+### Executive Summary
+
+Scanned the AutoForge codebase and spec ledger, then reconciled statuses to restore the specs as the single source of truth. Many top-level specs carried stale `draft`/`proposed` headings while the implementation was already complete. Conversely, several specs claimed full implementation for features that are only partial (Relay visualization, multi-provider dispatch, `bring_in` handoff).
+
+### Actions Taken
+
+| Category | Action | Count |
+|----------|--------|-------|
+| Stale specs | Deleted `backend/auto-forge/*.ad` placeholder stubs | 7 files |
+| Status scrub | Updated `architecture.ad` heading statuses to match body/code | 8 items |
+| Status scrub | Downgraded over-claimed goals (G10.x, G11.x, G17, G13) | 9 items |
+| Status scrub | Upgraded `D19` API source config to `implemented`, `D20` to `in_progress` | 2 items |
+| Empty modules | Filled `auth/goals.ad`, `auth/module.ad`, `auth/tests.ad` | 3 files |
+| Empty modules | Filled `i18n/*.ad` (goals, module, architecture, designs, plans, tests) | 6 files |
+| Duplicates | Merged duplicate `Chat-G10` entries; set status to `implemented` | 1 item |
+| Consistency | Updated `Chat-A1`/`Chat-D1` delete-all-sessions statuses | 2 items |
+| Backlog | Documented remaining gaps in `Auth-G2/G3` | 2 goals |
+
+### Key Findings
+
+**Implemented but underspecified:**
+- RBAC/auth integration is live in `main.rs`, `App.vue`, and `useAuth.ts`.
+- i18n framework is operational with `en` + `zh` locales.
+- API source configuration UI and CRUD endpoints exist.
+
+**Specs overstate implementation:**
+- Relay node-graph animation, cost breakdown, and specs-touched panels are partial.
+- 3-zone responsive layout lacks Zone-C context drawer.
+- Ctrl+K jump-to-ID shortcut is bound but has no dialog.
+- Multi-provider auto-dispatch and fallback chain are not wired.
+
+**Genuinely missing:**
+- `bring_in` baton-style chat-to-relay handoff.
+- Semantic/RAG search in wiki.
+- AutoDown WYSIWYG / spec-aware templates.
+- Fine-grained RBAC permission enforcement on forge/relay routes.
+- `ContextManager` / `PermissionPolicy` integration into chat/tool path.
+
+### Remaining Recommended Work
+
+1. Continue module-by-module status scrub for per-module spec files.
+2. Add `Relates to:` cross-links between module IDs and consolidated IDs.
+3. Implement or formally defer P0 gaps (`bring_in`, multi-provider dispatch).
+4. Add a spec linter to catch heading/body status drift automatically.

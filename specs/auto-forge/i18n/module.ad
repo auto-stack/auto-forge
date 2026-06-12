@@ -1,36 +1,37 @@
-# Editor Module
+# I18n Module
 
 ## Overview
 
-AutoDown 编辑器提供所见即所得的基于块的编辑
+Internationalization framework supports English and Chinese
 
 ## Goals
 
-- **G1** — AutoDown 编辑器提供所见即所得的基于块的编辑
-- **G2** — 阶段 1 — Markdown 所见即所得编辑器
-- **G3** — 阶段 2 — AutoDown 扩展
-- **G4** — 阶段 3 — 高级编辑功能
+- **G1** — Internationalization framework supports English and Chinese
+- **G2** — All user-facing strings externalized to locale files
+- **G3** — Runtime language switch without page reload
 
 ## Key Architecture Decisions
 
-- **A1** — AutoDown 编辑器 — 基于 Tiptap 的所见即所得架构
+- **A1** — Frontend Internationalization Architecture
 
 ## Key Designs
 
-- **D1** — AutoDown 编辑器 — 基于块的所见即所得，支持 Markdown/AutoDown 序列化
+- **D1** — i18n Setup and Locale Detection
+- **D2** — Locale File Conventions
 
 ## Module Dependencies
 
-Depends on: [wiki](wiki/module.ad)
+Depends on: [ui-system](ui-system/module.ad)
 
 ## Module Specs
 
 | Type | Count | File |
 |------|-------|------|
-| Goals | 4 | [goals.ad](goals.ad) |
+| Goals | 3 | [goals.ad](goals.ad) |
 | Architecture | 1 | [architecture.ad](architecture.ad) |
-| Designs | 1 | [designs.ad](designs.ad) |
+| Designs | 2 | [designs.ad](designs.ad) |
 | Plans | 1 | [plans.ad](plans.ad) |
+| Tests | 2 | [tests.ad](tests.ad) |
 
 ## Navigation
 
@@ -45,4 +46,4 @@ This module follows the standard spec pyramid:
 
 ## ID Prefix
 
-Spec IDs in this module use the prefix **`Editor-`** (e.g. `Editor-G1`, `Editor-D1`).
+Spec IDs in this module use the prefix **`I18n-`** (e.g. `I18n-G1`, `I18n-D1`).

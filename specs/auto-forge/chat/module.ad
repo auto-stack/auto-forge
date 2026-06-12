@@ -1,10 +1,10 @@
-# 聊天模块
+# Chat Module
 
-## 概述
+## Overview
 
 聊天优先关卡审批与智能秘书
 
-## 目标
+## Goals
 
 - **G1** — 聊天优先关卡审批与智能秘书
 - **G2** — 内联 GateCard 渲染差异视图，带批准/拒绝/编辑
@@ -12,49 +12,54 @@
 - **G4** — 关卡队列强制执行一次一个交付，支持暂停和关闭
 - **G5** — 环境进度指示器保持聊天历史无状态垃圾信息
 - **G6** — @提及智能体定位将聊天消息定向到命名的智能体，带粘性职业路由
-- *...以及另外 3 个*
+- *...and 6 more*
 
-## 关键架构决策
+## Key Architecture Decisions
 
-- **A1** — 聊天临时 Chrome 架构
-- **A2** — 聊天轮次智能体交接架构
-- **A3** — 流式内容渲染器架构
+- **A1** — Chat-A1 删除全部会话架构
+- **A1** — 删除全部会话架构
+- **A1** — 删除全部会话架构
+- **A1** — 删除全部会话架构
 - **A4** — Thinking 数据流架构
+- *...and 2 more*
 
-## 关键设计
+## Key Designs
 
-- **D1** — GateCard 与 SecretaryMessage 组件
+- **D1** — Chat-D1 删除全部会话 UI 设计
+- **D1** — 删除全部会话 UI 设计
+- **D1** — 删除全部会话UI设计
+- **D1** — 删除全部会话UI设计
+- **D5** — ThinkingBlock 推理过程展示组件
 - **D2** — ReportCard（聊天终端）
 - **D3** — bring_in 工具与聊天交接
-- **D4** — 流式内容渲染器与文档解析器
-- **D5** — ThinkingBlock 推理过程展示组件
+- *...and 1 more*
 
-## 模块依赖项
+## Module Dependencies
 
-依赖项：[agent-config](agent-config/module.ad)、[project](project/module.ad)、[relay](relay/module.ad)、[runtime](runtime/module.ad)、[specs](specs/module.ad)、[ui-system](ui-system/module.ad)、[wiki](wiki/module.ad)
+Depends on: [agent-config](agent-config/module.ad), [project](project/module.ad), [provider](provider/module.ad), [relay](relay/module.ad), [runtime](runtime/module.ad), [specs](specs/module.ad)
 
-## 模块规范
+## Module Specs
 
-| 类型 | 数量 | 文件 |
+| Type | Count | File |
 |------|-------|------|
-| 目标 | 9 | [goals.ad](goals.ad) |
-| 架构 | 4 | [architecture.ad](architecture.ad) |
-| 设计 | 5 | [designs.ad](designs.ad) |
-| 计划 | 3 | [plans.ad](plans.ad) |
-| 测试 | 7 | [tests.ad](tests.ad) |
-| 评审 | 1 | [reviews.ad](reviews.ad) |
+| Goals | 14 | [goals.ad](goals.ad) |
+| Architecture | 20 | [architecture.ad](architecture.ad) |
+| Designs | 22 | [designs.ad](designs.ad) |
+| Plans | 9 | [plans.ad](plans.ad) |
+| Tests | 25 | [tests.ad](tests.ad) |
+| Reviews | 7 | [reviews.ad](reviews.ad) |
 
-## 导航
+## Navigation
 
-本模块遵循标准规范金字塔：
-- **目标** 定义模块旨在实现的内容
-- **架构** 描述高层设计和组件交互
-- **设计** 包含详细的技术规范
-- **计划** 跟踪实现任务
-- **测试** 列出验收标准
-- **评审** 记录实现后的回顾
-- **报告** 包含实现总结
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
 
-## ID 前缀
+## ID Prefix
 
-本模块中的规范 ID 使用前缀 **`Chat-`**（例如 `Chat-G1`、`Chat-D1`）。
+Spec IDs in this module use the prefix **`Chat-`** (e.g. `Chat-G1`, `Chat-D1`).

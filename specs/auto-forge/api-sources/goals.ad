@@ -3,7 +3,7 @@
 ---
 
 ## ApiSources-G1 API 来源配置支持多提供商 LLM 管理，具备自动检测和模型层级功能
-**Status:** proposed
+**Status:** in_progress
 **Tags:** stack:backend
 **Depends on:** AgentConfig-G1, Runtime-G3
 

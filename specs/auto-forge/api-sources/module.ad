@@ -1,49 +1,60 @@
-# ApiSources 模块
+# ApiSources Module
 
-## 概述
+## Overview
 
-API 来源配置支持多提供商 LLM 管理，具备自动检测和模型层级功能。
+API 来源配置支持多提供商 LLM 管理，具备自动检测和模型层级功能
 
-## 目标
+## Goals
 
 - **G1** — API 来源配置支持多提供商 LLM 管理，具备自动检测和模型层级功能
 - **G2** — APIs 文档视图
+- **G3** — 模型优先的智能体配置替代基于层级的选择
 
-## 关键架构决策
+## Key Architecture Decisions
 
 - **A1** — API 来源与多提供商架构
-- **A2** — APIs 文档视图架构
+- **A1** — API 来源与多提供商架构
+- **A2** — API 文档视图架构
+- **A3** — ApiSources-A3 Model-First Agent Config Architecture
+- **A3** — 模型优先的智能体配置架构
+- *...and 1 more*
 
-## 关键设计
+## Key Designs
 
-- **D1** — API 来源配置
-- **D2** — APIs 文档视图
+- **D1** — ApiSources-D1 Model-First Agent Config Design
+- **D1** — Model-First Agent Config Design
+- **D1** — Model-First Agent Config Design
+- **D1** — 模型优先的智能体配置设计
+- **D1** — 模型优先的智能体配置设计
+- **D1** — 模型优先的智能体配置设计
+- **D1** — 模型优先的智能体配置设计
+- *...and 2 more*
 
-## 模块依赖
+## Module Dependencies
 
-依赖：[agent-config](agent-config/module.ad)、[provider](provider/module.ad)、[runtime](runtime/module.ad)
+Depends on: [agent-config](agent-config/module.ad), [runtime](runtime/module.ad)
 
-## 模块规范
+## Module Specs
 
-| 类型 | 数量 | 文件 |
-|------|------|------|
-| 目标 | 2 | [goals.ad](goals.ad) |
-| 架构 | 2 | [architecture.ad](architecture.ad) |
-| 设计 | 2 | [designs.ad](designs.ad) |
-| 计划 | 2 | [plans.ad](plans.ad) |
-| 测试 | 3 | [tests.ad](tests.ad) |
+| Type | Count | File |
+|------|-------|------|
+| Goals | 3 | [goals.ad](goals.ad) |
+| Architecture | 9 | [architecture.ad](architecture.ad) |
+| Designs | 9 | [designs.ad](designs.ad) |
+| Plans | 4 | [plans.ad](plans.ad) |
+| Tests | 15 | [tests.ad](tests.ad) |
 
-## 导航
+## Navigation
 
-本模块遵循标准规范金字塔：
-- **目标**定义模块旨在达成的成果
-- **架构**描述高层设计和组件交互
-- **设计**包含详细的技术规范
-- **计划**跟踪实现任务
-- **测试**列出验收标准
-- **审阅**记录实现后的回顾
-- **报告**包含实现摘要
+This module follows the standard spec pyramid:
+- **Goals** define what the module aims to achieve
+- **Architecture** describes high-level design and component interactions
+- **Designs** contain detailed technical specifications
+- **Plans** track implementation tasks
+- **Tests** list acceptance criteria
+- **Reviews** capture post-implementation retrospectives
+- **Reports** contain implementation summaries
 
-## ID 前缀
+## ID Prefix
 
-本模块中的规范 ID 使用前缀 **`ApiSources-`**（例如 `ApiSources-G1`、`ApiSources-D1`）。
+Spec IDs in this module use the prefix **`ApiSources-`** (e.g. `ApiSources-G1`, `ApiSources-D1`).
