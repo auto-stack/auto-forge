@@ -203,6 +203,49 @@ pub fn list_task_plans() -> Vec<TaskPlanSummary> {
     guard.as_ref().map(|r| r.list()).unwrap_or_default()
 }
 
+/// Register a new TaskPlan from Atom source.
+///
+/// Validates the Atom, checks that all referenced flows exist, writes the file
+/// to disk if `file_path` is provided, and inserts the plan into the global
+/// registry.
+pub fn register_task_plan(
+    atom: &str,
+    file_path: Option<&std::path::Path>,
+) -> Result<TaskPlan, String> {
+    let plan = parse_task_plan(atom).map_err(|e| e.to_string())?;
+    plan.validate().map_err(|e| e.to_string())?;
+
+    for phase in &plan.phases {
+        for run in &phase.runs {
+            if crate::relay::flows::get_flow(&run.flow_id).is_none() {
+                return Err(format!(
+                    "run '{}' references unknown flow '{}'",
+                    run.name, run.flow_id
+                ));
+            }
+        }
+    }
+
+    if let Some(path) = file_path {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(path, atom).map_err(|e| e.to_string())?;
+    }
+
+    {
+        let mut guard = TASK_PLAN_REGISTRY.lock().unwrap();
+        if guard.is_none() {
+            *guard = Some(TaskPlanRegistry::load_builtins_only());
+        }
+        if let Some(ref mut registry) = *guard {
+            registry.insert(plan.clone(), TaskPlanSource::User);
+        }
+    }
+
+    Ok(plan)
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

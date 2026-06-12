@@ -155,6 +155,7 @@ impl ToolRegistry {
         registry.register(Box::new(DispatchTool));
         registry.register(Box::new(SpawnRelayTool));
         registry.register(Box::new(SpawnTaskPlanTool));
+        registry.register(Box::new(RegisterTaskPlanTool));
         registry.register(Box::new(QueryWikiTool));
         registry.register(Box::new(ListWikiTool));
         registry.register(Box::new(CreateWikiPageTool));
@@ -2839,6 +2840,106 @@ impl Tool for SpawnTaskPlanTool {
     fn is_read_only(&self) -> bool { true }
 }
 
+/// Registers a new Atom TaskPlan at runtime.
+/// The Planner profession uses this to write a concrete multi-relay plan
+/// during a deferred-decompose TaskPlan.
+struct RegisterTaskPlanTool;
+
+impl Tool for RegisterTaskPlanTool {
+    fn name(&self) -> &'static str {
+        "register_task_plan"
+    }
+
+    fn description(&self) -> &'static str {
+        "Register a new Atom TaskPlan at runtime. \
+         The Atom text is validated and, if a file_path is provided, persisted \
+         to .autoforge/task_plans/. The registered plan can then be spawned with \
+         spawn_task_plan."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "required": ["atom"],
+            "properties": {
+                "atom": {
+                    "type": "string",
+                    "description": "Full Atom source of the TaskPlan."
+                },
+                "file_path": {
+                    "type": "string",
+                    "description": "Optional path to persist the Atom file. If omitted, the plan is only registered in memory."
+                }
+            }
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let atom = args
+            .get("atom")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'atom' argument".into()))?;
+        let file_path_arg = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty());
+
+        let current = CURRENT_PROFESSION.lock().unwrap().clone();
+        let registry = crate::relay::ProfessionRegistry::new();
+        let profession = registry
+            .get(&current)
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("Unknown profession '{}'", current)))?;
+
+        if !profession.allowed_tools.contains(&"register_task_plan".to_string()) {
+            return Err(ToolError::InvalidInput(format!(
+                "Profession '{}' cannot register TaskPlans",
+                current
+            )));
+        }
+
+        let project_path = current_project();
+        let file_path: Option<std::path::PathBuf> = match file_path_arg {
+            Some(path) => {
+                let p = std::path::PathBuf::from(path);
+                if p.is_absolute() {
+                    Some(p)
+                } else {
+                    Some(std::path::PathBuf::from(&project_path).join(p))
+                }
+            }
+            None => {
+                if project_path.is_empty() {
+                    None
+                } else {
+                    Some(
+                        std::path::PathBuf::from(&project_path)
+                            .join(".autoforge")
+                            .join("task_plans")
+                            .join("registered.atom"),
+                    )
+                }
+            }
+        };
+
+        let plan = crate::relay::task_plan_registry::register_task_plan(
+            atom,
+            file_path.as_deref(),
+        )
+        .map_err(|e| ToolError::ExecutionFailed(format!("TaskPlan validation failed: {}", e)))?;
+
+        Ok(serde_json::json!({
+            "task_plan_registered": true,
+            "id": plan.id,
+            "phase_count": plan.phases.len(),
+            "run_count": plan.phases.iter().map(|p| p.runs.len()).sum::<usize>(),
+            "path": file_path.map(|p| p.to_string_lossy().to_string()),
+        })
+        .to_string())
+    }
+
+    fn is_read_only(&self) -> bool { false }
+}
+
 /// Dispatches a lightweight research or errand task to a side agent.
 /// The errand agent runs in isolation with a cheap model and returns only a summary.
 struct DispatchTool;
@@ -3699,6 +3800,48 @@ mod tests {
         assert_eq!(json["task_plan_id"], "deferred-decompose");
         assert_eq!(json["mode"], "gsd");
         assert_eq!(json["initial_input"], "Build auth system");
+    }
+
+    #[test]
+    fn test_register_task_plan_tool() {
+        let mut guard = crate::relay::flows::FLOW_REGISTRY.lock().unwrap();
+        if guard.is_none() {
+            *guard = Some(crate::relay::flows::FlowRegistry::load_builtins_only());
+        }
+        drop(guard);
+
+        let tool = RegisterTaskPlanTool;
+        assert_eq!(tool.name(), "register_task_plan");
+        assert!(!tool.is_read_only());
+
+        // Missing atom should fail
+        let result = tool.execute(serde_json::json!({}));
+        assert!(result.is_err(), "Should fail without atom");
+
+        // Profession without register_task_plan should fail
+        set_current_profession("assistant");
+        let result = tool.execute(serde_json::json!({
+            "atom": "task_plan(id: \"test\") { phase(name: \"p\") { run(name: \"r\", flow_id: \"fast-track\") } }"
+        }));
+        assert!(result.is_err(), "Assistant should not be able to register task plans");
+
+        // Valid registration by planner
+        set_current_profession("planner");
+        let result = tool.execute(serde_json::json!({
+            "atom": "task_plan(id: \"test\") { phase(name: \"p\") { run(name: \"r\", flow_id: \"fast-track\") } }"
+        }));
+        assert!(result.is_ok(), "{:?}", result);
+        let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(json["task_plan_registered"], true);
+        assert_eq!(json["id"], "test");
+        assert_eq!(json["phase_count"], 1);
+        assert_eq!(json["run_count"], 1);
+
+        // Invalid Atom should fail
+        let result = tool.execute(serde_json::json!({
+            "atom": "not_a_task_plan(id: \"bad\") {}"
+        }));
+        assert!(result.is_err(), "Should fail with invalid Atom");
     }
 }
 

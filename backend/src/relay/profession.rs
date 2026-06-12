@@ -262,6 +262,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
                 String::from("query_wiki"),
                 String::from("list_wiki"),
                 String::from("bring_in"),
+                String::from("register_task_plan"),
             ],
             handoff_to: vec![String::from("tester")],
             approval_gates: vec![],
