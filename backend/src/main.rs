@@ -252,6 +252,9 @@ async fn main() {
     // Restore last opened project from config
     auto_forge::forge::restore_last_project();
 
+    // Initialize TaskPlan registry from the opened project
+    auto_forge::relay::task_plan_registry::init_task_plan_registry();
+
     // Resume any relay runs that were in Running state when we shut down
     auto_forge::relay::api::resume_running_runs(ai_provider_clone);
 
