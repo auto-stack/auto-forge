@@ -88,6 +88,14 @@
             <span class="errand-toggle-badge">{{ Object.keys(relayRuns).length }}</span>
           </button>
           <button
+            v-if="Object.keys(taskPlans).length > 0"
+            class="errand-toggle-btn relay-toggle-btn"
+            @click="openRelayView"
+          >
+            <span class="errand-toggle-label">{{ t('chat.taskPlans') }}</span>
+            <span class="errand-toggle-badge">{{ Object.keys(taskPlans).length }}</span>
+          </button>
+          <button
             v-if="Object.keys(errands).length > 0"
             class="errand-toggle-btn"
             :title="allErrandsExpanded ? t('chat.collapseErrands') : t('chat.expandErrands')"
@@ -434,6 +442,7 @@ const {
   deleteAllSessions,
   errands,
   relayRuns,
+  taskPlans,
 } = useForge()
 
 const { projectPath } = useProject()

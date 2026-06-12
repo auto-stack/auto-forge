@@ -16,6 +16,7 @@ const _sessionList = ref<ForgeSessionSummary[]>([])
 const _resuming = ref(false)
 const _errands = ref<Record<string, ErrandState>>({})
 const _relayRuns = ref<Record<string, import('@/types/forge').RelayRunState>>({})
+const _taskPlans = ref<Record<string, import('@/types/forge').TaskPlanState>>({})
 
 export function useForge() {
   const session = _session
@@ -24,6 +25,7 @@ export function useForge() {
   const error = _error
   const sessionList = _sessionList
   const errands = _errands
+  const taskPlans = _taskPlans
 
   const sessionId = computed(() => session.value?.id ?? null)
   const sessionStatus = computed(() => session.value?.status ?? 'idle')
@@ -332,6 +334,13 @@ export function useForge() {
               r.summary = data.summary || ''
               r.tokens_used = data.tokens_used || 0
             }
+          } else if (data.type === 'task_plan_spawned' && data.instance_id) {
+            _taskPlans.value[data.instance_id] = {
+              instance_id: data.instance_id,
+              task_plan_id: data.task_plan_id || '',
+              status: 'started',
+              phases: [],
+            }
           }
         } catch {
           const msg = ensureAssistantMsg()
@@ -478,5 +487,6 @@ export function useForge() {
     deleteAllSessions,
     errands,
     relayRuns: _relayRuns,
+    taskPlans: _taskPlans,
   }
 }

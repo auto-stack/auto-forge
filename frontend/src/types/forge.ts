@@ -37,7 +37,7 @@ export interface ForgeSession {
 }
 
 export interface ForgeStreamEvent {
-  type: 'turn_start' | 'delta' | 'thinking' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete' | 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete'
+  type: 'turn_start' | 'delta' | 'thinking' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete' | 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete' | 'task_plan_spawned'
   text?: string
   thinking?: string
   id?: string
@@ -78,6 +78,9 @@ export interface ForgeStreamEvent {
   gate?: string
   summary?: string
   tokens_used?: number
+  // task plan fields
+  instance_id?: string
+  task_plan_id?: string
 }
 
 export interface ErrandState {
@@ -100,6 +103,13 @@ export interface RelayRunState {
   summary?: string
   tokens_used?: number
   title?: string
+}
+
+export interface TaskPlanState {
+  instance_id: string
+  task_plan_id: string
+  status: 'started' | 'running' | 'completed' | 'failed'
+  phases: { phase: string; status: string }[]
 }
 
 export interface ForgeSessionSummary {

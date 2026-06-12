@@ -75,6 +75,28 @@
 
       <!-- Center: Pipeline visualization -->
       <div class="pipeline-panel" data-testid="pipeline-panel">
+        <div class="panel-tabs">
+          <button
+            class="panel-tab"
+            :class="{ active: activeTab === 'runs' }"
+            @click="activeTab = 'runs'"
+          >
+            Runs
+          </button>
+          <button
+            class="panel-tab"
+            :class="{ active: activeTab === 'task_plans' }"
+            @click="activeTab = 'task_plans'"
+          >
+            Task Plans
+          </button>
+        </div>
+
+        <template v-if="activeTab === 'task_plans'">
+          <TaskPlanPanel />
+        </template>
+
+        <template v-else>
         <div v-if="!currentRun" class="empty-state">
           {{ t('relay.selectRun') }}
         </div>
@@ -342,6 +364,7 @@
             @review-in-specs="onReviewInSpecs"
           />
         </template>
+        </template>
       </div>
 
     </div>
@@ -364,6 +387,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import GatePanel from '@/components/GatePanel.vue'
 import AgentAvatar from '@/components/AgentAvatar.vue'
 import SegmentedProgressBar from '@/components/SegmentedProgressBar.vue'
+import TaskPlanPanel from '@/components/TaskPlanPanel.vue'
 import { useProfessionSegments } from '@/composables/useProfessionSegments'
 
 const {
@@ -385,6 +409,7 @@ const { segments, totalUsed, tooltipEntries } = useProfessionSegments(profession
 const expandedStepId = ref<string | null>(null)
 const sessionLogRef = ref<HTMLElement | null>(null)
 const activeStepNav = ref<number>(-1)
+const activeTab = ref<'runs' | 'task_plans'>('runs')
 
 // Auto-scroll session log to bottom when new entries arrive
 import { watch, nextTick } from 'vue'
@@ -1441,5 +1466,30 @@ function professionIcon(id: string): string {
   overflow-y: auto;
   background: transparent;
   border: none;
+}
+
+.panel-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--af-border);
+  flex-shrink: 0;
+}
+
+.panel-tab {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--af-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.panel-tab.active {
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  font-weight: 500;
 }
 </style>
