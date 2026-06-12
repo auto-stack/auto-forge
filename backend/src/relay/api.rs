@@ -7,6 +7,9 @@ use crate::relay::flow::{FlowSpec, ValidationIssue, ValidationSeverity};
 use crate::relay::flows::{get_flow, init_flow_registry, validate_flow, FlowRegistry, FLOW_REGISTRY};
 use crate::relay::handoff::HandoffDocument;
 use crate::relay::pipeline::{AdvanceResult, GateDecision};
+use crate::relay::task_plan::{TaskMode, TaskPlan};
+use crate::relay::task_plan_engine::{drive_task_plan_run, TaskPlanContext, TaskPlanEngine};
+use crate::relay::task_plan_registry::{get_task_plan, list_task_plans, register_task_plan, TaskPlanSummary, TaskPlanSource};
 use crate::relay::profession::{self, Profession, ProfessionRegistry};
 use crate::relay::store::{
     advance_run, delete_run, get_run, list_runs, new_run_store, resolve_gate, resume_run, rerun_run, start_run, submit_handoff,
@@ -127,6 +130,62 @@ pub struct GateRequest {
 #[derive(serde::Deserialize)]
 pub struct HandoffRequest {
     pub handoff: HandoffDocument,
+}
+
+// ─── TaskPlan DTOs ───────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct TaskPlanListItem {
+    pub id: String,
+    pub source: String,
+    pub phase_count: usize,
+    pub run_count: usize,
+}
+
+#[derive(serde::Serialize)]
+pub struct TaskPlanDetail {
+    pub id: String,
+    pub version: u32,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub default_mode: String,
+    pub phases: Vec<crate::relay::task_plan::Phase>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateTaskPlanRequest {
+    pub atom: String,
+    #[serde(default)]
+    pub file_path: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct StartTaskPlanRunRequest {
+    pub initial_input: String,
+    #[serde(default)]
+    pub mode: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct TaskPlanRunResponse {
+    pub instance_id: String,
+    pub task_plan_id: String,
+    pub status: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct TaskPlanRunItem {
+    pub run_id: String,
+    pub task_plan_id: Option<String>,
+    pub phase_name: Option<String>,
+    pub task_run_name: Option<String>,
+    pub status: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct ValidateTaskPlanResponse {
+    pub valid: bool,
+    pub error: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -1205,6 +1264,250 @@ pub async fn reload_flows_handler() -> StatusCode {
 }
 
 // -------------------------------------------------------------------------
+// TaskPlan handlers
+// -------------------------------------------------------------------------
+
+pub async fn list_task_plans_handler() -> Json<Vec<TaskPlanListItem>> {
+    let plans = list_task_plans();
+    Json(
+        plans
+            .into_iter()
+            .map(|p| TaskPlanListItem {
+                id: p.id,
+                source: match p.source {
+                    TaskPlanSource::Builtin => "builtin".to_string(),
+                    TaskPlanSource::User => "user".to_string(),
+                },
+                phase_count: p.phase_count,
+                run_count: p.run_count,
+            })
+            .collect(),
+    )
+}
+
+pub async fn get_task_plan_handler(Path(id): Path<String>) -> Result<Json<TaskPlanDetail>, StatusCode> {
+    get_task_plan(&id)
+        .map(|p| {
+            Json(TaskPlanDetail {
+                id: p.id.clone(),
+                version: p.version,
+                title: p.title.clone(),
+                description: p.description.clone(),
+                default_mode: format!("{:?}", p.default_mode).to_lowercase(),
+                phases: p.phases,
+            })
+        })
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn create_task_plan_handler(
+    Json(req): Json<CreateTaskPlanRequest>,
+) -> Result<Json<TaskPlanDetail>, (StatusCode, Json<serde_json::Value>)> {
+    let file_path = req.file_path.as_deref().map(std::path::PathBuf::from).or_else(|| {
+        crate::forge::current_project_path()
+            .map(|p| std::path::PathBuf::from(p).join(".autoforge").join("task_plans").join("registered.atom"))
+    });
+
+    match register_task_plan(&req.atom, file_path.as_deref()) {
+        Ok(p) => Ok(Json(TaskPlanDetail {
+            id: p.id.clone(),
+            version: p.version,
+            title: p.title.clone(),
+            description: p.description.clone(),
+            default_mode: format!("{:?}", p.default_mode).to_lowercase(),
+            phases: p.phases,
+        })),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": e})),
+        )),
+    }
+}
+
+pub async fn update_task_plan_handler(
+    Path(_id): Path<String>,
+    Json(req): Json<CreateTaskPlanRequest>,
+) -> Result<Json<TaskPlanDetail>, (StatusCode, Json<serde_json::Value>)> {
+    create_task_plan_handler(Json(req)).await
+}
+
+pub async fn delete_task_plan_handler(Path(id): Path<String>) -> StatusCode {
+    let removed = {
+        let mut guard = crate::relay::task_plan_registry::TASK_PLAN_REGISTRY.lock().unwrap();
+        if guard.is_none() {
+            *guard = Some(crate::relay::task_plan_registry::TaskPlanRegistry::load_builtins_only());
+        }
+        guard.as_mut().and_then(|r| r.remove(&id)).is_some()
+    };
+    if removed {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn validate_task_plan_handler(
+    Json(req): Json<CreateTaskPlanRequest>,
+) -> Json<ValidateTaskPlanResponse> {
+    match crate::relay::task_plan_parser::parse_task_plan(&req.atom) {
+        Ok(plan) => match plan.validate() {
+            Ok(()) => Json(ValidateTaskPlanResponse {
+                valid: true,
+                error: None,
+            }),
+            Err(e) => Json(ValidateTaskPlanResponse {
+                valid: false,
+                error: Some(e.to_string()),
+            }),
+        },
+        Err(e) => Json(ValidateTaskPlanResponse {
+            valid: false,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+pub async fn start_task_plan_run_handler(
+    State(ai_provider): State<crate::provider::AIProviderState>,
+    Path(id): Path<String>,
+    Json(req): Json<StartTaskPlanRunRequest>,
+) -> Result<Json<TaskPlanRunResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let plan = get_task_plan(&id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": format!("TaskPlan '{}' not found", id)})),
+        )
+    })?;
+
+    let project_path = crate::forge::current_project_path().unwrap_or_default();
+    let mut engine = TaskPlanEngine::new(plan.clone(), project_path.clone(), req.initial_input);
+
+    let mode = req
+        .mode
+        .as_deref()
+        .and_then(|m| match m {
+            "check" => Some(TaskMode::Check),
+            _ => Some(TaskMode::Gsd),
+        })
+        .unwrap_or(plan.default_mode);
+    engine.plan.default_mode = mode;
+
+    let ctx = TaskPlanContext {
+        run_store: RUN_STORE.clone(),
+        handoff_store: std::sync::Arc::new(crate::relay::handoff_store::HandoffStore::new(
+            std::path::PathBuf::from(&project_path),
+        )),
+        event_tx: EVENT_TX.clone(),
+        ai_provider: Some(ai_provider),
+        project_path: project_path.clone(),
+    };
+
+    let instance_id = engine.instance_id.clone();
+    tokio::spawn(async move {
+        let _ = engine
+            .execute(&ctx, |req| drive_task_plan_run(&ctx, req))
+            .await;
+    });
+
+    Ok(Json(TaskPlanRunResponse {
+        instance_id: instance_id.clone(),
+        task_plan_id: id,
+        status: "started".to_string(),
+    }))
+}
+
+pub async fn list_task_plan_runs_handler() -> Json<Vec<TaskPlanRunItem>> {
+    let map = RUN_STORE.lock().unwrap();
+    let items: Vec<TaskPlanRunItem> = map
+        .values()
+        .filter(|e| e.metadata.task_plan_id.is_some())
+        .map(|e| TaskPlanRunItem {
+            run_id: e.run_id.clone(),
+            task_plan_id: e.metadata.task_plan_id.clone(),
+            phase_name: e.metadata.phase_name.clone(),
+            task_run_name: e.metadata.task_run_name.clone(),
+            status: e.engine.status.to_status_str(),
+        })
+        .collect();
+    Json(items)
+}
+
+pub async fn get_task_plan_run_handler(
+    Path(run_id): Path<String>,
+) -> Result<Json<RunState>, StatusCode> {
+    get_run(&RUN_STORE, &run_id)
+        .filter(|s| s.task_plan_id.is_some())
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn pause_task_plan_run_handler(Path(run_id): Path<String>) -> StatusCode {
+    // TaskPlan-level pause is not yet implemented; operate on the underlying relay run.
+    let mut map = RUN_STORE.lock().unwrap();
+    if let Some(entry) = map.get_mut(&run_id) {
+        entry.engine.pause();
+        crate::relay::store::save_run(entry);
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn resume_task_plan_run_handler(Path(run_id): Path<String>) -> Result<Json<serde_json::Value>, StatusCode> {
+    crate::relay::store::resume_run(&RUN_STORE, &run_id)
+        .map(|result| Json(serde_json::json!({ "result": format!("{:?}", result) })))
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+pub async fn cancel_task_plan_run_handler(Path(run_id): Path<String>) -> StatusCode {
+    // Cancel is implemented as a pause + failed status for now.
+    let mut map = RUN_STORE.lock().unwrap();
+    if let Some(entry) = map.get_mut(&run_id) {
+        entry.engine.pause();
+        entry.engine.status = crate::relay::pipeline::PipelineStatus::Failed {
+            error: "Cancelled by user".to_string(),
+        };
+        crate::relay::store::save_run(entry);
+        let _ = EVENT_TX.send(RunEventBroadcast {
+            run_id: run_id.clone(),
+            event_type: "run_cancelled".to_string(),
+            payload: None,
+        });
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+/// SSE stream for TaskPlan lifecycle events.
+pub async fn task_plan_events_handler(
+    Path(instance_id): Path<String>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    let rx = EVENT_TX.subscribe();
+    let stream = BroadcastStream::new(rx)
+        .filter_map(move |msg| {
+            let Ok(msg) = msg else { return None };
+            if msg.run_id != instance_id {
+                return None;
+            }
+            let event = Event::default()
+                .event("task_plan_event")
+                .data(serde_json::to_string(&serde_json::json!({
+                    "instance_id": msg.run_id,
+                    "event_type": msg.event_type,
+                    "payload": msg.payload,
+                })).unwrap_or_default());
+            Some(Ok(event))
+        });
+
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keep-alive"),
+    )
+}
+
+// -------------------------------------------------------------------------
 // Router
 // -------------------------------------------------------------------------
 
@@ -1230,6 +1533,17 @@ where
         .route("/api/forge/relay/runs/{run_id}/handoff", post(submit_handoff_handler))
         .route("/api/forge/relay/runs/{run_id}/gate", post(resolve_gate_handler))
         .route("/api/forge/relay/runs/{run_id}/events", get(run_events_handler))
+        // TaskPlans
+        .route("/api/forge/relay/task_plans", get(list_task_plans_handler).post(create_task_plan_handler))
+        .route("/api/forge/relay/task_plans/validate", post(validate_task_plan_handler))
+        .route("/api/forge/relay/task_plans/{id}", get(get_task_plan_handler).put(update_task_plan_handler).delete(delete_task_plan_handler))
+        .route("/api/forge/relay/task_plans/{id}/runs", post(start_task_plan_run_handler))
+        .route("/api/forge/relay/task_plans/runs", get(list_task_plan_runs_handler))
+        .route("/api/forge/relay/task_plans/runs/{run_id}", get(get_task_plan_run_handler))
+        .route("/api/forge/relay/task_plans/runs/{run_id}/pause", post(pause_task_plan_run_handler))
+        .route("/api/forge/relay/task_plans/runs/{run_id}/resume", post(resume_task_plan_run_handler))
+        .route("/api/forge/relay/task_plans/runs/{run_id}/cancel", post(cancel_task_plan_run_handler))
+        .route("/api/forge/relay/task_plans/{instance_id}/events", get(task_plan_events_handler))
         // Config — API Sources
         .route("/api/forge/config/api-sources", get(list_api_sources).post(create_api_source))
         .route("/api/forge/config/api-sources/scan", get(scan_api_sources))
