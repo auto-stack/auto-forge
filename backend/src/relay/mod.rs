@@ -18,6 +18,7 @@ pub mod driver;
 pub mod flow;
 pub mod flows;
 pub mod handoff;
+pub mod handoff_store;
 pub mod pipeline;
 pub mod profession;
 pub mod skills;
