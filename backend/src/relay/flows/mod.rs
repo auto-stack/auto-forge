@@ -474,12 +474,17 @@ pub(crate) static FLOW_REGISTRY: Mutex<Option<FlowRegistry>> = Mutex::new(None);
 
 /// Initialize the global flow registry from the current project path.
 /// Call once at startup or after opening a project.
+///
+/// If no project is currently open, only built-in flows are loaded so that
+/// validation and tests can still resolve standard flow IDs.
 pub fn init_flow_registry() {
-    if let Some(project_path) = crate::forge::current_project_path() {
-        let path = std::path::PathBuf::from(project_path);
-        let mut guard = FLOW_REGISTRY.lock().unwrap();
-        *guard = Some(FlowRegistry::new(&path));
-    }
+    let registry = if let Some(project_path) = crate::forge::current_project_path() {
+        FlowRegistry::new(&std::path::PathBuf::from(project_path))
+    } else {
+        FlowRegistry::load_builtins_only()
+    };
+    let mut guard = FLOW_REGISTRY.lock().unwrap();
+    *guard = Some(registry);
 }
 
 /// Get a flow from the global registry.
