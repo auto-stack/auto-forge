@@ -439,7 +439,7 @@ const filteredItems = computed(() => {
 
   // Module filter
   if (activeModule.value) {
-    items = items.filter(item => idToModule(item.id) === activeModule.value)
+    items = items.filter(item => getModule(item) === activeModule.value)
   }
 
   // Stack filter

@@ -1253,6 +1253,12 @@ impl SpecsStore {
                         "module" => item.module = Some(value.to_string()),
                         "tags" => {
                             item.tags = value.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                            // Infer module from `module:` tag if no explicit Module field was set.
+                            if item.module.is_none() {
+                                if let Some(mod_tag) = item.tags.iter().find(|t| t.to_lowercase().starts_with("module:")) {
+                                    item.module = Some(mod_tag.split(':').nth(1).unwrap_or("").trim().to_string());
+                                }
+                            }
                         }
                         "depends on" => {
                             item.depends_on = value.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
@@ -1629,6 +1635,12 @@ impl SpecsStore {
             if let Some(m) = module { item.module = Some(m.to_string()); }
             if let Some(d) = depends_on { item.depends_on = d; }
             if let Some(t) = tags { item.tags = t; }
+            // Infer module from `module:` tag if no explicit Module field was set.
+            if item.module.is_none() {
+                if let Some(mod_tag) = item.tags.iter().find(|tag| tag.to_lowercase().starts_with("module:")) {
+                    item.module = Some(mod_tag.split(':').nth(1).unwrap_or("").trim().to_string());
+                }
+            }
             item.modified_at = now;
             false
         } else {
@@ -1644,7 +1656,10 @@ impl SpecsStore {
                 test_file: test_file.map(String::from),
                 file: file.map(String::from),
                 milestone: milestone.map(String::from),
-                module: module.map(String::from),
+                module: module.map(String::from).or_else(|| {
+                    tags.as_ref()?.iter().find(|t| t.to_lowercase().starts_with("module:"))
+                        .map(|t| t.split(':').nth(1).unwrap_or("").trim().to_string())
+                }),
                 tags: tags.unwrap_or_default(),
                 created_at: now,
                 modified_at: now,
