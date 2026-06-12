@@ -21,6 +21,8 @@ pub struct ProjectInfo {
     pub specs_dir: String,
     pub has_specs: bool,
     pub is_open: bool,
+    #[serde(default)]
+    pub is_empty: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +60,31 @@ pub fn should_skip_entry(name: &str) -> bool {
     }
     const SKIP: &[&str] = &["node_modules", "target", "dist", "build", "__pycache__", "venv", ".venv"];
     SKIP.contains(&name)
+}
+
+pub fn is_project_empty(project_path: &Path) -> bool {
+    let Ok(dir) = std::fs::read_dir(project_path) else {
+        return true;
+    };
+    for entry in dir.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        if entry.path().is_dir() {
+            // Only `specs` is allowed — but only if it is empty
+            if name == "specs" {
+                let inner = std::fs::read_dir(entry.path());
+                if inner.map_or(true, |mut d| d.next().is_none()) {
+                    continue;
+                }
+            }
+            return false;
+        }
+        // Any regular file means non-empty
+        return false;
+    }
+    true
 }
 
 pub fn build_project_tree(root: &std::path::Path) -> Vec<ProjectTreeNode> {

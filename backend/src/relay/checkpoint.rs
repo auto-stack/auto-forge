@@ -205,6 +205,7 @@ impl PipelineEngine {
             gate_feedback: checkpoint.gate_feedback,
             cumulative_tokens: checkpoint.cumulative_tokens,
             gate_resolved_for_step: None,
+            resumed_step_id: None,
             budget_tracker: checkpoint.budget_tracker,
             mode: checkpoint.mode,
         })

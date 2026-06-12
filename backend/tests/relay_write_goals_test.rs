@@ -116,7 +116,7 @@ fn test_goal_discovery_flow_completes_with_mock_handoff() {
     let flow = goal_discovery_flow();
 
     let run_id = "test-goal-discovery-1";
-    start_run(&store, flow, run_id).expect("start run");
+    start_run(&store, flow, run_id, None).expect("start run");
 
     // Advance to discover step
     let r1 = advance_run(&store, run_id).unwrap();
@@ -157,7 +157,7 @@ fn test_goal_discovery_flow_fails_validation_without_spec_updates() {
     let flow = goal_discovery_flow();
 
     let run_id = "test-goal-discovery-fail";
-    start_run(&store, flow, run_id).expect("start run");
+    start_run(&store, flow, run_id, None).expect("start run");
 
     // Advance to discover step
     advance_run(&store, run_id).unwrap();

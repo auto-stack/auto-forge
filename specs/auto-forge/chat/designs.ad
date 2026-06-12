@@ -2,10 +2,192 @@
 
 ---
 
-## Chat-D1 删除全部会话UI设计
-**Status:** draft
+## Chat-D1 Chat-D1 删除全部会话 UI 设计
+**Status:** approved
 **Priority:** P1
+**Milestone:** chat
 **Module:** chat
+
+## Chat-D1 删除全部会话 UI 设计
+**Status:** draft
+
+### 概述
+
+在聊天界面提供"删除全部"按钮，通过确认对话框防止误操作，删除后无缝切换到新会话。
+
+### UI 组件结构
+
+#### DeleteAllButton（内嵌于 ChatsView.vue）
+
+**位置**: 会话列表顶部操作栏
+
+**Props**
+```typescript
+interface DeleteAllButtonProps {
+  disabled?: boolean       // 会话数为0时禁用
+  onSuccess?: (newSessionId: string) => void
+  onError?: (error: Error) => void
+}
+```
+
+**状态**
+```typescript
+interface State {
+  isLoading: boolean       // API调用中
+  isDialogOpen: boolean    // 确认对话框可见
+}
+```
+
+**行为**:
+- 默认：Trash icon + "删除全部" 文本
+- 加载中：Spinner 替换 icon，按钮 disabled
+- 点击：打开 ConfirmDialog（复用现有 `ConfirmDeleteDialog.vue`）
+
+#### ConfirmDeleteDialog（复用 `frontend/src/components/ConfirmDialog.vue`）
+
+```
+┌──────────────────────────────────────┐
+│  ⚠️ 删除所有会话                       │
+├──────────────────────────────────────┤
+│  您即将删除所有聊天会话（共 42 个）。    │
+│  此操作无法撤销。                       │
+│                                        │
+│        [取消]         [确认删除]        │
+└──────────────────────────────────────┘
+```
+
+- 警告图标：红色三角感叹号
+- 会话数量：动态显示
+- "确认删除"按钮：红色高亮（destructive variant）
+- "取消"按钮：灰色次要
+
+### 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> DialogOpen: click Delete All
+    DialogOpen --> Idle: cancel / Escape
+    DialogOpen --> Deleting: confirm
+    Deleting --> Success: 200 OK
+    Deleting --> Error: network / 500
+    Success --> Idle: auto-close + navigate
+    Error --> DialogOpen: show error, keep dialog
+    Error --> Idle: user cancels retry
+```
+
+### 交互流程
+
+#### 正常流程
+1. 用户点击"删除全部"按钮
+2. ConfirmDialog 弹出，显示会话数量
+3. 用户点击"确认删除"
+4. 按钮进入 loading 状态
+5. 调用 `DELETE /api/sessions/all`
+6. 收到 200：提取 `new_session_id`
+7. 清空会话列表 + 添加新会话
+8. 路由切换到新会话
+9. Toast: "已删除 N 个会话"
+10. 对话框自动关闭
+
+#### 错误流程
+1. 用户点击"确认删除"
+2. API 调用失败（网络错误或 500）
+3. 对话框内显示 "删除失败，请重试"
+4. 按钮恢复可点击
+5. 用户可取消或重试
+
+### 数据模型
+
+```typescript
+// API Response
+interface DeleteAllSessionsResponse {
+  deleted_count: number
+  new_session_id: string
+  session: Session
+}
+
+interface Session {
+  id: string
+  created_at: number
+  updated_at: number
+  active_profession: string | null
+  title: string | null
+  message_count: number
+}
+
+// Error
+interface ErrorResponse {
+  error: string
+  message: string
+}
+```
+
+### 算法逻辑（useSessions.ts）
+
+```typescript
+async function deleteAllSessions(): Promise<string> {
+  const response = await fetch('/api/sessions/all', { method: 'DELETE' })
+  if (!response.ok) throw new Error(`Delete failed: ${response.statusText}`)
+  const data: DeleteAllSessionsResponse = await response.json()
+  // caller handles: clear list, add new session, navigate, toast
+  return data.new_session_id
+}
+```
+
+### 边界情况
+
+| 场景 | 行为 |
+|------|------|
+| 会话列表为空 | 按钮禁用，不显示对话框 |
+| 仅 1 个会话 | 对话框显示"您将删除唯一的会话" |
+| 网络超时（10s） | 显示超时提示，按钮恢复 |
+| 并发删除 | loading 期间按钮禁用，防止双击 |
+
+### 响应式设计
+
+| 断点 | 按钮样式 | 对话框宽度 |
+|------|----------|-----------|
+| >1024px | Icon + "删除全部" | 400px |
+| 768–1024px | Icon + text | 90vw |
+| <768px | 仅 Icon + tooltip | 全屏 |
+
+### 可访问性
+
+- **键盘**: Tab 聚焦 → Enter/Space 打开对话框 → Tab 切换按钮 → Escape 关闭
+- **ARIA**: 按钮 `aria-label="删除所有聊天会话"`，对话框 `role="alertdialog"`，警告 `aria-live="assertive"`
+- **焦点**: 对话框打开 → 焦点到"取消"；关闭 → 焦点回按钮；删除成功 → 焦点到聊天输入框
+
+### i18n 键值
+
+| 键 | en | zh |
+|----|----|----|
+| `chat.deleteAll` | Delete All | 删除全部 |
+| `chat.deleteConfirmTitle` | Delete All Sessions | 删除所有会话 |
+| `chat.deleteConfirmMessage` | You are about to delete all chat sessions ({{count}}). This action cannot be undone. | 您即将删除所有聊天会话（{{count}}个）。此操作无法撤销。 |
+| `chat.confirmDelete` | Confirm Delete | 确认删除 |
+| `chat.cancelDelete` | Cancel | 取消 |
+| `chat.deleteSuccess` | Deleted {{count}} sessions | 已删除 {{count}} 个会话 |
+| `chat.deleteFailed` | Failed to delete sessions, please try again | 删除会话失败，请重试 |
+| `chat.noSessionsToDelete` | No sessions to delete | 当前没有会话可删除 |
+| `chat.onlyOneSession` | You will delete the only session | 您将删除唯一的会话 |
+| `chat.networkTimeout` | Network timeout, please check your connection | 网络超时，请检查连接 |
+
+### 依赖
+
+- ChatsView.vue（会话列表）
+- Router（导航到新会话）
+- `DELETE /api/sessions/all`（后端 API）
+- ConfirmDialog.vue（现有组件）
+
+### 实现文件
+
+| 文件 | 变更 |
+|------|------|
+| `frontend/src/views/ChatsView.vue` | 添加"删除全部"按钮 + 确认对话框 |
+| `frontend/src/composables/useSessions.ts` | 添加 `deleteAllSessions()` |
+| `frontend/src/locales/en.json` | 添加 chat.delete* 键 |
+| `frontend/src/locales/zh.json` | 添加对应中文翻译 |
 
 ## Chat-D1 删除全部会话UI设计
 **Status:** draft

@@ -97,6 +97,9 @@ pub struct PipelineEngine {
     pub gate_feedback: HashMap<String, Vec<String>>,
     /// Tracks which step had its gate resolved for the current attempt.
     pub gate_resolved_for_step: Option<String>,
+    /// If set, indicates this step was resumed from a paused state and should receive a resume hint.
+    #[serde(default)]
+    pub resumed_step_id: Option<String>,
     /// Accumulated token usage across all steps.
     pub cumulative_tokens: u64,
     /// Budget tracker for runaway cost prevention and analytics.
@@ -175,6 +178,7 @@ impl PipelineEngine {
             pending_gate: None,
             gate_feedback: HashMap::new(),
             gate_resolved_for_step: None,
+            resumed_step_id: None,
             cumulative_tokens: 0,
             budget_tracker: BudgetTracker::new(run_budget),
             mode: RelayMode::GSD,
@@ -269,6 +273,8 @@ impl PipelineEngine {
             profession_id: step.profession_id.clone(),
             started_at: now,
         };
+        // Clear resume hint once the step actually starts executing
+        self.resumed_step_id = None;
 
         AdvanceResult::ExecuteStep {
             step_id: step.id.clone(),
@@ -525,6 +531,13 @@ impl PipelineEngine {
     pub fn resume(&mut self) -> Option<AdvanceResult> {
         if matches!(self.status, PipelineStatus::Paused { .. }) {
             if let Some(step) = self.flow.steps.get(self.current_step) {
+                self.loop_counters.insert(step.id.clone(), 0);
+                self.resumed_step_id = Some(step.id.clone());
+            }
+            // Reset all loop counters when resuming from a pause — this gives
+            // the user a fresh start after they have likely fixed the underlying
+            // issue (e.g., added missing tools, corrected prompts, etc.).
+            for step in &self.flow.steps {
                 self.loop_counters.insert(step.id.clone(), 0);
             }
             self.status = PipelineStatus::Idle;

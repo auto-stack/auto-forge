@@ -638,6 +638,23 @@ fn build_step_messages(
         context.push_str("\n");
     }
 
+    // Inject resume hint if this step was resumed from a paused state
+    let is_resumed = {
+        let map = run_store.lock().unwrap();
+        map.get(run_id)
+            .map(|e| e.engine.resumed_step_id.as_ref() == Some(&step_id.to_string()))
+            .unwrap_or(false)
+    };
+    if is_resumed && profession_id == "coder" {
+        context.push_str(
+            "CRITICAL RESUME INSTRUCTION: This run was previously PAUSED because the code step failed to produce file changes after multiple attempts. \
+             Your previous edit_file calls likely failed due to old_string mismatches. \
+             THIS TIME: Use write_file ONLY. Do NOT use edit_file. \
+             Read each target file ONCE, construct the complete new content, then call write_file with the FULL file content. \
+             If write_file fails, retry it immediately with corrected arguments. Do NOT explore or read more files after a failure.\n\n"
+        );
+    }
+
     // Add profession-specific critical reminders
     if profession_id == "advisor" {
         // Determine the highest existing goal ID so the advisor can use the next number

@@ -780,6 +780,7 @@ impl SpecsStore {
             specs_dir: specs_dir.to_string_lossy().to_string(),
             has_specs: self.flat_mode_project.is_some() || !self.projects.is_empty(),
             is_open: true,
+            is_empty: project::is_project_empty(project_path),
         })
     }
 
@@ -2009,6 +2010,7 @@ mod handlers {
     use super::*;
     use crate::provider::AIProviderState;
     use crate::provider::{ChatMessage, ContentBlock, ToolChatEvent, ToolChatRequest};
+    use crate::runtime::{delete_all_sessions, sessions_dir_for_workspace};
     use serde_json::Value;
 
     // ─── Health ────────────────────────────────────────────────────────────
@@ -2093,6 +2095,9 @@ mod handlers {
                 specs_dir: store.data_dir.to_string_lossy().to_string(),
                 has_specs: !store.projects.is_empty() || store.flat_mode_project.is_some(),
                 is_open: true,
+                is_empty: store.data_dir.parent()
+                    .map(|p| project::is_project_empty(p))
+                    .unwrap_or(false),
             })
         } else {
             Json(project::ProjectInfo {
@@ -2101,6 +2106,7 @@ mod handlers {
                 specs_dir: String::new(),
                 has_specs: false,
                 is_open: false,
+                is_empty: false,
             })
         }
     }
@@ -2749,9 +2755,17 @@ mod handlers {
                                                 _ => crate::relay::pipeline::RelayMode::GSD,
                                             };
 
+                                            // Get project path from session
+                                            let project_path = {
+                                                let store = forge_sessions().lock().unwrap();
+                                                store.get(&sid)
+                                                    .map(|s| s.project_path.clone())
+                                                    .filter(|p| !p.is_empty())
+                                            };
+
                                             // Start run in store
                                             let run_store = crate::relay::api::run_store();
-                                            let _ = crate::relay::store::start_run(run_store, flow, &run_id);
+                                            let _ = crate::relay::store::start_run(run_store, flow, &run_id, project_path.clone());
 
                                             // Generate and store title from task description
                                             {
@@ -2763,14 +2777,6 @@ mod handlers {
                                                 }
                                             }
 
-                                            // Get project path from session
-                                            let project_path = {
-                                                let store = forge_sessions().lock().unwrap();
-                                                store.get(&sid)
-                                                    .map(|s| s.project_path.clone())
-                                                    .unwrap_or_default()
-                                            };
-
                                             // Spawn background driver
                                             tokio::spawn(crate::relay::driver::drive_run(
                                                 run_id.clone(),
@@ -2778,7 +2784,7 @@ mod handlers {
                                                 crate::relay::api::event_sender(),
                                                 ai_for_turns.clone(),
                                                 task,
-                                                project_path,
+                                                project_path.unwrap_or_default(),
                                             ));
 
                                             // Emit to chat SSE
@@ -3152,10 +3158,56 @@ mod handlers {
         }
     }
 
-    pub async fn delete_all_forge_sessions() -> StatusCode {
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct DeleteAllSessionsResponse {
+        pub deleted_count: usize,
+        pub new_session_id: String,
+        pub session: ForgeSessionSummary,
+    }
+
+    pub async fn delete_all_forge_sessions() -> Json<DeleteAllSessionsResponse> {
         let mut store = forge_sessions().lock().unwrap();
+        let deleted_count = store.list_all().len();
         store.clear();
-        StatusCode::NO_CONTENT
+
+        // Clean up session files on disk
+        if let Some(project_path) = current_project_path() {
+            let sessions_dir = sessions_dir_for_workspace(&project_path);
+            let _ = delete_all_sessions(&sessions_dir);
+        }
+
+        // Create a new blank session
+        let new_sid = format!("forge-{}", uuid::Uuid::new_v4());
+        let now = now_secs();
+        let new_session = ForgeSession {
+            id: new_sid.clone(),
+            notebook_sid: None,
+            project_path: String::new(),
+            status: ForgeStatus::Idle,
+            name: None,
+            pending_spec_changes: vec![],
+            focus_section: None,
+            active_profession: None,
+            errand_sessions: vec![],
+            messages: vec![],
+        };
+        store.insert(new_session);
+
+        let summary = ForgeSessionSummary {
+            id: new_sid.clone(),
+            status: ForgeStatus::Idle,
+            focus_section: None,
+            name: None,
+            preview: String::from("New session"),
+            message_count: 0,
+            last_activity: now,
+        };
+
+        Json(DeleteAllSessionsResponse {
+            deleted_count,
+            new_session_id: new_sid,
+            session: summary,
+        })
     }
 
     pub async fn list_forge_sessions() -> Json<Vec<ForgeSessionSummary>> {

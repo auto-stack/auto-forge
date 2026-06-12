@@ -132,7 +132,7 @@ fn test_end_to_end_standard_flow_with_mock_handoffs() {
     let flow = standard_spec_flow();
 
     let run_id = "e2e-standard-1";
-    start_run(&store, flow, run_id).expect("start run");
+    start_run(&store, flow, run_id, None).expect("start run");
 
     // Verify initial state
     let state = get_run(&store, run_id).unwrap();
@@ -183,7 +183,7 @@ fn test_end_to_end_reject_gate_routes_back() {
     flow.add_step(FlowStep::new("discover", "advisor").with_gate(GateType::Human));
 
     let run_id = "e2e-reject-1";
-    start_run(&store, flow, run_id).unwrap();
+    start_run(&store, flow, run_id, None).unwrap();
 
     // Intake → Discover gate
     advance_run(&store, run_id);
@@ -211,7 +211,7 @@ fn test_checkpoint_during_flow() {
     let flow = standard_spec_flow();
 
     let run_id = "e2e-checkpoint-1";
-    start_run(&store, flow.clone(), run_id).unwrap();
+    start_run(&store, flow.clone(), run_id, None).unwrap();
 
     // Drive through first 4 steps
     for expected in &["assistant", "advisor", "architect", "planner"] {

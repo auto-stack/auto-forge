@@ -40,7 +40,11 @@ specs/auto-forge.bak/
 
 # Temp files from editing sessions
 backend.pid
+auto-forge.pid
 new_str.txt
 old_str.txt
 orig.vue
 result.vue
+login_resp.json
+run_*.json
+nul

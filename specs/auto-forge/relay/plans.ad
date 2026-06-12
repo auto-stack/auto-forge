@@ -470,3 +470,43 @@ Relay-P14.5 (集成验证) ← P14.2 + P14.4
 2. 历史运行加载后，Cost Breakdown 饼状图显示各 profession 的 token 数量和百分比
 3. 无 steps 的运行显示"无数据"提示，不报错
 4. 实时运行的饼状图行为不受影响（SSE 事件继续正常累积）
+
+## Relay-P15 Relay-P15 Segmented Token Progress Bar — Code Implementation
+**Status:** draft
+**Priority:** P0
+**Milestone:** Relay-G17
+**Module:** relay
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G17 (goal), Relay-A9 (architecture), Relay-D15 (design)
+
+# Relay-P15: Segmented Token Progress Bar — Code Implementation
+
+
+## Overview
+
+Replace the inline Cost Breakdown pie chart panel in RelayView.vue with a multi-color segmented progress bar. Each profession gets a colored segment proportional to its token consumption. Hover/focus reveals a tooltip with a horizontal bar chart. **Design D15 is fully approved and detailed — implement exactly as specified.**
+
+## Risk & Mitigation
+
+| Risk | Mitigation |
+|---|---|
+| Existing files may already be partially modified by prior attempts | Read each file fully before editing; verify current state against D15 expectations |
+| Removing pie chart breaks other computed references | Search for `pieSlices`, `professionColors` usage across the file before deleting |
+| Tooltip position clipping near viewport edges | D15 specifies `flip-below` class — implement per design |
+
+## Phases
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P15.1 | Create `useProfessionSegments` composable | Coder | 1h | — | draft | Create `frontend/src/composables/useProfessionSegments.ts` per D15 §Composable: useProfessionSegments. Export `ProfessionSegment`, `TooltipBarEntry`, `PROFESSION_PALETTE`, and `useProfessionSegments()` returning `{ segments, totalUsed, tooltipEntries }`. Deliverable: file exists, TypeScript compiles, exports match D15 interface exactly. |
+| P15.2 | Create `SegmentedProgressBar.vue` component | Coder | 2h | P15.1 | draft | Create `frontend/src/components/SegmentedProgressBar.vue` per D15 §Component: SegmentedProgressBar. Includes inline tooltip (not separate component). Props: `segments`, `totalBudget`, `totalUsed`, `warnThreshold?`, `dangerThreshold?`. Hover: 80ms show / 150ms hide debounce. Budget warning via `box-shadow` on `.segments-container`. ARIA: `role=progressbar`, `aria-valuenow`, `aria-valuemax`, `aria-label`. Keyboard: `focusin`/`focusout` mirror mouse. Deliverable: component renders segments with correct proportional widths, tooltip appears on hover with delay. |
+| P15.3 | Modify `RelayView.vue` — remove pie chart, integrate segmented bar | Coder | 2h | P15.2 | draft | Modify `frontend/src/views/RelayView.vue` per D15 §Integration Changes. **REMOVE:** inline Cost Breakdown panel (~lines 326–370), `pieSlices` computed, `professionColors` map, and all associated CSS (`.cost-panel`, `.cost-chart`, `.pie-*`, `.budget-bar`, `.budget-fill`). **ADD:** import `SegmentedProgressBar` and `useProfessionSegments`, wire composable to `professionTokens` from `useRelay()`, replace mono budget bar markup with `<SegmentedProgressBar :segments="segments" :total-budget="..." :total-used="totalUsed" />`. Deliverable: RelayView renders segmented bar in place of old budget bar; pie chart panel gone; no console errors. |
+| P15.4 | Verify build and visual | Coder | 30m | P15.3 | draft | Run `npm run build` (or equivalent) to confirm no TypeScript or template compilation errors. Visually verify: (1) segments render with correct colors per `PROFESSION_PALETTE`, (2) tooltip shows on hover with horizontal bars and percentages, (3) budget warning glow appears at 70%/90% thresholds, (4) empty state shows placeholder text. Deliverable: clean build, no errors. |
+
+## Files Summary
+
+| File | Action |
+|---|---|
+| `frontend/src/composables/useProfessionSegments.ts` | CREATE |
+| `frontend/src/components/SegmentedProgressBar.vue` | CREATE |
+| `frontend/src/views/RelayView.vue` | MODIFY |

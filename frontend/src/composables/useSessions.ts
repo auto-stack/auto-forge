@@ -56,7 +56,7 @@ export function useSessions() {
   async function deleteAllSessions(): Promise<{ deletedCount: number; newSessionId: string; session: ForgeSession }> {
     try {
       _isLoading.value = true
-      const resp = await authFetch(`${API_BASE}/sessions/all`, {
+      const resp = await authFetch(`${API_BASE}/sessions`, {
         method: 'DELETE',
       })
       

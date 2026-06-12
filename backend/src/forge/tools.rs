@@ -943,8 +943,10 @@ impl Tool for EditFileTool {
                 // If no edits were applied, treat as a hard error so the LLM retries
                 if applied == 0 {
                     return Err(ToolError::ExecutionFailed(format!(
-                        "None of the {} edit(s) could be applied to '{}'. \
-                         This usually means old_string text does not match the file exactly (check whitespace / newlines).",
+                        "EDIT FAILED: None of the {} edit(s) could be applied to '{}'. \
+                         REASON: old_string does not match the file content exactly (check whitespace, newlines, or line offsets). \
+                         ACTION REQUIRED: Call read_file again with the exact offset to get the correct text, then retry edit_file with the exact old_string. \
+                         DO NOT switch to other tools or exploration — fix the old_string and retry immediately.",
                         errors.len(),
                         full_path.display()
                     )));
@@ -1010,8 +1012,10 @@ impl Tool for EditFileTool {
 
         if applied == 0 {
             return Err(ToolError::ExecutionFailed(format!(
-                "old_string not found in file '{}'. \
-                 The text must match exactly (including whitespace and newlines).",
+                "EDIT FAILED: old_string not found in file '{}'. \
+                 REASON: The provided old_string does not match any text in the file exactly (including whitespace and newlines). \
+                 ACTION REQUIRED: Call read_file with offset/limit to get the EXACT text at the target location, then retry edit_file with the correct old_string. \
+                 DO NOT switch to other tools or exploration — fix the old_string and retry immediately.",
                 full_path.display()
             )));
         }
@@ -1384,7 +1388,7 @@ impl Tool for ShellTool {
          Use this to run tests, check git status, list files, install dependencies, etc. \
          Be careful with destructive commands. \
          \
-         TIMEOUT: All commands are killed after 30 seconds. Do NOT start long-running dev servers \
+         TIMEOUT: All commands are killed after 120 seconds. Do NOT start long-running dev servers \
          (e.g. `npm run dev`, `cargo run`, `python manage.py runserver`) via this tool. \
          If the user wants to run the frontend/backend, remind them the server is already running \
          and they only need to refresh the browser. \
@@ -1423,8 +1427,18 @@ impl Tool for ShellTool {
         let project = CURRENT_PROJECT.lock().unwrap().clone();
 
         // Platform-aware shell selection
+        // On Windows, Node/npm commands run 10x faster under cmd.exe than bash.exe (Git Bash),
+        // because MSYS2 path translation and I/O emulation severely slow down Node child processes.
         let (shell, shell_arg) = if cfg!(target_os = "windows") {
-            detect_windows_shell()
+            let lower = cmd.to_lowercase();
+            let is_node_cmd = ["npx", "npm", "node", "pnpm", "yarn", "vitest", "tsc", "vite"]
+                .iter()
+                .any(|&tool| lower.split(&[' ', '&', '|', ';']).any(|word| word == tool));
+            if is_node_cmd {
+                ("cmd.exe", "/C")
+            } else {
+                detect_windows_shell()
+            }
         } else {
             ("bash", "-c")
         };
@@ -1432,6 +1446,26 @@ impl Tool for ShellTool {
         let mut command = std::process::Command::new(shell);
         if !project.is_empty() {
             command.current_dir(&project);
+        }
+
+        // ─── Pre-clean leaked vitest workers (Windows) ─────────────────────────
+        // When vitest is force-killed, its worker processes sometimes survive as
+        // orphans and hold Vite cache locks, causing subsequent vitest runs to
+        // deadlock. We proactively clean them before starting a new vitest call.
+        #[cfg(target_os = "windows")]
+        {
+            let lower = cmd.to_lowercase();
+            if lower.contains("vitest") || lower.contains("npx") && lower.contains("test") {
+                let _ = std::process::Command::new("powershell")
+                    .args(&[
+                        "-NoProfile",
+                        "-Command",
+                        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object {$_.CommandLine -like '*vitest*'} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+                    ])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .output();
+            }
         }
 
         // Spawn the child process so we can enforce a timeout
@@ -1445,10 +1479,15 @@ impl Tool for ShellTool {
 
         let pid = child.id();
         let cmd_owned = cmd.to_string();
+        let shell_start = std::time::Instant::now();
 
-        // Killer thread: forcibly terminate the process tree after 30s
+        // Killer thread: forcibly terminate the process tree after 300s
+        // Increased from 30s → 60s → 120s → 300s because:
+        // - vitest (frontend) needs ~10s on first run
+        // - cargo test (backend) needs 60-90s on first run due to crate compilation
+        // - Some CI environments or cold caches may need even longer
         std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_secs(30));
+            std::thread::sleep(std::time::Duration::from_secs(300));
             #[cfg(target_os = "windows")]
             {
                 let _ = std::process::Command::new("taskkill")
@@ -1456,6 +1495,19 @@ impl Tool for ShellTool {
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
                     .output();
+
+                // Also scrub orphaned vitest workers that survive taskkill /F /T
+                if cmd_owned.to_lowercase().contains("vitest") {
+                    let _ = std::process::Command::new("powershell")
+                        .args(&[
+                            "-NoProfile",
+                            "-Command",
+                            "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object {$_.CommandLine -like '*vitest*'} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+                        ])
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .output();
+                }
             }
             #[cfg(not(target_os = "windows"))]
             {
@@ -1466,14 +1518,21 @@ impl Tool for ShellTool {
                     .output();
             }
             // Log the timeout so operators can see what hung
-            tracing::warn!("Shell command timed out after 30s and was killed: {}", cmd_owned);
+            tracing::warn!("Shell command timed out after 300s and was killed: {}", cmd_owned);
         });
 
         let output = child
             .wait_with_output()
             .map_err(|e| ToolError::ExecutionFailed(format!("Command failed: {}", e)))?;
+        let shell_elapsed = shell_start.elapsed();
 
         let was_killed = output.status.code().is_none();
+        tracing::info!(
+            "Shell command completed in {:.1}s (pid={}): {}",
+            shell_elapsed.as_secs_f64(),
+            pid,
+            cmd
+        );
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -1486,7 +1545,7 @@ impl Tool for ShellTool {
         let success = output.status.success();
         if !success {
             if was_killed {
-                result.push_str("[Command timed out after 30s — process was killed]\n");
+                result.push_str("[Command timed out after 300s — process was killed]\n");
             } else {
                 result.push_str(&format!(
                     "Command exited with code {}\n",
@@ -2348,47 +2407,57 @@ impl Tool for UpdateSpecTool {
             .and_then(|v| v.as_str())
             .unwrap_or("upsert");
 
-        let mut store = super::specs().lock().unwrap();
+        // Perform the spec update inside a scoped lock so the mutable borrow is released
+        // before we re-acquire to save.
+        let result_msg = {
+            let mut store = super::specs().lock().unwrap();
+            match action {
+                "delete" => {
+                    store.delete_spec_item(&project_name, section_id, item_id)
+                        .map_err(ToolError::ExecutionFailed)?
+                }
+                "patch" => {
+                    let content = args
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| ToolError::InvalidInput("'patch' action requires 'content' argument".into()))?;
+                    store.patch_spec_item(&project_name, section_id, item_id, content)
+                        .map_err(ToolError::ExecutionFailed)?
+                }
+                _ => {
+                    let title = args.get("title").and_then(|v| v.as_str());
+                    let content = args.get("content").and_then(|v| v.as_str());
+                    let status = args.get("status").and_then(|v| v.as_str());
+                    let priority = args.get("priority").and_then(|v| v.as_str());
+                    let assignee = args.get("assignee").and_then(|v| v.as_str());
+                    let test_file = args.get("test_file").and_then(|v| v.as_str());
+                    let file = args.get("file").and_then(|v| v.as_str());
+                    let milestone = args.get("milestone").and_then(|v| v.as_str());
+                    let module = args.get("module").and_then(|v| v.as_str());
+                    let depends_on: Option<Vec<String>> = args
+                        .get("depends_on")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
+                    let tags: Option<Vec<String>> = args
+                        .get("tags")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
 
-        let result_msg = match action {
-            "delete" => {
-                store.delete_spec_item(&project_name, section_id, item_id)
-                    .map_err(ToolError::ExecutionFailed)?
-            }
-            "patch" => {
-                let content = args
-                    .get("content")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| ToolError::InvalidInput("'patch' action requires 'content' argument".into()))?;
-                store.patch_spec_item(&project_name, section_id, item_id, content)
-                    .map_err(ToolError::ExecutionFailed)?
-            }
-            _ => {
-                let title = args.get("title").and_then(|v| v.as_str());
-                let content = args.get("content").and_then(|v| v.as_str());
-                let status = args.get("status").and_then(|v| v.as_str());
-                let priority = args.get("priority").and_then(|v| v.as_str());
-                let assignee = args.get("assignee").and_then(|v| v.as_str());
-                let test_file = args.get("test_file").and_then(|v| v.as_str());
-                let file = args.get("file").and_then(|v| v.as_str());
-                let milestone = args.get("milestone").and_then(|v| v.as_str());
-                let module = args.get("module").and_then(|v| v.as_str());
-                let depends_on: Option<Vec<String>> = args
-                    .get("depends_on")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
-                let tags: Option<Vec<String>> = args
-                    .get("tags")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
-
-                store.upsert_spec_item(
-                    &project_name, section_id, item_id,
-                    title, content, status, priority, assignee,
-                    test_file, file, milestone, module, depends_on, tags,
-                ).map_err(ToolError::ExecutionFailed)?
+                    store.upsert_spec_item(
+                        &project_name, section_id, item_id,
+                        title, content, status, priority, assignee,
+                        test_file, file, milestone, module, depends_on, tags,
+                    ).map_err(ToolError::ExecutionFailed)?
+                }
             }
         };
+
+        // Persist spec changes to disk (update_spec previously only changed in-memory state).
+        {
+            let mut store = super::specs().lock().unwrap();
+            let doc = store.get_or_default(&project_name).clone();
+            store.save_ad_format(&doc, &project_name);
+        }
 
         match result_msg.as_str() {
             "deleted" => Ok(format!("Deleted item '{}' from section '{}'. Changes saved.", item_id, section_id)),
@@ -2767,7 +2836,7 @@ impl Tool for DispatchTool {
         let max_turns = args
             .get("max_turns")
             .and_then(|v| v.as_u64())
-            .unwrap_or(40) as u32;
+            .unwrap_or(80) as u32;
 
         let current = CURRENT_PROFESSION.lock().unwrap().clone();
 
@@ -3254,7 +3323,9 @@ mod tests {
     #[test]
     fn test_read_file_tool() {
         let tool = ReadFileTool;
-        set_tool_context("d:/autostack/auto-forge", "test-session");
+        let project_root = std::env::var("CARGO_MANIFEST_DIR").unwrap().replace('\\', "/");
+        let parent = project_root.rsplit_once('/').map(|(p, _)| p).unwrap_or(&project_root);
+        set_tool_context(parent, "test-session");
         // Try to read backend/Cargo.toml (should exist in project root)
         let result = tool.execute(serde_json::json!({"path": "backend/Cargo.toml"}));
         assert!(result.is_ok(), "Failed to read Cargo.toml: {:?}", result.err());
@@ -3400,7 +3471,9 @@ mod tests {
         assert!(tool.is_read_only());
 
         // Test on a known Rust file (title.rs)
-        set_tool_context("d:/autostack/auto-forge", "test-session");
+        let project_root = std::env::var("CARGO_MANIFEST_DIR").unwrap().replace('\\', "/");
+        let parent = project_root.rsplit_once('/').map(|(p, _)| p).unwrap_or(&project_root);
+        set_tool_context(parent, "test-session");
         let result = tool.execute(serde_json::json!({"path": "backend/src/relay/title.rs"}));
         assert!(result.is_ok(), "{:?}", result);
         let output = result.unwrap();
@@ -3411,7 +3484,9 @@ mod tests {
     #[test]
     fn test_read_file_offset_limit() {
         let tool = ReadFileTool;
-        set_tool_context("d:/autostack/auto-forge", "test-session");
+        let project_root = std::env::var("CARGO_MANIFEST_DIR").unwrap().replace('\\', "/");
+        let parent = project_root.rsplit_once('/').map(|(p, _)| p).unwrap_or(&project_root);
+        set_tool_context(parent, "test-session");
 
         // Test offset/limit
         let result = tool.execute(serde_json::json!({

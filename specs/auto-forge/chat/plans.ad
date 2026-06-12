@@ -43,8 +43,128 @@
 | Chat-P22.3 | `StreamingTable.vue`，用于 JSON 表格块 | UI | 1 天 | done |
 | Chat-P22.4 | 集成到 `ChatsView.vue` 消息流 | UI | 1 天 | done |
 
-## Chat-P10 Chat-P10
-**Status:** draft
+## Chat-P10 Delete All Sessions — Upgrade Confirmation Dialog (Core Implementation Complete)
+**Status:** in_progress
+**Priority:** P1
+**Tags:** stack:both, module:chat
+**Depends on:** Chat-G10, Chat-A1 (approved), Chat-D1 (approved)
+
+# Chat-P10 Delete All Sessions — Implementation Plan
+
+
+## Implementation Audit (Current State)
+
+| # | Task | Status | Evidence |
+|---|------|--------|----------|
+| 1 | Backend `delete_all_sessions()` in session.rs | ✅ DONE | Function at `backend/src/runtime/session.rs:88-127`, returns `DeleteAllResult { deleted_count, new_session_id }` |
+| 2 | Backend route `DELETE /api/forge/chats/sessions` | ✅ DONE | Registered in `backend/src/forge/mod.rs` routes(): `.route("/api/forge/chats/sessions", get(..).delete(handlers::delete_all_forge_sessions))` |
+| 3 | Frontend `deleteAllSessions()` in useSessions.ts | ✅ DONE | Function calls `DELETE ${API_BASE}/sessions`, parses response, replaces `_sessionList` with new session |
+| 4 | Frontend delete-all button in ChatsView.vue | ✅ DONE | Trash2 icon button in sidebar header (line ~12), hidden when `sessionList.length === 0` |
+| 5 | Frontend confirmation flow | ✅ DONE (basic) | Uses native `confirm(t('chat.confirmDeleteAll'))` — no ConfirmDialog component |
+| 6 | i18n keys | ✅ DONE | `chat.deleteAllSessions`, `chat.confirmDeleteAll` exist in en.json/zh.json |
+| 7 | Backend tests | ✅ DONE | 6 inline tests in session.rs pass (delete_all, create_dir_if_missing, empty_dir, etc.) |
+| 8 | Frontend tests | ✅ DONE | 5 tests in useSessions.spec.ts pass (success, network error, 500, hasSessions) |
+
+## Remaining Work — Upgrade Confirmation Dialog
+
+The current implementation uses the browser's native `confirm()` dialog. Chat-D1 specifies a styled `ConfirmDialog` component with session count display, loading state, and retry capability. `ConfirmDialog.vue` does **not** exist yet.
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P10.1 | Create `ConfirmDialog.vue` component | Coder | 1.5h | — | draft | Create `frontend/src/components/ConfirmDialog.vue` as a generic modal dialog. Props: `open: boolean`, `title: string`, `message: string`, `confirmText: string`, `cancelText: string`, `loading: boolean`, `variant: 'danger' \| 'default'`. Emits: `confirm`, `cancel`. Template: overlay backdrop → centered dialog card → title row (with ⚠️ icon for danger variant) → message body → button row (Cancel gray, Confirm red for danger). Slots for custom body content. Transitions: fade backdrop + slide-down dialog. **Files:** create `frontend/src/components/ConfirmDialog.vue` **Deliverable:** component renders; props control visibility/content; emits fire on click/Escape; `role="alertdialog"` + `aria-modal="true"` for accessibility. per Chat-D1 §ConfirmDeleteDialog |
+| P10.2 | Replace native `confirm()` in ChatsView.vue | Coder | 1h | P10.1 | draft | Remove `confirm()` call from `confirmDeleteAll()`. Add `ConfirmDialog` component with `v-model:open="isDeleteDialogOpen"`. Pass `t('chat.deleteConfirmTitle')` as title, dynamic message with session count (`sessionList.length`), danger variant. Wire `@confirm` to call `deleteAllSessions()` with loading state on the confirm button. On success: close dialog + navigate. On error: keep dialog open, show inline error. Also replace `confirmDelete()` single-session flow with ConfirmDialog for consistency. **Files:** modify `frontend/src/views/ChatsView.vue` **Deliverable:** styled dialog replaces native confirm; shows session count; loading spinner on confirm button during API call; error allows retry. per Chat-D1 §Interaction Flow |
+| P10.3 | Add missing i18n keys from Chat-D1 | Coder | 0.5h | — | draft | Verify and add any missing keys from Chat-D1 §i18n 键值: `chat.deleteConfirmTitle`, `chat.deleteConfirmMessage` (with `{{count}}`), `chat.confirmDelete`, `chat.cancelDelete`, `chat.deleteSuccess` (with `{{count}}`), `chat.deleteFailed`, `chat.onlyOneSession`. Check existing keys first to avoid duplicates. **Files:** `frontend/src/locales/en.json`, `frontend/src/locales/zh.json` **Deliverable:** all keys from D1 present in both locale files; `t('chat.deleteConfirmMessage', { count: 5 })` renders correctly. |
+| P10.4 | Verify and close | Coder | 0.5h | P10.2, P10.3 | draft | Run `pnpm build` + `cargo test` + `pnpm test`. Manual smoke: (1) sessions exist → button visible → click → styled dialog with count → cancel → no change; (2) confirm → loading spinner → sessions cleared → new session → success toast; (3) 0 sessions → button hidden; (4) backend down → error message in dialog → retry works; (5) Escape closes dialog. **Deliverable:** all 5 scenarios pass; existing Chat-T22 tests still green. |
+
+### Critical Path
+
+```
+P10.1 (ConfirmDialog.vue) → P10.2 (integrate in ChatsView) → P10.4 (verify)
+P10.3 (i18n keys) ──────────────────────────────────────────→ P10.4 (verify)
+```
+
+Total estimated effort: **3.5h** (reduced from original 10h since core implementation is complete).
+
+### Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| ConfirmDialog styles conflict with existing theme | Low | Low | Use CSS variables (`var(--af-*)`) consistent with project design system |
+| Breaking existing `confirmDelete()` single-session flow | Medium | Medium | Test single-delete flow after refactor; keep fallback if ConfirmDialog doesn't fit |
+| i18n key naming collision | Low | Low | Check existing `chat.*` keys before adding; reuse if already present |
+| Chat-T22 regression | Low | Medium | Run full test suite before closing; Chat-T22 is verified and stable |
+
+### Acceptance Criteria (Updated)
+
+1. ✅ ~~Backend `delete_all_sessions()` function~~ — DONE
+2. ✅ ~~Backend DELETE route~~ — DONE
+3. ✅ ~~Frontend `deleteAllSessions()` composable~~ — DONE
+4. ✅ ~~Delete-all button in sidebar~~ — DONE
+5. 🔄 Styled `ConfirmDialog.vue` replaces native `confirm()` — P10.1, P10.2
+6. 🔄 Dialog shows dynamic session count with i18n interpolation — P10.2, P10.3
+7. 🔄 Loading state on confirm button during API call — P10.2
+8. 🔄 Error state allows retry without closing dialog — P10.2
+9. 🔄 All i18n keys from Chat-D1 present in en.json and zh.json — P10.3
+10. 🔄 All existing Chat-T22 tests still pass — P10.4
+
+### Files Involved
+
+| File | Action | Phase |
+|------|--------|-------|
+| `frontend/src/components/ConfirmDialog.vue` | **CREATE** | P10.1 |
+| `frontend/src/views/ChatsView.vue` | MODIFY (replace `confirm()` with `ConfirmDialog`) | P10.2 |
+| `frontend/src/locales/en.json` | VERIFY + ADD missing keys | P10.3 |
+| `frontend/src/locales/zh.json` | VERIFY + ADD missing keys | P10.3 |
+
+## Chat-P10 删除全部会话实现
+**Status:** in_progress
+**Tags:** stack:both, module:chat
+**Depends on:** Chat-G10, Chat-A1, Chat-D1
+
+### Current Implementation Status
+
+
+| Component | File | Status | Evidence |
+|-----------|------|--------|----------|
+| `delete_all_sessions()` + `DeleteAllResult` | `backend/src/runtime/session.rs` | ✅ Implemented | Lines 88-127: deletes all `.jsonl` files, creates new session, returns `DeleteAllResult { deleted_count, new_session_id }` |
+| DELETE `/api/forge/chats/sessions/all` route | `backend/src/forge/mod.rs` | ✅ Implemented | Route registered: `.route("/api/forge/chats/sessions", get(handlers::list_forge_sessions).delete(handlers::delete_all_forge_sessions))` |
+| `deleteAllSessions()` composable | `frontend/src/composables/useSessions.ts` | ✅ Implemented | Lines 55-87: calls `DELETE ${API_BASE}/sessions/all`, updates `_sessionList`, returns `{ deletedCount, newSessionId, session }` |
+| Delete-all button in ChatsView | `frontend/src/views/ChatsView.vue` | ✅ Implemented | Line 12: `<button class="sidebar-delete-all-btn">` with Trash2 icon, `v-if="sessionList.length > 0"` |
+| `confirmDeleteAll()` handler | `frontend/src/views/ChatsView.vue` | ✅ Implemented | Uses `confirm(t('chat.confirmDeleteAll'))` + calls `deleteAllSessions()` |
+| `hasSessions` computed | `frontend/src/composables/useSessions.ts` | ✅ Implemented | Returns `_sessionList.value.length > 0` |
+| Backend unit tests (6 tests) | `backend/src/runtime/session.rs` | ✅ Verified | `test_delete_all_sessions_deletes_all_files`, `test_delete_all_creates_directory_if_missing`, `test_delete_all_with_empty_directory` + 3 pre-existing |
+| Frontend unit tests (5 tests) | `frontend/src/composables/__tests__/useSessions.spec.ts` | ✅ Verified | TC-T22.1 through TC-T22.8 |
+
+
+The current UI uses `t('chat.deleteAllSessions')` (button title) and `t('chat.confirmDeleteAll')` (confirm dialog). Per Chat-D1 §i18n 键值, the design specifies 10 i18n keys. Need to verify and add missing keys to both locale files.
+
+
+The current `confirm()` browser dialog is functional but Chat-D1 specifies using the existing `ConfirmDialog.vue` component for richer UX (session count display, styled buttons). This is a UX improvement, not a functional gap.
+
+### Phase Breakdown — Remaining Work Only
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P10.1 | i18n: add missing chat deletion keys to en.json and zh.json | Coder | 0.5h | — | draft | Verify which keys already exist in `frontend/src/locales/en.json` and `frontend/src/locales/zh.json`. Add any missing keys from Chat-D1 §i18n 键值: `chat.deleteAll`, `chat.deleteAllSessions`, `chat.deleteConfirmTitle`, `chat.deleteConfirmMessage`, `chat.confirmDelete`, `chat.confirmDeleteAll`, `chat.deleteSuccess`, `chat.deleteFailed`, `chat.noSessionsToDelete`, `chat.onlyOneSession`, `chat.networkTimeout`. per Chat-D1 §i18n 键值. **Files:** `frontend/src/locales/en.json`, `frontend/src/locales/zh.json`. **Deliverable:** all referenced `t()` keys resolve in both languages; `pnpm build` succeeds. |
+| P10.2 | (Optional) UX: replace browser `confirm()` with ConfirmDialog component | Coder | 1.5h | P10.1 | draft | Replace `confirm(t('chat.confirmDeleteAll'))` in ChatsView.vue `confirmDeleteAll()` with a proper dialog using existing ConfirmDialog component (if it exists) or a simple inline dialog. Show session count, styled confirm/cancel buttons, loading state during API call. per Chat-D1 §UI Component Structure. **Files:** `frontend/src/views/ChatsView.vue`, possibly `frontend/src/components/ConfirmDialog.vue`. **Deliverable:** delete-all shows custom dialog with session count; loading state disables confirm button; Escape/cancel closes dialog. |
+
+### Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| i18n keys missing → UI shows raw key | High | Low | P10.1 adds all keys; `pnpm build` validates |
+| ConfirmDialog.vue doesn't exist (file not found at expected path) | Medium | Low | P10.2 falls back to inline dialog or keeps `confirm()` |
+| Double-click race condition on delete button | Low | Medium | Already mitigated — `useSessions` sets `_isLoading = true` during call; button hidden when list empty |
+
+### Acceptance Criteria
+
+1. ✅ "删除全部" button visible in session list header; hidden when 0 sessions
+2. ✅ Confirm → deletes all sessions, creates new empty session, navigates to it
+3. ⬜ All i18n keys resolve in both en.json and zh.json
+4. ⬜ (Optional) Custom dialog shows session count instead of browser `confirm()`
+5. ✅ Backend tests pass (6/6)
+6. ✅ Frontend tests pass (5/5)
+7. ✅ `DELETE /api/forge/chats/sessions/all` endpoint registered and functional
 
 ## Chat-P10 删除全部会话实现
 **Status:** proposed

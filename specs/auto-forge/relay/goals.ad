@@ -147,10 +147,25 @@
 - [x] 前端 loadRun 函数获取并填充 professionTokens，饼状图在历史运行中正确显示
 - [x] 饼状图显示每个 profession 的 token 数量和百分比，无数据时显示友好提示
 
-## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
-**Status:** in_progress
+## Relay-G17 Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
+**Status:** implemented
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G16
+
+- [x] 删除 RelayView 中的 Cost Breakdown 面板（pie chart + legend）
+- [x] 将单色 budget-bar 改造为多色分段进度条，每个 profession 用独立颜色，色带宽度与 token 消耗成正比
+- [x] 鼠标悬停进度条时显示横向 bar chart tooltip，展示各 Agent 的 token 消耗对比和百分比
+- [x] 保留 budget 超限警告色（70%/90%）作为进度条背景底色或边框提示
+
+### Architecture: Relay-A9
+### Design: Relay-D15
+
+## Implementation Complete
+
+All files created and integrated:
+- `frontend/src/composables/useProfessionSegments.ts` ✅
+- `frontend/src/components/SegmentedProgressBar.vue` ✅
+- `frontend/src/views/RelayView.vue` ✅ integrated
 
 ## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
 **Status:** in_progress

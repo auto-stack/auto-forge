@@ -69,6 +69,9 @@ pub struct ContextPointers {
     pub files_to_read: Vec<String>,
     pub specs_to_follow: Vec<String>,
     pub warnings: Vec<String>,
+    /// Files the previous agent wrote/edited that should be tested.
+    #[serde(default)]
+    pub files_to_test: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -167,26 +170,34 @@ impl HandoffDocument {
         }
 
         // Context for Next Agent
-        if !self.context_for_next.files_to_read.is_empty()
-            || !self.context_for_next.specs_to_follow.is_empty()
-            || !self.context_for_next.warnings.is_empty()
+        let ctx = &self.context_for_next;
+        if !ctx.files_to_read.is_empty()
+            || !ctx.files_to_test.is_empty()
+            || !ctx.specs_to_follow.is_empty()
+            || !ctx.warnings.is_empty()
         {
             lines.push("## Context for Next Agent".to_string());
-            if !self.context_for_next.files_to_read.is_empty() {
+            if !ctx.files_to_read.is_empty() {
                 lines.push("\n### Files to Read".to_string());
-                for f in &self.context_for_next.files_to_read {
+                for f in &ctx.files_to_read {
                     lines.push(format!("- {}", f));
                 }
             }
-            if !self.context_for_next.specs_to_follow.is_empty() {
+            if !ctx.files_to_test.is_empty() {
+                lines.push("\n### Files to Test".to_string());
+                for f in &ctx.files_to_test {
+                    lines.push(format!("- `{}`", f));
+                }
+            }
+            if !ctx.specs_to_follow.is_empty() {
                 lines.push("\n### Specs to Follow".to_string());
-                for s in &self.context_for_next.specs_to_follow {
+                for s in &ctx.specs_to_follow {
                     lines.push(format!("- {}", s));
                 }
             }
-            if !self.context_for_next.warnings.is_empty() {
+            if !ctx.warnings.is_empty() {
                 lines.push("\n### Warnings".to_string());
-                for w in &self.context_for_next.warnings {
+                for w in &ctx.warnings {
                     lines.push(format!("- ⚠️ {}", w));
                 }
             }

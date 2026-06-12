@@ -328,11 +328,21 @@ function idToModule(id: string): string | null {
   return result
 }
 
+function getModule(item: SpecItem): string | null {
+  // Prefer explicit module metadata (field or tag) over ID prefix parsing.
+  if (item.module) return item.module.toLowerCase()
+  if (item.tags) {
+    const modTag = item.tags.find(t => t.toLowerCase().startsWith('module:'))
+    if (modTag) return modTag.split(':')[1]?.trim().toLowerCase() || null
+  }
+  return idToModule(item.id)
+}
+
 const moduleTree = computed(() => {
   const tree = new Map<string, Map<string, number>>()
   for (const section of sections.value) {
     for (const item of section.items) {
-      const mod = idToModule(item.id)
+      const mod = getModule(item)
       if (!mod) continue
       if (!tree.has(mod)) tree.set(mod, new Map())
       const typeMap = tree.get(mod)!

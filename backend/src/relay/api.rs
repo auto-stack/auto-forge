@@ -14,7 +14,7 @@ use crate::relay::store::{
 };
 use crate::relay::config::{self, AgentConfig, ApiSource, ConnectionTestResult};
 use crate::relay::skills::{self, SkillDefinition};
-use axum::extract::{Multipart, Path, State};
+use axum::extract::{Multipart, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, Sse};
 use axum::routing::{get, post, put};
@@ -91,6 +91,12 @@ pub struct StartRunRequest {
     pub steps: Vec<FlowStepDto>,
     #[serde(default)]
     pub task: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ListRunsQuery {
+    #[serde(default)]
+    pub project_path: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -269,8 +275,9 @@ pub async fn get_soul(Path(id): Path<String>) -> Result<Json<SoulDto>, StatusCod
     Ok(Json(SoulDto { id, name: name.to_string(), markdown: markdown.to_string() }))
 }
 
-pub async fn list_runs_handler() -> Json<Vec<RunSummary>> {
-    Json(list_runs(&RUN_STORE))
+pub async fn list_runs_handler(Query(query): Query<ListRunsQuery>) -> Json<Vec<RunSummary>> {
+    let project_path = query.project_path.or_else(crate::forge::current_project_path);
+    Json(list_runs(&RUN_STORE, project_path))
 }
 
 pub async fn get_run_handler(Path(run_id): Path<String>) -> Result<Json<RunState>, StatusCode> {
@@ -323,7 +330,8 @@ pub async fn start_run_handler(
     };
 
     let run_id = req.run_id.unwrap_or_else(|| format!("run-{}", uuid::Uuid::new_v4()));
-    match start_run(&RUN_STORE, flow, &run_id) {
+    let project_path = crate::forge::current_project_path();
+    match start_run(&RUN_STORE, flow, &run_id, project_path.clone()) {
         Ok(run_state) => {
             // Generate and store title from task description
             let task = req.task.unwrap_or_default();
@@ -342,7 +350,7 @@ pub async fn start_run_handler(
             });
 
             // Spawn background driver to execute the pipeline
-            let project_path = crate::forge::current_project_path().unwrap_or_default();
+            let project_path = project_path.unwrap_or_default();
             tokio::spawn(crate::relay::driver::drive_run(
                 run_id.clone(),
                 RUN_STORE.clone(),

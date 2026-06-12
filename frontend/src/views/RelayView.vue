@@ -357,6 +357,7 @@ import {
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRelay } from '@/composables/useRelay'
+import { useProject } from '@/composables/useProject'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useForgeMode } from '@/composables/useForgeMode'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -371,6 +372,8 @@ const {
   loadProfessions, loadSouls, loadRuns, loadRun,
   resolveGate, subscribeToRun, deleteRun, rerunRun,
 } = useRelay()
+
+const { projectPath } = useProject()
 
 const { t } = useI18n()
 
@@ -390,6 +393,11 @@ watch(() => sessionLog.value.length, async () => {
   if (sessionLogRef.value) {
     sessionLogRef.value.scrollTop = sessionLogRef.value.scrollHeight
   }
+})
+
+// Reload runs when the active project changes
+watch(projectPath, async () => {
+  await loadRuns(projectPath.value ?? undefined)
 })
 
 
@@ -477,7 +485,7 @@ let unsubscribe: (() => void) | null = null
 onMounted(async () => {
   await loadProfessions()
   await loadSouls()
-  await loadRuns()
+  await loadRuns(projectPath.value ?? undefined)
 })
 
 onUnmounted(() => {
@@ -492,7 +500,7 @@ function selectRun(runId: string) {
 }
 
 async function refresh() {
-  await loadRuns()
+  await loadRuns(projectPath.value ?? undefined)
   if (currentRun.value) {
     await loadRun(currentRun.value.run_id)
   }

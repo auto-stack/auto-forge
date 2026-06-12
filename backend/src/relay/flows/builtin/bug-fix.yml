@@ -16,6 +16,17 @@ steps:
             - .vue
             - .ts
             - .js
+    tool_guard:
+      required_first:
+        - read_specs
+        - read_file
+        - list_specs
+        - search
+      always_allowed:
+        - list_symbols
+      forbidden:
+        - dispatch
+        - shell
     exit: next
 
   - id: test

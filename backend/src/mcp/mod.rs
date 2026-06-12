@@ -404,7 +404,8 @@ impl AutoForgeMcpServer {
         let run_store = crate::relay::api::run_store();
         let event_tx = crate::relay::api::event_sender();
 
-        let run_state = crate::relay::store::start_run(run_store, flow.clone(), &run_id)
+        let project_path = crate::forge::current_project_path();
+        let run_state = crate::relay::store::start_run(run_store, flow.clone(), &run_id, project_path)
             .map_err(|e| McpError::internal_error(e, None))?;
 
         // Set title from task description
@@ -446,7 +447,8 @@ impl AutoForgeMcpServer {
     // -----------------------------------------------------------------------
     #[tool(description = "List all relay runs with summary information", annotations(read_only_hint = true, idempotent_hint = true))]
     async fn forge_list_runs(&self) -> Result<CallToolResult, McpError> {
-        let runs = crate::relay::store::list_runs(crate::relay::api::run_store());
+        let project_path = crate::forge::current_project_path();
+        let runs = crate::relay::store::list_runs(crate::relay::api::run_store(), project_path);
         text_response(&runs)
     }
 
@@ -1033,7 +1035,7 @@ impl AutoForgeMcpServer {
 
         for i in 0..count {
             let run_id = format!("run-batch-{}-{}", i, uuid::Uuid::new_v4());
-            let run_state = crate::relay::store::start_run(run_store, flow.clone(), &run_id)
+            let run_state = crate::relay::store::start_run(run_store, flow.clone(), &run_id, Some(project_path.clone()))
                 .map_err(|e| McpError::internal_error(e, None))?;
 
             {

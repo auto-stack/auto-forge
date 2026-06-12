@@ -31,7 +31,7 @@
       </div>
     </nav>
     <main class="view-main">
-      <WelcomeView v-if="!isOpen" />
+      <WelcomeView v-if="!isOpen || projectInfo?.is_empty" @start-chat="currentView = 'chats'" />
       <template v-else>
         <ChatsView v-if="currentView === 'chats'" />
         <SpecsView v-else-if="currentView === 'specs'" />
@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, toRefs } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Flame, MessageSquare, Scroll, BookOpen, Orbit, Server, Users, Wrench, Briefcase,
@@ -77,7 +77,9 @@ import ExplorerView from './views/ExplorerView.vue'
 
 const { t } = useI18n()
 const { badgeCount: gateBadgeCount, currentSecretary } = useGateInbox()
-const { isOpen, projectName, fetchStatus } = useProject()
+const projectStore = useProject()
+const { isOpen, projectName, projectInfo } = toRefs(projectStore)
+const { fetchStatus } = projectStore
 const { isAuthenticated } = useAuth()
 
 function onAuthSuccess() {

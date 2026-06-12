@@ -4,6 +4,7 @@
 //! Provides the bridge between the deterministic PipelineEngine and HTTP APIs.
 
 use crate::relay::flow::FlowSpec;
+use crate::relay::flows::get_flow;
 use crate::relay::handoff::{HandoffDocument, ReportReference};
 use crate::relay::pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, StepRecord};
 use serde::{Deserialize, Serialize};
@@ -90,6 +91,9 @@ pub struct RunMetadata {
     /// Auto-generated title for display
     #[serde(default)]
     pub title: Option<String>,
+    /// Project path this run belongs to, if any.
+    #[serde(default)]
+    pub project_path: Option<String>,
 }
 
 /// A run event for SSE streaming and history.
@@ -136,6 +140,8 @@ pub struct RunSummary {
     pub updated_at: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
 }
 
 /// Detailed run state for the frontend.
@@ -325,7 +331,12 @@ pub fn new_run_store() -> RunStore {
 }
 
 /// Start a new run with the given flow spec.
-pub fn start_run(store: &RunStore, flow: FlowSpec, run_id: impl Into<String>) -> Result<RunState, String> {
+pub fn start_run(
+    store: &RunStore,
+    flow: FlowSpec,
+    run_id: impl Into<String>,
+    project_path: Option<String>,
+) -> Result<RunState, String> {
     let run_id = run_id.into();
     let mut map = store.lock().unwrap();
     if map.contains_key(&run_id) {
@@ -350,7 +361,10 @@ pub fn start_run(store: &RunStore, flow: FlowSpec, run_id: impl Into<String>) ->
         created_at: now,
         updated_at: now,
         events: Vec::new(),
-        metadata: RunMetadata::default(),
+        metadata: RunMetadata {
+            project_path,
+            ..RunMetadata::default()
+        },
     };
 
     let state = build_run_state(&entry);
@@ -365,20 +379,41 @@ pub fn get_run(store: &RunStore, run_id: &str) -> Option<RunState> {
     map.get(run_id).map(build_run_state)
 }
 
-/// List all runs.
-pub fn list_runs(store: &RunStore) -> Vec<RunSummary> {
+/// Normalize a project path for comparison.
+/// Converts backslashes to forward slashes so Windows and URL-encoded
+/// variants compare equal.
+fn normalize_project_path(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
+/// List runs, optionally filtered by project path.
+///
+/// If `project_path` is provided, returns runs that belong to that project.
+/// Runs with no project_path (legacy runs) are included as a fallback so
+/// existing data remains visible.
+pub fn list_runs(store: &RunStore, project_path: Option<String>) -> Vec<RunSummary> {
     let map = store.lock().unwrap();
-    map.values().map(|e| RunSummary {
-        run_id: e.run_id.clone(),
-        status: e.engine.status.to_status_str(),
-        current_step: e.engine.current_step,
-        total_steps: e.engine.flow.steps.len(),
-        current_profession: e.engine.current_profession_id().map(|s| s.to_string()),
-        cumulative_tokens: e.engine.cumulative_tokens,
-        created_at: e.created_at,
-        updated_at: e.updated_at,
-        title: e.metadata.title.clone(),
-    }).collect()
+    map.values()
+        .filter(|e| match &project_path {
+            Some(p) => {
+                let run_path = e.metadata.project_path.as_deref().unwrap_or("");
+                run_path.is_empty() || normalize_project_path(run_path) == normalize_project_path(p)
+            }
+            None => true,
+        })
+        .map(|e| RunSummary {
+            run_id: e.run_id.clone(),
+            status: e.engine.status.to_status_str(),
+            current_step: e.engine.current_step,
+            total_steps: e.engine.flow.steps.len(),
+            current_profession: e.engine.current_profession_id().map(|s| s.to_string()),
+            cumulative_tokens: e.engine.cumulative_tokens,
+            created_at: e.created_at,
+            updated_at: e.updated_at,
+            title: e.metadata.title.clone(),
+            project_path: e.metadata.project_path.clone(),
+        })
+        .collect()
 }
 
 /// Advance a run by one step.
@@ -428,6 +463,11 @@ pub fn advance_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
 pub fn resume_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
     let mut map = store.lock().unwrap();
     let entry = map.get_mut(run_id)?;
+    // Refresh flow configuration from the latest registry so that validator
+    // and routing changes take effect on resumed runs.
+    if let Some(latest_flow) = get_flow(&entry.engine.flow.id) {
+        entry.engine.flow = latest_flow;
+    }
     let result = entry.engine.resume()?;
     entry.updated_at = now_secs();
 
@@ -457,6 +497,11 @@ pub fn resume_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
 pub fn rerun_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
     let mut map = store.lock().unwrap();
     let entry = map.get_mut(run_id)?;
+    // Refresh flow configuration from the latest registry so that validator
+    // and routing changes take effect on reruns.
+    if let Some(latest_flow) = get_flow(&entry.engine.flow.id) {
+        entry.engine.flow = latest_flow;
+    }
     let result = entry.engine.rerun()?;
     entry.updated_at = now_secs();
 
@@ -692,7 +737,7 @@ mod tests {
         flow.add_step(FlowStep::new("s2", "coder"));
 
         let run_id = format!("run-1-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
-        let state = start_run(&store, flow, &run_id).unwrap();
+        let state = start_run(&store, flow, &run_id, None).unwrap();
         assert_eq!(state.run_id, run_id);
         assert_eq!(state.total_steps, 2);
         assert_eq!(state.status, "idle");
@@ -708,7 +753,7 @@ mod tests {
         flow.add_step(FlowStep::new("s1", "planner"));
 
         let run_id = format!("run-adv-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
-        start_run(&store, flow, &run_id).unwrap();
+        start_run(&store, flow, &run_id, None).unwrap();
 
         let r = advance_run(&store, &run_id).unwrap();
         assert!(matches!(r, AdvanceResult::ExecuteStep { .. }));
@@ -729,7 +774,7 @@ mod tests {
         flow.add_step(FlowStep::new("s1", "advisor").with_gate(GateType::Human));
 
         let run_id = format!("run-gate-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
-        start_run(&store, flow, &run_id).unwrap();
+        start_run(&store, flow, &run_id, None).unwrap();
         let r = advance_run(&store, &run_id).unwrap();
         assert!(matches!(r, AdvanceResult::WaitForHuman { .. }));
 
@@ -752,7 +797,7 @@ mod tests {
         flow.add_step(FlowStep::new("s1", "planner"));
 
         let run_id = format!("run-budget-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
-        start_run(&store, flow, &run_id).unwrap();
+        start_run(&store, flow, &run_id, None).unwrap();
         advance_run(&store, &run_id);
 
         let mut h = HandoffDocument::new("planner", "done", &run_id, 0);

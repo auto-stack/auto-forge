@@ -1480,6 +1480,69 @@ graph LR
 **Module:** relay
 **Depends on:** Relay-A9 (architecture), Relay-A8 (profession_tokens data)
 
+## Overview
+
+Detailed component design for the Segmented Token Progress Bar — replacing the inline Cost Breakdown pie chart panel in RelayView.vue with a multi-color segmented progress bar in the budget bar area, including a hover tooltip showing a horizontal bar chart of per-agent token usage.
+
+## Implementation Status
+
+**FULLY IMPLEMENTED.** All files created, integrated, and working:
+
+| File | Status |
+|---|---|
+| `frontend/src/composables/useProfessionSegments.ts` | ✅ Created — composable with PROFESSION_PALETTE, segments/totalUsed/tooltipEntries computed |
+| `frontend/src/components/SegmentedProgressBar.vue` | ✅ Created — bar with inline tooltip, hover/focus with delays, segment-aware highlighting |
+| `frontend/src/views/RelayView.vue` | ✅ Modified — imports SegmentedProgressBar + useProfessionSegments, wired into template |
+
+## Design Decisions
+
+1. **Inline tooltip (not separate component)** — Tooltip visibility state shares hover timers with bar; a separate component adds prop drilling for no reuse benefit
+2. **Segment width proportional to totalBudget** — Empty track space shows remaining budget visually
+3. **tooltipEntries passed as prop** — Computed in composable, passed through to avoid recomputation in child
+4. **Tooltip positioned below bar** — Avoids clipping by panel top edge
+5. **Hover with segment-aware highlighting** — `resolveHoveredSegment()` detects which segment mouse is over and highlights corresponding tooltip row
+
+## State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty: mount / no tokens
+    Empty --> HasSegments: first SSE event
+    HasSegments --> HasSegments: token update
+    HasSegments --> Empty: run cleared
+    
+    state HasSegments {
+        [*] --> Idle
+        Idle --> Hovering: mouseenter bar
+        Hovering --> Idle: mouseleave (150ms debounce)
+        Hovering --> TooltipVisible: 80ms show delay
+        TooltipVisible --> Hovering: mouse moves to tooltip
+        TooltipVisible --> Idle: mouseleave (150ms debounce)
+    }
+```
+
+## Component Interface
+
+```typescript
+// SegmentedProgressBar props
+interface Props {
+  segments: ProfessionSegment[]
+  totalBudget: number
+  totalUsed: number
+  tooltipEntries: TooltipBarEntry[]
+  warnThreshold?: number   // default 0.7
+  dangerThreshold?: number // default 0.9
+}
+```
+
+## Files Summary
+
+| File | Action |
+|---|---|
+| `frontend/src/composables/useProfessionSegments.ts` | **CREATE** |
+| `frontend/src/components/SegmentedProgressBar.vue` | **CREATE** |
+| `frontend/src/views/RelayView.vue` | **MODIFY** — remove old budget bar, add SegmentedProgressBar |
+
 ## Relay-D15 Segmented Token Progress Bar Design
 **Status:** approved
 **File:** `frontend/src/components/SegmentedProgressBar.vue` (NEW)

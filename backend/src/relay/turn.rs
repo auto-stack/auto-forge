@@ -89,6 +89,10 @@ pub struct AgentTurn {
     /// File content cache: key = "tool_name:arg", value = tool result.
     /// Cleared on write/edit. TTL = turn lifetime.
     pub file_cache: HashMap<String, String>,
+    /// Key of the trailing streak of identical tool calls at the end of the previous turn.
+    prev_turn_trailing_key: Option<String>,
+    /// How many consecutive identical tool calls formed that trailing streak.
+    prev_turn_trailing_count: u32,
 }
 
 impl AgentTurn {
@@ -113,6 +117,8 @@ impl AgentTurn {
             tool_guard: None,
             run_id: None,
             file_cache: HashMap::new(),
+            prev_turn_trailing_key: None,
+            prev_turn_trailing_count: 0,
         }
     }
 
@@ -383,23 +389,31 @@ impl AgentTurn {
                         }
 
                         // Loop detection: if the same tool with same args has been called
-                        // 3+ times across all turns, break to prevent runaway loops
+                        // 2+ times already (this is the 3rd) within the same turn OR across
+                        // consecutive turns, break to prevent runaway loops.
                         let loop_key = format!("{}:{}", name, input.to_string());
-                        let loop_count = result.tool_calls.iter()
-                            .chain(turn_tools.iter())
+                        let same_in_this_turn = turn_tools
+                            .iter()
                             .filter(|t| format!("{}:{}", t.name, t.arguments.to_string()) == loop_key)
                             .count();
-                        if loop_count >= 3 {
+                        let cross_turn_bonus = if self.prev_turn_trailing_key.as_ref() == Some(&loop_key) {
+                            self.prev_turn_trailing_count
+                        } else {
+                            0
+                        };
+                        let total_loop = same_in_this_turn + cross_turn_bonus as usize;
+                        if total_loop >= 2 {
                             tracing::warn!(
                                 run_id = %self.run_id.as_deref().unwrap_or("unknown"),
                                 profession_id = %self.agent.profession.id,
                                 tool_name = %name,
-                                "AgentTurn: loop detected — same tool called 3+ times with identical args, breaking"
+                                "AgentTurn: loop detected — same tool called {} times with identical args, breaking",
+                                total_loop + 1
                             );
                             let _ = tx.send(TurnEvent::Error {
                                 message: format!(
                                     "Loop detected: tool '{}' was called {} times with the same arguments. Stopping to prevent runaway execution.",
-                                    name, loop_count + 1
+                                    name, total_loop + 1
                                 ),
                             });
                             result.assistant_text = turn_text;
@@ -489,6 +503,27 @@ impl AgentTurn {
             }
 
             result.assistant_text.push_str(&turn_text);
+
+            // Update cross-turn loop detection state based on this turn's trailing streak
+            // of identical tool calls (commands at the end of the turn with no interruption).
+            if !turn_tools.is_empty() {
+                let mut trailing_count = 0u32;
+                let mut trailing_key = String::new();
+                for tool in turn_tools.iter().rev() {
+                    let key = format!("{}:{}", tool.name, tool.arguments.to_string());
+                    if trailing_count == 0 {
+                        trailing_key = key;
+                        trailing_count = 1;
+                    } else if key == trailing_key {
+                        trailing_count += 1;
+                    } else {
+                        break;
+                    }
+                }
+                self.prev_turn_trailing_key = Some(trailing_key);
+                self.prev_turn_trailing_count = trailing_count;
+            }
+
             result.tool_calls.extend(turn_tools);
 
             // Auto-extract goals from advisor text and write to specs
@@ -594,7 +629,53 @@ impl AgentTurn {
                 .saturating_sub(result.input_tokens + result.output_tokens),
         };
 
-        // Note: report generation tracking can be added here if needed
+        // ── Context for Next Agent ───────────────────────────────────────────
+        let mut read_files: Vec<String> = Vec::new();
+        let mut written_files: Vec<String> = Vec::new();
+        let mut read_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+
+        for (path, action) in &result.files_touched {
+            match action {
+                ToolAction::Read => {
+                    read_files.push(path.clone());
+                    *read_counts.entry(path.clone()).or_insert(0) += 1;
+                }
+                ToolAction::Write | ToolAction::Edit => {
+                    written_files.push(path.clone());
+                }
+            }
+        }
+
+        // Deduplicate read files
+        read_files.sort();
+        read_files.dedup();
+        handoff.context_for_next.files_to_read = read_files;
+
+        // If next agent is tester, tell them what to test
+        if to_profession == "tester" {
+            handoff.context_for_next.files_to_test = written_files.clone();
+        }
+
+        // Specs updated → specs to follow
+        for u in &result.spec_updates {
+            handoff.context_for_next.specs_to_follow.push(format!(
+                "{} → {}",
+                u.section_id,
+                u.item_id.as_deref().unwrap_or("*")
+            ));
+        }
+        handoff.context_for_next.specs_to_follow.sort();
+        handoff.context_for_next.specs_to_follow.dedup();
+
+        // Warn if agent repeatedly read the same file (loop behavior within turn)
+        for (path, count) in read_counts {
+            if count >= 3 {
+                handoff.context_for_next.warnings.push(format!(
+                    "Agent read `{}` {} times in one turn — possible loop. Consider caching or reading larger chunks.",
+                    path, count
+                ));
+            }
+        }
 
         handoff
     }

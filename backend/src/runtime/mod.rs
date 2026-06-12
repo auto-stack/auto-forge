@@ -11,4 +11,4 @@ pub mod session;
 
 pub use context::ContextManager;
 pub use permission::{PermissionDecision, PermissionMode, PermissionPolicy};
-pub use session::Session;
+pub use session::{delete_all_sessions, sessions_dir_for_workspace, simple_hash, Session};

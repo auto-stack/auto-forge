@@ -82,7 +82,16 @@
     "pathPlaceholder": "输入项目目录路径…",
     "openButton": "打开文件夹",
     "opening": "正在打开…",
-    "recentProjects": "最近的项目"
+    "recentProjects": "最近的项目",
+    "emptyDirTitle": "空目录",
+    "emptyDirMessage": "这个目录是空的，请问你想新建一个工程吗？",
+    "emptyDirConfirm": "新建工程",
+    "yes": "是",
+    "no": "否",
+    "back": "返回",
+    "projectDescriptionPrompt": "请问您想开发一个什么样的应用或工程？",
+    "projectDescriptionPlaceholder": "用几句话描述一下你的工程想法…",
+    "startProject": "开始工程"
   },
   "chat": {
     "title": "聊天",

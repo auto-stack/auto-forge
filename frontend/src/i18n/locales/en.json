@@ -69,7 +69,16 @@
     "pathPlaceholder": "Enter project directory path...",
     "openButton": "Open Folder",
     "opening": "Opening...",
-    "recentProjects": "Recent Projects"
+    "recentProjects": "Recent Projects",
+    "emptyDirTitle": "Empty Directory",
+    "emptyDirMessage": "This directory is empty. Would you like to create a new project?",
+    "emptyDirConfirm": "Create Project",
+    "yes": "Yes",
+    "no": "No",
+    "back": "Back",
+    "projectDescriptionPrompt": "What kind of application or project would you like to build?",
+    "projectDescriptionPlaceholder": "Describe your project idea in a few sentences...",
+    "startProject": "Start Project"
   },
   "chat": {
     "title": "Chat",

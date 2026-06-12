@@ -7,6 +7,7 @@ export interface ProjectInfo {
   specs_dir: string
   has_specs: boolean
   is_open: boolean
+  is_empty?: boolean
 }
 
 export interface RecentProject {
@@ -50,7 +51,7 @@ export function useProject() {
     }
   }
 
-  async function openProject(path: string) {
+  async function openProject(path: string): Promise<ProjectInfo | null> {
     _isLoading.value = true
     _error.value = null
     try {
@@ -66,8 +67,10 @@ export function useProject() {
       const data: ProjectInfo = await resp.json()
       _projectInfo.value = data
       localStorage.setItem('autoforge-last-project', path)
+      return data
     } catch (e) {
       _error.value = e instanceof Error ? e.message : String(e)
+      return null
     } finally {
       _isLoading.value = false
     }

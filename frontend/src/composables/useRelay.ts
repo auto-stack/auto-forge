@@ -173,9 +173,10 @@ export function useRelay() {
     }
   }
 
-  async function loadRuns() {
+  async function loadRuns(projectPath?: string) {
     try {
-      const resp = await authFetch(`${API_BASE}/runs`)
+      const query = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : ''
+      const resp = await authFetch(`${API_BASE}/runs${query}`)
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       const data = await resp.json()
       runs.value = data.sort((a: RunSummary, b: RunSummary) => b.updated_at - a.updated_at)
