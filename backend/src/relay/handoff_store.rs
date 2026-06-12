@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Persist and query handoffs across TaskPlan runs.
+#[derive(Debug)]
 pub struct HandoffStore {
     project_path: PathBuf,
     /// Optional in-memory cache keyed by (task_plan_id, phase, run).
@@ -80,42 +81,34 @@ impl HandoffStore {
         Some(doc)
     }
 
-    /// Resolve a path like `phase.run.handoff.field` to a JSON value.
+    /// Resolve a path like `task_plan_id.phase.run.handoff.field` to a JSON value.
     ///
     /// Supported paths:
-    /// - `phase.run.handoff.summary`
-    /// - `phase.run.handoff.decisions`
-    /// - `phase.run.handoff.open_questions`
-    /// - `phase.run.handoff.spec_updates`
-    /// - `phase.run.handoff.work_product`
-    /// - `phase.run.handoff.context_for_next`
-    /// - `phase.run.handoff.token_usage`
+    /// - `task_plan_id.phase.run.handoff.summary`
+    /// - `task_plan_id.phase.run.handoff.decisions`
+    /// - `task_plan_id.phase.run.handoff.open_questions`
+    /// - `task_plan_id.phase.run.handoff.spec_updates`
+    /// - `task_plan_id.phase.run.handoff.work_product`
+    /// - `task_plan_id.phase.run.handoff.context_for_next`
+    /// - `task_plan_id.phase.run.handoff.token_usage`
     ///
     /// Returns `None` if the handoff or field does not exist.
     pub fn resolve_path(&self, path: &str) -> Option<Value> {
         let parts: Vec<&str> = path.split('.').collect();
-        if parts.len() < 4 || parts[2] != "handoff" {
+        if parts.len() < 5 || parts[3] != "handoff" {
             return None;
         }
-        let phase = parts[0];
-        let run = parts[1];
-        let handoff = self.load_by_path_prefix(path)?;
+        let task_plan_id = parts[0];
+        let phase = parts[1];
+        let run = parts[2];
+        let handoff = self.load(task_plan_id, phase, run)?;
 
         let doc_json = serde_json::to_value(&handoff).ok()?;
         let mut value = &doc_json;
-        for part in &parts[3..] {
+        for part in &parts[4..] {
             value = value.get(part)?;
         }
         Some(value.clone())
-    }
-
-    /// Load a handoff using the first three segments of a path.
-    /// The path is expected to start with `task_plan_id` is omitted; callers
-    /// must prepend it. This helper strips after phase.run.
-    fn load_by_path_prefix(&self, path: &str) -> Option<HandoffDocument> {
-        // Not used directly because we need task_plan_id; kept for internal helper
-        // signatures. The public resolve_path assumes no task_plan_id prefix.
-        None
     }
 
     /// Resolve a path that includes the task_plan_id as the first segment:
