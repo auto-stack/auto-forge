@@ -144,6 +144,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
                 String::from("bring_in"),
                 String::from("dispatch"),
                 String::from("spawn_relay"),
+                String::from("spawn_task_plan"),
                 String::from("shell"),
                 String::from("query_wiki"),
                 String::from("list_wiki"),

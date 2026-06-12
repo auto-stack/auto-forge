@@ -37,6 +37,18 @@ use axum::extract::FromRef;
 
 // ─── Persistent Session Store ────────────────────────────────────────────────
 
+/// High-level work mode chosen by the Assistant for a session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkMode {
+    /// Answer directly or use simple file tools; no relay pipeline.
+    Direct,
+    /// Hand off to a single YAML FlowSpec relay pipeline.
+    SingleRelay,
+    /// Hand off to a multi-relay Atom TaskPlan.
+    MultiRelay,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForgeSession {
     pub id: String,
@@ -54,6 +66,15 @@ pub struct ForgeSession {
     pub active_profession: Option<String>,
     #[serde(default)]
     pub errand_sessions: Vec<crate::forge::errand::ErrandSession>,
+    /// Classified work mode for this session, persisted after first classification.
+    #[serde(default)]
+    pub work_mode: Option<WorkMode>,
+    /// Active TaskPlan instance ID, if any.
+    #[serde(default)]
+    pub active_task_plan: Option<String>,
+    /// Relay run IDs spawned from this session.
+    #[serde(default)]
+    pub active_relay_runs: Vec<String>,
 }
 
 /// Section type determines the lifecycle states and allowed transitions.
@@ -617,6 +638,12 @@ pub enum ForgeStreamEvent {
     RelaySpawned {
         run_id: String,
         flow_id: String,
+        status: String,
+    },
+    #[serde(rename = "task_plan_spawned")]
+    TaskPlanSpawned {
+        instance_id: String,
+        task_plan_id: String,
         status: String,
     },
     #[serde(rename = "relay_update")]
@@ -2278,6 +2305,9 @@ mod handlers {
             focus_section: None,
             active_profession: None,
             errand_sessions: vec![],
+            work_mode: None,
+            active_task_plan: None,
+            active_relay_runs: vec![],
             messages: vec![ForgeMessage {
                 id: format!("m-{}", uuid::Uuid::new_v4()),
                 role: String::from("system"),
@@ -2778,6 +2808,17 @@ mod handlers {
                                                     .filter(|p| !p.is_empty())
                                             };
 
+                                            // Persist work mode and active relay run
+                                            {
+                                                let mut store = forge_sessions().lock().unwrap();
+                                                if let Some(session) = store.get_mut(&sid) {
+                                                    session.work_mode = Some(crate::forge::WorkMode::SingleRelay);
+                                                    session.active_relay_runs.push(run_id.clone());
+                                                    let clone = session.clone();
+                                                    store.save(&clone);
+                                                }
+                                            }
+
                                             // Start run in store
                                             let run_store = crate::relay::api::run_store();
                                             let _ = crate::relay::store::start_run(run_store, flow, &run_id, project_path.clone());
@@ -2821,6 +2862,80 @@ mod handlers {
                                                  DO NOT call spawn_relay again. The conversation will now pause while the relay pipeline runs.",
                                                 run_id, flow_id, mode_str
                                             );
+                                        }
+                                    }
+                                }
+
+                                // ── Handle spawn_task_plan tool result ──
+                                if name == "spawn_task_plan" {
+                                    if let Ok(tp_data) = serde_json::from_str::<serde_json::Value>(&result_str) {
+                                        if tp_data.get("task_plan_spawned").and_then(|v| v.as_bool()) == Some(true) {
+                                            let instance_id = tp_data["instance_id"].as_str().unwrap_or("").to_string();
+                                            let task_plan_id = tp_data["task_plan_id"].as_str().unwrap_or("").to_string();
+                                            let initial_input = tp_data["initial_input"].as_str().unwrap_or("").to_string();
+
+                                            let project_path = {
+                                                let store = forge_sessions().lock().unwrap();
+                                                store.get(&sid)
+                                                    .map(|s| s.project_path.clone())
+                                                    .filter(|p| !p.is_empty())
+                                                    .unwrap_or_default()
+                                            };
+
+                                            // Persist work mode and active TaskPlan
+                                            {
+                                                let mut store = forge_sessions().lock().unwrap();
+                                                if let Some(session) = store.get_mut(&sid) {
+                                                    session.work_mode = Some(crate::forge::WorkMode::MultiRelay);
+                                                    session.active_task_plan = Some(instance_id.clone());
+                                                    let clone = session.clone();
+                                                    store.save(&clone);
+                                                }
+                                            }
+
+                                            // Resolve the TaskPlan and start the engine
+                                            if let Some(plan) = crate::relay::task_plan_registry::get_task_plan(&task_plan_id) {
+                                                let mut engine = crate::relay::task_plan_engine::TaskPlanEngine::new(
+                                                    plan,
+                                                    project_path.clone(),
+                                                    initial_input,
+                                                );
+                                                let ctx = crate::relay::task_plan_engine::TaskPlanContext {
+                                                    run_store: crate::relay::api::run_store().clone(),
+                                                    handoff_store: std::sync::Arc::new(crate::relay::handoff_store::HandoffStore::new(std::path::PathBuf::from(&project_path))),
+                                                    event_tx: crate::relay::api::event_sender(),
+                                                    ai_provider: Some(ai_for_turns.clone()),
+                                                    project_path: project_path.clone(),
+                                                };
+
+                                                tokio::spawn(async move {
+                                                    let _ = engine.execute(&ctx, |req| {
+                                                        crate::relay::task_plan_engine::drive_task_plan_run(&ctx, req)
+                                                    }).await;
+                                                });
+
+                                                // Emit to chat SSE
+                                                let event = Event::default().data(
+                                                    serde_json::to_string(&ForgeStreamEvent::TaskPlanSpawned {
+                                                        instance_id: instance_id.clone(),
+                                                        task_plan_id: task_plan_id.clone(),
+                                                        status: "started".into(),
+                                                    }).unwrap(),
+                                                );
+                                                let _ = event_tx.send(Ok(event));
+                                            } else {
+                                                result_str = format!("Error: TaskPlan '{}' not found", task_plan_id);
+                                            }
+
+                                            if !result_str.starts_with("Error:") {
+                                                // Replace tool result with a friendly message
+                                                result_str = format!(
+                                                    "SUCCESS: TaskPlan '{}' has been started (instance: {}). \
+                                                     DO NOT call spawn_task_plan again. The conversation will now pause while the TaskPlan runs.",
+                                                    task_plan_id, instance_id
+                                                );
+                                                spawn_relay_done = true;
+                                            }
                                         }
                                     }
                                 }
@@ -3081,6 +3196,18 @@ mod handlers {
                 }
             }
 
+            // Persist the work mode after first classification if it wasn't set by a spawn tool.
+            {
+                let mut store = forge_sessions().lock().unwrap();
+                if let Some(session) = store.get_mut(&sid) {
+                    if session.work_mode.is_none() {
+                        session.work_mode = Some(crate::forge::WorkMode::Direct);
+                        let clone = session.clone();
+                        store.save(&clone);
+                    }
+                }
+            }
+
             // After turn completes, set session back to Idle.
             // Note: active_profession is intentionally NOT reset here — if a bring_in
             // handoff occurred, the user likely wants the same agent to continue
@@ -3204,6 +3331,9 @@ mod handlers {
             focus_section: None,
             active_profession: None,
             errand_sessions: vec![],
+            work_mode: None,
+            active_task_plan: None,
+            active_relay_runs: vec![],
             messages: vec![],
         };
         store.insert(new_session);
@@ -3581,6 +3711,9 @@ If no goal IDs exist, number them sequentially."#,
                 focus_section: None,
                 active_profession: None,
                 errand_sessions: vec![],
+                work_mode: None,
+                active_task_plan: None,
+                active_relay_runs: vec![],
             });
             (session.project_path.clone(), session.pending_spec_changes.clone())
         };

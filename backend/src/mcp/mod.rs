@@ -267,6 +267,9 @@ impl AutoForgeMcpServer {
             focus_section: None,
             active_profession: None,
             errand_sessions: Vec::new(),
+            work_mode: None,
+            active_task_plan: None,
+            active_relay_runs: Vec::new(),
         };
         crate::forge::forge_sessions().lock().unwrap().insert(session.clone());
 
@@ -891,6 +894,9 @@ impl AutoForgeMcpServer {
                 focus_section: None,
                 active_profession: None,
                 errand_sessions: vec![],
+                work_mode: None,
+                active_task_plan: None,
+                active_relay_runs: vec![],
             });
             (session.project_path.clone(), session.pending_spec_changes.clone())
         };

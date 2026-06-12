@@ -154,6 +154,7 @@ impl ToolRegistry {
         registry.register(Box::new(BringInTool));
         registry.register(Box::new(DispatchTool));
         registry.register(Box::new(SpawnRelayTool));
+        registry.register(Box::new(SpawnTaskPlanTool));
         registry.register(Box::new(QueryWikiTool));
         registry.register(Box::new(ListWikiTool));
         registry.register(Box::new(CreateWikiPageTool));
@@ -2745,6 +2746,99 @@ impl Tool for SpawnRelayTool {
     fn is_read_only(&self) -> bool { true }
 }
 
+/// Spawns a multi-relay TaskPlan.
+/// Use this when the user's request requires multiple coordinated relay
+/// pipelines (e.g. decompose, then execute several phases in parallel/serial).
+struct SpawnTaskPlanTool;
+
+impl Tool for SpawnTaskPlanTool {
+    fn name(&self) -> &'static str {
+        "spawn_task_plan"
+    }
+
+    fn description(&self) -> &'static str {
+        "Spawn a multi-relay TaskPlan. \
+         Use this when the user's request is complex enough to need multiple \
+         coordinated phases (e.g. discover → plan → parallel implementation → review). \
+         The TaskPlan runs in the background without polluting chat."
+    }
+
+    fn input_schema(&self) -> Value {
+        serde_json::json!({
+            "type": "object",
+            "required": ["task_plan_id", "initial_input"],
+            "properties": {
+                "task_plan_id": {
+                    "type": "string",
+                    "description": "ID of the registered TaskPlan to execute."
+                },
+                "initial_input": {
+                    "type": "string",
+                    "description": "The user's original request, passed as the starting task to the TaskPlan."
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Execution mode. 'gsd' = autonomous. 'check' = human reviews every gate.",
+                    "enum": ["gsd", "check"],
+                    "default": "gsd"
+                }
+            }
+        })
+    }
+
+    fn execute(&self, args: Value) -> Result<String, ToolError> {
+        let task_plan_id = args
+            .get("task_plan_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'task_plan_id' argument".into()))?;
+        let initial_input = args
+            .get("initial_input")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'initial_input' argument".into()))?;
+        let mode = args
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("gsd");
+
+        let current = CURRENT_PROFESSION.lock().unwrap().clone();
+        let registry = crate::relay::ProfessionRegistry::new();
+        let profession = registry
+            .get(&current)
+            .ok_or_else(|| ToolError::ExecutionFailed(format!("Unknown profession '{}'", current)))?;
+
+        if !profession.allowed_tools.contains(&"spawn_task_plan".to_string()) {
+            return Err(ToolError::InvalidInput(format!(
+                "Profession '{}' cannot spawn TaskPlans",
+                current
+            )));
+        }
+
+        let valid_modes = ["gsd", "check"];
+        if !valid_modes.contains(&mode) {
+            return Err(ToolError::InvalidInput(format!(
+                "Unknown mode '{}'. Valid options: {}",
+                mode,
+                valid_modes.join(", ")
+            )));
+        }
+
+        let run_id = format!("tp-run-{}", uuid::Uuid::new_v4());
+
+        Ok(serde_json::json!({
+            "task_plan_spawned": true,
+            "instance_id": run_id,
+            "task_plan_id": task_plan_id,
+            "initial_input": initial_input,
+            "mode": mode,
+            "from_profession": current,
+            "monitor_url": format!("/forge/task_plans?instance={}", run_id),
+        })
+        .to_string())
+    }
+
+    fn is_read_only(&self) -> bool { true }
+}
+
 /// Dispatches a lightweight research or errand task to a side agent.
 /// The errand agent runs in isolation with a cheap model and returns only a summary.
 struct DispatchTool;
@@ -3559,6 +3653,52 @@ mod tests {
         assert_eq!(json["flow_id"], "post_discovery");
         assert_eq!(json["mode"], "gsd");
         assert_eq!(json["task"], "Build auth system");
+    }
+
+    #[test]
+    fn test_spawn_task_plan_tool() {
+        let tool = SpawnTaskPlanTool;
+        assert_eq!(tool.name(), "spawn_task_plan");
+        assert!(tool.is_read_only());
+
+        // Missing task_plan_id should fail
+        let result = tool.execute(serde_json::json!({"initial_input": "build auth"}));
+        assert!(result.is_err(), "Should fail without task_plan_id");
+
+        // Missing initial_input should fail
+        let result = tool.execute(serde_json::json!({"task_plan_id": "deferred-decompose"}));
+        assert!(result.is_err(), "Should fail without initial_input");
+
+        // Invalid mode should fail
+        set_current_profession("assistant");
+        let result = tool.execute(serde_json::json!({
+            "task_plan_id": "deferred-decompose",
+            "initial_input": "build auth",
+            "mode": "invalid"
+        }));
+        assert!(result.is_err(), "Should fail with unknown mode");
+
+        // Profession without spawn_task_plan should fail
+        set_current_profession("coder");
+        let result = tool.execute(serde_json::json!({
+            "task_plan_id": "deferred-decompose",
+            "initial_input": "build auth"
+        }));
+        assert!(result.is_err(), "Coder should not be able to spawn task plan");
+
+        // Valid spawn_task_plan should return JSON instruction
+        set_current_profession("assistant");
+        let result = tool.execute(serde_json::json!({
+            "task_plan_id": "deferred-decompose",
+            "initial_input": "Build auth system",
+            "mode": "gsd"
+        }));
+        assert!(result.is_ok(), "{:?}", result);
+        let json: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(json["task_plan_spawned"], true);
+        assert_eq!(json["task_plan_id"], "deferred-decompose");
+        assert_eq!(json["mode"], "gsd");
+        assert_eq!(json["initial_input"], "Build auth system");
     }
 }
 
