@@ -1349,22 +1349,41 @@ pub async fn delete_task_plan_handler(Path(id): Path<String>) -> StatusCode {
 pub async fn validate_task_plan_handler(
     Json(req): Json<CreateTaskPlanRequest>,
 ) -> Json<ValidateTaskPlanResponse> {
-    match crate::relay::task_plan_parser::parse_task_plan(&req.atom) {
-        Ok(plan) => match plan.validate() {
-            Ok(()) => Json(ValidateTaskPlanResponse {
-                valid: true,
-                error: None,
-            }),
-            Err(e) => Json(ValidateTaskPlanResponse {
+    let plan = match crate::relay::task_plan_parser::parse_task_plan(&req.atom) {
+        Ok(plan) => plan,
+        Err(e) => {
+            return Json(ValidateTaskPlanResponse {
                 valid: false,
                 error: Some(e.to_string()),
-            }),
-        },
-        Err(e) => Json(ValidateTaskPlanResponse {
+            })
+        }
+    };
+
+    if let Err(e) = plan.validate() {
+        return Json(ValidateTaskPlanResponse {
             valid: false,
             error: Some(e.to_string()),
-        }),
+        });
     }
+
+    for phase in &plan.phases {
+        for run in &phase.runs {
+            if crate::relay::flows::get_flow(&run.flow_id).is_none() {
+                return Json(ValidateTaskPlanResponse {
+                    valid: false,
+                    error: Some(format!(
+                        "run '{}' references unknown flow '{}'",
+                        run.name, run.flow_id
+                    )),
+                });
+            }
+        }
+    }
+
+    Json(ValidateTaskPlanResponse {
+        valid: true,
+        error: None,
+    })
 }
 
 pub async fn start_task_plan_run_handler(
