@@ -4,6 +4,7 @@
 
 ## Auth-P1 User Login & RBAC Integration
 **Status:** draft
+**Module:** auth
 **Tags:** stack:both, module:auth
 **Depends on:** Auth-A1, Auth-D1
 

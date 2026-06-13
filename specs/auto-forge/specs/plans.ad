@@ -27,3 +27,43 @@
 | 标签显示 | UI | 0.5 天 | done |
 | 模块折叠侧边栏 | UI | 1 天 | done |
 | 扁平模式修复 | Backend | 0.5 天 | done |
+
+## Specs-P3 Spec Deduplication & Hygiene Implementation
+**Status:** draft
+**Priority:** P1
+**Module:** specs
+**Tags:** stack:internal, module:specs
+**Depends on:** Specs-G8, Specs-A3, Specs-D14
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P3.1 | Audit and identify all duplicate spec items | Coder | 1h | — | draft | Run `list_specs()` for all sections (goals, architecture, designs, plans, tests). Group items by `item_id`. Create inventory of duplicates per Specs-D14 §Deletion Plan. Focus on known duplicates: ApiSources-A3 (5 copies), ApiSources-D1 (5 copies), ApiSources-T3 (10+ copies), UiSystem-D4 (7 copies), Specs-A3 (5 copies), Specs-G9 (1 copy of G8). **File:** Generate audit report in memory. **Deliverable:** Complete list of all duplicate item IDs with copy counts and status rankings. |
+| P3.2 | Delete duplicate test items (ApiSources-T3) | Coder | 0.5h | P3.1 | draft | Use `update_spec()` with `action: "delete"` for each duplicate ApiSources-T3. Keep only the **last** "done" status copy (verified with full coverage matrix and Rust test code). Delete 9+ other copies. Per Specs-D14 §Deletion Plan. **Deliverable:** Tests section contains exactly 1 ApiSources-T3 item (status: done, verified). |
+| P3.3 | Delete duplicate design items (ApiSources-D1, UiSystem-D4) | Coder | 0.5h | P3.2 | draft | For ApiSources-D1: Keep the **first "approved"** copy with code evidence table (`model_id: String`). Delete 4 other copies. For UiSystem-D4: Keep the **most complete "draft"** with all 6 views + test file fixes. Delete 6 other copies. Per Specs-D14 §Deletion Plan. **Deliverable:** Designs section contains exactly 1 ApiSources-D1 (approved) and 1 UiSystem-D4 (draft, most complete). |
+| P3.4 | Delete duplicate architecture items (ApiSources-A3, Specs-A3) | Coder | 0.5h | P3.3 | draft | For ApiSources-A3: Keep the **first "approved"** copy. Delete 4 other copies. For Specs-A3: Keep the **consolidated "Specs-A3 Spec Hygiene — Dedup Protocol"** copy (this entry). Delete 4 other Chinese-language duplicates. Per Specs-A3 §Known Duplicates (Cleaned). **Deliverable:** Architecture section contains exactly 1 ApiSources-A3 (approved) and 1 Specs-A3 (approved, consolidated English). |
+| P3.5 | Delete duplicate goal (Specs-G9) | Coder | 0.25h | P3.4 | draft | Specs-G9 is a complete duplicate of Specs-G8 "清理重复和测试目标". Use `update_spec()` with `action: "delete"` for Specs-G9. Keep only Specs-G8. Per Specs-D14 §Deletion Plan. **Deliverable:** Goals section contains Specs-G8 only; Specs-G9 removed. |
+| P3.6 | Verify all cross-references still resolve | Coder | 0.5h | P3.5 | draft | After deletions, scan all remaining items for `depends_on` fields that reference deleted item IDs. Update any broken references to point to the retained copy. Run `list_specs()` to verify no orphan references. Per Specs-G8 acceptance criteria. **Deliverable:** All `depends_on` references resolve to valid item IDs; no orphans. |
+| P3.7 | Update relay driver dedup prevention | Coder | 1h | P3.6 | draft | In `backend/src/relay/driver.rs` (or relay tool handler), add dedup check before `update_spec()` calls. Check if `item_id` already exists in target section. If yes, use `action: "patch"` instead of creating duplicate. Log warning when duplicate detected. Per Specs-D14 §Prevention and Specs-A3 §Prevention Rules. **File:** `backend/src/relay/driver.rs` or `backend/src/relay/tools.rs`. **Deliverable:** Relay run retry loops no longer create duplicate spec items; dedup check prevents creation. |
+| P3.8 | Final verification and report | Coder | 0.25h | P3.7 | draft | Run full spec inventory again. Count items per section. Verify: tests section ApiSources-T3 = 1, designs ApiSources-D1 = 1, UiSystem-D4 = 1, architecture ApiSources-A3 = 1, Specs-A3 = 1, goals Specs-G9 = 0. Generate summary report of items removed. **Deliverable:** Spec hygiene complete; all duplicates removed; prevention in place. |
+
+### Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Deleting wrong copy breaks cross-references | Low | High | P3.6 verifies and fixes all `depends_on` references before completion |
+| Relay driver dedup check doesn't catch all cases | Medium | Medium | P3.7 implements check at tool call level before any `update_spec()` execution |
+| Some duplicates may have slight content differences | Low | Low | Selection algorithm prioritizes status (done > approved > draft) then content length per Specs-D14 |
+
+### Critical Path
+
+```
+P3.1 (Audit) → P3.2 (Tests) → P3.3 (Designs) → P3.4 (Architecture) → P3.5 (Goals) → P3.6 (Verify refs) → P3.7 (Prevention) → P3.8 (Final)
+```
+
+### Acceptance Criteria
+
+1. ✅ All duplicate spec items removed; each item ID exists exactly once per section
+2. ✅ Highest-quality copy retained per Specs-D14 selection algorithm
+3. ✅ All `depends_on` cross-references resolve to valid item IDs
+4. ✅ Relay driver includes dedup prevention check
+5. ✅ Final inventory shows zero duplicates

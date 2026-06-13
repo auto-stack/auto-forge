@@ -18,3 +18,80 @@
 | TreeView + DropZone | UI | 2 天 | done |
 | WikiView 重构 | UI | 3 天 | done |
 | 智能体工具注册 | Core | 1 天 | done |
+
+## Wiki-P2 Wiki-P2 Wiki Search & Tag System Implementation
+**Status:** draft
+**Priority:** P2
+**Module:** wiki
+**Tags:** stack:both, module:wiki
+**Depends on:** Wiki-G1, Wiki-G2, Wiki-A1, Wiki-D1, Wiki-D2
+
+## Wiki-P2: Wiki Search & Tag System Implementation
+
+**Status:** draft
+**Priority:** P2
+**Module:** wiki
+**Tags:** stack:both, module:wiki
+**Depends on:** Wiki-G1, Wiki-G2, Wiki-A1, Wiki-D1, Wiki-D2
+
+## Overview
+
+Implement full-text search with relevance ranking and a hierarchical tag system for the Wiki module. Users can search wiki pages by content, filter by tags, and manage tags on pages.
+
+## Risk & Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| Search index slow on large wiki (1000+ pages) | Build index incrementally; consider future caching/optimization |
+| Tag autocomplete performance issues | Debounce input; limit suggestions to top 50 matches |
+| Search relevance ranking poor quality | Start with term frequency; upgrade to TF-IDF if needed |
+| Raw file indexing blocks server startup | Build index asynchronously after server starts |
+
+## Phases
+
+| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
+|---|---|---|---|---|---|---|
+| P2.1 | Backend: Add tag fields to WikiPage model | Coder | 0.5h | — | draft | Add `tags: Vec<String>` field to `WikiPage` struct in `backend/src/wiki/store.rs`. Add `#[serde(default)]` for backward compatibility. Update `create_wiki_page()` and `update_wiki_page()` to accept and persist tags. **File:** `backend/src/wiki/store.rs` **Deliverable:** WikiPage struct includes tags; pages can be created/updated with tag arrays. |
+| P2.2 | Backend: Implement full-text search index | Coder | 1.5h | P2.1 | draft | Create `backend/src/wiki/search.rs`. Implement `build_search_index()` that tokenizes wiki page content (title, body, tags) into inverted index: `HashMap<String, Vec<WikiPageId>>`. Implement `search_wiki(query: &str) -> Vec<SearchResult>` with relevance ranking (term frequency or TF-IDF). **Deliverable:** Search API returns ranked results by relevance. |
+| P2.3 | Backend: Add search and tag API endpoints | Coder | 1h | P2.2 | draft | Add `GET /api/wiki/search?q={query}` route calling `search_wiki()`. Add `GET /api/wiki/tags?tag={tag}` route to filter pages by tag. Add `GET /api/wiki/tags` route to list all tags with page counts. **File:** `backend/src/wiki/api.rs` **Deliverable:** Search endpoint, tag filter endpoint, and tag list endpoint functional. |
+| P2.4 | Frontend: Create useWikiSearch composable | Coder | 1h | — | draft | Create `frontend/src/composables/useWikiSearch.ts`. Export `searchWiki(query: string)` function calling search API. Export `useWikiTags()` returning tag cloud data (tag names with counts). Export `filterByTag(tag: string)` function. **File:** `frontend/src/composables/useWikiSearch.ts` **NEW** **Deliverable:** Composable provides search and tag filtering with reactive state. |
+| P2.5 | Frontend: Add search bar to WikiView sidebar | Coder | 1h | P2.4 | draft | In `frontend/src/views/WikiView.vue`, add search input field above tree view with search icon. Wire to `searchWiki()` composable. Show results in dropdown panel below search input. Add tag cloud section below search showing top 10-20 tags with sizes proportional to usage count. **File:** `frontend/src/views/WikiView.vue` **Deliverable:** Search bar filters wiki pages in real-time; tag cloud displays with clickable tags. |
+| P2.6 | Frontend: Implement tag management UI | Coder | 1.5h | P2.5 | draft | In wiki page editor (WikiView edit mode), add tag input field with autocomplete dropdown (suggests existing tags). Allow adding/removing tags via comma-separated input or tag chip UI. Display current tags on page view with click-to-filter behavior. Create `frontend/src/components/TagInput.vue` **NEW** for reusable tag input. **Files:** `frontend/src/views/WikiView.vue`, `frontend/src/components/TagInput.vue` **Deliverable:** Tags can be added/removed on pages; autocomplete works; clicking tag filters wiki list. |
+| P2.7 | Backend: Add raw file content to search index | Coder | 1h | P2.2 | draft | Extend `build_search_index()` in `backend/src/wiki/search.rs` to include raw file content from Raw namespace. When building index, read raw file contents and tokenize alongside wiki content. **Deliverable:** Search finds content in raw files (markdown docs, code snippets) stored in wiki raw namespace. |
+| P2.8 | Frontend: Display search results with highlighting | Coder | 1h | P2.5, P2.7 | draft | In search results dropdown in WikiView, show matching page titles with query terms highlighted (bold or different color). Show snippet of matching content around search terms. Support keyboard navigation (arrow keys to navigate, Enter to open page). **File:** `frontend/src/views/WikiView.vue` **Deliverable:** Search results visually distinct; matched terms highlighted; keyboard navigation functional. |
+| P2.9 | Integration testing and verification | Coder | 1h | P2.3, P2.8 | draft | Run `pnpm build` and `cargo check`. Manual smoke test: (1) Search for common term → results ranked by relevance; (2) Click tag in cloud → only tagged pages show in tree; (3) Add tag to page → tag appears in cloud and autocomplete; (4) Search raw file content → results include raw files. **Deliverable:** All search and tag features work end-to-end; no console errors. |
+
+## Critical Path
+
+```
+P2.1 (Tags model) → P2.2 (Search index) → P2.3 (API endpoints) → P2.4 (Composable)
+P2.5 (Search UI) → P2.6 (Tags UI) → P2.7 (Raw file indexing) → P2.8 (Results UI) → P2.9 (Test)
+```
+
+P2.4-P2.6 (frontend work) can run in parallel with P2.7 (backend raw indexing).
+
+## Files Summary
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `backend/src/wiki/store.rs` | MODIFY | Add `tags` field to WikiPage struct |
+| `backend/src/wiki/search.rs` | CREATE | Implement search index and search function |
+| `backend/src/wiki/api.rs` | MODIFY | Add search and tag endpoints |
+| `frontend/src/composables/useWikiSearch.ts` | CREATE | Search and tag composable |
+| `frontend/src/views/WikiView.vue` | MODIFY | Add search bar, tag cloud, tag management |
+| `frontend/src/components/TagInput.vue` | CREATE | Reusable tag input component |
+
+## Estimated Total Effort
+~10h (5h backend + 5h frontend)
+
+## Acceptance Criteria
+
+1. ✅ WikiPage model includes `tags` field; tags persist across page updates
+2. ✅ Search API returns ranked results by relevance (term frequency or TF-IDF)
+3. ✅ Tag cloud displays with size proportional to usage count
+4. ✅ Search bar filters wiki pages in real-time; shows highlighted matches
+5. ✅ Tags can be added/removed via autocomplete or tag chips
+6. ✅ Clicking tag filters wiki tree to show only tagged pages
+7. ✅ Raw file content included in search index
+8. ✅ Search and tag features work for both Wiki and Raw namespaces
+9. ✅ Search results support keyboard navigation

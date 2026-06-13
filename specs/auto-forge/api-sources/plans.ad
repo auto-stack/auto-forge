@@ -33,6 +33,7 @@
 
 ## ApiSources-P3 模型优先的智能体配置
 **Status:** draft
+**Module:** api-sources
 **Tags:** stack:both, module:api-sources
 **Depends on:** ApiSources-G3, ApiSources-A3, ApiSources-D1
 

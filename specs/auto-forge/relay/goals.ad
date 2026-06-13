@@ -140,6 +140,7 @@
 
 ## Relay-G16 Cost Breakdown 饼状图支持历史运行数据
 **Status:** in_progress
+**Module:** relay
 **Tags:** stack:fullstack, module:relay
 **Depends on:** Relay-G7
 
@@ -149,6 +150,7 @@
 
 ## Relay-G17 Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
 **Status:** implemented
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G16
 
@@ -169,6 +171,7 @@ All files created and integrated:
 
 ## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
 **Status:** in_progress
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G16
 
@@ -182,6 +185,7 @@ All files created and integrated:
 
 ## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
 **Status:** in_progress
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G16
 

@@ -73,6 +73,7 @@ graph TB
 
 ## ApiSources-A3 ApiSources-A3 Model-First Agent Config Architecture
 **Status:** approved
+**Module:** api-sources
 **Tags:** stack:both, module:api-sources
 **Depends on:** ApiSources-G1, ApiSources-G3
 
@@ -142,6 +143,7 @@ Direct model reference is simpler, more predictable, and gives users precise con
 
 ## ApiSources-A3 模型优先的智能体配置架构
 **Status:** approved
+**Module:** api-sources
 **Tags:** stack:both, module:api-sources
 **Depends on:** ApiSources-G1, ApiSources-G3
 

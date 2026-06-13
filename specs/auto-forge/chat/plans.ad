@@ -46,6 +46,7 @@
 ## Chat-P10 Delete All Sessions — Upgrade Confirmation Dialog (Core Implementation Complete)
 **Status:** in_progress
 **Priority:** P1
+**Module:** chat
 **Tags:** stack:both, module:chat
 **Depends on:** Chat-G10, Chat-A1 (approved), Chat-D1 (approved)
 
@@ -118,6 +119,7 @@ Total estimated effort: **3.5h** (reduced from original 10h since core implement
 
 ## Chat-P10 删除全部会话实现
 **Status:** in_progress
+**Module:** chat
 **Tags:** stack:both, module:chat
 **Depends on:** Chat-G10, Chat-A1, Chat-D1
 
@@ -168,6 +170,7 @@ The current `confirm()` browser dialog is functional but Chat-D1 specifies using
 
 ## Chat-P10 删除全部会话实现
 **Status:** proposed
+**Module:** chat
 **Tags:** stack:both, module:chat
 **Depends on:** Chat-G10, Chat-A1, Chat-D1
 
@@ -465,6 +468,7 @@ Chat-P10.7 (i18n) → Chat-P10.8 (后端测试) → Chat-P10.9 (前端测试)
 
 ## Chat-P10 删除全部会话实现
 **Status:** proposed
+**Module:** chat
 **Tags:** stack:both, module:chat
 **Depends on:** Chat-G10, Chat-A1, Chat-D1
 

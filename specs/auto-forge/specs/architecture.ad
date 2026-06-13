@@ -253,6 +253,7 @@ graph TB
 
 ## Specs-A3 Specs-A3 Spec Hygiene — Dedup Protocol (Consolidated)
 **Status:** approved
+**Module:** specs
 **Tags:** stack:both, module:specs
 **Depends on:** Specs-G8
 
@@ -530,10 +531,12 @@ graph TB
 
 ## Specs-A4 Specs-A4 Spec Duplication Root Cause (Merged into Specs-A3)
 **Status:** superseded
+**Module:** specs
 **Tags:** stack:both, module:specs
 
 ## Specs-A4 Spec Duplication Root Cause Analysis (Merged into Specs-A3)
 **Status:** superseded
+**Module:** specs
 **Tags:** stack:both, module:specs, type:diagnostic
 
 This item has been merged into **Specs-A3** which now serves as the single authoritative entry for spec hygiene, dedup protocol, and prevention rules. The root cause analysis and duplicate inventory are maintained there.
@@ -548,6 +551,7 @@ See **Specs-A3** for the consolidated dedup protocol and prevention rules.
 
 ## Specs-A4 Spec Dedup — Root Cause Analysis & Fix
 **Status:** approved
+**Module:** specs
 **Tags:** stack:both, module:specs, type:diagnostic
 **Depends on:** Specs-A3, Specs-G8
 

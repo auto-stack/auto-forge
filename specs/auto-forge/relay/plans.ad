@@ -51,6 +51,7 @@
 
 ## Relay-P4 智能体接力 — Token 预算
 **Status:** draft
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G17, Relay-D15, Relay-A9
 
@@ -339,6 +340,7 @@ backend/src/mcp/
 
 ## Relay-P13 Pipeline 效率优化 —— 基于 Run c06a3104 日志分析
 **Status:** draft
+**Module:** relay
 **Tags:** stack:both, module:relay
 **Depends on:** Relay-P7, AgentConfig-D2
 
@@ -391,10 +393,12 @@ Relay-P13.10 (Flow 变体评估)
 
 ## Relay-P14 Relay-P14 Cost Breakdown 历史运行 Per-Profession Token 统计实现
 **Status:** draft
+**Module:** relay
 **Tags:** stack:fullstack, module:relay
 
 ## Relay-P14 Cost Breakdown 历史运行 Per-Profession Token 统计实现
 **Status:** draft
+**Module:** relay
 **Tags:** stack:fullstack, module:relay
 **Depends on:** Relay-G16, Relay-A8
 
@@ -434,6 +438,7 @@ Relay-P14.5 (集成验证) ← P14.2 + P14.4
 
 ## Relay-P14 Cost Breakdown 历史运行 Per-Profession Token 统计实现
 **Status:** draft
+**Module:** relay
 **Tags:** stack:fullstack, module:relay
 **Depends on:** Relay-G16, Relay-A8
 

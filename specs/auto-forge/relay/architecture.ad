@@ -308,6 +308,7 @@ graph TB
 
 ## Relay-A6 人类友好的接力运行标题架构
 **Status:** draft
+**Module:** relay
 **Tags:** stack:both, module:relay
 **Depends on:** Relay-G14, Relay-G13
 
@@ -451,11 +452,13 @@ interface RunSummary {
 
 ## Relay-A7 Relay-A7 Relay Report PDF Export Architecture
 **Status:** proposed
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G15, Relay-A4
 
 ## Relay-A7 Relay Report PDF Export Architecture
 **Status:** proposed
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G15, Relay-A4
 
@@ -535,6 +538,7 @@ User clicks "Export PDF" button in relay view header or run detail card. Button 
 
 ## Relay-A7 Relay Report PDF Export Architecture (Consolidated)
 **Status:** approved
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G15
 
@@ -639,6 +643,7 @@ graph TB
 
 ## Relay-A7 接力运行报告 PDF 导出架构
 **Status:** draft
+**Module:** relay
 **Tags:** stack:frontend, module:relay
 **Depends on:** Relay-G15, Relay-A4
 

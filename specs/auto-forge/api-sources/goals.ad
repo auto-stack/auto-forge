@@ -26,6 +26,7 @@
 
 ## ApiSources-G3 模型优先的智能体配置替代基于层级的选择
 **Status:** proposed
+**Module:** api-sources
 **Tags:** stack:both, module:api-sources
 **Depends on:** ApiSources-G1
 

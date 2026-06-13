@@ -68,6 +68,7 @@
 ## Specs-G8 清理重复和测试目标
 **Status:** proposed
 **Priority:** P1
+**Module:** specs
 **Tags:** stack:internal, module:specs
 **Depends on:** none
 

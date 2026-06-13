@@ -4,6 +4,7 @@
 
 ## Auth-G1 User Login & RBAC Integration
 **Status:** implemented
+**Module:** auth
 **Tags:** stack:both, module:auth
 **Depends on:** Runtime-G3
 
@@ -21,6 +22,7 @@ AutoForge now requires authentication for all forge/relay/admin API calls. The R
 
 ## Auth-G2 Permission Enforcement on Forge/Relay Routes
 **Status:** in_progress
+**Module:** auth
 **Tags:** stack:backend, module:auth
 **Depends on:** Auth-G1
 
@@ -33,6 +35,7 @@ Currently `auth_middleware` verifies authentication only; fine-grained permissio
 
 ## Auth-G3 Role-Based UI
 **Status:** proposed
+**Module:** auth
 **Tags:** stack:frontend, module:auth
 **Depends on:** Auth-G2
 

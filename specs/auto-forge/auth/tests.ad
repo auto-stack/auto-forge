@@ -4,7 +4,6 @@
 
 ## Auth-T1 Backend RBAC — Register and login endpoints
 **Status:** implemented
-**Type:** Integration
 **Test File:** `backend/src/rbac/api.rs` (inline `#[cfg(test)]`)
 **Module:** auth
 **Tags:** stack:backend, module:auth
@@ -27,7 +26,6 @@
 
 ## Auth-T2 Auth Middleware — Protected routes reject unauthenticated requests
 **Status:** implemented
-**Type:** Integration
 **Test File:** `backend/src/rbac/middleware.rs`, `backend/tests/`
 **Module:** auth
 **Tags:** stack:backend, module:auth
@@ -45,7 +43,6 @@
 
 ## Auth-T3 JWT Secret Loading
 **Status:** implemented
-**Type:** Unit
 **Test File:** `backend/src/main.rs` helpers
 **Module:** auth
 **Tags:** stack:backend, module:auth
@@ -62,7 +59,6 @@
 
 ## Auth-T4 Frontend Auth Guard
 **Status:** implemented
-**Type:** E2E
 **Test File:** `frontend/src/App.vue`, `frontend/src/composables/useAuth.ts`
 **Module:** auth
 **Tags:** stack:frontend, module:auth
@@ -82,7 +78,6 @@
 
 ## Auth-T5 Permission Enforcement on Forge/Relay Routes
 **Status:** draft
-**Type:** Integration
 **Test File:** `backend/src/rbac/middleware.rs`, `backend/src/main.rs`
 **Module:** auth
 **Tags:** stack:backend, module:auth
@@ -95,5 +90,3 @@
 | TC-T5.1 | User without `forge:write` tries mutate | 403 |
 | TC-T5.2 | User with `forge:write` tries mutate | 200 |
 | TC-T5.3 | Admin user accesses admin routes | 200 |
-
-**Note:** Pending implementation of Auth-G2.
