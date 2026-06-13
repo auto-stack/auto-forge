@@ -55,4 +55,6 @@ When I finish my work, I produce:
 ## Quality Standard
 - No code without corresponding test coverage
 - No code that violates the approved Designs
+- If the approved Designs specify a composable, module, or helper, implement that abstraction — do not inline the logic into a view component
+- Validate external state (localStorage, URLs, user input) before trusting it; fall back to safe defaults on invalid/missing data
 - If a test fails, fix it before proceeding

@@ -1090,7 +1090,9 @@ impl SpecsStore {
                             module, filename, section.items.len()
                         );
                         section_titles.insert(filename.to_string(), section.title);
-                        section_items.entry(filename.to_string()).or_default().extend(section.items);
+                        let entry = section_items.entry(filename.to_string()).or_default();
+                        entry.extend(section.items);
+                        Self::dedupe_items(entry);
                     }
                 }
             }
@@ -1463,7 +1465,8 @@ impl SpecsStore {
             let _ = std::fs::create_dir_all(&module_dir);
 
             for (filename, section_type) in &type_map {
-                let items = grouped.get(&(module.clone(), filename.to_string())).cloned().unwrap_or_default();
+                let mut items = grouped.get(&(module.clone(), filename.to_string())).cloned().unwrap_or_default();
+                Self::dedupe_items(&mut items);
                 let title = match *section_type {
                     SectionType::Goals => "Goals",
                     SectionType::Architecture => "Architecture",
@@ -1509,6 +1512,33 @@ impl SpecsStore {
             result.push(c.to_lowercase().next().unwrap());
         }
         if result.is_empty() { None } else { Some(result) }
+    }
+
+    /// Remove duplicate items by id, keeping the richest occurrence.
+    ///
+    /// "Richest" means the longest non-empty content. If two items have the same
+    /// id, the one with more content wins; this prevents an empty or stub entry
+    /// from shadowing a detailed one. The winner is placed at the first
+    /// occurrence position to preserve stable ordering.
+    fn dedupe_items(items: &mut Vec<SpecItem>) {
+        let mut best_by_id: std::collections::HashMap<String, SpecItem> = std::collections::HashMap::new();
+        let mut first_index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for (idx, item) in items.drain(..).enumerate() {
+            let id = item.id.clone();
+            first_index.entry(id.clone()).or_insert(idx);
+            let keep = best_by_id.get(&id).map_or(true, |existing| {
+                item.content.trim().len() > existing.content.trim().len()
+            });
+            if keep {
+                best_by_id.insert(id, item);
+            }
+        }
+        let mut ordered: Vec<(usize, SpecItem)> = best_by_id
+            .into_iter()
+            .map(|(id, item)| (*first_index.get(&id).unwrap_or(&usize::MAX), item))
+            .collect();
+        ordered.sort_by_key(|(idx, _)| *idx);
+        items.extend(ordered.into_iter().map(|(_, item)| item));
     }
 
     pub(crate) fn get(&self, project: &str) -> Option<&SpecsDocument> {
@@ -1652,7 +1682,16 @@ impl SpecsStore {
 
         let is_new = if let Some(item) = section.items.iter_mut().find(|i| i.id == item_id) {
             if let Some(t) = title { item.title = t.to_string(); }
-            if let Some(c) = content { item.content = c.to_string(); }
+            if let Some(c) = content {
+                if !c.trim().is_empty() || item.content.trim().is_empty() {
+                    item.content = c.to_string();
+                } else {
+                    tracing::warn!(
+                        "upsert_spec_item: refusing to overwrite non-empty content of {} with empty content",
+                        item_id
+                    );
+                }
+            }
             if let Some(s) = status { item.status = Status::from_str_lossy(s); }
             if let Some(p) = priority { item.priority = Some(p.to_string()); }
             if let Some(a) = assignee { item.assignee = Some(a.to_string()); }
@@ -1730,7 +1769,14 @@ impl SpecsStore {
             .ok_or_else(|| format!("Section '{}' not found", section_id))?;
         let item = section.items.iter_mut().find(|i| i.id == item_id)
             .ok_or_else(|| format!("Item '{}' not found in section '{}'", item_id, section_id))?;
-        item.content = content.to_string();
+        if !content.trim().is_empty() || item.content.trim().is_empty() {
+            item.content = content.to_string();
+        } else {
+            tracing::warn!(
+                "patch_spec_item: refusing to overwrite non-empty content of {} with empty content",
+                item_id
+            );
+        }
         item.modified_at = now_secs();
         section.last_modified = now_secs();
         doc.version += 1;

@@ -104,8 +104,13 @@ impl AgentTurn {
         messages: Vec<ChatMessage>,
     ) -> Self {
         // Use the global cached filter instead of re-scanning every time.
-        let tool_definitions = ToolRegistry::global()
-            .definitions_for_profession(&agent.profession, &agent.skill_tools);
+        // In relay mode we also hide chat-only tools (spawn_relay, bring_in).
+        let allowed = agent.effective_allowed_tools();
+        let tool_definitions: Vec<_> = ToolRegistry::global()
+            .definitions_for_profession(&agent.profession, &agent.skill_tools)
+            .into_iter()
+            .filter(|d| allowed.contains(&d.name))
+            .collect();
 
         Self {
             agent,
@@ -260,12 +265,7 @@ impl AgentTurn {
                                 if let Some(cached) = cached_result {
                                     cached
                                 } else if let Some(tool) = self.tool_registry.get(&name) {
-                                    let mut allowed: Vec<String> = self.agent.profession.allowed_tools.clone();
-                                    for tool_name in &self.agent.skill_tools {
-                                        if !allowed.contains(tool_name) {
-                                            allowed.push(tool_name.clone());
-                                        }
-                                    }
+                                    let allowed = self.agent.effective_allowed_tools();
                                     if !allowed.is_empty() && !allowed.contains(&name) {
                                         format!("Tool '{}' is not available for profession '{}'", name, self.agent.profession.id)
                                     } else {

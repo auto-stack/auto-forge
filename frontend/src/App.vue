@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, toRefs } from 'vue'
+import { onMounted, onUnmounted, computed, toRefs } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Flame, MessageSquare, Scroll, BookOpen, Orbit, Server, Users, Wrench, Briefcase,
@@ -62,6 +62,7 @@ import {
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useProject } from '@/composables/useProject'
 import { useAuth } from '@/composables/useAuth'
+import { useViewState } from '@/composables/useViewState'
 import SettingsMenu from '@/components/SettingsMenu.vue'
 import LoginView from './views/LoginView.vue'
 import WelcomeView from './views/WelcomeView.vue'
@@ -81,6 +82,7 @@ const projectStore = useProject()
 const { isOpen, projectName, projectInfo } = toRefs(projectStore)
 const { fetchStatus } = projectStore
 const { isAuthenticated } = useAuth()
+const { currentView } = useViewState()
 
 function onAuthSuccess() {
   // Auth state is already reactive in useAuth composable;
@@ -151,8 +153,6 @@ const tabs = computed(() => {
       return { ...tab, label }
     })
 })
-
-const currentView = ref<ViewId>('chats')
 </script>
 
 <style>

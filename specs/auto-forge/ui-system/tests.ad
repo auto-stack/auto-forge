@@ -503,3 +503,32 @@ describe('view i18n integration', () => {
 - 全部 18 个分区存在：app、nav、settings、common、welcome、chat、specs、wiki、explorer、relay、agents、professions、skills、apis、gate、report、category、detail
 - 无空字符串值
 - 两种语言环境中的品牌名称均为 "AutoForge"
+
+---
+
+## UiSystem-T8: View State Persistence Tests
+
+- `frontend/src/composables/__tests__/useViewState.spec.ts` ✅ PASSING (11/11)
+
+### Test Results: VERIFIED ✅
+
+
+```
+cd frontend && npx vitest run src/composables/__tests__/useViewState.spec.ts
+Result: 11/11 PASSED ✅
+```
+
+| Test ID | Description | Result |
+|---------|-------------|--------|
+| TC-1 | Default to chats when no storage exists | ✅ Pass |
+| TC-2 | Load valid view from localStorage | ✅ Pass |
+| TC-3 | Reject invalid view ID and clear storage | ✅ Pass |
+| TC-4 | Handle corrupted JSON data | ✅ Pass |
+| TC-5 | Persist view changes to localStorage | ✅ Pass |
+| TC-6 | Handle localStorage write failures (quota exceeded) | ✅ Pass |
+| TC-7 | Handle localStorage read failures (private browsing) | ✅ Pass |
+| TC-8.1 | Validate chats view ID | ✅ Pass |
+| TC-8.2 | Validate specs view ID | ✅ Pass |
+| TC-8.3 | Validate wiki view ID | ✅ Pass |
+| TC-8.4 | Validate agents view ID | ✅ Pass |
+| TC-8.5 | Validate explorer view ID | ✅ Pass |

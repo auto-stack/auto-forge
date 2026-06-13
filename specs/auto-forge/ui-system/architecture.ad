@@ -490,3 +490,193 @@ beforeEach(() => {
 - 正面：`common.*` 键减少跨视图重复
 - 负面：需要向 en.json 和 zh.json 添加约 150 个新翻译键
 - 缓解措施：键遵循可预测的 `viewName.elementName` 模式
+
+---
+
+## UiSystem-A5 View State Persistence Architecture
+**Status:** draft
+
+## Overview
+Design a view state persistence mechanism that remembers the current active view (chat, specs, agents, wiki, etc.) across page refreshes. Currently, the application always defaults to the 'chats' view after F5 refresh.
+
+## Current State Analysis
+
+The current implementation uses a simple ref without persistence:
+```typescript
+const currentView = ref<ViewId>('chats')
+```
+
+
+## Design Goals
+1. **Persist current view** across browser refreshes using localStorage
+2. **Graceful fallback** when localStorage is unavailable (private browsing, quota exceeded)
+3. **Validate loaded state** before applying (prevent invalid view IDs from crashing the app)
+4. **Maintain simplicity** - follow existing composable pattern (no Pinia migration)
+
+## Architecture
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant ViewState
+    participant localStorage
+    
+    Note over User,localStorage: Initial Load
+    App->>ViewState: useViewState()
+    ViewState->>localStorage: Read 'autoforge-current-view'
+    alt Valid Data Found
+        localStorage-->>ViewState: "specs"
+        ViewState-->>App: currentView = "specs"
+    else Missing/Invalid
+        ViewState-->>App: currentView = "chats" (default)
+    end
+    App->>User: Render SpecsView
+    
+    Note over User,localStorage: User Navigation
+    User->>App: Click Agents tab
+    App->>ViewState: currentView = "agents"
+    ViewState->>localStorage: Save 'autoforge-current-view' = "agents"
+    App->>User: Render AgentsView
+    
+    Note over User,localStorage: After Refresh (F5)
+    App->>ViewState: useViewState()
+    ViewState->>localStorage: Read 'autoforge-current-view'
+    localStorage-->>ViewState: "agents"
+    ViewState-->>App: currentView = "agents"
+    App->>User: Render AgentsView (restored)
+```
+
+### Data Flow
+**[Input]** → **[Processing]** → **[Output]**
+
+1. **Load Phase:** `localStorage.getItem()` → Validate view ID → Set `currentView` ref
+2. **Watch Phase:** `currentView` watcher → Debounce (100ms) → `localStorage.setItem()`
+3. **Error Handling:** Try-catch wrapper → Default to 'chats' on failure
+
+### State Schema
+```typescript
+interface ViewState {
+  currentView: ViewId
+}
+
+// Valid view IDs
+type ViewId = 
+  | 'chats' 
+  | 'specs' 
+  | 'wiki' 
+  | 'agents' 
+  | 'agents-config' 
+  | 'professions' 
+  | 'skills' 
+  | 'apis' 
+  | 'explorer'
+
+// Storage key
+const STORAGE_KEY = 'autoforge-current-view'
+```
+
+### Validation Logic
+```typescript
+const VALID_VIEW_IDS: Set<ViewId> = new Set([
+  'chats', 'specs', 'wiki', 'agents', 
+  'agents-config', 'professions', 'skills', 'apis', 'explorer'
+])
+
+function isValidViewId(value: unknown): value is ViewId {
+  return typeof value === 'string' && VALID_VIEW_IDS.has(value as ViewId)
+}
+```
+
+## Design Highlights
+
+- **Single-source of truth:** The composable owns both the ref and persistence logic, eliminating sync bugs
+- **Fail-safe validation:** Invalid stored data (e.g., from future versions) falls back gracefully instead of crashing
+- **Privacy-mode compatible:** Try-catch prevents app crash in private browsing where localStorage throws
+- **Minimal surface area:** ~50 lines of code, no external dependencies, follows existing composable pattern
+
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **localStorage in composable** (chosen) | Simple, follows existing pattern, no migration | Not SSR-friendly (if needed later) |
+| URL query params (`?view=specs`) | Shareable state, works without JS | Clutters URL, requires router integration |
+| sessionStorage | Clears on tab close (sometimes wanted) | Lost when user reopens app, not persistent enough |
+| Pinia persisted state | DevTools, time-travel debug | Overkill for single value, migration cost |
+
+## Implementation Contract
+
+### Composable: `useViewState.ts`
+
+
+```typescript
+export function useViewState() {
+  const currentView: Ref<ViewId>
+  return { currentView }
+}
+```
+
+1. Read from localStorage on mount (with validation)
+2. Watch `currentView` changes and persist to localStorage
+3. Handle localStorage errors gracefully (private browsing, quota)
+4. Provide type-safe ViewId union
+
+### Integration: `App.vue`
+
+```typescript
+// Replace line 138-143:
+// const currentView = ref<ViewId>('chats')
+const { currentView } = useViewState()
+```
+
+## Edge Cases & Error Handling
+
+| Scenario | Behavior |
+|---|---|
+| **localStorage unavailable** (private browsing) | Try-catch catches error, defaults to 'chats', app continues normally |
+| **Invalid stored value** (e.g., "deleted-view") | Validation fails, defaults to 'chats' |
+| **Future version adds new view** | Old stored valid views still work; new views default to 'chats' on first use |
+| **Corrupted localStorage data** | JSON parse fails, defaults to 'chats' |
+| **Concurrent tabs** | Each tab maintains own state; last-closed tab's view overwrites storage |
+
+## Test Strategy
+
+### Unit Tests (`useViewState.test.ts`)
+1. **Valid load:** Mock localStorage with 'specs' → Verify currentView === 'specs'
+2. **Invalid load:** Mock localStorage with 'invalid' → Verify currentView === 'chats'
+3. **Missing load:** Mock localStorage with null → Verify currentView === 'chats'
+4. **Save on change:** Set currentView to 'wiki' → Verify localStorage.setItem called
+5. **localStorage error:** Mock getItem to throw → Verify defaults to 'chats'
+6. **Debouncing:** Rapid changes → Verify only last value written
+
+### Integration Tests (`AppViewPersistence.spec.ts`)
+1. **Navigate to specs → Refresh:** Verify specs view restored
+2. **Navigate to agents → Refresh:** Verify agents view restored
+3. **Navigate to explorer → Refresh:** Verify explorer view restored
+4. **Cross-tab isolation:** Open two tabs, set different views, refresh both → Verify each maintains its own state
+
+### Manual Test Checklist
+- [ ] Chrome/Edge normal mode: F5 on specs → stays on specs
+- [ ] Chrome/Edge normal mode: F5 on agents → stays on agents
+- [ ] Chrome/Edge normal mode: F5 on wiki → stays on wiki
+- [ ] Chrome/Edge normal mode: F5 on explorer → stays on explorer
+- [ ] Firefox private mode: F5 on any view → defaults to chats (no crash)
+- [ ] Safari private mode: F5 on any view → defaults to chats (no crash)
+- [ ] Clear localStorage → F5 → defaults to chats
+
+## Migration Impact
+
+- Existing components unchanged
+- Existing composables unchanged
+- Single line change in App.vue
+- New composable added (~50 LOC)
+
+- No localStorage key conflict (new key: 'autoforge-current-view')
+- Old installs without storage work normally (default to chats)
+
+## Dependencies
+
+- Vue 3.5.32 ✓ (Composition API)
+- No additional dependencies required
+
+- Similar to `useProject.ts:56-57` (localStorage usage for last project)
+- Follows singleton composable pattern from UiSystem-A1 architecture

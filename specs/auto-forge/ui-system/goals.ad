@@ -56,3 +56,25 @@
 - [x] 递归文件树侧边栏
 - [x] 内容预览窗格
 - [x] 客户端搜索
+
+---
+
+## UiSystem-G8 UiSystem-G8: View State Persistence Across Refresh
+**Status:** in_progress
+**Priority:** P1
+**Milestone:** M1 - UI State Management
+**Module:** ui-system
+**Tags:** stack:frontend, module:ui-system
+**Depends on:** UiSystem-A5
+
+### Implementation Status ✅ VERIFIED
+
+
+All success criteria verified:
+- ✅ useViewState composable provides reactive currentView with localStorage persistence
+- ✅ Automatic state restoration on initialization
+- ✅ Automatic state persistence on view changes via Vue watch
+- ✅ Robust validation of stored view IDs with cleanup of invalid data
+- ✅ Error handling for localStorage unavailability (private browsing, quota exceeded)
+- ✅ Full test coverage: 11/11 unit tests passing
+- ✅ Code review complete: APPROVED (no issues found)

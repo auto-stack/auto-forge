@@ -2249,3 +2249,391 @@ describe('i18n', () => {
 - [ ] 切换语言环境时视图不会崩溃
 - [ ] 使用修复后的 localStorage 模拟通过测试文件
 - [ ] 已 i18n 化的 ChatsView 字符串无回归
+
+---
+
+## UiSystem-D5 UiSystem-D5: View State Persistence Design
+**Status:** draft
+**Priority:** P1
+**File:** `frontend/src/App.vue`
+**Module:** ui-system
+**Tags:** stack:frontend, module:ui-system
+
+## Overview
+Create a dedicated composable `useViewState.ts` that manages view navigation state with localStorage persistence. This composable will be integrated into `App.vue` to remember the current active view across browser refreshes.
+
+## File Structure
+
+```
+frontend/src/composables/
+├── useAuth.ts
+├── useProject.ts
+├── useGateInbox.ts
+├── useViewState.ts      # NEW
+└── ...
+```
+
+## Implementation: `useViewState.ts`
+
+
+
+```typescript
+import { ref, watch } from 'vue'
+import { tryOnMounted } from '@vueuse/core'  // Optional, or use onMounted
+
+/**
+ * Valid view identifiers matching App.vue tab IDs
+ */
+export type ViewId = 
+  | 'chats' 
+  | 'specs' 
+  | 'wiki' 
+  | 'agents' 
+  | 'agents-config' 
+  | 'professions' 
+  | 'skills' 
+  | 'apis' 
+  | 'explorer'
+
+const VALID_VIEW_IDS: Set<ViewId> = new Set([
+  'chats', 'specs', 'wiki', 'agents', 
+  'agents-config', 'professions', 'skills', 'apis', 'explorer'
+])
+
+const STORAGE_KEY = 'autoforge-current-view'
+const DEFAULT_VIEW: ViewId = 'chats'
+
+/**
+ * Validates if a value is a valid ViewId
+ */
+function isValidViewId(value: unknown): value is ViewId {
+  return typeof value === 'string' && VALID_VIEW_IDS.has(value as ViewId)
+}
+
+/**
+ * Loads current view from localStorage with validation
+ * Falls back to DEFAULT_VIEW on any error
+ */
+function loadStoredView(): ViewId {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored === null) return DEFAULT_VIEW
+    if (isValidViewId(stored)) return stored
+    // Invalid value, clear it and return default
+    localStorage.removeItem(STORAGE_KEY)
+    return DEFAULT_VIEW
+  } catch (e) {
+    // localStorage unavailable (private browsing, quota exceeded)
+    console.warn('Failed to read view state from localStorage:', e)
+    return DEFAULT_VIEW
+  }
+}
+
+/**
+ * Saves current view to localStorage
+ * Silently fails if localStorage unavailable
+ */
+function saveStoredView(view: ViewId) {
+  try {
+    localStorage.setItem(STORAGE_KEY, view)
+  } catch (e) {
+    console.warn('Failed to persist view state to localStorage:', e)
+  }
+}
+
+// Singleton state (matches existing composable pattern from UiSystem-A1)
+const _currentView = ref<ViewId>(DEFAULT_VIEW)
+
+/**
+ * View state persistence composable
+ * 
+ * Provides:
+ * - currentView: Reactive ref holding the current active view
+ * - Automatic persistence to localStorage on changes
+ * - Automatic restoration from localStorage on mount
+ * 
+ * @example
+ * ```vue
+ * <script setup>
+ * const { currentView } = useViewState()
+ * </script>
+ * ```
+ */
+export function useViewState() {
+  // Load from localStorage on first use
+  if (_currentView.value === DEFAULT_VIEW) {
+    _currentView.value = loadStoredView()
+  }
+
+  // Persist changes to localStorage (debounced implicitly by Vue batch)
+  watch(_currentView, (newView) => {
+    if (isValidViewId(newView)) {
+      saveStoredView(newView)
+    }
+  })
+
+  return {
+    currentView: _currentView
+  }
+}
+```
+
+## Integration: `App.vue`
+
+
+
+### 1. Import the composable (add to imports section ~line 55)
+
+```typescript
+import { useViewState } from '@/composables/useViewState'
+```
+
+### 2. Replace view state declaration (line 138-143)
+
+```typescript
+const currentView = ref<ViewId>('chats')
+```
+
+```typescript
+const { currentView } = useViewState()
+```
+
+**No other changes needed.** The composable provides the same reactive ref interface.
+
+## Component Usage
+
+The composable integrates seamlessly with existing `App.vue` logic:
+
+```vue
+<!-- Tab activation (existing code, unchanged) -->
+<button
+  v-for="tab in tabs"
+  :key="tab.id"
+  :class="{ active: currentView === tab.id }"
+  @click="currentView = tab.id"
+>
+  {{ tab.label }}
+</button>
+
+<!-- View rendering (existing code, unchanged) -->
+<ChatsView v-if="currentView === 'chats'" />
+<SpecsView v-else-if="currentView === 'specs'" />
+<RelayView v-else-if="currentView === 'agents'" />
+<!-- etc -->
+```
+
+## Error Handling Details
+
+### Scenario 1: Private Browsing Mode
+
+```typescript
+// localStorage.getItem throws "SecurityError" or "QuotaExceededError"
+try {
+  localStorage.getItem(STORAGE_KEY)
+} catch (e) {
+  console.warn('Failed to read view state from localStorage:', e)
+  return DEFAULT_VIEW  // Graceful fallback
+}
+```
+
+
+### Scenario 2: Corrupted or Invalid Data
+
+```typescript
+const stored = localStorage.getItem(STORAGE_KEY)  // Returns "deleted-feature"
+if (isValidViewId(stored)) return stored           // Validation fails
+localStorage.removeItem(STORAGE_KEY)              // Clear invalid data
+return DEFAULT_VIEW                                // Safe fallback
+```
+
+
+### Scenario 3: Future Version Compatibility
+
+If a future version adds 'new-feature' view:
+- Old installs: Valid existing views ('chats', 'specs', etc.) still restore correctly
+- New installs: New view defaults to 'chats' on first use (no stored value)
+- Downgrade: Unknown view IDs validate to false, default to 'chats'
+
+## Performance Considerations
+
+1. **Read-once strategy:** Value loaded once on mount, not on every access
+2. **Write-on-change:** localStorage write only when view actually changes
+3. **No polling:** Uses Vue's reactivity system, not intervals
+4. **Small payload:** Single string (~10 bytes), negligible storage impact
+
+## Browser Compatibility
+
+- Chrome/Edge 90+ ✓
+- Firefox 88+ ✓
+- Safari 14+ ✓
+
+- All modern browsers ✓
+- Private browsing: Fails gracefully ✓
+- Storage quota: 5-10MB per origin (well within limits)
+
+## Testing Implementation
+
+### Unit Test: `useViewState.test.ts`
+
+```typescript
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useViewState } from '@/composables/useViewState'
+
+describe('useViewState', () => {
+  const mockLocalStorage = {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', mockLocalStorage)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('loads valid view from localStorage', () => {
+    mockLocalStorage.getItem.mockReturnValue('specs')
+    const { currentView } = useViewState()
+    expect(currentView.value).toBe('specs')
+  })
+
+  it('defaults to chats on invalid stored value', () => {
+    mockLocalStorage.getItem.mockReturnValue('invalid-view')
+    const { currentView } = useViewState()
+    expect(currentView.value).toBe('chats')
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('autoforge-current-view')
+  })
+
+  it('defaults to chats when localStorage is empty', () => {
+    mockLocalStorage.getItem.mockReturnValue(null)
+    const { currentView } = useViewState()
+    expect(currentView.value).toBe('chats')
+  })
+
+  it('defaults to chats when localStorage throws', () => {
+    mockLocalStorage.getItem.mockImplementation(() => {
+      throw new Error('Private browsing')
+    })
+    const { currentView } = useViewState()
+    expect(currentView.value).toBe('chats')
+  })
+
+  it('saves view changes to localStorage', async () => {
+    mockLocalStorage.getItem.mockReturnValue(null)
+    const { currentView } = useViewState()
+    
+    currentView.value = 'wiki'
+    await new Promise(resolve => setTimeout(resolve, 0))  // Flush watch
+    
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith('autoforge-current-view', 'wiki')
+  })
+
+  it('handles save errors gracefully', () => {
+    mockLocalStorage.getItem.mockReturnValue(null)
+    mockLocalStorage.setItem.mockImplementation(() => {
+      throw new Error('Quota exceeded')
+    })
+    const { currentView } = useViewState()
+    
+    expect(() => {
+      currentView.value = 'agents'
+    }).not.toThrow()
+  })
+})
+```
+
+### Integration Test: `AppViewPersistence.spec.ts`
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createRouter, createMemoryHistory } from 'vue-router'
+import App from '@/App.vue'
+
+describe('App View Persistence', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('restores specs view after refresh', () => {
+    // Simulate user navigating to specs
+    localStorage.setItem('autoforge-current-view', 'specs')
+    
+    // Simulate refresh (remount)
+    const wrapper = mount(App, {
+      global: { stubs: { SpecsView: true, ChatsView: true } }
+    })
+    
+    // Verify specs view is active
+    expect(wrapper.vm.currentView).toBe('specs')
+  })
+
+  it('restores agents view after refresh', () => {
+    localStorage.setItem('autoforge-current-view', 'agents')
+    const wrapper = mount(App)
+    expect(wrapper.vm.currentView).toBe('agents')
+  })
+
+  it('defaults to chats when no stored state', () => {
+    const wrapper = mount(App)
+    expect(wrapper.vm.currentView).toBe('chats')
+  })
+})
+```
+
+## Deployment Checklist
+
+- [ ] Unit tests pass (`pnpm test useViewState.test.ts`)
+- [ ] Integration tests pass (`pnpm test AppViewPersistence.spec.ts`)
+- [ ] Manual testing in Chrome, Firefox, Safari
+- [ ] Manual testing in private browsing mode
+- [ ] Code review completed
+
+- [ ] Monitor console for localStorage warnings
+- [ ] Verify analytics shows users staying on non-chat views
+- [ ] Check for any crash reports related to view state
+
+## Migration Path
+
+**Phase 1: Implementation** (1-2 hours)
+1. Create `frontend/src/composables/useViewState.ts`
+2. Update `frontend/src/App.vue` (2 lines changed)
+3. Write unit tests
+4. Write integration tests
+
+**Phase 2: Testing** (30 minutes)
+1. Run test suite
+2. Manual browser testing
+3. Private browsing mode testing
+
+**Phase 3: Deployment** (5 minutes)
+1. Build frontend
+2. Deploy
+3. Smoke test in production
+
+
+## Documentation Updates
+
+- No user-visible changes (UX enhancement only)
+
+- Update frontend architecture diagram (UiSystem-A1) to include `useViewState`
+- Add to composable catalog: "View state persistence with localStorage"
+
+## Success Criteria
+
+✅ **Functional:**
+- F5 refresh on any view → Returns to same view
+- Private browsing mode → Defaults to chats (no crash)
+- Invalid stored data → Defaults to chats (no crash)
+
+✅ **Quality:**
+- Zero TypeScript errors
+- 100% test coverage for useViewState.ts
+- All existing tests still pass
+
+✅ **Performance:**
+- No measurable performance impact
+- localStorage writes < 1ms

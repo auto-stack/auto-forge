@@ -45,6 +45,7 @@ graph TD
         SpecsView[Specs]
         WikiView[Wiki]
         RelayPanel[Relay Pipeline]
+        ViewState[View State<br/>localStorage]
     end
 
     subgraph Orchestrator["Agent Orchestrator"]
@@ -68,6 +69,10 @@ graph TD
 
     UI --> Orchestrator
     Orchestrator --> Core
+    ViewState -.->|persist| Chat
+    ViewState -.->|persist| SpecsView
+    ViewState -.->|persist| WikiView
+    ViewState -.->|persist| RelayPanel
 ```
 
 ## 核心概念
@@ -82,6 +87,7 @@ graph TD
 | **规范** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
 | **检查点** | 用于无聊天记录崩溃恢复的 JSON + git 快照 | `runtime` |
 | **差事** | 在隔离上下文中的即发即弃研究任务 | `errand` |
+| **视图状态持久化** | localStorage 保存当前活跃视图（chat、specs、wiki 等）以在刷新后恢复 | `ui-system` |
 
 ## 核心流程
 
@@ -94,6 +100,7 @@ graph TD
 | **智能体轮次** | 以职业启动智能体 | 返回交接文档 | agent-config, provider, runtime |
 | **规范生命周期** | 智能体读取/写入规范 | 持久化到 `.ad` 并派生状态 | specs, forge |
 | **关卡审批** | 步骤设置 `gate: true` | 用户批准/拒绝 | relay, chat, ui-system |
+| **视图状态恢复** | 浏览器刷新 (F5) | 恢复到之前活跃的视图 | ui-system |
 
 ## 模块索引
 
@@ -111,7 +118,7 @@ graph TD
 | **relay** | 带接力传递的串行智能体流程 | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [模块](relay/module.ad) · [目标](relay/goals.ad) · [架构](relay/architecture.ad) · [设计](relay/designs.ad) · [计划](relay/plans.ad) · [评审](relay/reviews.ad) · [报告](relay/reports.ad) · [测试](relay/tests.ad) |
 | **runtime** | 检查点与崩溃恢复 | `ContextManager`, `Session`, `PermissionPolicy` | provider | [模块](runtime/module.ad) · [目标](runtime/goals.ad) · [设计](runtime/designs.ad) · [测试](runtime/tests.ad) |
 | **specs** | 规范金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
-| **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
+| **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, `useViewState`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
 | **wiki** | 项目范围的知识库 | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [模块](wiki/module.ad) · [目标](wiki/goals.ad) · [架构](wiki/architecture.ad) · [设计](wiki/designs.ad) · [计划](wiki/plans.ad) · [测试](wiki/tests.ad) |
 
 ## 如何浏览规范
@@ -211,6 +218,7 @@ graph TD
         SpecsView[Specs]
         WikiView[Wiki]
         RelayPanel[Relay Pipeline]
+        ViewState[View State<br/>localStorage]
     end
 
     subgraph Orchestrator["Agent Orchestrator"]
@@ -234,6 +242,10 @@ graph TD
 
     UI --> Orchestrator
     Orchestrator --> Core
+    ViewState -.->|persist| Chat
+    ViewState -.->|persist| SpecsView
+    ViewState -.->|persist| WikiView
+    ViewState -.->|persist| RelayPanel
 ```
 
 ## 核心概念
@@ -248,6 +260,7 @@ graph TD
 | **规范** | `.ad` 格式的结构化决策记录（目标 → 架构 → 设计 → 计划 → 测试 → 评审 → 报告） | `specs` |
 | **检查点** | 用于无聊天记录崩溃恢复的 JSON + git 快照 | `runtime` |
 | **差事** | 在隔离上下文中的即发即弃研究任务 | `errand` |
+| **视图状态持久化** | localStorage 保存当前活跃视图（chat、specs、wiki 等）以在刷新后恢复 | `ui-system` |
 
 ## 核心流程
 
@@ -260,6 +273,7 @@ graph TD
 | **智能体轮次** | 以职业启动智能体 | 返回交接文档 | agent-config, provider, runtime |
 | **规范生命周期** | 智能体读取/写入规范 | 持久化到 `.ad` 并派生状态 | specs, forge |
 | **关卡审批** | 步骤设置 `gate: true` | 用户批准/拒绝 | relay, chat, ui-system |
+| **视图状态恢复** | 浏览器刷新 (F5) | 恢复到之前活跃的视图 | ui-system |
 
 ## 模块索引
 
@@ -277,7 +291,7 @@ graph TD
 | **relay** | 带接力传递的串行智能体流程 | `PipelineEngine`, `HandoffManager`, `CheckpointManager`, `BudgetTracker` | agent-config, chat, errand, runtime, specs, ui-system | [模块](relay/module.ad) · [目标](relay/goals.ad) · [架构](relay/architecture.ad) · [设计](relay/designs.ad) · [计划](relay/plans.ad) · [评审](relay/reviews.ad) · [报告](relay/reports.ad) · [测试](relay/tests.ad) |
 | **runtime** | 检查点与崩溃恢复 | `ContextManager`, `Session`, `PermissionPolicy` | provider | [模块](runtime/module.ad) · [目标](runtime/goals.ad) · [设计](runtime/designs.ad) · [测试](runtime/tests.ad) |
 | **specs** | 规范金字塔与工作区 | `SpecsStore`, `GoalsTable`, `RelationsPanel`, `AutoLinkContent` | agent-config, chat, relay, ui-system | [模块](specs/module.ad) · [目标](specs/goals.ad) · [架构](specs/architecture.ad) · [设计](specs/designs.ad) · [计划](specs/plans.ad) · [评审](specs/reviews.ad) · [报告](specs/reports.ad) · [测试](specs/tests.ad) |
-| **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
+| **ui-system** | 响应式可访问前端 | `useForge`, `useRelay`, `useSpecs`, `useGateInbox`, `useViewState`, theme system | — | [模块](ui-system/module.ad) · [目标](ui-system/goals.ad) · [架构](ui-system/architecture.ad) · [设计](ui-system/designs.ad) · [计划](ui-system/plans.ad) · [评审](ui-system/reviews.ad) · [报告](ui-system/reports.ad) · [测试](ui-system/tests.ad) |
 | **wiki** | 项目范围的知识库 | `WikiPage`, `TreeNode`, `useWiki`, dual-root storage | ui-system | [模块](wiki/module.ad) · [目标](wiki/goals.ad) · [架构](wiki/architecture.ad) · [设计](wiki/designs.ad) · [计划](wiki/plans.ad) · [测试](wiki/tests.ad) |
 
 ## 如何浏览规范

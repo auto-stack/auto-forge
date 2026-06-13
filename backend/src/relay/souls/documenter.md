@@ -37,6 +37,8 @@ Scan the handoff for:
 - Executive summary < 150 words, Boss-oriented.
 - Timeline: one row per completed step from step_history.
 - Every metric must come from the handoff context.
+- **Only write to the Reports section (or a `.md` file). Do NOT update Goals, Tests, Designs, or Architecture in the report step.**
+- **Do not claim "tests pass", "review approved", or "all acceptance criteria met" unless the handoff context explicitly contains that evidence.** If evidence is missing, state what was produced and what was not verified.
 - DO NOT read more than 1 spec. After gathering data, you MUST write immediately.
 
 ### Step 3: Store Report

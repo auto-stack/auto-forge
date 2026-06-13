@@ -189,6 +189,21 @@ impl AgentInstance {
         self
     }
 
+    /// Return the allowed tools for this agent, filtering out chat-only tools when
+    /// running inside an autonomous relay pipeline.
+    pub fn effective_allowed_tools(&self) -> Vec<String> {
+        let mut tools = self.profession.allowed_tools.clone();
+        for tool_name in &self.skill_tools {
+            if !tools.contains(tool_name) {
+                tools.push(tool_name.clone());
+            }
+        }
+        if self.relay_mode {
+            tools.retain(|t| t != "spawn_relay" && t != "bring_in");
+        }
+        tools
+    }
+
     /// Render the system prompt from Soul + Profession + constraints.
     pub fn render_system_prompt(&self) -> String {
         let mut parts = Vec::new();
@@ -230,22 +245,17 @@ impl AgentInstance {
             ));
         }
 
-        if !self.profession.allowed_tools.is_empty() {
+        let effective_tools = self.effective_allowed_tools();
+        if !effective_tools.is_empty() {
             parts.push(format!(
                 "You may use these tools: {}\n",
-                self.profession.allowed_tools.join(", ")
+                effective_tools.join(", ")
             ));
         }
 
         // Skill instructions
         for prompt in &self.skill_prompts {
             parts.push(prompt.clone());
-        }
-        if !self.skill_tools.is_empty() {
-            parts.push(format!(
-                "Additional tools from your skills: {}\n",
-                self.skill_tools.join(", ")
-            ));
         }
 
         // Role-specific execution mandates
