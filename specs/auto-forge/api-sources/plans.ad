@@ -33,27 +33,6 @@
 
 ## ApiSources-P3 模型优先的智能体配置
 **Status:** draft
-**Module:** api-sources
-**Tags:** stack:both, module:api-sources
-**Depends on:** ApiSources-G3, ApiSources-A3, ApiSources-D1
-
-| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
-|---|---|---|---|---|---|---|
-| P3.1 | Add `model_id: String` to AgentConfig struct | Coder | 1h | — | draft | Add `#[serde(default)] pub model_id: String` field to AgentConfig in `backend/src/relay/config.rs`. Keep `model_tier` with `#[serde(default)]` for backward compat. **File:** `backend/src/relay/config.rs` **Deliverable:** struct compiles; legacy JSON with only model_tier deserializes (model_id defaults to ""). |
-| P3.2 | Simplify `resolve_model()` to direct model_id lookup | Coder | 1h | P3.1 | draft | Replace tier-degradation walk with: (1) find ApiSource by `config.api_source_id`, fallback first; (2) find ModelDefinition by `config.model_id`, fallback first model + `log::warn!`. **File:** `backend/src/relay/config.rs` **Deliverable:** no tier walk remains; unit tests pass. |
-| P3.3 | Add `assign_model_ids()` migration helper | Coder | 1h | P3.1 | draft | New `pub fn assign_model_ids(configs, api_sources)` — for each config with empty model_id, find source, find first model matching tier, fallback first model. **File:** `backend/src/relay/config.rs` **Deliverable:** legacy configs get model_id populated. |
-| P3.4 | Update `generate_default_agents_with_source()` | Coder | 0.5h | P3.1 | draft | Set `model_id: String::new()` in generated defaults. Keep preferred_tier in model_tier for assign_model_ids. **File:** `backend/src/relay/config.rs` **Deliverable:** generated configs have empty model_id. |
-| P3.5 | Wire `assign_model_ids()` into `load_or_generate_agent_configs()` | Coder | 0.5h | P3.3, P3.4 | draft | Call `assign_model_ids(&mut merged, api_sources)` after merging, before `save_agent_configs()`. **File:** `backend/src/relay/config.rs` **Deliverable:** legacy configs auto-migrated on next load. |
-| P3.6 | Audit `mod.rs` for direct model_tier references | Coder | 0.5h | P3.2 | draft | Confirm `backend/src/relay/mod.rs` calls `resolve_model()` and does not directly read `model_tier`. **File:** `backend/src/relay/mod.rs` **Deliverable:** `cargo check` passes. |
-| P3.7 | Update frontend `AgentConfigDto` | Coder | 0.5h | — | draft | Add `model_id: string` to `AgentConfigDto` interface. Keep `model_tier` for display. **File:** `frontend/src/composables/useAgentConfigs.ts` **Deliverable:** TypeScript compiles. |
-| P3.8 | Add `getModelsForSource()` helper in useApiSources.ts | Coder | 0.5h | — | draft | Export function that returns models for a given source ID. **File:** `frontend/src/composables/useApiSources.ts` **Deliverable:** function returns correct model list. |
-| P3.9 | Replace tier dropdown with model selector in AgentsConfigView.vue | Coder | 3h | P3.7, P3.8 | draft | Compute `availableModels` from selected ApiSource. Auto-select first model on source change. Replace tier `<select>` with model selector showing name + tier badge. **File:** `frontend/src/views/AgentsConfigView.vue` **Deliverable:** model selector lists all models with tier badges. |
-| P3.10 | Add i18n keys for model selector | Coder | 0.5h | P3.9 | draft | Add `agents.model` key to en.json and zh.json. **Files:** `frontend/src/locales/en.json`, `frontend/src/locales/zh.json` **Deliverable:** model selector label uses `t('agents.model')`. |
-| P3.11 | Backend compile and unit tests | Coder | 1h | P3.1-P3.6 | draft | Run `cargo check` and `cargo test`. Write/update unit tests for resolve_model, assign_model_ids, serde roundtrip. **Deliverable:** all tests pass. |
-| P3.12 | Frontend build and smoke test | Coder | 1h | P3.7-P3.10 | draft | Run `pnpm build`. Verify model selector renders correctly. **Deliverable:** build succeeds. |
-
-## ApiSources-P3 模型优先的智能体配置
-**Status:** draft
 
 **状态：** 草稿
 **标签：** stack:both、module:api-sources

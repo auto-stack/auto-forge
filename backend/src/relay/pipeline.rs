@@ -245,11 +245,10 @@ impl PipelineEngine {
             };
         }
 
-        // GSD mode: only Advisor→Architect handoff requires human approval (GoalGate)
+        // GSD mode: pause at any human gate so flows like superpower can stop for approval
         if step.gate == GateType::Human
             && self.gate_resolved_for_step.as_ref() != Some(&step.id)
             && self.mode == RelayMode::GSD
-            && step.profession_id == "advisor"
         {
             self.status = PipelineStatus::WaitingForHuman {
                 gate: GateType::Human,
@@ -990,10 +989,10 @@ mod tests {
         assert_eq!(engine.gate_feedback.get("s1").unwrap().len(), 1);
     }
 
-    // ── S7.2: GSD mode auto-approves all gates except Advisor ──────────────────
+    // ── S7.2: GSD mode pauses at every human gate (enables superpower approval) ─
 
     #[test]
-    fn test_gsd_mode_only_pauses_at_advisor_gate() {
+    fn test_gsd_mode_pauses_at_all_human_gates() {
         let mut flow = FlowSpec::new("test-gsd");
         flow.add_step(FlowStep::new("s1", "advisor").with_gate(GateType::Human));
         flow.add_step(FlowStep::new("s2", "architect").with_gate(GateType::Human));
@@ -1008,22 +1007,21 @@ mod tests {
             matches!(r1, AdvanceResult::WaitForHuman { step_id, .. } if step_id == "s1")
         );
 
-        // Approve
+        // Approve and hand off
         let _ = engine.resolve_gate(GateDecision::Approve);
-        let h1 = make_handoff("advisor", "architect");
-        let r2 = engine.submit_handoff(h1);
+        let r2 = engine.submit_handoff(make_handoff("advisor", "architect"));
 
-        // Architect gate → auto in GSD
+        // Architect gate → pause
         assert!(
-            matches!(r2, AdvanceResult::ExecuteStep { step_id, .. } if step_id == "s2")
+            matches!(r2, AdvanceResult::WaitForHuman { step_id, .. } if step_id == "s2")
         );
 
-        let h2 = make_handoff("architect", "planner");
-        let r3 = engine.submit_handoff(h2);
+        let _ = engine.resolve_gate(GateDecision::Approve);
+        let r3 = engine.submit_handoff(make_handoff("architect", "planner"));
 
-        // Planner gate → auto in GSD
+        // Planner gate → pause
         assert!(
-            matches!(r3, AdvanceResult::ExecuteStep { step_id, .. } if step_id == "s3")
+            matches!(r3, AdvanceResult::WaitForHuman { step_id, .. } if step_id == "s3")
         );
     }
 

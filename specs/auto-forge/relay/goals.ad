@@ -121,22 +121,25 @@
 - [x] 前端接力卡片
 - [x] Token 跟踪
 
-## Relay-G14 人性化的接力运行标题
+## Relay-G14 Human-Friendly Relay Run Titles
 **Status:** proposed
-**Tags:** stack:both
-**Depends on:** Relay-G13
+**Module:** relay
+**Tags:** stack:fullstack, module:relay
+**Depends on:** none
 
-- [ ] 每个接力运行显示人类可读标题
-- [ ] 标题从任务描述自动生成
-- [ ] 后端暴露标题字段
+- [ ] Relay runs display human-readable titles instead of generic IDs
+- [ ] Titles summarize the task or purpose of the relay run
+- [ ] Users can edit and customize relay run titles
 
-## Relay-G15 接力运行报告 PDF 导出
+## Relay-G15 Relay Run Report PDF Export
 **Status:** proposed
-**Tags:** stack:frontend
-**Depends on:** Runtime-G3, Relay-G3
+**Module:** relay
+**Tags:** stack:frontend, module:relay
+**Depends on:** Relay-G7
 
-- [ ] 用户可导出接力运行报告为 PDF
-- [ ] PDF 包含运行元数据、执行历史、工作成果
+- [ ] Users can export relay run reports as PDF documents
+- [ ] PDF includes run metadata, execution history, and token statistics
+- [ ] Exported reports preserve formatting and are suitable for sharing
 
 ## Relay-G16 Cost Breakdown 饼状图支持历史运行数据
 **Status:** in_progress
@@ -168,28 +171,3 @@ All files created and integrated:
 - `frontend/src/composables/useProfessionSegments.ts` ✅
 - `frontend/src/components/SegmentedProgressBar.vue` ✅
 - `frontend/src/views/RelayView.vue` ✅ integrated
-
-## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
-**Status:** in_progress
-**Module:** relay
-**Tags:** stack:frontend, module:relay
-**Depends on:** Relay-G16
-
-- [ ] 删除 RelayView 中的 Cost Breakdown 面板（pie chart + legend）
-- [ ] 将单色 budget-bar 改造为多色分段进度条，每个 profession 用独立颜色，色带宽度与 token 消耗成正比
-- [ ] 鼠标悬停进度条时显示横向 bar chart tooltip，展示各 Agent 的 token 消耗对比和百分比
-- [ ] 保留 budget 超限警告色（70%/90%）作为进度条背景底色或边框提示
-
-### Architecture: Relay-A9
-### Design: Relay-D15
-
-## Relay-G17 Token 进度条多色分段替代 Cost Breakdown 面板
-**Status:** in_progress
-**Module:** relay
-**Tags:** stack:frontend, module:relay
-**Depends on:** Relay-G16
-
-- [ ] 删除 RelayView 中的 Cost Breakdown 面板（pie chart + legend）
-- [ ] 将单色 budget-bar 改造为多色分段进度条，每个 profession 用独立颜色，色带宽度与 token 消耗成正比
-- [ ] 鼠标悬停进度条时显示横向 bar chart tooltip，展示各 Agent 的 token 消耗对比和百分比
-- [ ] 保留 budget 超限警告色（70%/90%）作为进度条背景底色或边框提示

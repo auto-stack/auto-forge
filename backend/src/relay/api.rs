@@ -58,7 +58,13 @@ pub fn resume_running_runs(ai_provider: crate::provider::AIProviderState) {
         let map = RUN_STORE.lock().unwrap();
         for (run_id, entry) in map.iter() {
             if let crate::relay::pipeline::PipelineStatus::Running { ref step_id, ref profession_id, .. } = entry.engine.status {
-                runs_to_resume.push((run_id.clone(), format!("Resuming step {} ({})", step_id, profession_id)));
+                let initial_task = entry.metadata.initial_task.clone().unwrap_or_default();
+                let task = if initial_task.is_empty() {
+                    format!("Resuming step {} ({})", step_id, profession_id)
+                } else {
+                    format!("{}\n\n(Resuming step {} ({}))", initial_task, step_id, profession_id)
+                };
+                runs_to_resume.push((run_id.clone(), task));
             }
         }
     }
@@ -392,12 +398,13 @@ pub async fn start_run_handler(
     let project_path = crate::forge::current_project_path();
     match start_run(&RUN_STORE, flow, &run_id, project_path.clone()) {
         Ok(run_state) => {
-            // Generate and store title from task description
+            // Store title and original task for resumption
             let task = req.task.unwrap_or_default();
             {
                 let mut store = RUN_STORE.lock().unwrap();
                 if let Some(entry) = store.get_mut(&run_id) {
                     entry.metadata.title = Some(crate::relay::title::generate_title(&task));
+                    entry.metadata.initial_task = Some(task.clone());
                     crate::relay::store::save_run(entry);
                 }
             }
@@ -445,7 +452,15 @@ pub async fn rerun_run_handler(
     // Spawn background driver to execute the resumed step
     if let AdvanceResult::ExecuteStep { step_id, profession_id, .. } = &result {
         let project_path = crate::forge::current_project_path().unwrap_or_default();
-        let task = format!("ReRun step {} ({})", step_id, profession_id);
+        let initial_task = {
+            let map = RUN_STORE.lock().unwrap();
+            map.get(&run_id).and_then(|e| e.metadata.initial_task.clone()).unwrap_or_default()
+        };
+        let task = if initial_task.is_empty() {
+            format!("ReRun step {} ({})", step_id, profession_id)
+        } else {
+            format!("{}\n\n(ReRun step {} ({}))", initial_task, step_id, profession_id)
+        };
         tokio::spawn(crate::relay::driver::drive_run(
             run_id.clone(),
             RUN_STORE.clone(),
@@ -471,7 +486,15 @@ pub async fn resume_run_handler(
     // Spawn background driver to execute the resumed step
     if let AdvanceResult::ExecuteStep { step_id, profession_id, .. } = &result {
         let project_path = crate::forge::current_project_path().unwrap_or_default();
-        let task = format!("Resume step {} ({})", step_id, profession_id);
+        let initial_task = {
+            let map = RUN_STORE.lock().unwrap();
+            map.get(&run_id).and_then(|e| e.metadata.initial_task.clone()).unwrap_or_default()
+        };
+        let task = if initial_task.is_empty() {
+            format!("Resume step {} ({})", step_id, profession_id)
+        } else {
+            format!("{}\n\n(Resume step {} ({}))", initial_task, step_id, profession_id)
+        };
         tokio::spawn(crate::relay::driver::drive_run(
             run_id.clone(),
             RUN_STORE.clone(),

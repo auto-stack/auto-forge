@@ -24,14 +24,12 @@
 - [x] 按模块分组列出所有 API 路由
 - [x] 每个端点显示方法、路径、处理函数名称和简要描述
 
-## ApiSources-G3 模型优先的智能体配置替代基于层级的选择
+## ApiSources-G3 Model-First Agent Configuration
 **Status:** proposed
 **Module:** api-sources
-**Tags:** stack:both, module:api-sources
+**Tags:** stack:backend, module:api-sources
 **Depends on:** ApiSources-G1
 
-- [ ] AgentConfig 存储 model_id 而非 model_tier
-- [ ] 模型层级变为每个 ModelDefinition 上的标签，仅用于显示
-- [ ] 前端智能体配置 UI 按 ApiSource 显示模型列表
-- [ ] resolve_model() 直接通过 model_id 解析
-- [ ] 现有 AgentConfig 迁移将基于层级的配置转换为基于模型的配置
+- [ ] Agent configuration prioritizes model selection over hierarchy
+- [ ] Users can directly assign models to agents without complex navigation
+- [ ] Model selection interface integrates with API sources configuration

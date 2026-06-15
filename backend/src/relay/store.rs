@@ -91,6 +91,9 @@ pub struct RunMetadata {
     /// Auto-generated title for display
     #[serde(default)]
     pub title: Option<String>,
+    /// Original task description used to spawn the run.
+    #[serde(default)]
+    pub initial_task: Option<String>,
     /// Project path this run belongs to, if any.
     #[serde(default)]
     pub project_path: Option<String>,

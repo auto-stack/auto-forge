@@ -2,41 +2,42 @@
 
 ---
 
-## Editor-G1 AutoDown 编辑器提供所见即所得的基于块的编辑
+## Editor-G1 AutoDown Editor Foundation
 **Status:** proposed
-**Tags:** stack:frontend
-**Depends on:** Wiki-G1
+**Module:** editor
+**Tags:** stack:frontend, module:editor
+**Depends on:** none
 
-- [ ] 基于 Tiptap 的块编辑器
-- [ ] 原生 Markdown 解析/序列化，支持双向同步
-- [ ] 斜杠命令、气泡菜单和拖拽手柄
-- [ ] AutoDown 扩展：标注、数学、Mermaid 图表、规范引用
+- [ ] AutoDown editor provides WYSIWYG block-based editing experience
+- [ ] Editor supports Markdown and AutoDown format serialization
+- [ ] Block-based architecture enables rich content editing
 
-## Editor-G2 阶段 1 — Markdown 所见即所得编辑器
+## Editor-G2 Phase 1 - Markdown WYSIWYG
 **Status:** proposed
-**Tags:** stack:frontend
+**Module:** editor
+**Tags:** stack:frontend, module:editor
 **Depends on:** Editor-G1
 
-- [ ] Tiptap 编辑器核心集成到前端
-- [ ] 入门块类型支持
-- [ ] 斜杠命令面板
-- [ ] 气泡菜单和拖拽手柄
-- [ ] Markdown 往返无数据丢失
+- [ ] Implement basic Markdown WYSIWYG editing capabilities
+- [ ] Support common Markdown formatting (bold, italic, headings, lists)
+- [ ] Provide real-time preview and editing modes
 
-## Editor-G3 阶段 2 — AutoDown 扩展
+## Editor-G3 Phase 2 - AutoDown Extensions
 **Status:** proposed
-**Tags:** stack:frontend
+**Module:** editor
+**Tags:** stack:frontend, module:editor
 **Depends on:** Editor-G2
 
-- [ ] 标注块、数学块、Mermaid 图表块、规范引用块
-- [ ] 每个扩展自包含：Tiptap 节点 + Vue 组件
+- [ ] Add AutoDown-specific block types and components
+- [ ] Support custom block attributes and metadata
+- [ ] Enable AutoDown serialization and deserialization
 
-## Editor-G4 阶段 3 — 高级编辑功能
+## Editor-G4 Phase 3 - Advanced Editing Features
 **Status:** proposed
-**Tags:** stack:frontend
+**Module:** editor
+**Tags:** stack:frontend, module:editor
 **Depends on:** Editor-G3
 
-- [ ] 多列布局块
-- [ ] 实时协作光标
-- [ ] AI 辅助内联补全
-- [ ] 版本差异视图
+- [ ] Implement collaborative editing features
+- [ ] Add advanced formatting and styling options
+- [ ] Provide keyboard shortcuts and accessibility improvements

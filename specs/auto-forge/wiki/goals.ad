@@ -2,26 +2,24 @@
 
 ---
 
-## Wiki-G1 Wiki 模块提供项目范围的知识库
-**Status:** done
-**Tags:** stack:both
-**Depends on:** Project-G1
-
-- [x] Wiki 存储在 wiki/ 目录，带 _manifest.json
-- [x] 多级目录支持
-- [x] 原始资源目录和文件上传
-- [x] Wiki 标签和双区域侧边栏
-- [x] 查看/编辑/创建模式
-- [x] 智能体 Wiki 工具和全文搜索
-- [ ] 语义向量索引（RAG）
-- [ ] 版本历史
-
-## Wiki-G2 Wiki 搜索与标签系统
+## Wiki-G1 Wiki Search & Tag System
 **Status:** proposed
-**Tags:** stack:both
+**Module:** wiki
+**Tags:** stack:fullstack, module:wiki
 **Depends on:** Wiki-G1
 
-- [ ] 全文搜索带相关性排名
-- [ ] 层级标签系统
-- [ ] 标签云导航
-- [ ] 原始文件内容的搜索索引
+- [ ] Users can search wiki pages by title and content keywords with instant results
+- [ ] Wiki pages support tags for categorization and filtering
+- [ ] Tag-based navigation provides quick access to related wiki content
+- [ ] Search results highlight matching terms and show page context
+- [ ] Tag management includes create, edit, delete, and merge operations
+
+## Wiki-G2 Wiki Search & Tag System
+**Status:** proposed
+**Module:** wiki
+**Tags:** stack:fullstack, module:wiki
+**Depends on:** Wiki-G1
+
+- [ ] Users can search wiki pages by title and content keywords
+- [ ] Wiki pages support tags for categorization and filtering
+- [ ] Tag-based navigation provides quick access to related wiki content

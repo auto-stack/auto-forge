@@ -459,9 +459,9 @@ pub fn generate_default_agents() -> Vec<AgentConfig> {
     generate_default_agents_with_source("")
 }
 
-/// Generate 9 default agent configs with the given API source ID.
+/// Generate default agent configs with the given API source ID.
 pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConfig> {
-    let defaults: [(&str, &str, &str, ModelTier); 9] = [
+    let defaults: [(&str, &str, &str, ModelTier); 12] = [
         ("assistant", "Nicole", "assistant", ModelTier::Lite),
         ("advisor", "Isaac", "advisor", ModelTier::Mid),
         ("architect", "Vera", "architect", ModelTier::Pro),
@@ -471,6 +471,9 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
         ("reviewer", "Marcus", "reviewer", ModelTier::Pro),
         ("documenter", "Luna", "documenter", ModelTier::Lite),
         ("gofer", "Gus", "gofer", ModelTier::Lite),
+        ("super-advisor", "Atlas", "super-advisor", ModelTier::Max),
+        ("super-coder", "Titan", "super-coder", ModelTier::Max),
+        ("super-tester", "Argus", "super-tester", ModelTier::Max),
     ];
 
     defaults
@@ -486,10 +489,10 @@ pub fn generate_default_agents_with_source(api_source_id: &str) -> Vec<AgentConf
             temperature: 0.3,
             max_tokens: if tier == ModelTier::Lite { 4096 } else { 8192 },
             reasoning_budget: if tier == ModelTier::Pro { Some(4096) } else { None },
-            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer"),
+            thinking_enabled: matches!(profession, "advisor" | "architect" | "planner" | "tester" | "coder" | "reviewer" | "super-advisor" | "super-coder" | "super-tester"),
             thinking_budget: match profession {
-                "architect" | "coder" => Some(2048),
-                "advisor" | "planner" | "tester" | "reviewer" => Some(1024),
+                "architect" | "coder" | "super-coder" => Some(2048),
+                "advisor" | "planner" | "tester" | "reviewer" | "super-advisor" | "super-tester" => Some(1024),
                 _ => None,
             },
             avatar_url: None,
@@ -836,7 +839,7 @@ mod tests {
     #[test]
     fn test_generate_defaults_empty_model_id() {
         let defaults = generate_default_agents_with_source("test-source");
-        assert_eq!(defaults.len(), 9);
+        assert_eq!(defaults.len(), 12);
         for config in &defaults {
             assert_eq!(config.model_id, "");
             assert_eq!(config.api_source_id, "test-source");

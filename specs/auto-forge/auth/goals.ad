@@ -37,10 +37,8 @@ Currently `auth_middleware` verifies authentication only; fine-grained permissio
 **Status:** proposed
 **Module:** auth
 **Tags:** stack:frontend, module:auth
-**Depends on:** Auth-G2
+**Depends on:** Auth-G1
 
-- [ ] Admin users see user/role management UI
-- [ ] Hide restricted views based on `permissions` array
-- [ ] Add "switch role" or "impersonate" helper for admins
-
-Future enhancement once Auth-G2 permission enforcement is complete.
+- [ ] UI elements and features display based on user roles and permissions
+- [ ] Users only see actions they are authorized to perform
+- [ ] Role-based UI updates dynamically when permissions change

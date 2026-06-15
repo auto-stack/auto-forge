@@ -141,13 +141,6 @@ The feature has a **critical URL mismatch** that would cause a 405 error in prod
 
 The Chat-V2 blocker (URL mismatch) is confirmed resolved. The frontend and backend URLs now agree. All tests pass, code compiles. Remaining issues (#1 auth middleware, #2 architectural drift) are major but non-blocking — the feature functions correctly end-to-end. Recommend addressing Issues #1 and #2 in next iteration.
 
-## Chat-V3 Delete All Sessions — Re-Verification Review (Rerun)
-**Status:** draft
-
-### Scope
-
-Re-verification of the "Delete All Sessions" feature after the previous review (Chat-V2) was rejected. This review checks whether the blocker and major issues from Chat-V2 have been resolved.
-
 ## Chat-V3 Re-Verification — Delete All Sessions (Post-Fix Review)
 **Status:** draft
 
@@ -166,51 +159,3 @@ Re-verification of the "Delete All Sessions" feature after previous review (Chat
 - **Backend `cargo check`**: ✅ Compiles (34 warnings, 0 errors)
 - **Frontend tests**: ✅ 5/5 pass (useSessions.spec.ts)
 - **Backend tests**: ✅ `delete_all_sessions` filesystem tests pass per prior verified Chat-T22
-
-## Chat-V2 Blocker Resolution
-**Status:** draft
-
-| Chat-V2 Issue | Status | Evidence |
-|---|---|---|
-| #1 BLOCKER: URL mismatch `/sessions/all` vs `/sessions` | **RESOLVED** | Frontend uses `${API_BASE}/sessions` (line 59), backend registers `.route("/api/forge/chats/sessions", ...delete(...))`. `sessions/all` does NOT exist anywhere in `frontend/src`. Previous reviewer analyzed stale code. |
-
-### Criterion Assessment
-| Goal/Spec | Status | Evidence |
-|---|---|---|
-| Chat-G10: Delete all → create blank session | ✅ pass | Backend clears store, creates new `ForgeSession`, returns `DeleteAllSessionsResponse` with `deleted_count`, `new_session_id`, `session` |
-| Chat-G10: Network/cancel errors preserve sessions | ✅ pass | Frontend try/catch/finally sets `_error`, re-throws, resets `_isLoading` in finally |
-| Chat-A1: DELETE endpoint response shape | ✅ pass | `DeleteAllSessionsResponse` matches spec: `deleted_count: usize`, `new_session_id: String`, `session: ForgeSessionSummary` |
-| Chat-A1: URL consistency frontend ↔ backend | ✅ pass | Both use `DELETE /api/forge/chats/sessions` |
-| Chat-D1: ConfirmDialog + loading state | ✅ pass | `_isLoading` ref controls UI state, `hasSessions` computed guards button |
-
-### Static Analysis
-| Check | Status | Notes |
-|---|---|---|
-| Type signatures match spec | ✅ pass | Response struct fields match Chat-A1 exactly |
-| Error handling — frontend | ✅ pass | try/catch/finally with `_error` and `_isLoading` reset |
-| Error handling — backend | ⚠️ partial | `lock().unwrap()` on mutex — acceptable for single-threaded Axum state, but panics on poison |
-| No dead code in useSessions.ts | ✅ pass | All exports used: `sessionList`, `isLoading`, `error`, `sessionCount`, `hasSessions`, `loadSessionList`, `deleteSession`, `deleteAllSessions` |
-| Security — auth enforcement | ⚠️ partial | Frontend uses `authFetch` (sends JWT). Backend route has no explicit auth middleware visible in route chain. However, Axum layer middleware may apply globally. Needs confirmation. |
-
-### Remaining Issues (Non-Blocking)
-
-| # | Severity | Description | Recommendation | Assignee |
-|---|---|---|---|---|
-| 1 | major | Backend `delete_all_forge_sessions()` operates on in-memory `forge_sessions()` store only. `session::delete_all_sessions()` in `session.rs` operates on filesystem. Two implementations are disconnected — the route handler never calls the filesystem function. If sessions persist to disk, deleting from memory won't clear disk. | Unify: route handler should call `session::delete_all_sessions()` or architecture should document in-memory-only design. | Coder |
-| 2 | minor | No integration test exists that verifies frontend→backend end-to-end for delete-all. Frontend mocks `fetch`, backend tests exercise filesystem function only. The two code paths are never tested together. | Add a route-level integration test that calls the handler and verifies store state. | Coder |
-| 3 | minor | Backend `lock().unwrap()` will panic on poisoned mutex. In production, if another handler panics while holding the lock, all subsequent delete-all requests will panic. | Use `lock().unwrap_or_else(|e| e.into_inner())` or return `StatusCode::INTERNAL_SERVER_ERROR`. | Coder |
-
-## Chat-V2 Issue Retriage
-**Status:** draft
-
-| # | Original Severity | Resolution |
-|---|---|---|
-| 1 | blocker | **FALSE POSITIVE** — URL mismatch does not exist in current code |
-| 2 | major | **UPHELD** — auth middleware not confirmed on delete-all route |
-| 3 | major | **UPHELD** — in-memory vs filesystem disconnect persists |
-| 4 | minor | **UPHELD** — tempfile is in dev-dependencies (backend compiles) |
-| 5 | trivial | **UPHELD** — Chat-T22 blocker claims were incorrect |
-
-### Overall Verdict: **✅ APPROVED WITH FIXES**
-
-The blocker from Chat-V2 was a **false positive** — the URL mismatch did not exist (or was already fixed). The frontend and backend agree on `DELETE /api/forge/chats/sessions`. All tests pass, code compiles cleanly. Remaining issues (#1–#3 above) are non-blocking but should be addressed in a follow-up task.

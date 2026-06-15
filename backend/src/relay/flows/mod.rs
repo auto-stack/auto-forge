@@ -606,31 +606,44 @@ mod tests {
     }
 
     #[test]
-    fn test_superpower_flow_has_three_steps() {
+    fn test_superpower_flow_has_five_steps() {
         let flow = builtin("superpower");
-        assert_eq!(flow.steps.len(), 3);
-        assert_eq!(flow.steps[0].profession_id, "super-advisor");
-        assert_eq!(flow.steps[1].profession_id, "super-coder");
-        assert_eq!(flow.steps[2].profession_id, "super-tester");
+        assert_eq!(flow.steps.len(), 5);
+        assert_eq!(flow.steps[0].profession_id, "super-advisor"); // brainstorm
+        assert_eq!(flow.steps[1].profession_id, "super-advisor"); // write-plan
+        assert_eq!(flow.steps[2].profession_id, "super-coder");   // execute-plan
+        assert_eq!(flow.steps[3].profession_id, "super-tester");  // review
+        assert_eq!(flow.steps[4].profession_id, "documenter");    // document
     }
 
     #[test]
-    fn test_superpower_design_step_has_human_gate() {
+    fn test_superpower_brainstorm_and_write_plan_have_human_gates() {
         let flow = builtin("superpower");
+        assert_eq!(flow.steps[0].id, "brainstorm");
         assert_eq!(flow.steps[0].gate, GateType::Human);
-        assert_eq!(flow.steps[1].gate, GateType::Auto);
+        assert_eq!(flow.steps[1].id, "write-plan");
+        assert_eq!(flow.steps[1].gate, GateType::Human);
         assert_eq!(flow.steps[2].gate, GateType::Auto);
+        assert_eq!(flow.steps[3].gate, GateType::Auto);
+        assert_eq!(flow.steps[4].gate, GateType::Auto);
     }
 
     #[test]
-    fn test_superpower_tester_step_has_loop_exit() {
+    fn test_superpower_review_step_loops_back_to_execute_plan() {
         let flow = builtin("superpower");
-        match &flow.steps[2].exit {
-            crate::relay::flow::ExitRouting::Loop { target_step_id, max_iterations } => {
-                assert_eq!(target_step_id, "implement");
-                assert_eq!(*max_iterations, 3);
+        let review_step = flow.get_step("review").unwrap();
+        match &review_step.exit {
+            crate::relay::flow::ExitRouting::Condition { true_branch, false_branch, .. } => {
+                match true_branch.as_ref() {
+                    crate::relay::flow::ExitRouting::Loop { target_step_id, max_iterations } => {
+                        assert_eq!(target_step_id, "execute-plan");
+                        assert_eq!(*max_iterations, 5);
+                    }
+                    _ => panic!("Expected Loop exit on review step true branch"),
+                }
+                assert!(matches!(false_branch.as_ref(), crate::relay::flow::ExitRouting::Next));
             }
-            _ => panic!("Expected Loop exit on super-tester step"),
+            _ => panic!("Expected Condition exit on review step"),
         }
     }
 

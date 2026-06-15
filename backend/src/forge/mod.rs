@@ -2869,11 +2869,12 @@ mod handlers {
                                             let run_store = crate::relay::api::run_store();
                                             let _ = crate::relay::store::start_run(run_store, flow, &run_id, project_path.clone());
 
-                                            // Generate and store title from task description
+                                            // Store title and original task for resumption
                                             {
                                                 let mut map = run_store.lock().unwrap();
                                                 if let Some(entry) = map.get_mut(&run_id) {
                                                     entry.metadata.title = Some(crate::relay::title::generate_title(&task));
+                                                    entry.metadata.initial_task = Some(task.clone());
                                                     entry.engine.mode = mode;
                                                     crate::relay::store::save_run(entry);
                                                 }

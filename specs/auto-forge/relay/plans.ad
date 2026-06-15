@@ -391,51 +391,6 @@ Relay-P13.10 (Flow 变体评估)
 3. 单文件单 turn 内读取次数 ≤2，写入次数 ≤1（edit_file 除外）。
 4. design 阶段 token 消耗不超过全 Run 的 10%。
 
-## Relay-P14 Relay-P14 Cost Breakdown 历史运行 Per-Profession Token 统计实现
-**Status:** draft
-**Module:** relay
-**Tags:** stack:fullstack, module:relay
-
-## Relay-P14 Cost Breakdown 历史运行 Per-Profession Token 统计实现
-**Status:** draft
-**Module:** relay
-**Tags:** stack:fullstack, module:relay
-**Depends on:** Relay-G16, Relay-A8
-
-### 阶段计划
-
-| Phase | Task | Owner | Duration | Dependencies | Status | Detail |
-|---|---|---|---|---|---|---|
-| Relay-P14.1 | Backend: 定义 `RunDetailResponse` 结构体，含 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在 `backend/src/relay/api.rs` 中定义新的响应结构体 `RunDetailResponse`，包含 `RunEntry` 的所有现有字段、`steps: Vec<StepState>` 和新增的 `profession_tokens: HashMap<String, u64>`。实现 `From<RunEntry>` 转换。per A8 §Data Model。**文件:** `backend/src/relay/api.rs` **交付物:** 结构体编译通过；serde 序列化包含 `profession_tokens` 字段。 |
-| Relay-P14.2 | Backend: 在 `get_run` handler 中聚合 per-profession token 统计 | Coder | 1h | Relay-P14.1 | draft | 修改 `get_run` handler：从 `RunEntry.steps` 迭代，按 `step.profession` 分组求和 `step.tokens_used`。空 profession 归入 `"unknown"`。构建 `RunDetailResponse` 返回。确保无 steps 时返回空 map `{}`。per A8 §Change 1。**文件:** `backend/src/relay/api.rs` **交付物:** `GET /api/relay/runs/:id` 响应 JSON 包含 `profession_tokens` 字段，值与 steps 中的 token 总和一致。 |
-| Relay-P14.3 | Frontend: 更新 `RunDetail` 类型定义，添加 `profession_tokens` 字段 | Coder | 0.5h | — | draft | 在前端类型定义中（`RelayView.vue` 或相关 composable 的 interface）添加 `profession_tokens?: Record<string, number>` 字段。per A8 §Frontend Type update。**文件:** `frontend/src/views/RelayView.vue`（或对应 composable） **交付物:** TypeScript 编译通过；API 响应正确反序列化。 |
-| Relay-P14.4 | Frontend: 在 `loadRun` 函数中填充 `professionTokens` ref | Coder | 1h | Relay-P14.3 | draft | 修改 `loadRun` 函数：获取 run 详情后，清空 `professionTokens` ref，遍历响应中的 `profession_tokens` 写入 `professionTokens`。饼状图通过 watch `professionTokens` 自动重新渲染。per A8 §Change 2。**文件:** `frontend/src/views/RelayView.vue` **交付物:** 点击历史运行后，Cost Breakdown 饼状图正确显示各 profession 的 token 占比。 |
-| Relay-P14.5 | 集成验证：后端编译 + 前端构建 + 手动冒烟测试 | Coder | 1h | Relay-P14.2, Relay-P14.4 | draft | (1) `cargo check -p auto-forge` 通过；(2) 前端 `pnpm build` 通过；(3) 启动应用，执行一次 relay run，然后回到运行列表，点击已完成的运行，确认 Cost Breakdown 饼状图正确显示各 profession 的 token 消耗和百分比。per G16 验收标准。**交付物:** 历史运行饼状图数据与实时运行一致；无 steps 时显示"无数据"提示。 |
-
-### 风险与缓解
-
-| 风险 | 可能性 | 影响 | 缓解措施 |
-|------|--------|------|----------|
-| `StepState` 中缺少 `profession` 字段或字段名不匹配 | 低 | 高 | P14.2 中先检查 `StepState` 结构体定义，确认字段名和类型；若为空则归入 `"unknown"` |
-| 前端 `professionTokens` ref 类型与饼状图组件消费方式不一致 | 中 | 中 | P14.4 中确认饼状图组件 watch 的是同一个 ref，数据结构兼容 |
-| 前端包路径不是 `packages/auto-forge-ui` 而是 `frontend` | 中 | 低 | 架构师 handoff 中列出了两个路径，P14.3/P14.4 中先确认实际文件位置再修改 |
-| `get_run` handler 当前直接返回 `RunEntry` JSON，而非自定义响应 | 低 | 中 | P14.1 中用 `RunDetailResponse` 包装现有返回值，不破坏现有字段 |
-
-### 关键路径
-
-```
-Relay-P14.1 (RunDetailResponse 结构体) → Relay-P14.2 (后端聚合逻辑)
-Relay-P14.3 (前端类型) → Relay-P14.4 (前端填充逻辑)  [可与 P14.1-P14.2 并行]
-Relay-P14.5 (集成验证) ← P14.2 + P14.4
-```
-
-### 验收标准
-
-1. `GET /api/relay/runs/:id` 响应包含 `profession_tokens` 字段，值为 `{ profession_name: total_tokens }` 格式
-2. 历史运行加载后，Cost Breakdown 饼状图显示各 profession 的 token 数量和百分比
-3. 无 steps 的运行显示"无数据"提示，不报错
-4. 实时运行的饼状图行为不受影响（SSE 事件继续正常累积）
-
 ## Relay-P14 Cost Breakdown 历史运行 Per-Profession Token 统计实现
 **Status:** draft
 **Module:** relay

@@ -65,33 +65,25 @@
 - [x] 类型化标签系统
 - [x] 侧边栏筛选
 
-## Specs-G8 清理重复和测试目标
+## Specs-G8 规范去重与卫生
 **Status:** proposed
-**Priority:** P1
 **Module:** specs
-**Tags:** stack:internal, module:specs
+**Tags:** stack:backend, module:specs
 **Depends on:** none
 
-- [ ] 移除重复的 "清理" 目标（保留 Specs-G8）
-- [ ] 审计所有 "提议中" 目标的相关性
-- [ ] 移除重复架构条目
-- [ ] 验证所有交叉引用指向有效目标 ID
-- [ ] 确保不存在孤立目标
+- [ ] 系统能够检测和识别重复或冗余的规范项目
+- [ ] 提供清理工具自动合并或标记重复项目
+- [ ] 规范卫生协议确保新项目不会创建重复内容
 
-## Specs-G9 清理重复和测试目标
-**Status:** draft
+## Specs-G9 规范去重验证
+**Status:** proposed
+**Module:** specs
+**Tags:** stack:testing, module:specs
+**Depends on:** Specs-G8
 
-**状态：** 提议中
-**标签：** stack:internal
-**依赖项：** 无
-
-- [ ] 移除所有重复的 "Human-Friendly Relay Run Titles" 条目，仅保留 Specs-G8
-- [ ] 移除所有重复的 "PDF Export" 条目，仅保留 Relay-G14
-- [ ] 移除所有测试/验证目标（G30、G31、G39 及任何未来的测试工件）
-- [ ] 移除所有重复的 "清理" 目标，仅保留 Specs-G9
-- [ ] 清理后目标 ID 连续且正确编号（AgentConfig-G1–Specs-G9）
-
----
+- [ ] 测试套件验证去重功能的有效性
+- [ ] 测试覆盖各种重复场景（完全重复、部分重复、语义重复）
+- [ ] 验证清理工具不会误删有效的规范项目
 
 ## Specs-G10 架构师维护的项目概述
 **Status:** implemented

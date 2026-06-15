@@ -1,8 +1,118 @@
 id: superpower
 steps:
-  - id: design
+  # Step 1: Brainstorm — explore context, ask questions, propose approaches,
+  # write a concise design doc, and pause for human approval.
+  - id: brainstorm
     profession_id: super-advisor
     gate: human
+    validators:
+      - type: work_product_has_extensions
+        content:
+          exts:
+            - .md
+    tool_guard:
+      required_first:
+        - read_specs
+        - read_file
+        - list_specs
+      always_allowed:
+        - read_specs
+        - list_specs
+        - read_file
+        - write_file
+        - query_wiki
+        - list_wiki
+        - dispatch
+    exit: next
+
+  # Step 2: Write Plan — turn the approved design into a bite-sized
+  # implementation plan with exact file paths, code snippets, and verification.
+  - id: write-plan
+    profession_id: super-advisor
+    gate: human
+    validators:
+      - type: work_product_has_extensions
+        content:
+          exts:
+            - .md
+    tool_guard:
+      required_first:
+        - read_file
+      always_allowed:
+        - read_file
+        - write_file
+        - query_wiki
+        - list_wiki
+    exit: next
+
+  # Step 3: Execute Plan — read the plan file and implement each task
+  # in order, following TDD and running verification commands.
+  - id: execute-plan
+    profession_id: super-coder
+    gate: auto
+    validators:
+      - type: work_product_has_extensions
+        content:
+          exts:
+            - .rs
+            - .vue
+            - .ts
+            - .js
+    tool_guard:
+      required_first:
+        - read_file
+      always_allowed:
+        - read_file
+        - write_file
+        - edit_file
+        - shell
+        - search
+        - list_symbols
+        - read_specs
+        - list_specs
+    exit: next
+
+  # Step 4: Review — run tests, verify spec compliance and code quality.
+  # If anything fails, loop back to execute-plan.
+  - id: review
+    profession_id: super-tester
+    gate: auto
+    validators:
+      - type: any
+        content:
+          - type: spec_updates_non_empty
+            content:
+              sections:
+                - reviews
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .md
+                - .ad
+    tool_guard:
+      required_first:
+        - read_file
+        - read_specs
+      always_allowed:
+        - read_file
+        - read_specs
+        - list_specs
+        - write_specs
+        - update_spec
+        - shell
+        - search
+    exit: !condition
+      condition:
+        type: validator_failed
+      true_branch: !loop
+        target_step_id: execute-plan
+        max_iterations: 5
+      false_branch: !next
+
+  # Step 5: Document — split the design doc and plan file into specs.
+  - id: document
+    profession_id: documenter
+    gate: auto
     validators:
       - type: any
         content:
@@ -14,40 +124,21 @@ steps:
                 - designs
                 - plans
                 - tests
+          - type: work_product_has_extensions
+            content:
+              exts:
+                - .ad
     tool_guard:
       required_first:
-        - write_goals
-        - write_specs
-      always_allowed:
-        - list_specs
-        - read_specs
         - read_file
+        - read_specs
+        - list_specs
+      always_allowed:
+        - read_file
+        - read_specs
+        - list_specs
+        - update_spec
+        - write_file
+      forbidden:
+        - write_specs
     exit: next
-
-  - id: implement
-    profession_id: super-coder
-    gate: auto
-    validators:
-      - type: work_product_has_extensions
-        content:
-          exts:
-            - .rs
-            - .vue
-            - .ts
-            - .js
-    exit: next
-
-  - id: verify
-    profession_id: super-tester
-    gate: auto
-    validators:
-      - type: any
-        content:
-          - type: spec_updates_non_empty
-            content:
-              sections:
-                - reviews
-                - reports
-    exit: !loop
-      target_step_id: implement
-      max_iterations: 3

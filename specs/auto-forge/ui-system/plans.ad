@@ -2,28 +2,6 @@
 
 ---
 
-## UiSystem-P1 响应式与可访问性
-**Status:** draft
-
-| Phase | Task | Owner | Duration | Status |
-|---|---|---|---|---|
-| 移动端布局 | Alice | 2 天 | done |
-| 键盘快捷键 | Bob | 1 天 | done |
-| 焦点管理 | Alice | 2 天 | done |
-| 屏幕阅读器 | Bob | 2 天 | done |
-
-## UiSystem-P2 主题与强调色
-**Status:** draft
-
-| Task | Owner | Duration | Status |
-|---|---|---|---|
-| useTheme.ts | UI | 1 天 | done |
-| useAccentColor.ts | UI | 1 天 | done |
-| 主题切换按钮 | UI | 1 天 | done |
-| Tailwind dark: 验证 | UI | 1 天 | done |
-
----
-
 ## UiSystem-P1 View State Persistence Implementation
 **Status:** in_progress
 **Priority:** P1
@@ -43,3 +21,15 @@
 - 100% test coverage
 - No issues found
 - Production ready
+
+## UiSystem-P2 主题与强调色
+**Status:** draft
+
+| Task | Owner | Duration | Status |
+|---|---|---|---|
+| useTheme.ts | UI | 1 天 | done |
+| useAccentColor.ts | UI | 1 天 | done |
+| 主题切换按钮 | UI | 1 天 | done |
+| Tailwind dark: 验证 | UI | 1 天 | done |
+
+---

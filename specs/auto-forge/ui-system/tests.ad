@@ -160,16 +160,6 @@ let source = ApiSource {
 **Status:** draft
 
 **状态：** 草案
-**优先级：** P1
-**模块：** ui-system
-**标签：** stack:frontend、module:ui-system
-
-# 测试
-
-## UiSystem-T5 [UiSystem-D4] i18n 集成覆盖率和硬编码字符串检测
-**Status:** draft
-
-**状态：** 草案
 **测试文件：** `frontend/src/i18n/__tests__/i18n.spec.ts`
 **标签：** stack:frontend
 **依赖：** UiSystem-D4
@@ -468,67 +458,3 @@ describe('view i18n integration', () => {
 | UiSystem-D4 — SkillsView i18n | 视图 i18n 集成套件 | ❌ 未完成 |
 | UiSystem-D4 — ApiSourcesView i18n | 视图 i18n 集成套件 | ❌ 未完成 |
 | 翻译键对等性 | 对等性测试套件 | ❌ zh.json 缺失 2 个键 |
-
-## UiSystem-T5 [D4] i18n 键对等性：en.json 和 zh.json 具有相同的键结构
-**Status:** draft
-
-**状态：** 草案
-**测试文件：** `frontend/src/i18n/__tests__/i18n.spec.ts`
-**标签：** stack:frontend
-**依赖：** UiSystem-D4
-
-### 目的
-
-验证 en.json 和 zh.json 翻译文件具有完全相同的键结构（任一文件中均无缺失或额外键），并验证 6 个视图所需的所有分区均存在。
-
-### 测试用例
-
-1. **键对等性**：en.json 中的每个键都存在于 zh.json 中，反之亦然
-2. **必需分区**：两个文件中均存在全部 18 个顶级分区
-3. **无空值**：没有键映射到空字符串
-4. **分区特定覆盖**：agents、professions、skills、apis 分区具有最低要求的键
-5. **通用分区完整性**：标准操作标签（save、cancel、delete、edit、close）存在于两种语言环境中
-6. **品牌一致性**：app.brandName 在两种语言环境中均保持为 "AutoForge"
-
-### 实现
-
-```typescript
-// 使用 collectKeys() 辅助函数将嵌套对象扁平化为点号表示法路径
-// 比较排序后的数组以进行严格相等性判断
-```
-
-### 验收标准
-
-- en.json 和 zh.json 具有相同的扁平键结构
-- 全部 18 个分区存在：app、nav、settings、common、welcome、chat、specs、wiki、explorer、relay、agents、professions、skills、apis、gate、report、category、detail
-- 无空字符串值
-- 两种语言环境中的品牌名称均为 "AutoForge"
-
----
-
-## UiSystem-T8: View State Persistence Tests
-
-- `frontend/src/composables/__tests__/useViewState.spec.ts` ✅ PASSING (11/11)
-
-### Test Results: VERIFIED ✅
-
-
-```
-cd frontend && npx vitest run src/composables/__tests__/useViewState.spec.ts
-Result: 11/11 PASSED ✅
-```
-
-| Test ID | Description | Result |
-|---------|-------------|--------|
-| TC-1 | Default to chats when no storage exists | ✅ Pass |
-| TC-2 | Load valid view from localStorage | ✅ Pass |
-| TC-3 | Reject invalid view ID and clear storage | ✅ Pass |
-| TC-4 | Handle corrupted JSON data | ✅ Pass |
-| TC-5 | Persist view changes to localStorage | ✅ Pass |
-| TC-6 | Handle localStorage write failures (quota exceeded) | ✅ Pass |
-| TC-7 | Handle localStorage read failures (private browsing) | ✅ Pass |
-| TC-8.1 | Validate chats view ID | ✅ Pass |
-| TC-8.2 | Validate specs view ID | ✅ Pass |
-| TC-8.3 | Validate wiki view ID | ✅ Pass |
-| TC-8.4 | Validate agents view ID | ✅ Pass |
-| TC-8.5 | Validate explorer view ID | ✅ Pass |

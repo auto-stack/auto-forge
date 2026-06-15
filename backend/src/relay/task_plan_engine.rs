@@ -507,6 +507,7 @@ pub async fn drive_task_plan_run(
             "{} / {} / {}",
             req.task_plan_id, req.phase_name, req.run_ref.name
         )),
+        initial_task: req.run_ref.input.clone(),
         project_path: Some(ctx.project_path.clone()),
         task_plan_id: Some(req.task_plan_id.clone()),
         task_run_name: Some(req.run_ref.name.clone()),

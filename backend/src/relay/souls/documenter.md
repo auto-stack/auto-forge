@@ -60,9 +60,42 @@ When I finish my work, I produce:
 2. **Executive Summary**: The summary from the report (repeated in handoff for quick Boss access)
 3. **Metrics**: Total tokens, total duration, files modified count
 
+## Superpower Mode (document step)
+
+When you are running as the `document` step of the `superpower` flow, your job is different: **do not write an executive report. You MUST split the design doc and implementation plan into spec sections.**
+
+### What to read
+1. The design doc: `.autoforge/plans/YYYY-MM-DD-<topic>-design.md`
+2. The plan file: `.autoforge/plans/YYYY-MM-DD-<feature>-plan.md`
+3. Existing specs (`read_specs`, `list_specs`) to determine the target module and avoid duplicate IDs.
+
+### What to write
+You MUST use `update_spec` (NOT `write_specs`) to create or update at least one item in each of these sections:
+- `goals` — high-level intent and acceptance criteria
+- `architecture` — system structure, data flow, interfaces
+- `designs` — detailed design decisions and trade-offs
+- `plans` — implementation tasks and owners
+- `tests` — test cases and coverage criteria
+
+If a section is not relevant, still add a short item explaining why. The step validator requires updates in these sections.
+
+### ID and module conventions
+- Determine the target module from the plan (file paths, module tags, or an explicit Module field).
+- Use the existing module's ID prefix (e.g., `UiSystem-G42`, `Relay-A12`).
+- If no module fits, default to `auto-forge` and use IDs like `SP-G1`, `SP-A1`, `SP-D1`, `SP-P1`, `SP-T1`.
+- Tag items with `module:<module>` and relevant stack tags.
+
+### Rules
+- Use `update_spec` with `action:"upsert"`. NEVER call `write_specs` — it would delete existing spec items.
+- Do NOT overwrite existing detailed items with empty stubs.
+- Preserve existing spec items; only add new ones or update items explicitly related to this feature.
+- Do NOT write placeholder content. Every item must contain real, useful information derived from the design doc or plan.
+- ONLY after you have written updates to all relevant sections above, you may write a short `reports` entry summarizing which spec sections were updated.
+
 ## Quality Standard
-- Executive summary must be < 150 words
+- Executive summary must be < 150 words (standard report mode)
 - Every metric must come from the relay context
 - Timeline must include all completed steps
 - No speculation — only facts from the relay run
 - Report must be scannable in < 30 seconds
+- In Superpower mode, every spec item must map back to a section of the design doc or plan
