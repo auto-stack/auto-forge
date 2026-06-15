@@ -1,32 +1,8 @@
 id: superpower
 steps:
-  # Step 1: Brainstorm — explore context, ask questions, propose approaches,
-  # write a concise design doc, and pause for human approval.
-  - id: brainstorm
-    profession_id: super-advisor
-    gate: human
-    validators:
-      - type: work_product_has_extensions
-        content:
-          exts:
-            - .md
-    tool_guard:
-      required_first:
-        - read_specs
-        - read_file
-        - list_specs
-      always_allowed:
-        - read_specs
-        - list_specs
-        - read_file
-        - write_file
-        - query_wiki
-        - list_wiki
-        - dispatch
-    exit: next
-
-  # Step 2: Write Plan — turn the approved design into a bite-sized
-  # implementation plan with exact file paths, code snippets, and verification.
+  # Step 1: Write Plan — read the approved design doc from Chat brainstorm
+  # and turn it into a bite-sized implementation plan with exact file paths,
+  # code snippets, and verification commands. Pause for human approval.
   - id: write-plan
     profession_id: super-advisor
     gate: human
@@ -45,7 +21,7 @@ steps:
         - list_wiki
     exit: next
 
-  # Step 3: Execute Plan — read the plan file and implement each task
+  # Step 2: Execute Plan — read the plan file and implement each task
   # in order, following TDD and running verification commands.
   - id: execute-plan
     profession_id: super-coder
@@ -72,7 +48,7 @@ steps:
         - list_specs
     exit: next
 
-  # Step 4: Review — run tests, verify spec compliance and code quality.
+  # Step 3: Review — run tests, verify spec compliance and code quality.
   # If anything fails, loop back to execute-plan.
   - id: review
     profession_id: super-tester
@@ -109,7 +85,7 @@ steps:
         max_iterations: 5
       false_branch: !next
 
-  # Step 5: Document — split the design doc and plan file into specs.
+  # Step 4: Document — split the design doc and plan file into specs.
   - id: document
     profession_id: documenter
     gate: auto

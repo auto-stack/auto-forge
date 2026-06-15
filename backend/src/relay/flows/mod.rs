@@ -606,26 +606,23 @@ mod tests {
     }
 
     #[test]
-    fn test_superpower_flow_has_five_steps() {
+    fn test_superpower_flow_has_four_steps() {
         let flow = builtin("superpower");
-        assert_eq!(flow.steps.len(), 5);
-        assert_eq!(flow.steps[0].profession_id, "super-advisor"); // brainstorm
-        assert_eq!(flow.steps[1].profession_id, "super-advisor"); // write-plan
-        assert_eq!(flow.steps[2].profession_id, "super-coder");   // execute-plan
-        assert_eq!(flow.steps[3].profession_id, "super-tester");  // review
-        assert_eq!(flow.steps[4].profession_id, "documenter");    // document
+        assert_eq!(flow.steps.len(), 4);
+        assert_eq!(flow.steps[0].profession_id, "super-advisor"); // write-plan
+        assert_eq!(flow.steps[1].profession_id, "super-coder");   // execute-plan
+        assert_eq!(flow.steps[2].profession_id, "super-tester");  // review
+        assert_eq!(flow.steps[3].profession_id, "documenter");    // document
     }
 
     #[test]
-    fn test_superpower_brainstorm_and_write_plan_have_human_gates() {
+    fn test_superpower_write_plan_has_human_gate() {
         let flow = builtin("superpower");
-        assert_eq!(flow.steps[0].id, "brainstorm");
+        assert_eq!(flow.steps[0].id, "write-plan");
         assert_eq!(flow.steps[0].gate, GateType::Human);
-        assert_eq!(flow.steps[1].id, "write-plan");
-        assert_eq!(flow.steps[1].gate, GateType::Human);
+        assert_eq!(flow.steps[1].gate, GateType::Auto);
         assert_eq!(flow.steps[2].gate, GateType::Auto);
         assert_eq!(flow.steps[3].gate, GateType::Auto);
-        assert_eq!(flow.steps[4].gate, GateType::Auto);
     }
 
     #[test]
