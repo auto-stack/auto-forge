@@ -5,7 +5,7 @@
 ## Auth-D1 User Login & RBAC Integration Design
 **Status:** approved
 **File:** `frontend/src/App.vue`
-**Module:** `backend/src/main.rs`, `frontend/src/composables/useAuth.ts`, `frontend/src/views/LoginView.vue`
+**Module:** auth
 **Tags:** stack:both, module:auth
 **Depends on:** Auth-A1
 

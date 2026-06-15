@@ -235,6 +235,7 @@ import { useI18n } from 'vue-i18n'
 import { useSpecs } from '@/composables/useSpecs'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useProject } from '@/composables/useProject'
+import { useViewState } from '@/composables/useViewState'
 import type { SpecsSection, SpecItem, SectionType, Status } from '@/types/specs'
 import StatusBadge from '@/components/StatusBadge.vue'
 import GateBanner from '@/components/GateBanner.vue'
@@ -257,6 +258,7 @@ const { t } = useI18n()
 const { document, isLoading, error, loadDocument, loadOverview, loadModuleOutline, saveDocument, findItemById, findSectionByItemId, rebuildRelations: apiRebuildRelations } = useSpecs()
 const { gates: pendingGates, resolveGate: resolveGateInbox } = useGateInbox()
 const { projectName: activeProjectName } = useProject()
+const viewState = useViewState()
 
 const SPECS_SIDEBAR_KEY = 'autoforge-specs-sidebar-collapsed'
 
@@ -329,11 +331,15 @@ function idToModule(id: string): string | null {
 }
 
 function getModule(item: SpecItem): string | null {
-  // Prefer explicit module metadata (field or tag) over ID prefix parsing.
-  if (item.module) return item.module.toLowerCase()
+  // Prefer the canonical `module:<name>` tag over free-text metadata.
   if (item.tags) {
     const modTag = item.tags.find(t => t.toLowerCase().startsWith('module:'))
     if (modTag) return modTag.split(':')[1]?.trim().toLowerCase() || null
+  }
+  // Fall back to the explicit Module field only when it looks like a single
+  // module name and not a file path or comma-separated file list.
+  if (item.module && !/[\/,.]/.test(item.module)) {
+    return item.module.toLowerCase()
   }
   return idToModule(item.id)
 }
@@ -493,6 +499,8 @@ function selectOverview() {
   activeModuleOutline.value = null
   activeModule.value = ''
   activeSection.value = ''
+  activeItemId.value = null
+  viewState.setDetailPath('')
 }
 
 watch([activeModule, activeSection], () => {
@@ -500,12 +508,68 @@ watch([activeModule, activeSection], () => {
 })
 
 watch(moduleTree, (tree) => {
-  if (tree.length > 0 && !activeModule.value && !showOverview.value && !activeModuleOutline.value) {
+  if (tree.length === 0) return
+
+  // If URL has a specs detail path, restore it instead of using defaults
+  if (restoreSpecsFromUrl()) return
+
+  if (!activeModule.value && !showOverview.value && !activeModuleOutline.value) {
     activeModule.value = tree[0].name
     activeSection.value = tree[0].types[0]?.id || 'goals'
     expandedModules.value = new Set([tree[0].name])
   }
 }, { immediate: true })
+
+// Restore / sync URL detail path for specs, e.g. /forge/specs/{module}/{section}/{item}
+function restoreSpecsFromUrl() {
+  const detailPath = viewState.currentDetailPath.value
+  if (!detailPath) return false
+
+  const parts = detailPath.split('/')
+  const modName = parts[0]
+  const sectionId = parts[1] || ''
+  const itemId = parts[2] || null
+
+  const module = moduleTree.value.find((m) => m.name === modName)
+  if (!module) return false
+
+  showOverview.value = false
+  activeModuleOutline.value = null
+  activeModule.value = modName
+  expandedModules.value = new Set([modName, ...expandedModules.value])
+
+  if (sectionId) {
+    const sectionExists = module.types.some((t) => t.id === sectionId)
+    activeSection.value = sectionExists ? sectionId : (module.types[0]?.id || 'goals')
+  } else {
+    activeSection.value = module.types[0]?.id || 'goals'
+  }
+
+  if (itemId) {
+    activeItemId.value = itemId
+  }
+
+  return true
+}
+
+watch([activeModule, activeSection, activeItemId], () => {
+  if (showOverview.value) {
+    viewState.setDetailPath('')
+    return
+  }
+  if (!activeModule.value) {
+    viewState.setDetailPath('')
+    return
+  }
+  const parts = [activeModule.value]
+  if (activeSection.value) {
+    parts.push(activeSection.value)
+  }
+  if (activeItemId.value) {
+    parts.push(activeItemId.value)
+  }
+  viewState.setDetailPath(parts.join('/'))
+})
 
 async function fetchOverview() {
   const result = await loadOverview(project.value)
