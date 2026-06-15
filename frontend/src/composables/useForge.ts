@@ -3,6 +3,7 @@ import type { ForgeMessage, ForgeSession, ForgeSessionSummary, ForgeStreamEvent,
 import type { ToolCallInfo } from '@/types/tool'
 import { useEventRouter, type SSEEvent } from './useEventRouter'
 import { authFetch } from './useAuth'
+import { useViewState } from './useViewState'
 
 const API_BASE = '/api/forge/chats'
 const STORAGE_KEY = 'autoforge_session_id'
@@ -27,7 +28,20 @@ export function useForge() {
   const errands = _errands
   const taskPlans = _taskPlans
 
+  // URL view state: keep /forge/chats/{sessionId} in sync
+  const viewState = typeof window !== 'undefined' ? useViewState() : null
+
   const sessionId = computed(() => session.value?.id ?? null)
+
+  function syncSessionUrl(sid: string | null) {
+    if (!viewState) return
+    if (sid) {
+      viewState.setDetailPath(sid)
+    } else {
+      viewState.setDetailPath('')
+    }
+  }
+
   const sessionStatus = computed(() => session.value?.status ?? 'idle')
   const sessionPhase = computed(() => session.value?.phase ?? 'intake')
   const needsApproval = computed(() => sessionStatus.value === 'waiting_approval' && sessionPhase.value === 'spec_review')
@@ -47,6 +61,7 @@ export function useForge() {
       messages.value = data.messages
       error.value = null
       localStorage.setItem(STORAGE_KEY, data.id)
+      syncSessionUrl(data.id)
       await loadSessionList()
       return data.id
     } catch (e) {
@@ -67,6 +82,7 @@ export function useForge() {
       messages.value = data.messages
       error.value = null
       localStorage.setItem(STORAGE_KEY, data.id)
+      syncSessionUrl(data.id)
       return data.id
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
@@ -91,19 +107,30 @@ export function useForge() {
     messages.value = []
     error.value = null
     localStorage.removeItem(STORAGE_KEY)
+    syncSessionUrl(null)
     await createSession(undefined, projectPath)
   }
 
   /** Attempt to resume on app load:
-   *  1. Check localStorage for a previous session ID
-   *  2. Try to restore it from the server
-   *  3. Reuse an existing idle session if available
-   *  4. Only create a new session as last resort
+   *  1. Check URL detail path for a requested session ID
+   *  2. Check localStorage for a previous session ID
+   *  3. Try to restore it from the server
+   *  4. Reuse an existing idle session if available
+   *  5. Only create a new session as last resort
    */
   async function resume(projectPath?: string) {
     if (_resuming.value) return _session.value?.id ?? null
     _resuming.value = true
     try {
+      // Prefer explicit URL path, e.g. /forge/chats/{sessionId}
+      const urlSessionId = viewState?.currentDetailPath.value ?? ''
+      if (urlSessionId) {
+        const restored = await restoreSession(urlSessionId)
+        if (restored) return restored
+        // Invalid URL session — clear it so we don't keep retrying
+        syncSessionUrl(null)
+      }
+
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const restored = await restoreSession(stored)

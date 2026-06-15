@@ -389,6 +389,9 @@ import AgentAvatar from '@/components/AgentAvatar.vue'
 import SegmentedProgressBar from '@/components/SegmentedProgressBar.vue'
 import TaskPlanPanel from '@/components/TaskPlanPanel.vue'
 import { useProfessionSegments } from '@/composables/useProfessionSegments'
+import { useViewState } from '@/composables/useViewState'
+
+const viewState = useViewState()
 
 const {
   runs, currentRun, professions, souls, loading, error,
@@ -511,6 +514,12 @@ onMounted(async () => {
   await loadProfessions()
   await loadSouls()
   await loadRuns(projectPath.value ?? undefined)
+
+  // Restore selected run from URL, e.g. /forge/agents/{runId}
+  const urlRunId = viewState.currentDetailPath.value
+  if (urlRunId) {
+    selectRun(urlRunId)
+  }
 })
 
 onUnmounted(() => {
@@ -518,10 +527,12 @@ onUnmounted(() => {
 })
 
 function selectRun(runId: string) {
+  if (currentRun.value?.run_id === runId) return
   if (unsubscribe) unsubscribe()
   sessionLog.value = []
   loadRun(runId)
   unsubscribe = subscribeToRun(runId)
+  viewState.setDetailPath(runId)
 }
 
 async function refresh() {

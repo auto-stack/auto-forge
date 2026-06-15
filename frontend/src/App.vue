@@ -16,7 +16,7 @@
           class="rail-tab"
           :class="{ active: currentView === tab.id }"
           :data-testid="`nav-tab-${tab.id}`"
-          @click="currentView = tab.id"
+          @click="setView(tab.id)"
         >
           <component :is="tab.icon" :size="16" class="tab-icon" />
           <span class="tab-label">{{ tab.label }}</span>
@@ -31,7 +31,7 @@
       </div>
     </nav>
     <main class="view-main">
-      <WelcomeView v-if="!isOpen || projectInfo?.is_empty" @start-chat="currentView = 'chats'" />
+      <WelcomeView v-if="!isOpen || projectInfo?.is_empty" @start-chat="setView('chats')" />
       <template v-else>
         <ChatsView v-if="currentView === 'chats'" />
         <SpecsView v-else-if="currentView === 'specs'" />
@@ -82,7 +82,7 @@ const projectStore = useProject()
 const { isOpen, projectName, projectInfo } = toRefs(projectStore)
 const { fetchStatus } = projectStore
 const { isAuthenticated } = useAuth()
-const { currentView } = useViewState()
+const { currentView, setView } = useViewState()
 
 function onAuthSuccess() {
   // Auth state is already reactive in useAuth composable;
@@ -112,15 +112,15 @@ function onKeyDown(e: KeyboardEvent) {
   switch (e.key) {
     case '1':
       e.preventDefault()
-      currentView.value = 'chats'
+      setView('chats')
       break
     case '2':
       e.preventDefault()
-      currentView.value = 'specs'
+      setView('specs')
       break
     case '3':
       e.preventDefault()
-      currentView.value = 'agents'
+      setView('agents')
       break
     case 'k':
     case 'K':
