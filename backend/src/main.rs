@@ -226,6 +226,7 @@ async fn main() {
     let vite_running = tokio::net::TcpStream::connect("127.0.0.1:5174").await.is_ok();
     if vite_running {
         app = app.route("/forge", axum::routing::any(vite_proxy))
+                 .route("/forge/", axum::routing::any(vite_proxy))
                  .route("/forge/{*path}", axum::routing::any(vite_proxy));
         tracing::info!("AutoForge UI proxied to Vite dev server at http://localhost:5174/forge/");
     } else if forge_dist_dir.exists() {
