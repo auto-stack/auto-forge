@@ -393,7 +393,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Send, ChevronDown, ChevronUp, Plus, PanelLeft,
@@ -659,7 +659,16 @@ function handleMentionSelect(id: string) {
   })
 }
 
+function handleGlobalKeydown(e: KeyboardEvent) {
+  // Ctrl+Shift+N (or Cmd+Shift+N on macOS): Create new session
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
+    e.preventDefault()
+    clearSession(projectPath?.value ?? undefined)
+  }
+}
+
 function handleKeydown(e: KeyboardEvent) {
+  // Mention dropdown keyboard navigation
   if (!mentionVisible.value || !mentionRef.value?.hasItems()) return
   if (e.key === 'ArrowDown') {
     e.preventDefault()
@@ -1214,6 +1223,8 @@ function regenerate(_msg: typeof messages.value[number]) {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleGlobalKeydown)
+
   // Wire report callback from event router
   setEventCallbacks({
     onReport: (payload) => {
@@ -1233,6 +1244,10 @@ onMounted(async () => {
   }
   await loadSessionList()
   await loadAgentConfigs()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
 })
 </script>
 

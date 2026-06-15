@@ -151,6 +151,7 @@ pub fn generate_default_professions() -> Vec<Profession> {
             ],
             handoff_to: vec![
                 String::from("advisor"),
+                String::from("super-advisor"),
             ],
             approval_gates: vec![],
             dispatchable_to: vec![String::from("gofer")],
