@@ -356,6 +356,25 @@ export function useRelay() {
     }
   }
 
+  async function updateRunTitle(runId: string, title: string) {
+    try {
+      const resp = await authFetch(`${API_BASE}/runs/${runId}/title`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      })
+      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
+      const updated = await resp.json()
+      if (currentRun.value?.run_id === runId) {
+        currentRun.value = updated
+      }
+      await loadRuns()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+      throw e
+    }
+  }
+
   // SSE for live updates
   function subscribeToRun(runId: string, onEvent?: (event: any) => void) {
     const eventRouter = useEventRouter()
@@ -534,7 +553,7 @@ export function useRelay() {
           _professionTokens.value[data.profession_id] = prev + (data.tokens_used as number)
         }
         // Auto-refresh run state on relevant events
-        if (['run_started', 'step_started', 'step_advanced', 'handoff_submitted', 'gate_resolved'].includes(data.event_type)) {
+        if (['run_started', 'step_started', 'step_advanced', 'handoff_submitted', 'gate_resolved', 'run_title_updated'].includes(data.event_type)) {
           loadRun(runId)
         }
       } catch {
@@ -570,6 +589,7 @@ export function useRelay() {
     submitHandoff,
     subscribeToRun,
     deleteRun,
+    updateRunTitle,
     sessionLog,
   }
 }

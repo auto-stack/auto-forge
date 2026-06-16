@@ -41,7 +41,7 @@ pub use pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, 
 pub use profession::{ForgePhase, Profession, ProfessionError, ProfessionRegistry};
 pub use skills::{SkillDefinition, SkillError, SkillRegistry};
 pub use soul::{SoulConfig, SoulError};
-pub use store::{RunStore, new_run_store, start_run, get_run, list_runs, advance_run, submit_handoff, resolve_gate, RunEntry, RunEvent, RunSummary, RunState, StepState, GateState};
+pub use store::{RunStore, new_run_store, start_run, get_run, list_runs, advance_run, submit_handoff, resolve_gate, update_run_metadata, RunEntry, RunEvent, RunSummary, RunState, StepState, GateState};
 
 use std::collections::HashMap;
 use std::sync::LazyLock;

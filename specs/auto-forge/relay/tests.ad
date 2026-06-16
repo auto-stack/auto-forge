@@ -1434,3 +1434,50 @@ No bugs found.
 ## Relay-T25 AgentBreakdownTooltip — Merged into T24 (inline tooltip per P4.2)
 **Status:** superseded
 **Module:** relay
+
+
+## Relay-T27 Editable Relay Run Title
+**Status:** draft
+**Module:** relay
+**Tags:** stack:fullstack, module:relay
+**Depends on:** Relay-G14
+
+### Backend Tests
+
+1. **Update title to custom value**
+   - Start a relay run.
+   - `PATCH /api/forge/relay/runs/{run_id}/title` with `{ "title": "Custom Title" }`.
+   - Assert response `title` equals "Custom Title".
+   - Assert `GET /api/forge/relay/runs/{run_id}` returns the same title.
+
+2. **Clear title reverts to auto-generated**
+   - Set a custom title.
+   - `PATCH` with `{ "title": "" }`.
+   - Assert response `title` is empty/null and UI falls back to auto-generated title.
+
+3. **Update non-existent run returns 404**
+   - `PATCH /api/forge/relay/runs/run-does-not-exist/title`.
+   - Assert `404 Not Found`.
+
+### Frontend Tests
+
+1. **Click title enters edit mode**
+   - Render `RelayView` with a run.
+   - Click the title.
+   - Assert an `<input>` is visible and focused.
+
+2. **Enter saves, Escape cancels**
+   - Type a new title and press Enter.
+   - Assert `updateRunTitle` API is called and input is replaced by static text.
+   - Click title again, type, press Escape.
+   - Assert API is not called and original title is restored.
+
+3. **Empty title reverts to auto-generated**
+   - Clear input and press Enter.
+   - Assert API called with `""` and displayed title falls back to auto-generated.
+
+### Integration Test
+
+1. Open Relay view in two browser contexts.
+2. Edit title in context A.
+3. Assert context B receives SSE `run_title_updated` and updates the title within 5 seconds.

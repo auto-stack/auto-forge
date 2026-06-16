@@ -307,7 +307,7 @@ graph TB
 ---
 
 ## Relay-A6 人类友好的接力运行标题架构
-**Status:** draft
+**Status:** implemented
 **Module:** relay
 **Tags:** stack:both, module:relay
 **Depends on:** Relay-G14, Relay-G13
@@ -316,7 +316,7 @@ graph TB
 
 ## 概述
 
-接力运行目前显示原始 UUID（例如 `run-6ddc1312`），对用户来说毫无意义。本架构添加从任务描述派生的人类可读标题，使接力运行在接力视图、聊天卡片和运行历史中一目了然。
+接力运行目前显示原始 UUID（例如 `run-6ddc1312`），对用户来说毫无意义。本架构添加从任务描述派生的人类可读标题，并允许用户在 Relay 视图中直接编辑标题，使接力运行在接力视图、聊天卡片和运行历史中一目了然。
 
 ### 问题
 
@@ -402,6 +402,7 @@ interface RunSummary {
 | `POST /api/forge/relay/runs`（spawn） | 从 `task` 字段接受/派生 `title` |
 | `GET /api/forge/relay/runs` | 在每个 `RunSummary` 中返回 `title` |
 | `GET /api/forge/relay/runs/:id` | 在 `RunState` 中返回 `title` |
+| `PATCH /api/forge/relay/runs/:id/title` | 更新运行的自定义标题；空字符串清除自定义标题并回退到自动生成标题 |
 
 ### 关键架构决策
 
@@ -411,12 +412,26 @@ interface RunSummary {
 | 标题来源 | 任务描述的第一句话 | 最具描述性，由用户撰写 |
 | 最大长度 | 40 个字符 | 适合侧边栏/卡片，无需截断 |
 | 回退策略 | 若 title 为空则显示 `run_id` | 始终展示有意义的内容 |
-| 可编辑性 | 只读（自动生成） | 避免用户对运行命名产生困惑 |
-| 存储方式 | RunEntry 上的新 `title` 字段 | 简单，无需单独查找 |
+| 可编辑性 | 可编辑（点击标题进入编辑模式） | 用户可以根据需要重命名，空标题回退到自动生成 |
+| 存储方式 | `RunMetadata.title` 字段 | 简单，与 `initial_task` 一起存储；清除时回退到自动生成 |
+
+### 标题编辑流程
+
+```
+User clicks title in RelayView
+  → input enters edit mode with current title
+  → User types new title
+  → Enter: PATCH /api/forge/relay/runs/:id/title { title }
+  → Esc or empty submit: cancel / revert to auto-generated title
+  → Backend updates RunMetadata.title and persists
+  → Backend broadcasts run_title_updated SSE event
+  → Frontend updates currentRun and runs list
+```
 
 ### 触发条件
 
-标题在 `spawn_relay` 工具创建新的 `RunEntry` 时生成。无其他触发条件。
+- 标题在 `spawn_relay` 工具创建新的 `RunEntry` 时自动生成。
+- 用户在 Relay 视图中点击标题进入编辑模式。
 
 ### 数据流
 
@@ -443,12 +458,12 @@ interface RunSummary {
 
 | 文件 | 变更 |
 |------|--------|
-| `backend/src/relay/driver.rs` | 添加 `title_from_task()` 辅助函数；将 title 传给 `RunEntry::new()` |
-| `backend/src/relay/run_store.rs` | 在 `RunEntry`、`RunSummary`、`RunState` 中添加 `title` 字段 |
-| `backend/src/forge/tools.rs` | SpawnRelayTool 结果包含 title |
-| `frontend/src/composables/useRelay.ts` | 在 `RunSummary` 类型中添加 `title` |
-| `frontend/src/views/RelayView.vue` | 标题为主要显示，run_id 为副标题 |
-| `frontend/src/components/RelayCard.vue` | 显示 title 替代 run_id |
+| `backend/src/relay/title.rs` | 标题生成算法 `generate_title()` |
+| `backend/src/relay/store.rs` | 添加 `update_run_metadata()`；`RunMetadata` 存储 `title` 和 `initial_task` |
+| `backend/src/relay/api.rs` | 添加 `UpdateRunTitleRequest` DTO、`update_run_title_handler()` 和 `PATCH /runs/:id/title` 路由 |
+| `frontend/src/composables/useRelay.ts` | 添加 `updateRunTitle()`；监听 `run_title_updated` SSE 事件 |
+| `frontend/src/views/RelayView.vue` | 标题支持点击编辑、Enter 保存、Esc 取消 |
+| `frontend/src/i18n/locales/en.json` / `zh.json` | 添加 `relay.editTitle` 文案 |
 
 ## Relay-A7 Relay Report PDF Export Architecture (Consolidated)
 **Status:** approved

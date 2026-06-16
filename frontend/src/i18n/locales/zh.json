@@ -204,7 +204,8 @@
     "tokens": "令牌",
     "clickToCollapse": "点击步骤折叠",
     "noSteps": "尚未完成任何步骤",
-    "rerunRun": "从失败步骤重新运行"
+    "rerunRun": "从失败步骤重新运行",
+    "editTitle": "编辑运行标题"
   },
   "agents": {
     "title": "智能体锻造",

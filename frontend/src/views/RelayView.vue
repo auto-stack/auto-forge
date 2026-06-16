@@ -105,8 +105,24 @@
           <!-- Run header -->
           <div class="panel-header">
             <div class="panel-header-title">
-              {{ currentRun.title || currentRun.run_id }}
-              <span v-if="currentRun.title" class="panel-header-subtitle">{{ currentRun.run_id }}</span>
+              <template v-if="isEditingTitle">
+                <input
+                  ref="titleInputRef"
+                  v-model="editTitleValue"
+                  class="title-edit-input"
+                  type="text"
+                  :placeholder="currentRun.run_id"
+                  @blur="saveTitle"
+                  @keydown="onTitleKeydown"
+                />
+              </template>
+              <template v-else>
+                <span class="title-text" @click="startEditTitle">{{ currentRun.title || currentRun.run_id }}</span>
+                <span v-if="currentRun.title" class="panel-header-subtitle">{{ currentRun.run_id }}</span>
+                <button class="btn-icon btn-edit-title" :title="t('relay.editTitle')" @click="startEditTitle">
+                  <Wrench :size="12" />
+                </button>
+              </template>
             </div>
             <div class="panel-header-stats">
               <span class="stat-badge">
@@ -397,7 +413,7 @@ const {
   runs, currentRun, professions, souls, loading, error,
   hasActiveGate, budgetUsedPercent, liveLog, professionTokens, sessionLog,
   loadProfessions, loadSouls, loadRuns, loadRun,
-  resolveGate, subscribeToRun, deleteRun, rerunRun,
+  resolveGate, subscribeToRun, deleteRun, rerunRun, updateRunTitle,
 } = useRelay()
 
 const { projectPath } = useProject()
@@ -413,6 +429,44 @@ const expandedStepId = ref<string | null>(null)
 const sessionLogRef = ref<HTMLElement | null>(null)
 const activeStepNav = ref<number>(-1)
 const activeTab = ref<'runs' | 'task_plans'>('runs')
+
+// Inline title editing
+const isEditingTitle = ref(false)
+const editTitleValue = ref('')
+const titleInputRef = ref<HTMLInputElement | null>(null)
+
+function startEditTitle() {
+  if (!currentRun.value) return
+  editTitleValue.value = currentRun.value.title || currentRun.value.run_id
+  isEditingTitle.value = true
+  nextTick(() => titleInputRef.value?.focus())
+}
+
+async function saveTitle() {
+  if (!currentRun.value) return
+  const runId = currentRun.value.run_id
+  const newTitle = editTitleValue.value.trim()
+  isEditingTitle.value = false
+  try {
+    await updateRunTitle(runId, newTitle)
+  } catch {
+    // error is already set by updateRunTitle
+  }
+}
+
+function cancelEditTitle() {
+  isEditingTitle.value = false
+}
+
+function onTitleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    saveTitle()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    cancelEditTitle()
+  }
+}
 
 // Auto-scroll session log to bottom when new entries arrive
 import { watch, nextTick } from 'vue'
@@ -856,6 +910,45 @@ function professionIcon(id: string): string {
   font-size: 0.78rem;
   font-weight: 400;
   color: var(--af-muted);
+}
+
+.title-text {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  margin-left: -0.3rem;
+  transition: background 0.15s ease;
+}
+
+.title-text:hover {
+  background: hsl(var(--muted-foreground) / 0.1);
+}
+
+.title-edit-input {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--af-fg);
+  background: var(--af-card);
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  min-width: 240px;
+  max-width: 60vw;
+  outline: none;
+}
+
+.title-edit-input:focus {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+}
+
+.btn-edit-title {
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.panel-header-title:hover .btn-edit-title {
+  opacity: 1;
 }
 
 .panel-header-stats {

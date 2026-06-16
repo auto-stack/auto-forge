@@ -2071,3 +2071,63 @@ const { segments, totalUsed, tooltipEntries } = useProfessionSegments(profession
 | `frontend/src/components/SegmentedProgressBar.vue` | **CREATE** | Main bar component, imports tooltip |
 | `frontend/src/views/RelayView.vue` | **MODIFY** | Remove pie panel (~326–370), replace budget bar (~96–113), wire composable |
 | ~~`frontend/src/components/CostBreakdownChart.vue`~~ | ~~DELETE~~ | **N/A — file does not exist. Pie chart is inline.** |
+
+
+## Relay-D16 Editable Relay Run Title Design
+**Status:** approved
+**File:** `frontend/src/views/RelayView.vue`, `frontend/src/composables/useRelay.ts`
+**Module:** relay
+**Depends on:** Relay-A6
+
+## Overview
+
+Allow users to edit the title of a Relay run directly from the Relay detail view. The title is stored in `RunMetadata.title` and falls back to the auto-generated title when cleared.
+
+## Interaction Design
+
+### View Mode
+- The run title in the panel header is rendered as clickable text.
+- Hovering the title shows a subtle background highlight and a small wrench icon.
+- The `run_id` remains visible as a subtitle.
+
+### Edit Mode
+- Clicking the title or the wrench icon replaces the text with a focused text input.
+- The input is pre-filled with the current custom title (or `run_id` if no custom title exists).
+- **Enter**: saves the new title.
+- **Escape**: cancels editing and reverts to the previous title.
+- **Blur**: saves the new title.
+- Submitting an empty or whitespace-only string clears the custom title; the UI falls back to the auto-generated title.
+
+### Feedback
+- On save, the frontend calls `PATCH /api/forge/relay/runs/{run_id}/title`.
+- On success, the local `currentRun` and `runs` list are updated immediately.
+- A backend SSE event (`run_title_updated`) triggers an automatic refresh for any other client viewing the same run.
+
+## API Contract
+
+```http
+PATCH /api/forge/relay/runs/{run_id}/title
+Content-Type: application/json
+
+{ "title": "My Custom Title" }
+```
+
+- `200 OK` returns the updated `RunState`.
+- `404 Not Found` if the run does not exist.
+- Empty `title` clears the custom title and reverts to auto-generated.
+
+## Accessibility
+
+- The title text has `role="button"` and `tabindex="0"`.
+- The edit button has an `aria-label` via i18n key `relay.editTitle`.
+- Keyboard shortcuts (Enter/Esc) are documented in the component.
+
+## Files Summary
+
+| File | Action | Notes |
+|---|---|---|
+| `backend/src/relay/store.rs` | **MODIFY** | Add `update_run_metadata()` |
+| `backend/src/relay/api.rs` | **MODIFY** | Add DTO, handler, and route |
+| `frontend/src/composables/useRelay.ts` | **MODIFY** | Add `updateRunTitle()` and SSE handler |
+| `frontend/src/views/RelayView.vue` | **MODIFY** | Inline editable title component |
+| `frontend/src/i18n/locales/en.json` / `zh.json` | **MODIFY** | Add `relay.editTitle` |

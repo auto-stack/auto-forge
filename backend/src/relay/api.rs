@@ -13,14 +13,14 @@ use crate::relay::task_plan_registry::{get_task_plan, list_task_plans, register_
 use crate::relay::profession::{self, Profession, ProfessionRegistry};
 use crate::relay::store::{
     advance_run, delete_run, get_run, list_runs, new_run_store, resolve_gate, resume_run, rerun_run, start_run, submit_handoff,
-    RunState, RunStore, RunSummary,
+    update_run_metadata, RunState, RunStore, RunSummary,
 };
 use crate::relay::config::{self, AgentConfig, ApiSource, ConnectionTestResult};
 use crate::relay::skills::{self, SkillDefinition};
 use axum::extract::{Multipart, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, Sse};
-use axum::routing::{get, post, put};
+use axum::routing::{get, patch, post, put};
 use axum::{Json, Router};
 use std::convert::Infallible;
 use std::sync::LazyLock;
@@ -136,6 +136,11 @@ pub struct GateRequest {
 #[derive(serde::Deserialize)]
 pub struct HandoffRequest {
     pub handoff: HandoffDocument,
+}
+
+#[derive(serde::Deserialize)]
+pub struct UpdateRunTitleRequest {
+    pub title: String,
 }
 
 // ─── TaskPlan DTOs ───────────────────────────────────────────────────────────
@@ -361,6 +366,23 @@ pub async fn delete_run_handler(Path(run_id): Path<String>) -> StatusCode {
         StatusCode::NO_CONTENT
     } else {
         StatusCode::NOT_FOUND
+    }
+}
+
+pub async fn update_run_title_handler(
+    Path(run_id): Path<String>,
+    Json(req): Json<UpdateRunTitleRequest>,
+) -> Result<Json<RunState>, StatusCode> {
+    match update_run_metadata(&RUN_STORE, &run_id, Some(req.title)) {
+        Some(state) => {
+            let _ = EVENT_TX.send(RunEventBroadcast {
+                run_id: run_id.clone(),
+                event_type: "run_title_updated".into(),
+                payload: None,
+            });
+            Ok(Json(state))
+        }
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -1569,6 +1591,7 @@ where
         .route("/api/forge/relay/flows/{flow_id}", get(get_flow_handler).put(update_flow_handler).delete(delete_flow_handler))
         .route("/api/forge/relay/runs", get(list_runs_handler).post(start_run_handler))
         .route("/api/forge/relay/runs/{run_id}", get(get_run_handler).delete(delete_run_handler))
+        .route("/api/forge/relay/runs/{run_id}/title", patch(update_run_title_handler))
         .route("/api/forge/relay/runs/{run_id}/advance", post(advance_run_handler))
         .route("/api/forge/relay/runs/{run_id}/rerun", post(rerun_run_handler))
         .route("/api/forge/relay/runs/{run_id}/resume", post(resume_run_handler))

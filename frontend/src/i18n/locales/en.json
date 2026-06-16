@@ -191,7 +191,8 @@
     "tokens": "Tokens",
     "clickToCollapse": "Click step to collapse",
     "noSteps": "No steps completed yet",
-    "rerunRun": "Re-run from failed step"
+    "rerunRun": "Re-run from failed step",
+    "editTitle": "Edit run title"
   },
   "agents": {
     "title": "Agent Forge",

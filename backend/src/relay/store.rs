@@ -630,6 +630,40 @@ pub fn delete_run(store: &RunStore, run_id: &str) -> bool {
     removed
 }
 
+/// Update the metadata of a run.
+///
+/// If `title` is `Some("")`, the custom title is cleared and the run will
+/// fall back to its auto-generated title. If `title` is `Some("text")`,
+/// it sets a custom title. If `None`, no update is performed.
+pub fn update_run_metadata(
+    store: &RunStore,
+    run_id: &str,
+    title: Option<String>,
+) -> Option<RunState> {
+    let mut map = store.lock().unwrap();
+    let entry = map.get_mut(run_id)?;
+
+    // Update title if provided
+    if let Some(t) = title {
+        entry.metadata.title = if t.trim().is_empty() {
+            None // Clear custom title, will fall back to auto-generated
+        } else {
+            Some(t.trim().to_string())
+        };
+    }
+
+    // Update timestamp
+    entry.updated_at = now_secs();
+
+    // Build state response before saving
+    let state = build_run_state(entry);
+
+    // Persist changes
+    save_run(entry);
+
+    Some(state)
+}
+
 /// Resolve a human gate for a run.
 pub fn resolve_gate(store: &RunStore, run_id: &str, decision: GateDecision) -> Option<AdvanceResult> {
     let mut map = store.lock().unwrap();

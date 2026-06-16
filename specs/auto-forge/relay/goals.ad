@@ -122,14 +122,16 @@
 - [x] Token 跟踪
 
 ## Relay-G14 Human-Friendly Relay Run Titles
-**Status:** proposed
+**Status:** implemented
 **Module:** relay
 **Tags:** stack:fullstack, module:relay
 **Depends on:** none
 
-- [ ] Relay runs display human-readable titles instead of generic IDs
-- [ ] Titles summarize the task or purpose of the relay run
-- [ ] Users can edit and customize relay run titles
+- [x] Relay runs display human-readable titles instead of generic IDs
+- [x] Titles summarize the task or purpose of the relay run
+- [x] Users can edit and customize relay run titles
+- [x] Empty title reverts to the auto-generated title
+- [x] Title changes persist across page refreshes
 
 ## Relay-G15 Relay Run Report PDF Export
 **Status:** proposed
