@@ -616,10 +616,10 @@ mod tests {
     }
 
     #[test]
-    fn test_superpower_write_plan_has_human_gate() {
+    fn test_superpower_write_plan_has_auto_gate() {
         let flow = builtin("superpower");
         assert_eq!(flow.steps[0].id, "write-plan");
-        assert_eq!(flow.steps[0].gate, GateType::Human);
+        assert_eq!(flow.steps[0].gate, GateType::Auto);
         assert_eq!(flow.steps[1].gate, GateType::Auto);
         assert_eq!(flow.steps[2].gate, GateType::Auto);
         assert_eq!(flow.steps[3].gate, GateType::Auto);

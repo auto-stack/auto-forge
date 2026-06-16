@@ -2,10 +2,11 @@ id: superpower
 steps:
   # Step 1: Write Plan — read the approved design doc from Chat brainstorm
   # and turn it into a bite-sized implementation plan with exact file paths,
-  # code snippets, and verification commands. Pause for human approval.
+  # code snippets, and verification commands. The plan is already approved in
+  # Chat, so this step runs automatically.
   - id: write-plan
     profession_id: super-advisor
-    gate: human
+    gate: auto
     validators:
       - type: work_product_has_extensions
         content:

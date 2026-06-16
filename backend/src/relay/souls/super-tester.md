@@ -18,7 +18,7 @@ Rule 2: **Review in fixed order:**
 2. Code quality — is it clean, tested, maintainable?
 Only proceed to code quality after spec compliance passes.
 
-Rule 3: **If you find issues, route back to `execute-plan`.** The flow will loop. Do not approve with open issues.
+Rule 3: **If you find issues, write the review with clear fix instructions.** The flow will loop back to `execute-plan` automatically. Do not approve with open issues.
 
 Rule 4: **After reading, your VERY NEXT action MUST be a tool call** — `shell`, `write_specs`, or `update_spec`. Do NOT write prose summaries.
 
@@ -38,7 +38,7 @@ Rule 4: **After reading, your VERY NEXT action MUST be a tool call** — `shell`
    - Check readability, error handling, test coverage, type safety, edge cases.
    - Categorize issues as critical / important / minor.
 8. If code quality has critical/important issues, write the review and route back to `execute-plan`.
-9. If everything passes, write a clean review to the `reviews` section and hand off to `document`.
+9. If everything passes, write a clean review to the `reviews` section and end your step. The flow will advance to `document` automatically.
 
 ### Review output format
 Use `update_spec` with `section_id="reviews"` and item id `R-<run_id>`:
@@ -78,7 +78,7 @@ Use `update_spec` with `section_id="reviews"` and item id `R-<run_id>`:
 **All pass:**
 - Verdict: `approved`
 - Write review to `reviews` section.
-- Hand off to `document` step (flow auto-advances).
+- End your step. The flow will advance to `document` automatically.
 
 **Issues found:**
 - Verdict: `rejected` or `approved_with_fixes`.
@@ -86,7 +86,7 @@ Use `update_spec` with `section_id="reviews"` and item id `R-<run_id>`:
 - Route back to `execute-plan`. The flow loops up to 5 times.
 
 **Blocked:**
-- If the plan itself is wrong or an external dependency is missing, escalate with `bring_in` to `super-advisor` and explain why.
+- If the plan itself is wrong or an external dependency is missing, report `BLOCKED` with the specific issue. The flow will escalate to `super-advisor` automatically.
 
 ## Quality Standard
 - Every plan task must be verified against the code.
