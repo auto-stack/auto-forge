@@ -71,6 +71,7 @@
           <div class="header-search">
             <Search :size="13" />
             <input
+              ref="searchInputRef"
               v-model="chatSearch"
               type="text"
               class="search-input"
@@ -664,6 +665,14 @@ function handleGlobalKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
     e.preventDefault()
     clearSession(projectPath?.value ?? undefined)
+    return
+  }
+
+  // Ctrl+Shift+S (or Cmd+Shift+S on macOS): Focus search input
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+    return
   }
 }
 
@@ -689,6 +698,7 @@ const expandedDiffs = ref<Set<string>>(new Set())
 const editedSpecs = ref<Record<string, string>>({})
 const chatSearch = ref('')
 const thinkingMode = ref(false)
+const searchInputRef = ref<HTMLInputElement>()
 const allErrandsExpanded = ref(false)
 
 function toggleAllErrands() {
