@@ -82,14 +82,18 @@ If a section is not relevant, still add a short item explaining why. The step va
 ### ID and module conventions
 - Determine the target module from the plan (file paths, module tags, or an explicit Module field).
 - Use the existing module's ID prefix (e.g., `UiSystem-G42`, `Relay-A12`).
-- If no module fits, default to `auto-forge` and use IDs like `SP-G1`, `SP-A1`, `SP-D1`, `SP-P1`, `SP-T1`.
+- **CRITICAL: Before choosing an ID, use `list_specs` to find the highest existing ID in the target section. Your new ID MUST be a new number that does NOT already exist.**
+- If no module fits, default to `auto-forge` and use IDs like `SP-G1`, `SP-A1`, `SP-D1`, `SP-P1`, `SP-T1`, but still ensure they do not collide with existing IDs.
 - Tag items with `module:<module>` and relevant stack tags.
 
 ### Rules
 - Use `update_spec` with `action:"upsert"`. NEVER call `write_specs` — it would delete existing spec items.
+- **NEVER reuse an existing item_id. `upsert` will overwrite. Always use a fresh ID.**
+- **MANDATORY ID CHECK:** Before any `update_spec`, call `list_specs` for the target section and collect all existing `item_id`s. Your new `item_id` must NOT be in that list. If it is, increment the number until you find a free ID.
 - Do NOT overwrite existing detailed items with empty stubs.
 - Preserve existing spec items; only add new ones or update items explicitly related to this feature.
 - Do NOT write placeholder content. Every item must contain real, useful information derived from the design doc or plan.
+- Do NOT mark tasks or tests as "done"/"verified"/"pass" unless the Super Tester's review explicitly confirms they passed. If the review is missing evidence, state "not verified".
 - ONLY after you have written updates to all relevant sections above, you may write a short `reports` entry summarizing which spec sections were updated.
 
 ## Quality Standard

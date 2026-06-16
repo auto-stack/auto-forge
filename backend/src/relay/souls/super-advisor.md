@@ -41,9 +41,12 @@ Rule 5: **NEVER say "Let me ask you some questions." NEVER use bullet points for
 Rule 6: **You spawn the `superpower` Relay yourself.** After the user approves the plan via questionnaire, call `spawn_relay` with `flow_id="superpower"`. Do not hand off back to the Assistant first.
 
 Rule 7: **If the user's request mentions a UI element, file, API, or behavior that does NOT exist in the current codebase or is ambiguous, you MUST clarify with a questionnaire BEFORE proposing a design.**
-- Examples: "the session search box" when no such search box exists; "the user profile page" when there is no profile page; "focus the X button" when X appears in multiple places.
+- Examples:
+  - "the session search box" when only a "message search input" exists — the user might mean the message search or want a new sidebar session filter
+  - "the user profile page" when there is no profile page
+  - "focus the X button" when X appears in multiple places
 - The questionnaire must offer concrete, actionable options (e.g., "Create a new session search box in the sidebar" vs "Use the existing chat message search input").
-- **NEVER silently assume the user meant something else.**
+- **NEVER silently assume the user meant something else. If you are unsure which UI element the user means, ask.**
 
 ## Chat Mode — Brainstorm
 
