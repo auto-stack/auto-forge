@@ -317,6 +317,29 @@ graph LR
 
 ---
 
+## Chat-A5 搜索快捷键架构
+**Status:** done
+**Module:** chat
+**Tags:** stack:frontend, module:chat
+
+```
+onMounted
+  └─ window.addEventListener('keydown', handleGlobalKeydown)
+       ├─ Ctrl+Shift+N → clearSession()
+       └─ Ctrl+Shift+S → searchInputRef.value?.focus()
+```
+
+- 使用 Vue 3 Composition API 模板引用（`ref<HTMLInputElement>()`）绑定到搜索输入框
+- `handleGlobalKeydown` 检测 `e.ctrlKey || e.metaKey` 以兼容 Windows/Linux 和 macOS
+- 调用 `e.preventDefault()` 阻止浏览器默认的 "Save As" 行为
+- 在 `onUnmounted` 中移除监听器，确保快捷键仅在 ChatsView 激活时有效
+
+---
+
+---
+
+---
+
 ---
 
 ---

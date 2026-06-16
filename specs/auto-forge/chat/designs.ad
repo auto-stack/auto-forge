@@ -611,6 +611,48 @@ sequenceDiagram
 
 ---
 
+## Chat-D6 搜索快捷键设计
+**Status:** done
+**Module:** chat
+**Tags:** stack:frontend, module:chat
+
+在 `ChatsView.vue` 的搜索输入框上添加模板引用，并通过全局键盘监听器聚焦该输入框。
+
+```vue
+<input
+  ref="searchInputRef"
+  v-model="chatSearch"
+  type="text"
+  class="search-input"
+  :placeholder="t('chat.searchPlaceholder')"
+/>
+```
+
+```typescript
+const searchInputRef = ref<HTMLInputElement>()
+
+function handleGlobalKeydown(e: KeyboardEvent) {
+  // Ctrl+Shift+N ...
+
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+    return
+  }
+}
+```
+
+- 模板引用提供类型安全的 DOM 访问
+- 使用 `e.ctrlKey || e.metaKey` 同时支持 Windows/Linux 的 Ctrl 和 macOS 的 Cmd
+- `e.preventDefault()` 阻止浏览器 "Save As" 默认行为
+- 在现有 `handleGlobalKeydown` 中扩展，保持代码一致性
+
+---
+
+---
+
+---
+
 ---
 
 ---

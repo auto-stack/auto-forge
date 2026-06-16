@@ -1,4 +1,4 @@
-# Chat Search Keyboard Shortcut Implementation Plan
+# Session Search Keyboard Shortcut Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: executing-plans. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -27,6 +27,8 @@
   />
   ```
 
+- [x] **Step 2:** Verify the attribute is present.
+
 ---
 
 ### Task 2: Declare the Ref
@@ -39,6 +41,8 @@
   ```typescript
   const searchInputRef = ref<HTMLInputElement>()
   ```
+
+- [x] **Step 2:** Verify TypeScript recognizes the ref.
 
 ---
 

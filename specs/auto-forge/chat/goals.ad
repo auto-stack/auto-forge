@@ -270,3 +270,15 @@ interface ConfirmDeleteDialogProps {
 - [ ] 用户在 ChatsView 中按 Ctrl+Shift+N 可创建新会话
 - [ ] 快捷键仅在 ChatsView 中激活
 - [ ] 如果需要 i18n 字符串则添加到翻译文件
+
+## Chat-G12 Ctrl+Shift+S 聚焦搜索输入框
+**Status:** done
+**Module:** chat
+**Tags:** stack:frontend, module:chat
+**Depends on:** Chat-G1
+
+- [x] 用户在 ChatsView 中按 Ctrl+Shift+S 可聚焦消息搜索输入框
+- [x] macOS 上使用 Cmd+Shift+S 触发同一行为
+- [x] 快捷键通过 `e.preventDefault()` 阻止浏览器默认行为
+- [x] 不影响现有的 Ctrl+Shift+N 快捷键
+- [x] 无 i18n 变更（无 UI 标签或提示）

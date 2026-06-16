@@ -1,1 +1,29 @@
 # Reports
+
+---
+
+## Chat-R4 搜索快捷键实现报告
+**Status:** done
+**Module:** chat
+**Tags:** stack:frontend, module:chat
+
+:::executive-summary
+在 ChatsView 中新增 Ctrl+Shift+S（macOS 为 Cmd+Shift+S）全局快捷键，用于聚焦现有的消息搜索输入框。改动范围严格控制在 `frontend/src/views/ChatsView.vue` 内，无 i18n 变更。
+:::
+
+```timeline
+| 步骤 | 执行者 | 说明 |
+|---|---|---|
+| 设计 | Kimi | 确定使用模板引用 + handleGlobalKeydown 扩展方案 |
+| 实现 | Kimi | 修改 ChatsView.vue，添加 ref、声明和键盘处理分支 |
+| 验证 | Kimi | `pnpm vue-tsc --noEmit` 通过；手动测试通过 |
+| 文档 | Kimi | 更新 goals、architecture、designs、plans、tests、reports |
+```
+
+**文件变更：**
+- `frontend/src/views/ChatsView.vue` (+10 行)
+
+**验收结果：**
+- 快捷键正确聚焦搜索输入框
+- 不影响现有 Ctrl+Shift+N 快捷键
+- TypeScript 检查通过

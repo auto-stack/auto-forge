@@ -340,3 +340,32 @@ Chat-P10.7 (i18n) → Chat-P10.8 (后端测试) → Chat-P10.9 (前端测试)
 6. 网络错误时显示错误提示但不崩溃
 7. 键盘可以完成全部操作
 8. 屏幕阅读器正确朗读警告信息
+
+## Chat-P11 搜索快捷键实现计划
+**Status:** done
+**Module:** chat
+**Tags:** stack:frontend, module:chat
+**Depends on:** Chat-G12, Chat-A5, Chat-D6
+
+### Task 1: 添加模板引用
+- [x] 在 `frontend/src/views/ChatsView.vue` 的搜索输入框上添加 `ref="searchInputRef"`
+
+### Task 2: 声明 ref
+- [x] 在 script setup 中添加 `const searchInputRef = ref<HTMLInputElement>()`
+
+### Task 3: 扩展键盘处理器
+- [x] 在 `handleGlobalKeydown` 中添加 Ctrl+Shift+S / Cmd+Shift+S 分支
+- [x] 调用 `e.preventDefault()` 和 `searchInputRef.value?.focus()`
+- [x] 在 Ctrl+Shift+N 分支后添加 `return` 避免同时触发
+
+### Task 4: 类型检查
+- [x] 运行 `cd frontend && pnpm vue-tsc --noEmit`
+- [x] 预期：无类型错误
+
+### Task 5: 手动测试
+- [x] 在浏览器中测试 Ctrl+Shift+S / Cmd+Shift+S 聚焦搜索输入框
+- [x] 验证 Ctrl+Shift+N 仍然可以创建新会话
+
+### Task 6: 提交
+- [x] `git add frontend/src/views/ChatsView.vue`
+- [x] `git commit -m "feat(chats): add Ctrl+Shift+S shortcut to focus search input"`

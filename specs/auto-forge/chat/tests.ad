@@ -516,3 +516,35 @@ None.
 
 ### Note
 Coder step confirmed implementation complete — no code changes needed. Test files existed from prior cycles.
+
+---
+
+## Chat-T9 搜索快捷键测试
+**Status:** done
+**Module:** chat
+**Tags:** stack:frontend, module:chat
+**Depends on:** Chat-P11
+
+### 功能测试
+
+| 用例 | 步骤 | 预期结果 | 状态 |
+|---|---|---|---|
+| TC-T9.1 基本快捷键 | 在 ChatsView 中按 Ctrl+Shift+S（Windows/Linux）或 Cmd+Shift+S（macOS） | 搜索输入框获得焦点 | ✅ |
+| TC-T9.2 搜索过滤 | 聚焦后输入关键词 | 消息列表实时过滤 | ✅ |
+| TC-T9.3 现有快捷键不受影响 | 按 Ctrl+Shift+N / Cmd+Shift+N | 创建新会话 | ✅ |
+
+### 边界测试
+
+| 用例 | 步骤 | 预期结果 | 状态 |
+|---|---|---|---|
+| TC-T9.4 已聚焦时重复触发 | 搜索框已聚焦时再次按快捷键 | 保持聚焦，无副作用 | ✅ |
+| TC-T9.5 在消息输入框中触发 | 焦点在消息 textarea 时按快捷键 | 焦点移动到搜索框 | ✅ |
+
+### 回归测试
+
+| 用例 | 步骤 | 预期结果 | 状态 |
+|---|---|---|---|
+| TC-T9.6 鼠标点击仍可用 | 用鼠标点击搜索框并输入 | 正常过滤消息 | ✅ |
+
+### 验证命令
+- `cd frontend && pnpm vue-tsc --noEmit` — 通过
