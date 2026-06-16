@@ -162,7 +162,7 @@ git commit -m "feat: ..."
 ```
 
 ### Plan rules
-- Exact file paths always.
+- Exact file paths always. Paths MUST be relative to the project root (`/mnt/d/autostack/auto-forge`). Backend files use `backend/src/...`, frontend files use `frontend/src/...`.
 - Complete code in every step; no placeholders, no "TBD", no "implement later".
 - Each step is one action.
 - Write the plan so an enthusiastic junior engineer with no project context can follow it.

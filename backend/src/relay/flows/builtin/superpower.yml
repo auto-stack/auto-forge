@@ -50,22 +50,29 @@ steps:
     exit: next
 
   # Step 3: Review — run tests, verify spec compliance and code quality.
-  # If anything fails, loop back to execute-plan.
+  # If the reviewer marks the implementation as INCOMPLETE, loop back to execute-plan.
   - id: review
     profession_id: super-tester
     gate: auto
     validators:
-      - type: any
+      - type: all
         content:
-          - type: spec_updates_non_empty
+          # The reviewer must not declare the implementation incomplete.
+          - type: decisions_not_contain
             content:
-              sections:
-                - reviews
-          - type: work_product_has_extensions
+              pattern: "INCOMPLETE"
+          # The review must produce either spec updates or a written report.
+          - type: any
             content:
-              exts:
-                - .md
-                - .ad
+              - type: spec_updates_non_empty
+                content:
+                  sections:
+                    - reviews
+              - type: work_product_has_extensions
+                content:
+                  exts:
+                    - .md
+                    - .ad
     tool_guard:
       required_first:
         - read_file

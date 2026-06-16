@@ -189,6 +189,8 @@ pub enum StepValidator {
     WorkProductHasExtensions { exts: Vec<String> },
     /// Must have non-empty decisions.
     DecisionsNonEmpty,
+    /// Must not have any decision containing the given pattern (case-insensitive).
+    DecisionsNotContain { pattern: String },
     /// Must have non-empty open_questions.
     OpenQuestionsNonEmpty,
     /// Custom check: spec_updates contain items with IDs following a sequential pattern.
@@ -229,6 +231,18 @@ impl StepValidator {
             StepValidator::DecisionsNonEmpty => {
                 if handoff.decisions.is_empty() {
                     return Some("Step must produce at least one decision. Document your design choices in the handoff.".into());
+                }
+                None
+            }
+            StepValidator::DecisionsNotContain { pattern } => {
+                let lower = pattern.to_lowercase();
+                for d in &handoff.decisions {
+                    if d.title.to_lowercase().contains(&lower) {
+                        return Some(format!(
+                            "Review marked the implementation as '{}'. The previous step must be re-run to fix the issues.",
+                            pattern
+                        ));
+                    }
                 }
                 None
             }

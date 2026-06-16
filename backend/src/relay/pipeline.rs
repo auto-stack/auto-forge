@@ -380,67 +380,82 @@ impl PipelineEngine {
 
         // ─── Auto-validation: check step produced valid output ─────────────────
         if let Some(fail_reason) = self.validate_step(&step_id, &handoff) {
-            // Coder gets 2 self-retries (3 total attempts), then escalation to design
-            // Other professions get 3 self-retries (4 total attempts), then hard stop
-            let max_retries = if step_id == "code" { 2 } else { 3 };
+            // If the flow explicitly routes on validation failure, skip auto-retry
+            // and let the exit routing condition decide the next step.
+            let routes_on_validator_failure = matches!(
+                &self.flow.steps[self.current_step].exit,
+                crate::relay::flow::ExitRouting::Condition { condition, .. }
+                    if matches!(condition, crate::relay::flow::RoutingCondition::ValidatorFailed)
+            );
 
-            let retry_count = {
-                let count = self.loop_counters.entry(step_id.clone()).or_insert(0);
-                *count += 1;
-                *count
-            };
-
-            if step_id == "code" && retry_count == max_retries {
-                // Coder escalation: route back to design for re-architecture
-                self.gate_feedback
-                    .entry("design".to_string())
-                    .or_default()
-                    .push(format!(
-                        "[ESCALATION FROM CODER] Code failed to compile after 3 attempts: {}\n\n\
-                         The implementation cannot be built. Please revisit the design/architecture \
-                         to ensure it is feasible.",
-                        fail_reason
-                    ));
-                tracing::warn!(
-                    "Coder failed auto-validation after 3 attempts. Escalating to design: {}",
-                    fail_reason
+            if routes_on_validator_failure {
+                tracing::info!(
+                    "Step '{}' failed auto-validation ('{}') but flow routes on failure; proceeding to exit routing",
+                    step_id, fail_reason
                 );
-                // Reset code retry counter so future coder steps can retry again
-                self.loop_counters.remove("code");
-                // Route to design step
-                if let Some(design_idx) = self.flow.step_for_profession("architect") {
-                    self.current_step = design_idx;
-                    return self.advance();
-                }
-            }
-
-            if retry_count <= max_retries {
-                // Auto-retry: feed error back as gate feedback and re-run same step
-                self.gate_feedback
-                    .entry(step_id.clone())
-                    .or_default()
-                    .push(format!(
-                        "[AUTO-VALIDATION FAILED] {}\n\nPlease fix this issue before proceeding. This is attempt {}/{}.",
-                        fail_reason, retry_count, max_retries
-                    ));
-                tracing::warn!(
-                    "Step '{}' failed auto-validation (attempt {}/{}). Retrying with feedback: {}",
-                    step_id, retry_count, max_retries, fail_reason
-                );
-                return AdvanceResult::ExecuteStep {
-                    step_id: step_id.clone(),
-                    profession_id: profession_id.clone(),
-                    agent_config_id: None,
-                };
             } else {
-                // Max retries exceeded — hard stop
-                let error = format!(
-                    "Step '{}' failed auto-validation after {} retries: {}",
-                    step_id, max_retries, fail_reason
-                );
-                tracing::error!("{}", error);
-                self.status = PipelineStatus::Failed { error: error.clone() };
-                return AdvanceResult::Failed { error };
+                // Coder gets 2 self-retries (3 total attempts), then escalation to design
+                // Other professions get 3 self-retries (4 total attempts), then hard stop
+                let max_retries = if step_id == "code" { 2 } else { 3 };
+
+                let retry_count = {
+                    let count = self.loop_counters.entry(step_id.clone()).or_insert(0);
+                    *count += 1;
+                    *count
+                };
+
+                if step_id == "code" && retry_count == max_retries {
+                    // Coder escalation: route back to design for re-architecture
+                    self.gate_feedback
+                        .entry("design".to_string())
+                        .or_default()
+                        .push(format!(
+                            "[ESCALATION FROM CODER] Code failed to compile after 3 attempts: {}\n\n\
+                             The implementation cannot be built. Please revisit the design/architecture \
+                             to ensure it is feasible.",
+                            fail_reason
+                        ));
+                    tracing::warn!(
+                        "Coder failed auto-validation after 3 attempts. Escalating to design: {}",
+                        fail_reason
+                    );
+                    // Reset code retry counter so future coder steps can retry again
+                    self.loop_counters.remove("code");
+                    // Route to design step
+                    if let Some(design_idx) = self.flow.step_for_profession("architect") {
+                        self.current_step = design_idx;
+                        return self.advance();
+                    }
+                }
+
+                if retry_count <= max_retries {
+                    // Auto-retry: feed error back as gate feedback and re-run same step
+                    self.gate_feedback
+                        .entry(step_id.clone())
+                        .or_default()
+                        .push(format!(
+                            "[AUTO-VALIDATION FAILED] {}\n\nPlease fix this issue before proceeding. This is attempt {}/{}.",
+                            fail_reason, retry_count, max_retries
+                        ));
+                    tracing::warn!(
+                        "Step '{}' failed auto-validation (attempt {}/{}). Retrying with feedback: {}",
+                        step_id, retry_count, max_retries, fail_reason
+                    );
+                    return AdvanceResult::ExecuteStep {
+                        step_id: step_id.clone(),
+                        profession_id: profession_id.clone(),
+                        agent_config_id: None,
+                    };
+                } else {
+                    // Max retries exceeded — hard stop
+                    let error = format!(
+                        "Step '{}' failed auto-validation after {} retries: {}",
+                        step_id, max_retries, fail_reason
+                    );
+                    tracing::error!("{}", error);
+                    self.status = PipelineStatus::Failed { error: error.clone() };
+                    return AdvanceResult::Failed { error };
+                }
             }
         }
 

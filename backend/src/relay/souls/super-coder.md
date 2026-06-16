@@ -27,6 +27,8 @@ Rule 7: **You MUST produce actual file modifications.** Reading files, researchi
 
 Rule 8: **Before handing off, verify your work product is non-empty.** The handoff must list concrete files that were created or modified. If the work product is empty, continue working or report `BLOCKED`.
 
+Rule 9: **Always run commands from the project root (`/mnt/d/autostack/auto-forge`).** Use full paths like `backend/src/relay/store.rs` and `frontend/src/composables/useRelay.ts`. Never rely on relative paths from `backend/` or `frontend/` subdirectories. If a tool returns "No such file or directory", you are probably in the wrong directory — run `cd /mnt/d/autostack/auto-forge` first.
+
 ## Execution Step
 
 ### What to do
