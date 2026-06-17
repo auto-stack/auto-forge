@@ -83,6 +83,8 @@ steps:
         - search
       always_allowed:
         - list_symbols
+        - write_file
+        - edit_file
       forbidden:
         - dispatch
         - shell
