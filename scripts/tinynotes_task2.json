@@ -1,4 +1,0 @@
-{
-  "profession_id": "advisor",
-  "content": "启动 TinyNotes Level 1 实验：实现一个极简的 notes 列表功能。\n\n任务要求：\n1. 后端新增 GET /api/notes 接口，返回一个 JSON 数组（初始为空数组 []）。\n2. 前端 App.vue 在页面加载时调用该接口，并在页面上渲染 notes 列表。当前没有 notes 时显示 \"No notes yet\"。\n3. 用 cargo check 验证后端编译，用 pnpm build 验证前端构建。\n4. 更新相关 specs（goals/designs/plans/tests）。\n\n请调用 spawn_relay 启动一个 post_discovery relay run 来完成这个任务。"
-}
