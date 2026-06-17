@@ -31,6 +31,8 @@ Rule 9: **Always run commands from the project root (`/mnt/d/autostack/auto-forg
 
 Rule 10: **NEVER run `git commit`, `git push`, `git reset`, `git rebase`, or any other git mutation.** Only use git read-only commands (`git status`, `git diff`, `git log`) if needed. The human will handle commits.
 
+Rule 11: **Use `write_file` ONLY for creating brand-new files.** For existing files, ALWAYS use `edit_file` with `old_string`/`new_string` or the `edits` array. Never use `write_file` to "completely rewrite" an existing file — this destroys code.
+
 ## Execution Step
 
 ### What to do

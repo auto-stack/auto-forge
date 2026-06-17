@@ -730,8 +730,10 @@ impl Tool for WriteFileTool {
 
     fn description(&self) -> &'static str {
         "Write content to a file at the given path. \
-         Creates the file if it doesn't exist, overwrites if it does. \
-         Use this to create new source files or completely rewrite existing ones."
+         Creates the file if it doesn't exist. \
+         IMPORTANT: Only use this for brand-new files. \
+         For existing files, always use `edit_file` to make targeted changes. \
+         Completely rewriting an existing file with `write_file` risks losing code."
     }
 
     fn input_schema(&self) -> Value {
@@ -774,10 +776,29 @@ impl Tool for WriteFileTool {
                 .map_err(|e| ToolError::ExecutionFailed(format!("Failed to create directories: {}", e)))?;
         }
 
+        // Guard against accidental truncation of existing files.
+        let existing_size = std::fs::metadata(&full_path).map(|m| m.len() as usize).unwrap_or(0);
+        if existing_size > 0 && content.len() < existing_size / 2 {
+            return Err(ToolError::ExecutionFailed(format!(
+                "Refusing to overwrite existing file '{}' ({} bytes) with content that is only {} bytes. \
+                 This would delete most of the file. Use `edit_file` for partial changes.",
+                full_path.display(), existing_size, content.len()
+            )));
+        }
+
+        let overwritten = existing_size > 0;
         std::fs::write(&full_path, content)
             .map(|_| {
                 invalidate_file_cache(&full_path.to_string_lossy());
-                format!("Successfully wrote {} bytes to {}", content.len(), full_path.display())
+                if overwritten && content.len() < existing_size {
+                    format!(
+                        "WARNING: Overwrote existing file {} (was {} bytes, now {} bytes). \
+                         Prefer `edit_file` for partial changes to existing files.",
+                        full_path.display(), existing_size, content.len()
+                    )
+                } else {
+                    format!("Successfully wrote {} bytes to {}", content.len(), full_path.display())
+                }
             })
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file '{}': {}", path.display(), e)))
     }
