@@ -49,8 +49,6 @@ steps:
       required_first:
         - write_specs
         - update_spec
-        - write_file
-        - edit_file
       always_allowed:
         - list_specs
         - read_specs
@@ -58,6 +56,8 @@ steps:
       forbidden:
         - bring_in
         - shell
+        - write_file
+        - edit_file
         - dispatch
     exit: next
 
