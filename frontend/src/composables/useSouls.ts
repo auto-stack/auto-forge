@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { authFetch } from './useAuth'
 
 export interface SoulDto {
   id: string
@@ -12,7 +13,7 @@ const _soulMap = ref<Record<string, SoulDto>>({})
 export function useSouls() {
   async function loadSouls() {
     try {
-      const resp = await fetch('/api/forge/relay/souls')
+      const resp = await authFetch('/api/forge/relay/souls')
       if (!resp.ok) return
       const data = await resp.json()
       _souls.value = data.souls ?? []

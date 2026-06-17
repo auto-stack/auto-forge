@@ -110,6 +110,7 @@ import { useI18n } from 'vue-i18n'
 import { Flame, FolderOpen, Folder } from 'lucide-vue-next'
 import { useProject } from '@/composables/useProject'
 import { useForge } from '@/composables/useForge'
+import { authFetch } from '@/composables/useAuth'
 
 const { t } = useI18n()
 const { openProject, isLoading, error, projectInfo, recentProjects, fetchRecentProjects, browseDirectory } = useProject()
@@ -137,7 +138,7 @@ async function handleOpen() {
 
 async function handleBrowse() {
   try {
-    const resp = await fetch('/api/forge/project/pick-folder')
+    const resp = await authFetch('/api/forge/project/pick-folder')
     if (!resp.ok) return
     const path: string | null = await resp.json()
     if (path) {

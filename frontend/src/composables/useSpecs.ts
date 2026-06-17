@@ -53,7 +53,7 @@ export function useSpecs() {
 
   async function saveSection(project: string, section: SpecsSection) {
     try {
-      const resp = await fetch(
+      const resp = await authFetch(
         `${API_BASE}/${encodeURIComponent(project)}/${encodeURIComponent(section.id)}`,
         {
           method: 'PUT',

@@ -19,7 +19,7 @@ export function useItemRelations(project: string) {
   async function loadRelations(itemId: string) {
     loading.value = true
     try {
-      const resp = await fetch(
+      const resp = await authFetch(
         `${API_BASE}/${encodeURIComponent(project)}/related/${encodeURIComponent(itemId)}`
       )
       if (!resp.ok) throw new Error(`Failed to load relations: ${resp.status}`)

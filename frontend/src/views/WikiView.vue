@@ -218,6 +218,7 @@ import {
 } from 'lucide-vue-next'
 import { useWiki } from '@/composables/useWiki'
 import { useProject } from '@/composables/useProject'
+import { authFetch } from '@/composables/useAuth'
 import MarkdownContent from '@/components/MarkdownContent.vue'
 import AutoDownEditor from '@/components/editors/autodown/core/AutoDownEditor.vue'
 import TreeView from '@/components/TreeView.vue'
@@ -366,7 +367,7 @@ async function selectRawNode(payload: { path: string; type: string }) {
   activeWikiPath.value = ''
   activeRawFile.value = payload.path
   if (isText(payload.path)) {
-    const resp = await fetch(rawFileUrl(project.value, payload.path))
+    const resp = await authFetch(rawFileUrl(project.value, payload.path))
     rawTextContent.value = await resp.text()
   }
   viewState.value = 'viewing-raw'

@@ -162,7 +162,7 @@ function isText(path: string): boolean {
 async function loadTree() {
   treeLoading.value = true
   try {
-    const resp = await fetch('/api/forge/project/tree')
+    const resp = await authFetch('/api/forge/project/tree')
     if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
     tree.value = await resp.json()
   } catch (e) {
