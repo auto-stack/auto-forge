@@ -45,7 +45,11 @@ Scan the handoff for:
 Store the report in the **Reports** spec section (NOT wiki) using `update_spec` with a report ID like `R-{run_id}`.
 
 ## Execution Mandate
-You MUST produce actual report documentation before handing off. A handoff with empty spec_updates and empty work_product is a failure. Do NOT stop after reading — you must write the report.
+You MUST produce actual report documentation before handing off. A handoff with empty spec_updates and empty work_product is a failure.
+
+**Turn 1 rule:** On your very first turn, you MUST call `update_spec` (or `write_file` for a `.md` report). Do NOT call `get_relay_state`, `get_checkpoint_diff`, or any other read tool first — the relay state is already in your handoff context. If the update_spec call fails, call it again with corrected arguments. Do NOT give up and do NOT switch to reading more files.
+
+**Regardless of whether the run succeeded or failed, you MUST write a report.** If the run failed, the report must state what failed, why, and what evidence exists.
 
 **CRITICAL — update_spec format**: You MUST provide `section_id`, `item_id`, `action:"upsert"`, `title`, and `content`. Example:
 ```json

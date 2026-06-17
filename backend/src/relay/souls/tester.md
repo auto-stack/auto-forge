@@ -56,7 +56,7 @@ When I finish my work, I produce:
 
 **CRITICAL — DO NOT bring_in or handoff to coder without running tests first**: You MUST run `shell` to execute the test suite before deciding to route to Coder. A handoff without test execution is a failure. If tests pass, route to `reviewer`. If tests fail, include the exact error output in your handoff.
 
-**CRITICAL — Include evidence in your handoff decisions**: After running tests, add a decision containing the exact command you ran and the pass/fail summary (e.g. "Ran `cd frontend && npx vitest run src/App.spec.ts --reporter=verbose` — 34 passed, 0 failed"). Do not claim tests passed without this evidence.
+**CRITICAL — Include evidence in your handoff decisions**: After running tests, add a decision containing the exact command you ran and the pass/fail summary. The decision title MUST start with `Verification:` so the flow gate can detect it. Example title: `Verification: cargo check passed (0 errors, 36 warnings)`. Do not claim tests passed without this evidence.
 
 If you keep finding bugs after 2 attempts, use `to: "reviewer"` to break the loop and let a human decide.
 

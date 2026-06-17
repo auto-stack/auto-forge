@@ -103,18 +103,23 @@ steps:
     profession_id: tester
     gate: auto
     validators:
-      - type: any
+      - type: all
         content:
-          - type: spec_updates_non_empty
+          - type: decisions_contain
             content:
-              sections:
-                - tests
-          - type: work_product_has_extensions
+              pattern: "Verification:"
+          - type: any
             content:
-              exts:
-                - .rs
-                - .ts
-                - .vue
+              - type: spec_updates_non_empty
+                content:
+                  sections:
+                    - tests
+              - type: work_product_has_extensions
+                content:
+                  exts:
+                    - .rs
+                    - .ts
+                    - .vue
     exit: !branch
       on: to
       arms:
@@ -170,4 +175,15 @@ steps:
               exts:
                 - .md
                 - .ad
+    tool_guard:
+      always_allowed:
+        - write_specs
+        - update_spec
+        - write_file
+        - edit_file
+        - read_specs
+        - list_specs
+      forbidden:
+        - get_relay_state
+        - get_checkpoint_diff
     exit: next
