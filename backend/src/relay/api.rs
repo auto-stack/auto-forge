@@ -51,13 +51,29 @@ pub fn event_sender() -> broadcast::Sender<RunEventBroadcast> {
 
 /// On startup, respawn background drivers for any runs that were in Running
 /// state when the backend was last shut down.
+/// Runs that have been idle for more than 30 minutes are considered stale and
+/// are not resumed, to avoid resurrecting crashed or looping runs with huge
+/// accumulated context.
 pub fn resume_running_runs(ai_provider: crate::provider::AIProviderState) {
     let project_path = crate::forge::current_project_path().unwrap_or_default();
     let mut runs_to_resume: Vec<(String, String)> = Vec::new();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let stale_threshold_secs = 30 * 60;
     {
         let map = RUN_STORE.lock().unwrap();
         for (run_id, entry) in map.iter() {
             if let crate::relay::pipeline::PipelineStatus::Running { ref step_id, ref profession_id, .. } = entry.engine.status {
+                if now.saturating_sub(entry.updated_at) > stale_threshold_secs {
+                    tracing::warn!(
+                        "Skipping stale run {} (last update {}s ago). It will remain paused.",
+                        run_id,
+                        now.saturating_sub(entry.updated_at)
+                    );
+                    continue;
+                }
                 let initial_task = entry.metadata.initial_task.clone().unwrap_or_default();
                 let task = if initial_task.is_empty() {
                     format!("Resuming step {} ({})", step_id, profession_id)
