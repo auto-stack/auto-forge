@@ -117,17 +117,12 @@ impl std::fmt::Display for ConfigError {
 /// Validate that an API source has at least one model for every tier.
 /// Returns the list of missing tier display names if validation fails.
 pub fn validate_source_tiers(source: &ApiSource) -> Result<(), Vec<String>> {
-    let all_tiers = [ModelTier::Min, ModelTier::Lite, ModelTier::Mid, ModelTier::Pro, ModelTier::Max];
-    let present: std::collections::HashSet<ModelTier> = source.models.iter().map(|m| m.tier).collect();
-    let missing: Vec<String> = all_tiers.iter()
-        .filter(|t| !present.contains(t))
-        .map(|t| t.display_name().to_string())
-        .collect();
-    if missing.is_empty() {
-        Ok(())
-    } else {
-        Err(missing)
+    if source.models.is_empty() {
+        return Err(vec!["At least one model is required".to_string()]);
     }
+    // Require at least one model; missing tiers are handled by fallback logic
+    // in assign_model_ids, which picks the highest available tier.
+    Ok(())
 }
 
 impl std::error::Error for ConfigError {}
