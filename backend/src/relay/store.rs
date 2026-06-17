@@ -434,15 +434,14 @@ fn normalize_project_path(path: &str) -> String {
 /// List runs, optionally filtered by project path.
 ///
 /// If `project_path` is provided, returns runs that belong to that project.
-/// Runs with no project_path (legacy runs) are included as a fallback so
-/// existing data remains visible.
+/// Legacy runs with no project_path are only included when no project filter is given.
 pub fn list_runs(store: &RunStore, project_path: Option<String>) -> Vec<RunSummary> {
     let map = store.lock().unwrap();
     map.values()
         .filter(|e| match &project_path {
             Some(p) => {
                 let run_path = e.metadata.project_path.as_deref().unwrap_or("");
-                run_path.is_empty() || normalize_project_path(run_path) == normalize_project_path(p)
+                !run_path.is_empty() && normalize_project_path(run_path) == normalize_project_path(p)
             }
             None => true,
         })

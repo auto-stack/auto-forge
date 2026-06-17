@@ -528,6 +528,21 @@ impl SessionStore {
         }
         self.project_locks.clear();
     }
+
+    pub fn remove_by_project(&mut self, project_path: &str) -> usize {
+        let target = normalize_project_path(project_path);
+        let to_remove: Vec<String> = self
+            .sessions
+            .values()
+            .filter(|s| normalize_project_path(&s.project_path) == target)
+            .map(|s| s.id.clone())
+            .collect();
+        let count = to_remove.len();
+        for sid in to_remove {
+            let _ = self.remove(&sid);
+        }
+        count
+    }
 }
 
 pub fn forge_sessions() -> &'static Mutex<SessionStore> {
@@ -2002,6 +2017,10 @@ pub fn current_project_path() -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+fn normalize_project_path(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_lowercase()
+}
+
 /// Restore the last opened project from persisted config.
 pub fn restore_last_project() {
     let config = project::load_config();
@@ -3355,23 +3374,31 @@ mod handlers {
     }
 
     pub async fn delete_all_forge_sessions() -> Json<DeleteAllSessionsResponse> {
+        let project_path = current_project_path();
         let mut store = forge_sessions().lock().unwrap();
-        let deleted_count = store.list_all().len();
-        store.clear();
+
+        // Only delete sessions for the current project; leave other projects untouched.
+        let deleted_count = if let Some(ref p) = project_path {
+            store.remove_by_project(p)
+        } else {
+            let count = store.list_all().len();
+            store.clear();
+            count
+        };
 
         // Clean up session files on disk
-        if let Some(project_path) = current_project_path() {
-            let sessions_dir = sessions_dir_for_workspace(&project_path);
+        if let Some(ref p) = project_path {
+            let sessions_dir = sessions_dir_for_workspace(p);
             let _ = delete_all_sessions(&sessions_dir);
         }
 
-        // Create a new blank session
+        // Create a new blank session bound to the current project
         let new_sid = format!("forge-{}", uuid::Uuid::new_v4());
         let now = now_secs();
         let new_session = ForgeSession {
             id: new_sid.clone(),
             notebook_sid: None,
-            project_path: String::new(),
+            project_path: project_path.clone().unwrap_or_default(),
             status: ForgeStatus::Idle,
             name: None,
             pending_spec_changes: vec![],
@@ -3403,10 +3430,15 @@ mod handlers {
     }
 
     pub async fn list_forge_sessions() -> Json<Vec<ForgeSessionSummary>> {
+        let project_filter = current_project_path();
         let store = forge_sessions().lock().unwrap();
         let mut summaries: Vec<ForgeSessionSummary> = store
             .list_all()
             .iter()
+            .filter(|s| match &project_filter {
+                Some(p) => normalize_project_path(&s.project_path) == normalize_project_path(p),
+                None => true,
+            })
             .map(|s| {
                 let preview = s
                     .messages

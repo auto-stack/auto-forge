@@ -45,6 +45,20 @@ steps:
   - id: draft-tests
     profession_id: tester
     gate: auto
+    tool_guard:
+      required_first:
+        - write_specs
+        - update_spec
+        - write_file
+        - edit_file
+      always_allowed:
+        - list_specs
+        - read_specs
+        - read_file
+      forbidden:
+        - bring_in
+        - shell
+        - dispatch
     exit: next
 
   - id: code
@@ -72,6 +86,7 @@ steps:
       forbidden:
         - dispatch
         - shell
+        - bring_in
     exit: next
 
   - id: run-tests
@@ -95,6 +110,19 @@ steps:
                     - .rs
                     - .ts
                     - .vue
+    tool_guard:
+      always_allowed:
+        - list_specs
+        - read_specs
+        - read_file
+        - write_file
+        - edit_file
+        - write_specs
+        - update_spec
+        - shell
+      forbidden:
+        - bring_in
+        - dispatch
     exit: !condition
       condition:
         type: validator_failed
