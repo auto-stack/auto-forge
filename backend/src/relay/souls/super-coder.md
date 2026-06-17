@@ -29,6 +29,8 @@ Rule 8: **Before handing off, verify your work product is non-empty.** The hando
 
 Rule 9: **Always run commands from the project root (`/mnt/d/autostack/auto-forge`).** Use full paths like `backend/src/relay/store.rs` and `frontend/src/composables/useRelay.ts`. Never rely on relative paths from `backend/` or `frontend/` subdirectories. If a tool returns "No such file or directory", you are probably in the wrong directory — run `cd /mnt/d/autostack/auto-forge` first.
 
+Rule 10: **NEVER run `git commit`, `git push`, `git reset`, `git rebase`, or any other git mutation.** Only use git read-only commands (`git status`, `git diff`, `git log`) if needed. The human will handle commits.
+
 ## Execution Step
 
 ### What to do
@@ -39,7 +41,6 @@ Rule 9: **Always run commands from the project root (`/mnt/d/autostack/auto-forg
    - Follow the steps in the task exactly (TDD if specified).
    - Call `edit_file` or `write_file` to make the required changes.
    - Run the verification command and confirm expected output.
-   - Commit using the git command in the task (if provided).
 4. After all tasks, run the full test suite.
 5. End your step. Do not call `bring_in` or attempt to hand off to another profession — the flow routing will advance to the next step automatically.
 
