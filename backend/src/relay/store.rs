@@ -5,7 +5,7 @@
 
 use crate::relay::flow::FlowSpec;
 use crate::relay::flows::get_flow;
-use crate::relay::handoff::{HandoffDocument, ReportReference};
+use crate::relay::handoff::{Decision, HandoffDocument, ReportReference};
 use crate::relay::pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, StepRecord};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -63,6 +63,91 @@ fn trim_events_for_storage(events: &[RunEvent]) -> Vec<RunEvent> {
             _ => e.clone(),
         })
         .collect()
+}
+
+/// Heuristic: is this shell command a verification/test command?
+fn is_verification_command(command: &str) -> bool {
+    let lower = command.to_lowercase();
+    let markers = [
+        "cargo check", "cargo test", "cargo build", "cargo clippy",
+        "pnpm build", "pnpm test", "npm test", "npm run test", "npm run build",
+        "npx vitest", "vitest", "pytest", "python -m pytest",
+        "go test", "make test", "mvn test",
+    ];
+    markers.iter().any(|m| lower.contains(m))
+}
+
+/// Heuristic: does a shell tool result indicate success?
+fn shell_result_success(result: &str) -> bool {
+    let lower = result.to_lowercase();
+    !lower.contains("command exited with code")
+        && !lower.contains("command timed out")
+        && !lower.contains("timed out after")
+        && !lower.contains("failed")
+        && !lower.contains("error:")
+}
+
+/// If the Tester just finished `run-tests` without an explicit
+/// `Verification:` decision, synthesize one from successful shell
+/// verification commands. This prevents the pipeline from looping back
+/// to `code` just because the model forgot to emit a decision title.
+fn maybe_synthesize_run_tests_decision(
+    entry: &RunEntry,
+    handoff: &mut HandoffDocument,
+    step_id: &str,
+) {
+    if step_id != "run-tests" {
+        return;
+    }
+    let has_verification = handoff.decisions.iter().any(|d| {
+        d.title.to_lowercase().contains("verification")
+    });
+    if has_verification {
+        return;
+    }
+
+    let Some(start_idx) = entry.events.iter().rposition(|e| {
+        matches!(e, RunEvent::StepStarted { step_id: s, .. } if s == step_id)
+    }) else {
+        return;
+    };
+    let step_events = &entry.events[start_idx..];
+
+    // Collect shell commands issued during this step.
+    let mut shell_commands: HashMap<String, String> = HashMap::new();
+    for e in step_events {
+        if let RunEvent::TurnToolCall { tool_id, tool_name, arguments, .. } = e {
+            if tool_name == "shell" {
+                if let Some(cmd) = arguments.get("command").and_then(|v| v.as_str()) {
+                    shell_commands.insert(tool_id.clone(), cmd.to_string());
+                }
+            }
+        }
+    }
+
+    let mut passed: Vec<String> = Vec::new();
+    for e in step_events {
+        if let RunEvent::TurnToolResult { tool_id, result, .. } = e {
+            if let Some(cmd) = shell_commands.get(tool_id) {
+                if is_verification_command(cmd) && shell_result_success(result) {
+                    passed.push(cmd.clone());
+                }
+            }
+        }
+    }
+
+    if !passed.is_empty() {
+        let summary = passed.iter().take(3).cloned().collect::<Vec<_>>().join("; ");
+        handoff.decisions.push(Decision {
+            id: format!("verify-{}", uuid::Uuid::new_v4()),
+            title: "Verification: passed".to_string(),
+            status: "made".to_string(),
+            rationale: format!(
+                "Auto-detected successful verification commands: {}",
+                summary
+            ),
+        });
+    }
 }
 
 /// Shared in-memory store for all relay runs.
@@ -574,13 +659,18 @@ pub fn rerun_run(store: &RunStore, run_id: &str) -> Option<AdvanceResult> {
 }
 
 /// Submit a handoff for the current step.
-pub fn submit_handoff(store: &RunStore, run_id: &str, handoff: HandoffDocument) -> Option<AdvanceResult> {
+pub fn submit_handoff(store: &RunStore, run_id: &str, mut handoff: HandoffDocument) -> Option<AdvanceResult> {
     let mut map = store.lock().unwrap();
     let entry = map.get_mut(run_id)?;
     // Capture the just-completed step ID before the engine advances
     let completed_step_id = entry.engine.flow.steps.get(entry.engine.current_step)
         .map(|s| s.id.clone())
         .unwrap_or_default();
+
+    // Synthesize a Verification decision for run-tests when the model
+    // ran successful verification shells but forgot to emit a decision.
+    maybe_synthesize_run_tests_decision(entry, &mut handoff, &completed_step_id);
+
     let result = entry.engine.submit_handoff(handoff.clone());
     entry.updated_at = now_secs();
 
