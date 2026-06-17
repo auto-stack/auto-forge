@@ -10,6 +10,8 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::time::SystemTime;
 
+use dirs;
+
 // ─── Tool Context (injected by forge_stream handler) ─────────────────────────
 
 static CURRENT_PROJECT: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
@@ -1448,6 +1450,41 @@ impl Tool for ShellTool {
         let mut command = std::process::Command::new(shell);
         if !project.is_empty() {
             command.current_dir(&project);
+        }
+
+        // ─── Ensure common developer tools are on PATH ─────────────────────────
+        // Agent shells are often spawned without the user's full environment.
+        // Append well-known directories for cargo, pnpm, and node so that
+        // verification commands like `cargo check` or `pnpm build` actually run.
+        {
+            let mut extra_paths: Vec<PathBuf> = Vec::new();
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(home) = dirs::home_dir() {
+                    extra_paths.push(home.join(".cargo").join("bin"));
+                    extra_paths.push(home.join("AppData").join("Local").join("pnpm"));
+                }
+                extra_paths.push(PathBuf::from(r"C:\Program Files\nodejs"));
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                if let Some(home) = dirs::home_dir() {
+                    extra_paths.push(home.join(".cargo").join("bin"));
+                    extra_paths.push(home.join(".local").join("bin"));
+                }
+                extra_paths.push(PathBuf::from("/usr/local/bin"));
+            }
+
+            let current_path = std::env::var_os("PATH").unwrap_or_default();
+            let mut paths: Vec<PathBuf> = std::env::split_paths(&current_path).collect();
+            for p in extra_paths {
+                if !paths.contains(&p) {
+                    paths.push(p);
+                }
+            }
+            if let Ok(new_path) = std::env::join_paths(&paths) {
+                command.env("PATH", new_path);
+            }
         }
 
         // ─── Pre-clean leaked vitest workers (Windows) ─────────────────────────

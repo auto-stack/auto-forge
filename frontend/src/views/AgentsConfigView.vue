@@ -29,7 +29,7 @@
         <div class="card-name">{{ agent.name }}</div>
         <div class="card-badges">
           <span class="badge profession-badge">{{ agent.profession_id }}</span>
-          <span class="badge tier-badge" :class="agent.model_tier">{{ getModelDisplayName(agent) }}</span>
+          <span class="badge tier-badge" :class="boundModelFor(agent)?.tier || agent.model_tier">{{ getModelDisplayName(agent) }}</span>
           <span v-if="agent.is_default" class="badge default-badge">{{ t('common.default') }}</span>
         </div>
         <div v-if="agent.equipped_skills?.length" class="card-skills">
@@ -124,14 +124,14 @@
                   @click="modelDropdownOpen = !modelDropdownOpen"
                 >
                   <span class="model-dropdown-name">
-                    {{ availableModels.find(m => m.id === editing?.model_id)?.name || editing?.model_id || '' }}
+                    {{ getModelDisplayName(editing!) }}
                   </span>
                   <span
                     v-if="editing?.model_id"
                     class="model-tier-tag"
-                    :class="availableModels.find(m => m.id === editing?.model_id)?.tier || editing?.model_tier || ''"
+                    :class="boundModelFor(editing)?.tier || editing?.model_tier || ''"
                   >
-                    {{ tierLabel(availableModels.find(m => m.id === editing?.model_id)?.tier || editing?.model_tier || '') }}
+                    {{ tierLabel(boundModelFor(editing)?.tier || editing?.model_tier || '') }}
                   </span>
                   <ChevronDown :size="14" class="model-dropdown-arrow" :class="{ open: modelDropdownOpen }" />
                 </div>
@@ -147,6 +147,12 @@
                     <span class="model-tier-tag" :class="m.tier">{{ tierLabel(m.tier) }}</span>
                   </div>
                 </div>
+              </div>
+              <div
+                v-if="editing?.model_id && !availableModels.some(m => m.id === editing?.model_id)"
+                class="model-outside-range-hint"
+              >
+                {{ t('agents.modelOutsideProfessionRange') }}
               </div>
             </div>
           </div>
@@ -293,9 +299,13 @@ const availableModels = computed(() => {
   })
 })
 
+function boundModelFor(agent: AgentConfigDto | null): ModelDefinition | undefined {
+  if (!agent) return undefined
+  return getModelsForSource(agent.api_source_id).find(m => m.id === agent.model_id)
+}
+
 function getModelDisplayName(agent: AgentConfigDto): string {
-  const models = getModelsForSource(agent.api_source_id)
-  const model = models.find(m => m.id === agent.model_id)
+  const model = boundModelFor(agent)
   return model ? `${model.name} (${tierLabel(model.tier)})` : (agent.model_id || tierLabel(agent.model_tier))
 }
 
@@ -392,8 +402,10 @@ function getSoulPreview(soulId: string): string {
 }
 
 function startEdit(agent: AgentConfigDto) {
+  const model = boundModelFor(agent)
   editing.value = {
     ...agent,
+    model_tier: model?.tier ?? agent.model_tier,
     thinking_enabled: agent.thinking_enabled ?? false,
     thinking_budget: agent.thinking_budget ?? 2048,
   }
@@ -786,6 +798,13 @@ function toggleSkill(skillId: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.model-outside-range-hint {
+  font-size: 0.78rem;
+  color: hsl(var(--af-warning));
+  margin-top: 0.35rem;
+  line-height: 1.3;
 }
 
 .skills-selector {

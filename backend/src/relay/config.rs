@@ -556,7 +556,7 @@ pub fn assign_model_ids(configs: &mut [AgentConfig], api_sources: &[ApiSource]) 
             config.model_id = source
                 .and_then(|s| {
                     s.models.iter().find(|m| m.tier == config.model_tier)
-                        .or_else(|| s.models.first())
+                        .or_else(|| s.models.iter().max_by_key(|m| m.tier.order()))
                 })
                 .map(|m| m.id.clone())
                 .unwrap_or_default();

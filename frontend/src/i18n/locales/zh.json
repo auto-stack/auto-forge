@@ -220,6 +220,7 @@
     "soul": "灵魂",
     "apiSource": "API 来源",
     "model": "模型",
+    "modelOutsideProfessionRange": "当前模型不在该角色允许的层级范围内。选择上方列表中的模型以切换，或保留原配置。",
     "modelTier": "模型层级",
     "equippedSkills": "装备技能",
     "temperature": "温度 ({value})",

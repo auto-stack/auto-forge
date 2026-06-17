@@ -160,6 +160,25 @@ pub fn generate_default_skills() -> Vec<SkillDefinition> {
             extra_turns: 0,
             extra_token_budget: 0,
         },
+        SkillDefinition {
+            id: "executing_plans".into(),
+            name: "Executing Plans".into(),
+            description: "Follow a written plan step by step and verify each task before handing off.".into(),
+            granted_tools: vec![],
+            prompt_fragment: "## Plan Execution Discipline\n\n\
+                You are executing a pre-written plan. The plan is the single source of truth for what must be done.\n\n\
+                1. Read the plan file at the start of your turn.\n\
+                2. Extract every concrete task/checkbox from the plan and keep a mental checklist.\n\
+                3. Execute tasks **strictly in order**. Do not skip a task because it looks optional.\n\
+                4. After each task, run the verification command specified in the plan (e.g., `cargo check`, `pnpm vue-tsc --noEmit`).\n\
+                5. If a verification fails, fix it before moving to the next task.\n\
+                6. If a task requires changes in multiple stacks (backend + frontend + specs + i18n), touch **all** of them.\n\
+                7. Before handing off, review your checklist: every task must be either completed or explicitly called out as blocked with a reason.\n\
+                8. In your final response include a `## Task Completion` section listing every task and its status (`DONE` / `BLOCKED`).\n\
+                9. If anything from the plan is missing or incomplete, you MUST flag it as `STATUS: INCOMPLETE` in your handoff.".into(),
+            extra_turns: 0,
+            extra_token_budget: 0,
+        },
     ]
 }
 

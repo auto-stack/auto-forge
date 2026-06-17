@@ -33,7 +33,7 @@ Rule 9: **Always run commands from the project root (`/mnt/d/autostack/auto-forg
 
 ### What to do
 1. Read the plan file from `.autoforge/plans/`.
-2. Create a TodoWrite with all tasks from the plan (internal checklist only; no tool required if unavailable).
+2. Extract every concrete task/checkbox from the plan and keep a strict mental checklist.
 3. For each task:
    - Read any existing files the task references.
    - Follow the steps in the task exactly (TDD if specified).
@@ -64,9 +64,10 @@ On Windows, NEVER use `shell` with Unix utilities (`grep`, `awk`, `sed`, `find`,
 When you finish your work, produce:
 1. **Work Product**: List of files modified with line counts.
 2. **Test Results**: Full test suite output (pass/fail counts).
-3. **Decisions Made**: Any implementation choices not covered by the plan (should be minimal).
-4. **Known Issues**: Bugs, edge cases, or incomplete work.
-5. **Compile Status**: Result of `cargo check` / `vue-tsc` / `pnpm build`.
+3. **Task Completion**: List every task from the plan with status `DONE` or `BLOCKED`.
+4. **Decisions Made**: Any implementation choices not covered by the plan (should be minimal).
+5. **Known Issues**: Bugs, edge cases, or incomplete work.
+6. **Compile Status**: Result of `cargo check` / `vue-tsc` / `pnpm build`.
 
 Then end your step. **No prose. The tool call is your final output.**
 

@@ -22,10 +22,15 @@ Only proceed to code quality after spec compliance passes.
 
 Rule 4: **If you find issues, write the review with clear fix instructions.** The flow will loop back to `execute-plan` automatically. Do not approve with open issues.
 
-Rule 6: **When issues are found, you MUST include a `## Decisions Made` section with the exact line `- STATUS: INCOMPLETE - <reason>`** in your final output. This is the signal that triggers the loop back to `execute-plan`. Example:
+Rule 6: **Your final output MUST include a `## Decisions Made` section with a `STATUS:` line.** This is the signal the flow uses to decide whether to loop back. Example:
 ```markdown
 ## Decisions Made
 - STATUS: INCOMPLETE - Task 2 API endpoint missing; Task 4 frontend composable not implemented
+```
+If everything passes, use:
+```markdown
+## Decisions Made
+- STATUS: COMPLETE - all plan tasks verified and tests pass
 ```
 
 Rule 7: **Always run commands from the project root (`/mnt/d/autostack/auto-forge`).** Use full paths like `backend/src/relay/api.rs` and `frontend/src/composables/useRelay.ts`. Never rely on relative paths from a subdirectory.

@@ -35,6 +35,8 @@ pub enum TurnEvent {
     BudgetExceeded,
     /// Token usage for a completed inner chat turn.
     Usage { input_tokens: u64, output_tokens: u64 },
+    /// Non-fatal warning about turn state.
+    Warning { message: String },
 }
 
 /// Result of a completed agent turn.
@@ -58,6 +60,8 @@ pub struct TurnResult {
     pub files_touched: Vec<(String, ToolAction)>,
     /// Spec sections updated during this turn.
     pub spec_updates: Vec<SpecUpdate>,
+    /// Whether the turn was cut short by the turn limit.
+    pub truncated: bool,
 }
 
 /// Record of a single tool invocation.
@@ -147,6 +151,7 @@ impl AgentTurn {
             open_questions: Vec::new(),
             files_touched: Vec::new(),
             spec_updates: Vec::new(),
+            truncated: false,
         };
 
         let system_prompt = self.agent.render_system_prompt();
@@ -556,6 +561,17 @@ impl AgentTurn {
             }
         }
 
+        // Detect if the turn hit the turn limit rather than finishing naturally.
+        if turn_count >= self.max_turns && !result.handoff_requested {
+            result.truncated = true;
+            let _ = tx.send(TurnEvent::Warning {
+                message: format!(
+                    "Turn limit reached ({} turns). Handoff may be incomplete.",
+                    self.max_turns
+                ),
+            });
+        }
+
         // Extract decisions and questions from text (simple heuristics)
         result.decisions = extract_section(&result.assistant_text, "Decisions Made");
         result.open_questions = extract_section(&result.assistant_text, "Open Questions");
@@ -582,12 +598,21 @@ impl AgentTurn {
             run_id,
             checkpoint_id,
         );
-        handoff.summary = format!(
-            "{} completed their work in {} turns. Produced {} tool calls.",
-            self.agent.profession.name,
-            self.agent.context.turns_taken,
-            result.tool_calls.len()
-        );
+        handoff.summary = if result.truncated {
+            format!(
+                "{} stopped after reaching the turn limit ({} turns, {} tool calls). The work may be incomplete.",
+                self.agent.profession.name,
+                self.agent.context.turns_taken,
+                result.tool_calls.len()
+            )
+        } else {
+            format!(
+                "{} completed their work in {} turns. Produced {} tool calls.",
+                self.agent.profession.name,
+                self.agent.context.turns_taken,
+                result.tool_calls.len()
+            )
+        };
         for d in &result.decisions {
             handoff.decisions.push(crate::relay::handoff::Decision {
                 id: format!("D-{}", handoff.decisions.len() + 1),

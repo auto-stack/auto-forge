@@ -207,6 +207,7 @@
     "soul": "Soul",
     "apiSource": "API Source",
     "model": "Model",
+    "modelOutsideProfessionRange": "Current model is outside this profession's allowed tier range. Select a model from the list above to switch, or keep it as-is.",
     "modelTier": "Model Tier",
     "equippedSkills": "Equipped Skills",
     "temperature": "Temperature ({value})",

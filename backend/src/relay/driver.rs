@@ -356,6 +356,27 @@ pub async fn drive_run(
                                             }
                                         }
                                     }
+                                    Some(crate::relay::turn::TurnEvent::Warning { message }) => {
+                                        flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
+                                        let _ = event_tx_fwd.send(RunEventBroadcast {
+                                            run_id: run_id_fwd.clone(),
+                                            event_type: "turn_warning".to_string(),
+                                            payload: Some(json!({
+                                                "profession_id": profession_id_fwd.clone(),
+                                                "message": message,
+                                            })),
+                                        });
+                                        if let Ok(mut map) = run_store_fwd.lock() {
+                                            if let Some(entry) = map.get_mut(&run_id_fwd) {
+                                                entry.events.push(crate::relay::store::RunEvent::TurnWarning {
+                                                    timestamp: now_secs(),
+                                                    profession_id: profession_id_fwd.clone(),
+                                                    message,
+                                                });
+                                                crate::relay::store::save_and_trim(entry);
+                                            }
+                                        }
+                                    }
                                     None => {
                                         flush_text(&mut text_buffer, &event_tx_fwd, &run_store_fwd);
                                         break;
@@ -388,6 +409,7 @@ pub async fn drive_run(
                             open_questions: Vec::new(),
                             files_touched: Vec::new(),
                             spec_updates: Vec::new(),
+                            truncated: true,
                         }
                     }
                 };

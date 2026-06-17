@@ -191,6 +191,8 @@ pub enum StepValidator {
     DecisionsNonEmpty,
     /// Must not have any decision containing the given pattern (case-insensitive).
     DecisionsNotContain { pattern: String },
+    /// Must have at least one decision containing the given pattern (case-insensitive).
+    DecisionsContain { pattern: String },
     /// Must have non-empty open_questions.
     OpenQuestionsNonEmpty,
     /// Custom check: spec_updates contain items with IDs following a sequential pattern.
@@ -243,6 +245,16 @@ impl StepValidator {
                             pattern
                         ));
                     }
+                }
+                None
+            }
+            StepValidator::DecisionsContain { pattern } => {
+                let lower = pattern.to_lowercase();
+                if !handoff.decisions.iter().any(|d| d.title.to_lowercase().contains(&lower)) {
+                    return Some(format!(
+                        "Review must include a decision containing '{}'. Add a '## Decisions Made' section with a status line such as '- STATUS: COMPLETE - ...' or '- STATUS: INCOMPLETE - ...'.",
+                        pattern
+                    ));
                 }
                 None
             }

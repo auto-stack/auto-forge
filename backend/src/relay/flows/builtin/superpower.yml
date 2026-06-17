@@ -57,6 +57,10 @@ steps:
     validators:
       - type: all
         content:
+          # The reviewer must include a status decision so the gate has a signal to act on.
+          - type: decisions_contain
+            content:
+              pattern: "STATUS:"
           # The reviewer must not declare the implementation incomplete.
           - type: decisions_not_contain
             content:
